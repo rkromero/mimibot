@@ -1,0 +1,10 @@
+# Sobreescribe la config de Nixpacks para evitar el EBUSY en node_modules/.cache
+providers = ["node"]
+
+[phases.install]
+cmds = ["npm ci --cache /tmp/npm-cache"]
+cacheDirectories = ["/tmp/npm-cache"]
+
+[phases.build]
+cmds = ["npm run build"]
+cacheDirectories = ["/app/.next/cache"]
