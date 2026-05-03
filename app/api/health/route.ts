@@ -3,13 +3,12 @@ import { db } from '@/db'
 import { sql } from 'drizzle-orm'
 
 export async function GET() {
+  let dbStatus = 'disconnected'
   try {
     await db.execute(sql`SELECT 1`)
-    return NextResponse.json({ status: 'ok', db: 'connected' })
+    dbStatus = 'connected'
   } catch {
-    return NextResponse.json(
-      { status: 'error', db: 'disconnected' },
-      { status: 503 },
-    )
+    // DB no disponible — el proceso sigue respondiendo
   }
+  return NextResponse.json({ status: 'ok', db: dbStatus })
 }
