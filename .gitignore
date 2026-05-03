@@ -1,0 +1,40 @@
+# deps
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# env files — NUNCA commitear
+.env
+.env.local
+.env.*.local
+
+# drizzle
+/drizzle/
+
+# misc
+.DS_Store
+*.pem
+/coverage
+/.nyc_output
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Railway
+.railway/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code / tooling local (pueden contener secrets)
+.claude/
+.claude-flow/
+.swarm/
+.mcp.json
+.next/
+tsconfig.tsbuildinfo
