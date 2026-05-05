@@ -38,7 +38,7 @@ export const users = pgTable('users', {
 
 // Columnas con los nombres exactos que espera el adapter de Auth.js v5
 export const accounts = pgTable('accounts', {
-  userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: text('type').notNull(),
   provider: text('provider').notNull(),
   providerAccountId: text('providerAccountId').notNull(),
@@ -56,7 +56,7 @@ export const accounts = pgTable('accounts', {
 // sessionToken debe ser primaryKey para el adapter de Auth.js
 export const sessions = pgTable('sessions', {
   sessionToken: text('sessionToken').primaryKey(),
-  userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expires: timestamp('expires', { mode: 'date' }).notNull(),
 })
 

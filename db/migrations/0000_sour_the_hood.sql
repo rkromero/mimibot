@@ -5,7 +5,7 @@ CREATE TYPE "public"."message_direction" AS ENUM('inbound', 'outbound');--> stat
 CREATE TYPE "public"."sender_type" AS ENUM('contact', 'bot', 'agent', 'system');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('admin', 'agent');--> statement-breakpoint
 CREATE TABLE "accounts" (
-	"userId" text NOT NULL,
+	"userId" uuid NOT NULL,
 	"type" text NOT NULL,
 	"provider" text NOT NULL,
 	"providerAccountId" text NOT NULL,
@@ -125,7 +125,7 @@ CREATE TABLE "pipeline_stages" (
 --> statement-breakpoint
 CREATE TABLE "sessions" (
 	"sessionToken" text PRIMARY KEY NOT NULL,
-	"userId" text NOT NULL,
+	"userId" uuid NOT NULL,
 	"expires" timestamp NOT NULL
 );
 --> statement-breakpoint

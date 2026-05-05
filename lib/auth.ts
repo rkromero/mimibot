@@ -15,7 +15,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  session: { strategy: 'database' },
+  session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
     error: '/login',
@@ -58,10 +58,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       : []),
   ],
   callbacks: {
-    async session({ session, user }) {
-      // Carga el role del user en la sesión para uso en middleware y componentes
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+        token.role = (user as { role?: string }).role
+      }
+      return token
+    },
+    async session({ session, token }) {
       const dbUser = await db.query.users.findFirst({
-        where: eq(users.id, user.id),
+        where: eq(users.id, token.sub!),
         columns: { role: true, isActive: true, avatarColor: true },
       })
 
@@ -69,7 +75,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         ...session,
         user: {
           ...session.user,
-          id: user.id,
+          id: token.sub!,
           role: dbUser?.role ?? 'agent',
           avatarColor: dbUser?.avatarColor ?? '#1d4ed8',
         },
