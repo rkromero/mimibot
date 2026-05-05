@@ -31,8 +31,8 @@ export default function BotPreview({ systemPrompt }: { systemPrompt: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: next, systemPrompt }),
       })
-      const data = await res.json() as { response: string; handoff: boolean; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Error')
+      const data = await res.json() as { response: string; handoff: boolean; error?: string; detail?: string }
+      if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Error')
 
       setMessages((prev) => [...prev, { role: 'assistant', content: data.response }])
       if (data.handoff) setHandedOff(true)

@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ response: text, handoff })
   } catch (err) {
+    console.error('[bot/preview]', err)
     const { message, status } = toApiError(err)
-    return NextResponse.json({ error: message }, { status })
+    const detail = err instanceof Error ? err.message : undefined
+    return NextResponse.json({ error: message, detail }, { status })
   }
 }
