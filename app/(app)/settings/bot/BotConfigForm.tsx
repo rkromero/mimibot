@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import type { BotConfig } from '@/types/db'
+import BotPreview from './BotPreview'
 
 type Props = { initialConfig: BotConfig | null }
+type Tab = 'config' | 'preview'
 
 const DEFAULT_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -19,6 +21,7 @@ Cuando hayas obtenido toda la información, incluí [HANDOFF] al final de tu men
 Respondé siempre en el mismo idioma que el usuario. Sé breve y conversacional. Máximo 2-3 oraciones por respuesta.`
 
 export default function BotConfigForm({ initialConfig }: Props) {
+  const [tab, setTab] = useState<Tab>('config')
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +65,32 @@ export default function BotConfigForm({ initialConfig }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6">
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {(['config', 'preview'] as Tab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+              tab === t
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t === 'config' ? 'Configuración' : 'Probar bot'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'preview' && (
+        <BotPreview systemPrompt={form.systemPrompt} />
+      )}
+
+      {tab === 'config' && (
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <h2 className="text-md font-semibold mb-1">Bot de calificación</h2>
         <p className="text-sm text-muted-foreground">
@@ -169,5 +197,7 @@ export default function BotConfigForm({ initialConfig }: Props) {
         {saved && <span className="text-sm text-muted-foreground">Guardado.</span>}
       </div>
     </form>
+      )}
+    </div>
   )
 }
