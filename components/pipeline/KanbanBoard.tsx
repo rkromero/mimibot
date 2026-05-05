@@ -9,7 +9,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  closestCorners,
 } from '@dnd-kit/core'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import KanbanColumn from './KanbanColumn'
@@ -101,11 +101,18 @@ export default function KanbanBoard({ stages, user }: Props) {
   function handleDragEnd(event: DragEndEvent) {
     setActiveLeadId(null)
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    if (!over) return
 
-    // El `over.id` es el stage al que se soltó
-    const targetStageId = over.id as string
     const leadId = active.id as string
+    const overId = over.id as string
+
+    // over.id puede ser un stageId (columna) o un leadId (card encima de otra)
+    const isOverStage = stages.some((s) => s.id === overId)
+    const targetStageId = isOverStage
+      ? overId
+      : (leadsQuery.data?.find((l) => l.id === overId)?.stageId ?? null)
+
+    if (!targetStageId) return
 
     const lead = leadsQuery.data?.find((l) => l.id === leadId)
     if (!lead || lead.stageId === targetStageId) return
@@ -154,7 +161,7 @@ export default function KanbanBoard({ stages, user }: Props) {
       <div className="flex flex-1 overflow-x-auto overflow-y-hidden gap-0 border-t border-border">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={closestCorners}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >

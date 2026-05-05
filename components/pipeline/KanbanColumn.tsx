@@ -18,8 +18,8 @@ export default function KanbanColumn({ stage, leads, onLeadClick }: Props) {
   return (
     <div
       className={cn(
-        'flex flex-col w-64 shrink-0 border-r border-border',
-        isOver && 'bg-accent/40',
+        'flex flex-col w-64 shrink-0 border-r border-border transition-colors duration-100',
+        isOver && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
       )}
     >
       {/* Header de columna */}
