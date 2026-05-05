@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
   PointerSensor,
@@ -30,6 +31,7 @@ type Props = {
 export default function KanbanBoard({ stages, user }: Props) {
   const queryClient = useQueryClient()
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
+  const [overStageId, setOverStageId] = useState<string | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [filters, setFilters] = useState<LeadFilters>({})
@@ -98,19 +100,22 @@ export default function KanbanBoard({ stages, user }: Props) {
     setActiveLeadId(event.active.id as string)
   }
 
+  function handleDragOver(event: DragOverEvent) {
+    const { over } = event
+    if (!over) { setOverStageId(null); return }
+    const data = over.data.current as { stageId?: string } | undefined
+    setOverStageId(data?.stageId ?? null)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     setActiveLeadId(null)
+    setOverStageId(null)
     const { active, over } = event
     if (!over) return
 
     const leadId = active.id as string
-    const overId = over.id as string
-
-    // over.id puede ser un stageId (columna) o un leadId (card encima de otra)
-    const isOverStage = stages.some((s) => s.id === overId)
-    const targetStageId = isOverStage
-      ? overId
-      : (leadsQuery.data?.find((l) => l.id === overId)?.stageId ?? null)
+    const data = over.data.current as { stageId?: string } | undefined
+    const targetStageId = data?.stageId ?? null
 
     if (!targetStageId) return
 
@@ -163,6 +168,7 @@ export default function KanbanBoard({ stages, user }: Props) {
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           {stages.map((stage) => (
@@ -171,6 +177,7 @@ export default function KanbanBoard({ stages, user }: Props) {
               stage={stage}
               leads={leadsByStage[stage.id] ?? []}
               onLeadClick={setSelectedLeadId}
+              isTargetColumn={overStageId === stage.id}
             />
           ))}
           <DragOverlay dropAnimation={{ duration: 120, easing: 'ease' }}>

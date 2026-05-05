@@ -25,7 +25,7 @@ function messagePreview(lead: LeadWithContact): string {
 
 export default function LeadCard({ lead, onClick, isDragging }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
-    useSortable({ id: lead.id })
+    useSortable({ id: lead.id, data: { type: 'lead', stageId: lead.stageId } })
 
   const style = {
     transform: CSS.Transform.toString(transform),

@@ -10,16 +10,21 @@ type Props = {
   stage: PipelineStage
   leads: LeadWithContact[]
   onLeadClick: (id: string) => void
+  isTargetColumn?: boolean
 }
 
-export default function KanbanColumn({ stage, leads, onLeadClick }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+export default function KanbanColumn({ stage, leads, onLeadClick, isTargetColumn }: Props) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: stage.id,
+    data: { type: 'column', stageId: stage.id },
+  })
 
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         'flex flex-col w-64 shrink-0 border-r border-border transition-colors duration-100',
-        isOver && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
+        (isOver || isTargetColumn) && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
       )}
     >
       {/* Header de columna */}
@@ -40,7 +45,6 @@ export default function KanbanColumn({ stage, leads, onLeadClick }: Props) {
 
       {/* Cards */}
       <div
-        ref={setNodeRef}
         className="flex-1 overflow-y-auto py-2 px-2 space-y-1.5 min-h-[4rem]"
       >
         <SortableContext
