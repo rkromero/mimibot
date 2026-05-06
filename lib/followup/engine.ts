@@ -1,7 +1,6 @@
-import { eq, and, lte, isNotNull } from 'drizzle-orm'
+import { eq, and, lte, isNotNull, asc } from 'drizzle-orm'
 import { db } from '@/db'
 import { leads, conversations, messages, activityLog, contacts, followUpTemplates, followUpConfig } from '@/db/schema'
-import { asc } from 'drizzle-orm'
 import { anthropic, BOT_MODEL } from '@/lib/claude/client'
 import { withRetry } from '@/lib/claude/retry'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/client'
