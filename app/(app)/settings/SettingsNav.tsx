@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { href: '/settings/bot',    label: 'Bot IA' },
-  { href: '/settings/stages', label: 'Etapas' },
-  { href: '/settings/team',   label: 'Equipo' },
+  { href: '/settings/bot',      label: 'Bot IA' },
+  { href: '/settings/followup', label: 'Seguimiento' },
+  { href: '/settings/stages',   label: 'Etapas' },
+  { href: '/settings/team',     label: 'Equipo' },
 ]
 
 export default function SettingsNav() {

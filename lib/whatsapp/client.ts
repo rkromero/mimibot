@@ -45,6 +45,36 @@ export async function sendTextMessage(to: string, body: string): Promise<string>
   return data.messages[0]!.id
 }
 
+type TemplateComponent = {
+  type: 'body' | 'header'
+  parameters: Array<{ type: 'text'; text: string }>
+}
+
+export async function sendTemplateMessage(
+  to: string,
+  templateName: string,
+  language: string,
+  components?: TemplateComponent[],
+): Promise<string> {
+  const { phoneNumberId } = getConfig()
+  const data = await waFetch(`/${phoneNumberId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: language },
+        ...(components?.length ? { components } : {}),
+      },
+    }),
+  }) as { messages: Array<{ id: string }> }
+
+  return data.messages[0]!.id
+}
+
 export async function sendMediaMessage(
   to: string,
   mediaId: string,

@@ -1,6 +1,7 @@
 import type {
   users, leads, contacts, conversations, messages,
   pipelineStages, tags, activityLog, attachments, botConfig,
+  followUpTemplates, followUpConfig,
 } from '@/db/schema'
 
 export type User = typeof users.$inferSelect
@@ -13,6 +14,14 @@ export type Tag = typeof tags.$inferSelect
 export type ActivityLog = typeof activityLog.$inferSelect
 export type Attachment = typeof attachments.$inferSelect
 export type BotConfig = typeof botConfig.$inferSelect
+export type FollowUpTemplate = typeof followUpTemplates.$inferSelect
+export type FollowUpConfig = typeof followUpConfig.$inferSelect
+
+export type TemplateParameter = {
+  position: number
+  source: 'contact.name' | 'lead.productInterest' | 'lead.notes' | 'custom'
+  value?: string
+}
 
 // Tipos compuestos para queries frecuentes
 export type LeadWithContact = Lead & {

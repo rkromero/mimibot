@@ -7,6 +7,7 @@ import { anthropic, BOT_MODEL } from './client'
 import { withRetry } from './retry'
 import { sendTextMessage } from '@/lib/whatsapp/client'
 import { emitLeadEvent } from '@/lib/realtime/broker'
+import { detectStalling, scheduleFollowUp } from '@/lib/followup/engine'
 
 // Marcador que Claude incluye cuando quiere hacer handoff
 const HANDOFF_MARKER = '[HANDOFF]'
@@ -132,6 +133,17 @@ export async function processBotTurn(params: {
 
   if (shouldHandoff) {
     await performHandoff(leadId, conversationId, contactPhone, cleanResponse)
+    return
+  }
+
+  // Detectar frases de estancamiento para agendar seguimiento
+  const lastUserMsg = claudeMessages.filter((m) => m.role === 'user').at(-1)?.content ?? ''
+  const followUpCfg = await db.query.followUpConfig.findFirst()
+  if (followUpCfg?.isEnabled !== false) {
+    const customPhrases = followUpCfg?.stallingPhrases ?? []
+    if (detectStalling(lastUserMsg, customPhrases)) {
+      await scheduleFollowUp(leadId, 'stalling')
+    }
   }
 }
 

@@ -16,7 +16,10 @@ export const activityActionEnum = pgEnum('activity_action', [
   'stage_changed', 'assigned', 'unassigned', 'note_added',
   'bot_handoff', 'bot_enabled', 'bot_disabled',
   'lead_created', 'tag_added', 'tag_removed',
+  'follow_up_scheduled', 'follow_up_sent', 'follow_up_cancelled',
 ])
+export const followUpStatusEnum = pgEnum('follow_up_status', ['pending', 'sent', 'cancelled', 'failed'])
+export const followUpScenarioEnum = pgEnum('follow_up_scenario', ['no_response', 'stalling', 'manual'])
 
 // ─── Auth.js (tablas requeridas por el adapter de Drizzle) ────────────────────
 
@@ -114,6 +117,10 @@ export const leads = pgTable('leads', {
   botTurnCount: integer('bot_turn_count').notNull().default(0),
   isOpen: boolean('is_open').notNull().default(true),
   lastContactedAt: timestamp('last_contacted_at', { mode: 'date' }),
+  nextFollowUpAt: timestamp('next_follow_up_at', { mode: 'date' }),
+  followUpCount: integer('follow_up_count').notNull().default(0),
+  followUpStatus: followUpStatusEnum('follow_up_status'),
+  followUpReason: text('follow_up_reason'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 }, (t) => [
@@ -121,6 +128,7 @@ export const leads = pgTable('leads', {
   index('leads_assigned_to_idx').on(t.assignedTo),
   index('leads_contact_idx').on(t.contactId),
   index('leads_open_stage_idx').on(t.isOpen, t.stageId),
+  index('leads_follow_up_idx').on(t.nextFollowUpAt, t.followUpStatus),
 ])
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
@@ -189,6 +197,36 @@ export const attachments = pgTable('attachments', {
 }, (t) => [
   index('attachments_message_idx').on(t.messageId),
 ])
+
+// ─── Follow-up templates ──────────────────────────────────────────────────────
+
+export const followUpTemplates = pgTable('follow_up_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  templateName: text('template_name').notNull(),
+  language: text('language').notNull().default('es'),
+  scenario: followUpScenarioEnum('scenario').notNull().default('no_response'),
+  bodyPreview: text('body_preview').notNull().default(''),
+  parameters: jsonb('parameters').notNull().default('[]'),
+  isActive: boolean('is_active').notNull().default(true),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+// ─── Configuración de seguimiento (singleton) ─────────────────────────────────
+
+export const followUpConfig = pgTable('follow_up_config', {
+  id: integer('id').primaryKey().default(1),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  noResponseHours: integer('no_response_hours').notNull().default(24),
+  stallingDelayMinutes: integer('stalling_delay_minutes').notNull().default(60),
+  maxFollowUps: integer('max_follow_ups').notNull().default(3),
+  retryHours: jsonb('retry_hours').notNull().default('[1, 22, 72]'),
+  stallingPhrases: text('stalling_phrases').array().notNull().default([]),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
 
 // ─── Configuración del bot (singleton) ────────────────────────────────────────
 
