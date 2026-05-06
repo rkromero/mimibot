@@ -10,7 +10,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import KanbanColumn from './KanbanColumn'
@@ -39,6 +41,11 @@ export default function KanbanBoard({ stages, user }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   )
+
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointer = pointerWithin(args)
+    return pointer.length > 0 ? pointer : rectIntersection(args)
+  }, [])
 
   const leadsQuery = useQuery({
     queryKey: ['leads', filters],
@@ -166,7 +173,7 @@ export default function KanbanBoard({ stages, user }: Props) {
       <div className="flex flex-1 overflow-x-auto overflow-y-hidden gap-0 border-t border-border">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
