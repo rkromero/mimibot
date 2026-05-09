@@ -66,10 +66,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      const dbUser = await db.query.users.findFirst({
-        where: eq(users.id, token.sub!),
-        columns: { role: true, isActive: true, avatarColor: true },
-      })
+      let dbUser: { role: 'admin' | 'agent'; isActive: boolean; avatarColor: string } | undefined
+      try {
+        dbUser = await db.query.users.findFirst({
+          where: eq(users.id, token.sub!),
+          columns: { role: true, isActive: true, avatarColor: true },
+        }) ?? undefined
+      } catch {
+        // DB unavailable — return session with defaults so the app doesn't hard-crash
+      }
 
       return {
         ...session,
