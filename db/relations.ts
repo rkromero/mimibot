@@ -12,6 +12,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   leads: many(leads, { relationName: 'assignedLeads' }),
   sentMessages: many(messages, { relationName: 'senderMessages' }),
   activityLogs: many(activityLog),
+  clientesAsignados: many(clientes, { relationName: 'clientesAsignados' }),
+  clientesCreados: many(clientes, { relationName: 'clientesCreados' }),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
