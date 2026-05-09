@@ -42,7 +42,7 @@ export default function TeamManager({ initialUsers }: Props) {
       const data = await res.json() as { data?: TeamUser; error?: string }
 
       if (!res.ok) {
-        setError(data.error ?? 'Error al crear usuario')
+        setError(typeof data.error === 'string' ? data.error : 'Error al crear usuario')
         return
       }
 

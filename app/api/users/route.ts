@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
       const body: unknown = await req.json()
       const parsed = createUserSchema.safeParse(body)
       if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+        const fieldErrors = parsed.error.flatten().fieldErrors
+        const firstMessage = Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos'
+        return NextResponse.json({ error: firstMessage }, { status: 400 })
       }
 
       const existing = await db.query.users.findFirst({ where: eq(users.email, parsed.data.email) })
