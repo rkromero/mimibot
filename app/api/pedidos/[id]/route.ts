@@ -1,0 +1,120 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { db } from '@/db'
+import { pedidos, clientes } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { updatePedidoSchema } from '@/lib/validations/pedidos'
+import { confirmarPedido } from '@/lib/pedidos/service'
+import { canAccessCliente } from '@/lib/authz/clientes'
+import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
+
+async function canAccessPedido(userId: string, role: string, pedidoId: string) {
+  const pedido = await db.query.pedidos.findFirst({
+    where: eq(pedidos.id, pedidoId),
+    columns: { id: true, vendedorId: true, clienteId: true },
+  })
+  if (!pedido) throw new NotFoundError('Pedido')
+
+  if (role === 'admin') return pedido
+
+  // Agents: must be the vendedor OR have the client assigned to them
+  if (pedido.vendedorId === userId) return pedido
+
+  // Check if the client is assigned to this agent
+  const cliente = await db.query.clientes.findFirst({
+    where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, userId)),
+    columns: { id: true },
+  })
+  if (!cliente) throw new AuthzError('No tenés acceso a este pedido')
+
+  return pedido
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const { id } = await params
+    await canAccessPedido(session.user.id, session.user.role, id)
+
+    const pedido = await db.query.pedidos.findFirst({
+      where: eq(pedidos.id, id),
+      with: {
+        cliente: true,
+        vendedor: { columns: { id: true, name: true, avatarColor: true } },
+        items: {
+          with: {
+            producto: true,
+          },
+        },
+        aplicaciones: true,
+      },
+    })
+
+    if (!pedido) throw new NotFoundError('Pedido')
+
+    return NextResponse.json({ data: pedido })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const { id } = await params
+    await canAccessPedido(session.user.id, session.user.role, id)
+
+    const body: unknown = await req.json()
+    const parsed = updatePedidoSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    }
+
+    const current = await db.query.pedidos.findFirst({ where: eq(pedidos.id, id) })
+    if (!current) throw new NotFoundError('Pedido')
+
+    const { estado, observaciones } = parsed.data
+
+    // Validate state transitions
+    if (estado === 'cancelado') {
+      if (current.estado === 'confirmado' || current.estado === 'entregado') {
+        throw new ValidationError('No se puede cancelar un pedido confirmado o entregado')
+      }
+    }
+
+    // If changing to 'confirmado', delegate to service
+    if (estado === 'confirmado' && current.estado !== 'confirmado') {
+      const updated = await confirmarPedido(id, session.user.id)
+      return NextResponse.json({ data: updated })
+    }
+
+    const updates: Partial<typeof pedidos.$inferInsert> = {
+      updatedAt: new Date(),
+    }
+
+    if (estado !== undefined) updates.estado = estado
+    if (observaciones !== undefined) updates.observaciones = observaciones
+
+    const [updated] = await db
+      .update(pedidos)
+      .set(updates)
+      .where(eq(pedidos.id, id))
+      .returning()
+
+    return NextResponse.json({ data: updated })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}

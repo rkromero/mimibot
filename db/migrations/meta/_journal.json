@@ -15,6 +15,13 @@
       "when": 1746460800000,
       "tag": "0001_follow_up_system",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1746892800000,
+      "tag": "0002_crm_modules",
+      "breakpoints": true
     }
   ]
 }

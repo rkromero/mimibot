@@ -3,6 +3,7 @@ import {
   users, accounts, sessions,
   leads, contacts, conversations, messages, attachments,
   pipelineStages, tags, leadTags, activityLog, botConfig,
+  clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -77,4 +78,44 @@ export const leadTagsRelations = relations(leadTags, ({ one }) => ({
 export const activityLogRelations = relations(activityLog, ({ one }) => ({
   lead: one(leads, { fields: [activityLog.leadId], references: [leads.id] }),
   user: one(users, { fields: [activityLog.userId], references: [users.id] }),
+}))
+
+// ─── CRM Relations ────────────────────────────────────────────────────────────
+
+export const clientesRelations = relations(clientes, ({ one, many }) => ({
+  lead: one(leads, { fields: [clientes.leadId], references: [leads.id] }),
+  asignadoA: one(users, { fields: [clientes.asignadoA], references: [users.id], relationName: 'clientesAsignados' }),
+  creadoPor: one(users, { fields: [clientes.creadoPor], references: [users.id], relationName: 'clientesCreados' }),
+  pedidos: many(pedidos),
+  movimientosCC: many(movimientosCC),
+}))
+
+export const productosRelations = relations(productos, ({ one, many }) => ({
+  creadoPor: one(users, { fields: [productos.creadoPor], references: [users.id] }),
+  items: many(pedidoItems),
+}))
+
+export const pedidosRelations = relations(pedidos, ({ one, many }) => ({
+  cliente: one(clientes, { fields: [pedidos.clienteId], references: [clientes.id] }),
+  vendedor: one(users, { fields: [pedidos.vendedorId], references: [users.id] }),
+  items: many(pedidoItems),
+  movimientoDebito: one(movimientosCC, { fields: [pedidos.id], references: [movimientosCC.pedidoId], relationName: 'debitosPedido' }),
+  aplicaciones: many(aplicacionesPago),
+}))
+
+export const pedidoItemsRelations = relations(pedidoItems, ({ one }) => ({
+  pedido: one(pedidos, { fields: [pedidoItems.pedidoId], references: [pedidos.id] }),
+  producto: one(productos, { fields: [pedidoItems.productoId], references: [productos.id] }),
+}))
+
+export const movimientosCCRelations = relations(movimientosCC, ({ one, many }) => ({
+  cliente: one(clientes, { fields: [movimientosCC.clienteId], references: [clientes.id] }),
+  pedido: one(pedidos, { fields: [movimientosCC.pedidoId], references: [pedidos.id], relationName: 'debitosPedido' }),
+  registradoPor: one(users, { fields: [movimientosCC.registradoPor], references: [users.id] }),
+  aplicaciones: many(aplicacionesPago),
+}))
+
+export const aplicacionesPagoRelations = relations(aplicacionesPago, ({ one }) => ({
+  movimientoCredito: one(movimientosCC, { fields: [aplicacionesPago.movimientoCreditoId], references: [movimientosCC.id] }),
+  pedido: one(pedidos, { fields: [aplicacionesPago.pedidoId], references: [pedidos.id] }),
 }))

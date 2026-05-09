@@ -7,6 +7,7 @@ import { updateLeadSchema } from '@/lib/validations/lead'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { emitLeadEvent } from '@/lib/realtime/broker'
+import { convertirLeadACliente } from '@/lib/clientes/conversion'
 
 export async function GET(
   _req: NextRequest,
@@ -71,12 +72,14 @@ export async function PATCH(
     if (parsed.data.botEnabled !== undefined) updates.botEnabled = parsed.data.botEnabled
     if (parsed.data.customFields !== undefined) updates.customFields = parsed.data.customFields
 
-    // Si cambia de etapa, verificar si es terminal
+    // Si cambia de etapa, verificar si es terminal o isWon
+    let newStageIsWon = false
     if (parsed.data.stageId && parsed.data.stageId !== current.stageId) {
       const newStage = await db.query.pipelineStages.findFirst({
         where: eq(pipelineStages.id, parsed.data.stageId),
       })
       if (newStage?.isTerminal) updates.isOpen = false
+      if (newStage?.isWon) newStageIsWon = true
 
       await db.insert(activityLog).values({
         leadId: id,
@@ -114,6 +117,16 @@ export async function PATCH(
       stageId: updated!.stageId,
       oldStageId: current.stageId,
     })
+
+    // If stage changed to isWon, attempt to convert lead to cliente
+    if (newStageIsWon) {
+      try {
+        await convertirLeadACliente(id, session.user.id, db)
+      } catch (conversionErr) {
+        console.error('[lead conversion] Error al convertir lead a cliente:', conversionErr)
+        // Do not fail the request — conversion is best-effort
+      }
+    }
 
     return NextResponse.json({ data: updated })
   } catch (err) {

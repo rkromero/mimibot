@@ -80,6 +80,7 @@ export const pipelineStages = pgTable('pipeline_stages', {
   position: integer('position').notNull(),
   color: text('color').notNull().default('#6b7280'),
   isTerminal: boolean('is_terminal').notNull().default(false),
+  isWon: boolean('is_won').notNull().default(false),
   isDeletable: boolean('is_deletable').notNull().default(true),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
@@ -240,6 +241,112 @@ export const botConfig = pgTable('bot_config', {
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+// ─── CRM: Enums ───────────────────────────────────────────────────────────────
+
+export const origenClienteEnum = pgEnum('origen_cliente', ['manual', 'convertido_de_lead'])
+export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'confirmado', 'entregado', 'cancelado'])
+export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'parcial', 'pagado'])
+export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
+
+// ─── CRM: Clientes ────────────────────────────────────────────────────────────
+
+export const clientes = pgTable('clientes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  apellido: text('apellido').notNull(),
+  email: text('email'),
+  telefono: text('telefono'),
+  direccion: text('direccion'),
+  cuit: text('cuit'),
+  origen: origenClienteEnum('origen').notNull().default('manual'),
+  leadId: uuid('lead_id').references(() => leads.id),
+  asignadoA: uuid('asignado_a').references(() => users.id),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('clientes_asignado_idx').on(t.asignadoA),
+  index('clientes_email_idx').on(t.email),
+  index('clientes_cuit_idx').on(t.cuit),
+  index('clientes_lead_idx').on(t.leadId),
+])
+
+// ─── CRM: Productos ───────────────────────────────────────────────────────────
+
+export const productos = pgTable('productos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  descripcion: text('descripcion'),
+  precio: decimal('precio', { precision: 12, scale: 2 }).notNull(),
+  activo: boolean('activo').notNull().default(true),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('productos_activo_idx').on(t.activo),
+])
+
+// ─── CRM: Pedidos ─────────────────────────────────────────────────────────────
+
+export const pedidos = pgTable('pedidos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clienteId: uuid('cliente_id').notNull().references(() => clientes.id),
+  vendedorId: uuid('vendedor_id').notNull().references(() => users.id),
+  fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
+  estado: estadoPedidoEnum('estado').notNull().default('pendiente'),
+  total: decimal('total', { precision: 12, scale: 2 }).notNull().default('0'),
+  montoPagado: decimal('monto_pagado', { precision: 12, scale: 2 }).notNull().default('0'),
+  saldoPendiente: decimal('saldo_pendiente', { precision: 12, scale: 2 }).notNull().default('0'),
+  estadoPago: estadoPagoPedidoEnum('estado_pago').notNull().default('impago'),
+  observaciones: text('observaciones'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('pedidos_cliente_idx').on(t.clienteId),
+  index('pedidos_vendedor_idx').on(t.vendedorId),
+  index('pedidos_estado_pago_idx').on(t.clienteId, t.estadoPago),
+  index('pedidos_fecha_idx').on(t.fecha),
+])
+
+export const pedidoItems = pgTable('pedido_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  pedidoId: uuid('pedido_id').notNull().references(() => pedidos.id, { onDelete: 'cascade' }),
+  productoId: uuid('producto_id').notNull().references(() => productos.id),
+  cantidad: integer('cantidad').notNull(),
+  precioUnitario: decimal('precio_unitario', { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).notNull(),
+}, (t) => [
+  index('pedido_items_pedido_idx').on(t.pedidoId),
+])
+
+// ─── CRM: Cuenta Corriente ────────────────────────────────────────────────────
+
+export const movimientosCC = pgTable('movimientos_cc', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clienteId: uuid('cliente_id').notNull().references(() => clientes.id),
+  tipo: tipoMovimientoCCEnum('tipo').notNull(),
+  monto: decimal('monto', { precision: 12, scale: 2 }).notNull(),
+  pedidoId: uuid('pedido_id').references(() => pedidos.id),
+  fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
+  descripcion: text('descripcion'),
+  registradoPor: uuid('registrado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('movimientos_cc_cliente_idx').on(t.clienteId, t.fecha),
+  index('movimientos_cc_pedido_idx').on(t.pedidoId),
+])
+
+export const aplicacionesPago = pgTable('aplicaciones_pago', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  movimientoCreditoId: uuid('movimiento_credito_id').notNull().references(() => movimientosCC.id),
+  pedidoId: uuid('pedido_id').notNull().references(() => pedidos.id),
+  montoAplicado: decimal('monto_aplicado', { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('aplicaciones_pago_credito_idx').on(t.movimientoCreditoId),
+  index('aplicaciones_pago_pedido_idx').on(t.pedidoId),
+])
 
 // ─── Log de actividad ─────────────────────────────────────────────────────────
 

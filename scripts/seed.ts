@@ -16,8 +16,8 @@ const STAGES = [
   { slug: 'contactado',   name: 'Contactado',     color: '#f59e0b', position: 1, isDeletable: true,  isTerminal: false },
   { slug: 'calificado',   name: 'Calificado',     color: '#10b981', position: 2, isDeletable: true,  isTerminal: false },
   { slug: 'propuesta',    name: 'Propuesta',      color: '#8b5cf6', position: 3, isDeletable: true,  isTerminal: false },
-  { slug: 'cerrado-won',  name: 'Cerrado Ganado', color: '#10b981', position: 4, isDeletable: false, isTerminal: true  },
-  { slug: 'cerrado-lost', name: 'Cerrado Perdido', color: '#ef4444', position: 5, isDeletable: false, isTerminal: true  },
+  { slug: 'cerrado-won',  name: 'Cerrado Ganado', color: '#10b981', position: 4, isDeletable: false, isTerminal: true, isWon: true  },
+  { slug: 'cerrado-lost', name: 'Cerrado Perdido', color: '#ef4444', position: 5, isDeletable: false, isTerminal: true, isWon: false },
 ]
 
 async function seed() {
