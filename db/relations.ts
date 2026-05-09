@@ -101,7 +101,6 @@ export const pedidosRelations = relations(pedidos, ({ one, many }) => ({
   cliente: one(clientes, { fields: [pedidos.clienteId], references: [clientes.id] }),
   vendedor: one(users, { fields: [pedidos.vendedorId], references: [users.id] }),
   items: many(pedidoItems),
-  movimientoDebito: one(movimientosCC, { fields: [pedidos.id], references: [movimientosCC.pedidoId], relationName: 'debitosPedido' }),
   aplicaciones: many(aplicacionesPago),
 }))
 
@@ -112,7 +111,7 @@ export const pedidoItemsRelations = relations(pedidoItems, ({ one }) => ({
 
 export const movimientosCCRelations = relations(movimientosCC, ({ one, many }) => ({
   cliente: one(clientes, { fields: [movimientosCC.clienteId], references: [clientes.id] }),
-  pedido: one(pedidos, { fields: [movimientosCC.pedidoId], references: [pedidos.id], relationName: 'debitosPedido' }),
+  pedido: one(pedidos, { fields: [movimientosCC.pedidoId], references: [pedidos.id] }),
   registradoPor: one(users, { fields: [movimientosCC.registradoPor], references: [users.id] }),
   aplicaciones: many(aplicacionesPago),
 }))
