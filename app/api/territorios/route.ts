@@ -20,7 +20,8 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ data })
   } catch (err) {
     const { message, status } = toApiError(err)
-    return NextResponse.json({ error: message }, { status })
+    const detail = process.env.NODE_ENV !== 'production' && err instanceof Error ? err.stack : undefined
+    return NextResponse.json({ error: message, detail }, { status })
   }
 }
 
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: territorio }, { status: 201 })
   } catch (err) {
     const { message, status } = toApiError(err)
-    return NextResponse.json({ error: message }, { status })
+    const detail = process.env.NODE_ENV !== 'production' && err instanceof Error ? err.stack : undefined
+    return NextResponse.json({ error: message, detail }, { status })
   }
 }

@@ -43,6 +43,20 @@
       "when": 1778381687052,
       "tag": "0005_safe_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778400000000,
+      "tag": "0006_metas_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778500000000,
+      "tag": "0007_territorios",
+      "breakpoints": true
     }
   ]
 }
