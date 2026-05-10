@@ -26,6 +26,9 @@ export async function GET(
         asignadoA: {
           columns: { id: true, name: true, avatarColor: true },
         },
+        territorio: {
+          columns: { id: true, nombre: true },
+        },
       },
     })
 
@@ -45,6 +48,7 @@ export async function GET(
     // Drizzle `with` replaces asignadoA UUID column with the user object —
     // flatten it back to what the frontend expects
     const asignadoUser = cliente.asignadoA as { id: string; name: string | null; avatarColor: string } | null
+    const territorioData = cliente.territorio as { id: string; nombre: string } | null
 
     return NextResponse.json({
       data: {
@@ -52,6 +56,8 @@ export async function GET(
         asignadoA: asignadoUser?.id ?? null,
         asignadoNombre: asignadoUser?.name ?? null,
         asignadoColor: asignadoUser?.avatarColor ?? null,
+        territorioId: territorioData?.id ?? null,
+        territorioNombre: territorioData?.nombre ?? null,
         pedidosSummary: {
           count: Number(summary?.count ?? 0),
           total: summary?.total ?? '0',

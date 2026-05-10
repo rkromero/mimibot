@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -26,9 +26,12 @@ type Cliente = {
   asignadoA: string | null
   asignadoNombre: string | null
   asignadoColor: string | null
+  territorioId: string | null
+  territorioNombre: string | null
 }
 
 type AgentOption = { id: string; name: string | null; avatarColor: string }
+type TerritorioOption = { id: string; nombre: string }
 
 const inputClass = cn(
   'w-full px-3 py-3 md:py-1.5 text-[16px] md:text-sm rounded-lg md:rounded-md border',
@@ -77,6 +80,48 @@ export default function ClienteDetail({ id }: Props) {
     staleTime: 60_000,
     enabled: isAdmin,
   })
+
+  const { data: territorios = [] } = useQuery<TerritorioOption[]>({
+    queryKey: ['territorios-list'],
+    queryFn: async () => {
+      const res = await fetch('/api/territorios')
+      if (!res.ok) return []
+      const json = await res.json() as { data: TerritorioOption[] }
+      return json.data
+    },
+    staleTime: 60_000,
+    enabled: isAdmin,
+  })
+
+  const [isChangingTerritorio, setIsChangingTerritorio] = useState(false)
+  const [territorioSeleccionado, setTerritorioSeleccionado] = useState<string>('')
+  const [isSavingTerritorio, setIsSavingTerritorio] = useState(false)
+  const [territorioError, setTerritorioError] = useState<string | null>(null)
+
+  async function handleSaveTerritorio() {
+    if (!territorioSeleccionado) return
+    setTerritorioError(null)
+    setIsSavingTerritorio(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}/territorio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ territorioId: territorioSeleccionado }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setTerritorioError(data.error ?? 'Error al cambiar territorio')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
+      setIsChangingTerritorio(false)
+      setTerritorioSeleccionado('')
+    } catch {
+      setTerritorioError('Error de conexión')
+    } finally {
+      setIsSavingTerritorio(false)
+    }
+  }
 
   function getField<K extends keyof Cliente>(key: K): Cliente[K] | undefined {
     if (key in form) return form[key] as Cliente[K]
@@ -307,6 +352,71 @@ export default function ClienteDetail({ id }: Props) {
     </div>
   )
 
+  const territorioSection = (
+    <div className="bg-card border border-border rounded-lg p-4 md:p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MapPin size={14} className="text-muted-foreground shrink-0" />
+          <span className="text-sm font-semibold text-foreground">Territorio</span>
+        </div>
+        {isAdmin && !isChangingTerritorio && (
+          <button
+            onClick={() => {
+              setTerritorioSeleccionado(cliente.territorioId ?? '')
+              setTerritorioError(null)
+              setIsChangingTerritorio(true)
+            }}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Edit size={12} />
+            Cambiar
+          </button>
+        )}
+      </div>
+
+      {isChangingTerritorio ? (
+        <div className="mt-3 space-y-2">
+          <select
+            value={territorioSeleccionado}
+            onChange={(e) => setTerritorioSeleccionado(e.target.value)}
+            className={inputClass}
+            autoFocus
+          >
+            <option value="">Sin asignar</option>
+            {territorios.map((t) => (
+              <option key={t.id} value={t.id}>{t.nombre}</option>
+            ))}
+          </select>
+          {territorioError && <p className="text-xs text-destructive">{territorioError}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveTerritorio}
+              disabled={isSavingTerritorio || !territorioSeleccionado}
+              className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <Check size={12} />
+              {isSavingTerritorio ? 'Guardando...' : 'Confirmar'}
+            </button>
+            <button
+              onClick={() => { setIsChangingTerritorio(false); setTerritorioError(null) }}
+              disabled={isSavingTerritorio}
+              className="flex items-center gap-1 px-3 py-1.5 border border-border rounded-md text-xs font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <X size={12} />
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-foreground">
+          {cliente.territorioNombre
+            ? cliente.territorioNombre
+            : <span className="text-muted-foreground">Sin asignar</span>}
+        </p>
+      )}
+    </div>
+  )
+
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className={cn(
@@ -413,6 +523,7 @@ export default function ClienteDetail({ id }: Props) {
         <div className="hidden lg:grid lg:grid-cols-5 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {datosCliente}
+            {territorioSection}
             <ActividadesSection
               clienteId={id}
               asignadoA={cliente.asignadoA}
@@ -437,6 +548,7 @@ export default function ClienteDetail({ id }: Props) {
         {/* Mobile/tablet: single column */}
         <div className="lg:hidden space-y-4">
           {datosCliente}
+          {territorioSection}
           <ActividadesSection
             clienteId={id}
             asignadoA={cliente.asignadoA}
