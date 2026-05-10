@@ -52,6 +52,7 @@ vi.mock('@/db/schema', () => ({
   pedidos: {
     clienteId: 'pedidos.clienteId',
     estado: 'pedidos.estado',
+    estadoPago: 'pedidos.estadoPago',
     deletedAt: 'pedidos.deletedAt',
     fecha: 'pedidos.fecha',
     $inferSelect: {},
@@ -198,11 +199,12 @@ describe('evaluarClienteNuevo', () => {
     count: number,
     startDate: Date,
     total = '1000.00',
-  ): Array<{ id: string; fecha: Date; total: string }> {
+    estadoPago: 'pagado' | 'parcial' | 'impago' = 'pagado',
+  ): Array<{ id: string; fecha: Date; total: string; montoPagado: string; estadoPago: string }> {
     return Array.from({ length: count }, (_, i) => {
       const fecha = new Date(startDate)
       fecha.setDate(fecha.getDate() + i)
-      return { id: `pedido-${i + 1}`, fecha, total }
+      return { id: `pedido-${i + 1}`, fecha, total, montoPagado: estadoPago === 'impago' ? '0.00' : total, estadoPago }
     })
   }
 
@@ -213,9 +215,8 @@ describe('evaluarClienteNuevo', () => {
   // ── Minimum pedidos threshold ─────────────────────────────────────────────
 
   describe('minPedidos', () => {
-    it('NO marca como nuevo cuando solo hay 2 pedidos confirmados (minPedidos=3)', async () => {
+    it('NO marca como nuevo cuando solo hay 2 pedidos confirmados+pagados (minPedidos=3)', async () => {
       mockClientesFindFirst.mockResolvedValue(fakeCliente)
-      // Only 2 pedidos, 1 day apart
       mockPedidosFindMany.mockResolvedValue(buildPedidos(2, new Date()))
       const { setUpdate } = makeUpdateChain()
 
@@ -224,16 +225,26 @@ describe('evaluarClienteNuevo', () => {
       expect(setUpdate).not.toHaveBeenCalled()
     })
 
-    it('evalúa la ventana cuando hay exactamente minPedidos (3) pedidos', async () => {
+    it('evalúa la ventana cuando hay exactamente minPedidos (3) pedidos pagados', async () => {
       mockClientesFindFirst.mockResolvedValue(fakeCliente)
-      // 3 pedidos within 2 days — satisfies both minPedidos and ventana
+      // 3 pedidos pagados within 2 days
       mockPedidosFindMany.mockResolvedValue(buildPedidos(3, new Date()))
       const { setUpdate } = makeUpdateChain()
 
       await evaluarClienteNuevo(CLIENTE_ID, DEFAULT_CONFIG)
 
-      // Should have called update (conversion triggered)
       expect(setUpdate).toHaveBeenCalledOnce()
+    })
+
+    it('NO marca como nuevo cuando los 3 pedidos están impagos (estadoPago=impago)', async () => {
+      mockClientesFindFirst.mockResolvedValue(fakeCliente)
+      // Service filters impago orders out, so findMany returns empty list
+      mockPedidosFindMany.mockResolvedValue([])
+      const { setUpdate } = makeUpdateChain()
+
+      await evaluarClienteNuevo(CLIENTE_ID, DEFAULT_CONFIG)
+
+      expect(setUpdate).not.toHaveBeenCalled()
     })
   })
 
@@ -247,9 +258,9 @@ describe('evaluarClienteNuevo', () => {
       const p2 = daysAgo(50)
       const p3 = new Date()
       mockPedidosFindMany.mockResolvedValue([
-        { id: 'p1', fecha: p1, total: '1000.00' },
-        { id: 'p2', fecha: p2, total: '1000.00' },
-        { id: 'p3', fecha: p3, total: '1000.00' },
+        { id: 'p1', fecha: p1, total: '1000.00', montoPagado: '1000.00', estadoPago: 'pagado' },
+        { id: 'p2', fecha: p2, total: '1000.00', montoPagado: '1000.00', estadoPago: 'pagado' },
+        { id: 'p3', fecha: p3, total: '1000.00', montoPagado: '1000.00', estadoPago: 'pagado' },
       ])
       const { setUpdate } = makeUpdateChain()
 
@@ -358,9 +369,9 @@ describe('evaluarClienteNuevo', () => {
       // 3 pedidos × $1666.67 ≈ $5000.01; use $5000/3 ≈ $1666.67 each
       // Simpler: 1 pedido de $5000 + padding — actually use exact total
       mockPedidosFindMany.mockResolvedValue([
-        { id: 'p1', fecha: daysAgo(2), total: '2000.00' },
-        { id: 'p2', fecha: daysAgo(1), total: '2000.00' },
-        { id: 'p3', fecha: new Date(), total: '1000.00' },
+        { id: 'p1', fecha: daysAgo(2), total: '2000.00', montoPagado: '2000.00', estadoPago: 'pagado' },
+        { id: 'p2', fecha: daysAgo(1), total: '2000.00', montoPagado: '2000.00', estadoPago: 'pagado' },
+        { id: 'p3', fecha: new Date(), total: '1000.00', montoPagado: '1000.00', estadoPago: 'pagado' },
       ])
       const { setUpdate } = makeUpdateChain()
 

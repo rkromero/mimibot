@@ -1,4 +1,4 @@
-import { eq, and, isNull, asc, desc } from 'drizzle-orm'
+import { eq, and, isNull, asc, desc, inArray } from 'drizzle-orm'
 import { differenceInDays } from 'date-fns'
 import { db } from '@/db'
 import { clientes, pedidos, businessConfig } from '@/db/schema'
@@ -87,14 +87,16 @@ export async function evaluarClienteNuevo(
 
   const minPedidos = cfg.clienteNuevoMinPedidos
 
-  // 2. Load all confirmed pedidos ordered by fecha ASC
+  // 2. Load confirmed AND paid pedidos ordered by fecha ASC
+  // Only fully paid orders count toward the "nuevo" conversion threshold
   const pedidosConfirmados = await db.query.pedidos.findMany({
     where: and(
       eq(pedidos.clienteId, clienteId),
       eq(pedidos.estado, 'confirmado'),
+      inArray(pedidos.estadoPago, ['pagado', 'parcial']),
       isNull(pedidos.deletedAt),
     ),
-    columns: { id: true, fecha: true, total: true },
+    columns: { id: true, fecha: true, total: true, montoPagado: true },
     orderBy: [asc(pedidos.fecha)],
   })
 
