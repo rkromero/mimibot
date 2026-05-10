@@ -22,6 +22,13 @@
       "when": 1746892800000,
       "tag": "0002_crm_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778373666583,
+      "tag": "0003_magenta_bucky",
+      "breakpoints": true
     }
   ]
 }
