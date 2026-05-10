@@ -71,13 +71,13 @@ export default function RegistrarPagoModal({ clienteId, onClose, onSuccess }: Pr
         return
       }
 
-      const json = await res.json() as { data: PagoResult }
+      const json = await res.json() as { data: { distribucion: PagoResult } }
 
       void queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'cc'] })
       void queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'pedidos'] })
       void queryClient.invalidateQueries({ queryKey: ['clientes'] })
 
-      onSuccess(json.data)
+      onSuccess(json.data.distribucion)
     } catch {
       setError('Error de conexión')
     } finally {
