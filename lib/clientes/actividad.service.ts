@@ -132,6 +132,32 @@ export async function evaluarClienteNuevo(
     .where(eq(clientes.id, clienteId))
 }
 
+// ─── Recalcular Clientes Nuevos (backfill) ────────────────────────────────────
+
+export async function recalcularClientesNuevos(): Promise<{ evaluated: number }> {
+  const cfg = await getBusinessConfig()
+
+  const todosClientes = await db.query.clientes.findMany({
+    where: isNull(clientes.deletedAt),
+    columns: { id: true },
+  })
+
+  const BATCH_SIZE = 50
+  let evaluated = 0
+
+  for (let i = 0; i < todosClientes.length; i += BATCH_SIZE) {
+    const batch = todosClientes.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(async (cliente) => {
+        await evaluarClienteNuevo(cliente.id, cfg)
+        evaluated++
+      }),
+    )
+  }
+
+  return { evaluated }
+}
+
 // ─── Recalcular Estados (batch job) ──────────────────────────────────────────
 
 export async function recalcularEstadosActividad(): Promise<{ updated: number }> {

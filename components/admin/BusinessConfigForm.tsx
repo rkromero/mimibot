@@ -57,6 +57,8 @@ export default function BusinessConfigForm() {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcMsg, setRecalcMsg] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchConfig() {
@@ -321,6 +323,47 @@ export default function BusinessConfigForm() {
       >
         {isPending ? 'Guardando...' : 'Guardar cambios'}
       </button>
+
+      {/* Recalcular clientes nuevos */}
+      <section className="space-y-3 pt-4 border-t border-border">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Recalcular Clientes Nuevos</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Re-evalúa todos los clientes que aún no tienen fecha de conversión. Útil para actualizar datos históricos.
+          </p>
+        </div>
+        {recalcMsg && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+            {recalcMsg}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={recalculating}
+          onClick={() => {
+            setRecalcMsg(null)
+            setRecalculating(true)
+            void fetch('/api/admin/recalcular-clientes-nuevos', { method: 'POST' })
+              .then(async (r) => {
+                const json = (await r.json()) as { data?: { evaluated: number }; error?: string }
+                if (!r.ok) {
+                  setRecalcMsg(`Error: ${json.error ?? 'desconocido'}`)
+                } else {
+                  setRecalcMsg(`Evaluados ${json.data?.evaluated ?? 0} clientes correctamente.`)
+                }
+              })
+              .catch(() => setRecalcMsg('Error de conexión'))
+              .finally(() => setRecalculating(false))
+          }}
+          className={cn(
+            'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
+            'bg-muted text-foreground hover:bg-muted/70 border border-border',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+          )}
+        >
+          {recalculating ? 'Recalculando...' : 'Recalcular ahora'}
+        </button>
+      </section>
     </form>
   )
 }
