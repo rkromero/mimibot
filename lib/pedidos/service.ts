@@ -83,8 +83,18 @@ export async function crearPedidoConItems(
       .values(itemsToInsert)
       .returning()
 
-    // 5. Return pedido with items
-    return { ...pedido!, items: insertedItems }
+    // 5. Update pedido total (pre-calculated for display; saldoPendiente stays 0 until confirm)
+    const totalCalculado = itemsToInsert
+      .reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
+      .toFixed(2)
+
+    await tx
+      .update(pedidos)
+      .set({ total: totalCalculado })
+      .where(eq(pedidos.id, pedido!.id))
+
+    // 6. Return pedido with items and corrected total
+    return { ...pedido!, total: totalCalculado, items: insertedItems }
   })
 }
 

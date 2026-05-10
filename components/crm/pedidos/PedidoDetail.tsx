@@ -131,6 +131,10 @@ export default function PedidoDetail({ id }: Props) {
     )
   }
 
+  const displayTotal = pedido.estado === 'pendiente'
+    ? pedido.items.reduce((sum, item) => sum + parseFloat(item.subtotal), 0).toFixed(2)
+    : pedido.total
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -238,7 +242,7 @@ export default function PedidoDetail({ id }: Props) {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Resumen Financiero</h3>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Total</span>
-            <span className="font-medium">{formatMoney(pedido.total)}</span>
+            <span className="font-medium">{formatMoney(displayTotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Pagado</span>
@@ -282,7 +286,7 @@ export default function PedidoDetail({ id }: Props) {
                   Total
                 </td>
                 <td className="py-2.5 px-3 text-right font-bold text-foreground border-t border-border">
-                  {formatMoney(pedido.total)}
+                  {formatMoney(displayTotal)}
                 </td>
               </tr>
             </tfoot>
