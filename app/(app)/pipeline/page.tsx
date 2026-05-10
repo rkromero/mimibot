@@ -8,7 +8,7 @@ export default async function PipelinePage() {
   const session = await auth()
   const stages = await db.query.pipelineStages.findMany({
     orderBy: [asc(pipelineStages.position)],
-  })
+  }).catch(() => [])
 
   return (
     <div className="flex flex-col h-full">
