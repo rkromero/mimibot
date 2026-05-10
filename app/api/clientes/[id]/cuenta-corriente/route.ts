@@ -7,6 +7,7 @@ import { registrarPagoSchema } from '@/lib/validations/pedidos'
 import { registrarPago } from '@/lib/cuenta-corriente/pago.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 
 export async function GET(
   _req: NextRequest,
@@ -110,6 +111,10 @@ export async function POST(
       },
       db,
     )
+
+    void evaluarClienteNuevo(id).catch((err) => {
+      console.warn('[cuenta-corriente] evaluarClienteNuevo failed:', err)
+    })
 
     return NextResponse.json({ data: result }, { status: 201 })
   } catch (err) {
