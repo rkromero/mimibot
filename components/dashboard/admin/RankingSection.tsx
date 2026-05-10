@@ -30,7 +30,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'agent'
+  role: 'admin' | 'gerente' | 'agent'
   avatarColor: string
   isActive: boolean
 }

@@ -2,35 +2,51 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, clientes } from '@/db/schema'
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { updatePedidoSchema } from '@/lib/validations/pedidos'
 import { confirmarPedido } from '@/lib/pedidos/service'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
-import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
 import { deletePedido } from '@/lib/delete/delete.service'
+import { getSessionContext } from '@/lib/territorios/context'
 
-async function canAccessPedido(userId: string, role: string, pedidoId: string) {
+async function canAccessPedido(
+  pedidoId: string,
+  ctx: Awaited<ReturnType<typeof getSessionContext>>,
+) {
   const pedido = await db.query.pedidos.findFirst({
     where: and(eq(pedidos.id, pedidoId), isNull(pedidos.deletedAt)),
     columns: { id: true, vendedorId: true, clienteId: true },
   })
   if (!pedido) throw new NotFoundError('Pedido')
 
-  if (role === 'admin') return pedido
+  if (ctx.role === 'admin') return pedido
 
-  // Agents: must be the vendedor OR have the client assigned to them
-  if (pedido.vendedorId === userId) return pedido
+  if (ctx.role === 'agent') {
+    if (pedido.vendedorId === ctx.userId) return pedido
+    const cliente = await db.query.clientes.findFirst({
+      where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
+      columns: { id: true },
+    })
+    if (!cliente) throw new AuthzError('No tenés acceso a este pedido')
+    return pedido
+  }
 
-  // Check if the client is assigned to this agent
-  const cliente = await db.query.clientes.findFirst({
-    where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, userId)),
-    columns: { id: true },
-  })
-  if (!cliente) throw new AuthzError('No tenés acceso a este pedido')
+  if (ctx.role === 'gerente') {
+    if (ctx.territoriosGestionados.length === 0) throw new AuthzError('No tenés acceso a este pedido')
+    const cliente = await db.query.clientes.findFirst({
+      where: and(
+        eq(clientes.id, pedido.clienteId),
+        inArray(clientes.territorioId, ctx.territoriosGestionados),
+      ),
+      columns: { id: true },
+    })
+    if (!cliente) throw new AuthzError('No tenés acceso a este pedido')
+    return pedido
+  }
 
-  return pedido
+  throw new AuthzError('No tenés acceso a este pedido')
 }
 
 export async function GET(
@@ -41,8 +57,9 @@ export async function GET(
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const ctx = await getSessionContext(session.user)
     const { id } = await params
-    await canAccessPedido(session.user.id, session.user.role, id)
+    await canAccessPedido(id, ctx)
 
     const pedido = await db.query.pedidos.findFirst({
       where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)),
@@ -75,8 +92,9 @@ export async function PATCH(
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const ctx = await getSessionContext(session.user)
     const { id } = await params
-    await canAccessPedido(session.user.id, session.user.role, id)
+    await canAccessPedido(id, ctx)
 
     const body: unknown = await req.json()
     const parsed = updatePedidoSchema.safeParse(body)

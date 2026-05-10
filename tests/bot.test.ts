@@ -6,6 +6,7 @@ vi.mock('@/db', () => ({
     query: {
       leads: { findFirst: vi.fn() },
       botConfig: { findFirst: vi.fn() },
+      followUpConfig: { findFirst: vi.fn().mockResolvedValue(null) },
       messages: { findMany: vi.fn() },
       pipelineStages: { findMany: vi.fn() },
     },

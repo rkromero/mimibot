@@ -15,6 +15,8 @@ export const createPedidoSchema = z.object({
   items: z
     .array(pedidoItemSchema)
     .min(1, 'El pedido debe tener al menos un ítem'),
+  // Gerente cargando en nombre de un agente
+  vendedorId: z.string().uuid().optional().nullable(),
 })
 
 export const updatePedidoSchema = z.object({

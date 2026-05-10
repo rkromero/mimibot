@@ -5,7 +5,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'agent'])
+export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent'])
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
@@ -256,6 +256,54 @@ export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'com
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
 export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
 
+// ─── Territorios ──────────────────────────────────────────────────────────────
+
+export const territorios = pgTable('territorios', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull().unique(),
+  descripcion: text('descripcion'),
+  activo: boolean('activo').notNull().default(true),
+  esLegacy: boolean('es_legacy').notNull().default(false),
+  creadoPor: uuid('creado_por').references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
+}, (t) => [
+  index('territorios_activo_idx').on(t.activo),
+])
+
+export const territorioAgente = pgTable('territorio_agente', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  territorioId: uuid('territorio_id').notNull().references(() => territorios.id),
+  agenteId: uuid('agente_id').notNull().references(() => users.id),
+  fechaAsignacion: timestamp('fecha_asignacion', { mode: 'date' }).notNull().defaultNow(),
+  fechaDesasignacion: timestamp('fecha_desasignacion', { mode: 'date' }),
+}, (t) => [
+  index('territorio_agente_territorio_idx').on(t.territorioId),
+  index('territorio_agente_agente_idx').on(t.agenteId),
+])
+
+export const territorioGerente = pgTable('territorio_gerente', {
+  territorioId: uuid('territorio_id').notNull().references(() => territorios.id),
+  gerenteId: uuid('gerente_id').notNull().references(() => users.id),
+  fechaAsignacion: timestamp('fecha_asignacion', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.territorioId, t.gerenteId] }),
+  index('territorio_gerente_gerente_idx').on(t.gerenteId),
+])
+
+export const historialTeritorioCliente = pgTable('historial_territorio_cliente', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clienteId: uuid('cliente_id').notNull().references(() => clientes.id),
+  territorioAnteriorId: uuid('territorio_anterior_id').references(() => territorios.id),
+  territorioNuevoId: uuid('territorio_nuevo_id').references(() => territorios.id),
+  fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
+  cambiadoPor: uuid('cambiado_por').notNull().references(() => users.id),
+}, (t) => [
+  index('historial_territorio_cliente_idx').on(t.clienteId),
+  index('historial_territorio_fecha_idx').on(t.fecha),
+])
+
 // ─── CRM: Clientes ────────────────────────────────────────────────────────────
 
 export const clientes = pgTable('clientes', {
@@ -268,6 +316,7 @@ export const clientes = pgTable('clientes', {
   cuit: text('cuit'),
   origen: origenClienteEnum('origen').notNull().default('manual'),
   leadId: uuid('lead_id').references(() => leads.id),
+  territorioId: uuid('territorio_id').references(() => territorios.id),
   asignadoA: uuid('asignado_a').references(() => users.id),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   fechaConversionANuevo: timestamp('fecha_conversion_a_nuevo', { mode: 'date' }),
@@ -277,6 +326,7 @@ export const clientes = pgTable('clientes', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
+  index('clientes_territorio_idx').on(t.territorioId),
   index('clientes_asignado_idx').on(t.asignadoA),
   index('clientes_email_idx').on(t.email),
   index('clientes_cuit_idx').on(t.cuit),
@@ -307,6 +357,8 @@ export const pedidos = pgTable('pedidos', {
   id: uuid('id').defaultRandom().primaryKey(),
   clienteId: uuid('cliente_id').notNull().references(() => clientes.id),
   vendedorId: uuid('vendedor_id').notNull().references(() => users.id),
+  creadoPor: uuid('creado_por').references(() => users.id),
+  territorioIdImputado: uuid('territorio_id_imputado').references(() => territorios.id),
   fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
   estado: estadoPedidoEnum('estado').notNull().default('pendiente'),
   total: decimal('total', { precision: 12, scale: 2 }).notNull().default('0'),
@@ -322,6 +374,7 @@ export const pedidos = pgTable('pedidos', {
   index('pedidos_vendedor_idx').on(t.vendedorId),
   index('pedidos_estado_pago_idx').on(t.clienteId, t.estadoPago),
   index('pedidos_fecha_idx').on(t.fecha),
+  index('pedidos_territorio_imputado_idx').on(t.territorioIdImputado),
 ])
 
 export const pedidoItems = pgTable('pedido_items', {

@@ -21,6 +21,7 @@ export async function crearPedidoConItems(
   observaciones: string | null | undefined,
   items: Array<{ productoId: string; cantidad: number }>,
   drizzleDb: Db = db,
+  extra?: { creadoPor?: string | null; territorioIdImputado?: string | null },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
   return drizzleDb.transaction(async (tx) => {
     // 1. Fetch productos by IDs to get current prices
@@ -53,6 +54,8 @@ export async function crearPedidoConItems(
       .values({
         clienteId,
         vendedorId,
+        creadoPor: extra?.creadoPor ?? null,
+        territorioIdImputado: extra?.territorioIdImputado ?? null,
         fecha: fechaDate,
         estado: 'pendiente',
         total: '0',

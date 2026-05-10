@@ -26,6 +26,18 @@ export function requireAdmin(user: SessionUser): void {
   }
 }
 
+export function requireAdminOrGerente(user: SessionUser): void {
+  if (user.role !== 'admin' && user.role !== 'gerente') {
+    throw new AuthzError('Acción no permitida para tu rol')
+  }
+}
+
+export function requireNotAgent(user: SessionUser): void {
+  if (user.role === 'agent') {
+    throw new AuthzError('Acción no permitida para agentes')
+  }
+}
+
 // Wrapper para handlers de API que requieren sesión
 export async function withAuth<T>(
   handler: (user: SessionUser) => Promise<T>,

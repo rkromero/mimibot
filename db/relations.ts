@@ -5,6 +5,7 @@ import {
   pipelineStages, tags, leadTags, activityLog, botConfig,
   clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago,
   actividadesCliente, metas, auditLogMetas,
+  territorios, territorioAgente, territorioGerente, historialTeritorioCliente,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -19,6 +20,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   metasVendedor: many(metas, { relationName: 'metasVendedor' }),
   metasCreadas: many(metas, { relationName: 'metasCreadas' }),
   auditsMetas: many(auditLogMetas, { relationName: 'auditsMetas' }),
+  territoriosComoAgente: many(territorioAgente, { relationName: 'agenteEnTerritorios' }),
+  territoriosComoGerente: many(territorioGerente, { relationName: 'gerenteDeTerritorios' }),
+  territoriosCreados: many(territorios, { relationName: 'territoriosCreados' }),
+  pedidosComoVendedor: many(pedidos, { relationName: 'pedidosComoVendedor' }),
+  pedidosCargados: many(pedidos, { relationName: 'pedidosCargados' }),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -87,16 +93,53 @@ export const activityLogRelations = relations(activityLog, ({ one }) => ({
   user: one(users, { fields: [activityLog.userId], references: [users.id] }),
 }))
 
+// ─── Territorios Relations ────────────────────────────────────────────────────
+
+export const territoriosRelations = relations(territorios, ({ one, many }) => ({
+  creadoPor: one(users, { fields: [territorios.creadoPor], references: [users.id], relationName: 'territoriosCreados' }),
+  agentes: many(territorioAgente),
+  gerentes: many(territorioGerente),
+  clientes: many(clientes),
+  historialCambios: many(historialTeritorioCliente, { relationName: 'territorioNuevo' }),
+}))
+
+export const territorioAgenteRelations = relations(territorioAgente, ({ one }) => ({
+  territorio: one(territorios, { fields: [territorioAgente.territorioId], references: [territorios.id] }),
+  agente: one(users, { fields: [territorioAgente.agenteId], references: [users.id], relationName: 'agenteEnTerritorios' }),
+}))
+
+export const territorioGerenteRelations = relations(territorioGerente, ({ one }) => ({
+  territorio: one(territorios, { fields: [territorioGerente.territorioId], references: [territorios.id] }),
+  gerente: one(users, { fields: [territorioGerente.gerenteId], references: [users.id], relationName: 'gerenteDeTerritorios' }),
+}))
+
+export const historialTeritorioClienteRelations = relations(historialTeritorioCliente, ({ one }) => ({
+  cliente: one(clientes, { fields: [historialTeritorioCliente.clienteId], references: [clientes.id] }),
+  territorioAnterior: one(territorios, {
+    fields: [historialTeritorioCliente.territorioAnteriorId],
+    references: [territorios.id],
+    relationName: 'territorioAnterior',
+  }),
+  territorioNuevo: one(territorios, {
+    fields: [historialTeritorioCliente.territorioNuevoId],
+    references: [territorios.id],
+    relationName: 'territorioNuevo',
+  }),
+  cambiadoPor: one(users, { fields: [historialTeritorioCliente.cambiadoPor], references: [users.id] }),
+}))
+
 // ─── CRM Relations ────────────────────────────────────────────────────────────
 
 export const clientesRelations = relations(clientes, ({ one, many }) => ({
   lead: one(leads, { fields: [clientes.leadId], references: [leads.id] }),
+  territorio: one(territorios, { fields: [clientes.territorioId], references: [territorios.id] }),
   asignadoA: one(users, { fields: [clientes.asignadoA], references: [users.id], relationName: 'clientesAsignados' }),
   creadoPor: one(users, { fields: [clientes.creadoPor], references: [users.id], relationName: 'clientesCreados' }),
   vendedorConversion: one(users, { fields: [clientes.vendedorConversionId], references: [users.id], relationName: 'clientesConvertidos' }),
   pedidos: many(pedidos),
   movimientosCC: many(movimientosCC),
   actividades: many(actividadesCliente),
+  historialTerritorios: many(historialTeritorioCliente),
 }))
 
 export const actividadesClienteRelations = relations(actividadesCliente, ({ one }) => ({
@@ -112,7 +155,9 @@ export const productosRelations = relations(productos, ({ one, many }) => ({
 
 export const pedidosRelations = relations(pedidos, ({ one, many }) => ({
   cliente: one(clientes, { fields: [pedidos.clienteId], references: [clientes.id] }),
-  vendedor: one(users, { fields: [pedidos.vendedorId], references: [users.id] }),
+  vendedor: one(users, { fields: [pedidos.vendedorId], references: [users.id], relationName: 'pedidosComoVendedor' }),
+  creadoPor: one(users, { fields: [pedidos.creadoPor], references: [users.id], relationName: 'pedidosCargados' }),
+  territorioImputado: one(territorios, { fields: [pedidos.territorioIdImputado], references: [territorios.id] }),
   items: many(pedidoItems),
   aplicaciones: many(aplicacionesPago),
 }))

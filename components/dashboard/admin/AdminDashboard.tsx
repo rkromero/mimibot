@@ -9,6 +9,9 @@ import RankingSection from './RankingSection'
 import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
 
+type Territorio = { id: string; nombre: string }
+type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' }
+
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 
 interface MetricaAvance {
@@ -39,7 +42,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'agent'
+  role: 'admin' | 'gerente' | 'agent'
   avatarColor: string
   isActive: boolean
 }
@@ -62,18 +65,34 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [anio, setAnio] = useState(currentAnio)
   const [mes, setMes] = useState(currentMes)
+  const [territorioFiltro, setTerritorioFiltro] = useState('')
+  const [gerenteFiltro, setGerenteFiltro] = useState('')
+  const [territorios, setTerritorios] = useState<Territorio[]>([])
+  const [gerentes, setGerentes] = useState<GerenteUser[]>([])
   const [avances, setAvances] = useState<MetaAvance[] | null>(null)
   const [users, setUsers] = useState<User[] | null>(null)
   const [selectedVendedorId, setSelectedVendedorId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async (a: number, m: number) => {
+  // Load static filter options once
+  useEffect(() => {
+    void Promise.all([
+      fetch('/api/territorios').then(async (r) => r.ok ? ((await r.json()) as { data: Territorio[] }).data : []),
+      fetch('/api/users?role=gerente').then(async (r) => r.ok ? ((await r.json()) as { data: GerenteUser[] }).data : []),
+    ]).then(([t, g]) => { setTerritorios(t); setGerentes(g) })
+  }, [])
+
+  const fetchData = useCallback(async (a: number, m: number, tid: string, gid: string) => {
     setLoading(true)
     setError(null)
     try {
+      const qs = new URLSearchParams({ anio: String(a), mes: String(m) })
+      if (tid) qs.set('territorioId', tid)
+      else if (gid) qs.set('gerenteId', gid)
+
       const [avancesRes, usersRes] = await Promise.all([
-        fetch(`/api/metas/avance?anio=${a}&mes=${m}`),
+        fetch(`/api/metas/avance?${qs.toString()}`),
         fetch('/api/users'),
       ])
 
@@ -93,8 +112,8 @@ export default function AdminDashboard({
   }, [])
 
   useEffect(() => {
-    void fetchData(anio, mes)
-  }, [anio, mes, fetchData])
+    void fetchData(anio, mes, territorioFiltro, gerenteFiltro)
+  }, [anio, mes, territorioFiltro, gerenteFiltro, fetchData])
 
   function handlePeriodoChange(a: number, m: number) {
     setAnio(a)
@@ -106,9 +125,35 @@ export default function AdminDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Period selector + action button */}
+      {/* Period selector + filters + action button */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <PeriodoSelector anio={anio} mes={mes} onChange={handlePeriodoChange} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodoSelector anio={anio} mes={mes} onChange={handlePeriodoChange} />
+          {territorios.length > 0 && (
+            <select
+              value={territorioFiltro}
+              onChange={(e) => { setTerritorioFiltro(e.target.value); setGerenteFiltro(''); setSelectedVendedorId(null) }}
+              className="text-sm border border-border rounded-md px-2.5 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Todos los territorios</option>
+              {territorios.map((t) => (
+                <option key={t.id} value={t.id}>{t.nombre}</option>
+              ))}
+            </select>
+          )}
+          {gerentes.length > 0 && (
+            <select
+              value={gerenteFiltro}
+              onChange={(e) => { setGerenteFiltro(e.target.value); setTerritorioFiltro(''); setSelectedVendedorId(null) }}
+              className="text-sm border border-border rounded-md px-2.5 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Todos los gerentes</option>
+              {gerentes.map((g) => (
+                <option key={g.id} value={g.id}>{g.name ?? g.email}</option>
+              ))}
+            </select>
+          )}
+        </div>
         {showCargarMetas && (
           <Link
             href="/admin/metas"

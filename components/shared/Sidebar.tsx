@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart, Building2, BarChart3, Target } from 'lucide-react'
+import { LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart, Building2, BarChart3, Target, Map } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
@@ -33,7 +33,7 @@ export default function Sidebar({ user }: { user: User }) {
 
       {/* Navegación principal */}
       <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
-        {/* Dashboard — only for agents */}
+        {/* Dashboard */}
         {user.role !== 'admin' && (
           <Link
             href="/dashboard"
@@ -46,6 +46,22 @@ export default function Sidebar({ user }: { user: User }) {
           >
             <BarChart3 size={15} strokeWidth={1.75} />
             Dashboard
+          </Link>
+        )}
+
+        {/* Territorios — admin y gerente */}
+        {(user.role === 'admin' || user.role === 'gerente') && (
+          <Link
+            href="/territorios"
+            className={cn(
+              'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100',
+              pathname.startsWith('/territorios')
+                ? 'bg-accent text-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            <Map size={15} strokeWidth={1.75} />
+            Territorios
           </Link>
         )}
 
@@ -86,6 +102,23 @@ export default function Sidebar({ user }: { user: User }) {
             </Link>
           ))}
         </div>
+
+        {user.role === 'gerente' && (
+          <div className="pt-1 space-y-0.5">
+            <Link
+              href="/admin/metas"
+              className={cn(
+                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100',
+                pathname.startsWith('/admin/metas')
+                  ? 'bg-accent text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+            >
+              <Target size={15} strokeWidth={1.75} />
+              Metas
+            </Link>
+          </div>
+        )}
 
         {user.role === 'admin' && (
           <div className="pt-1 space-y-0.5">

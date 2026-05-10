@@ -21,9 +21,15 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     const meta = await getMetaWithVendedor(id)
     if (!meta) throw new NotFoundError('Meta')
 
-    // Agent can only view their own meta
     if (session.user.role === 'agent' && meta.vendedorId !== session.user.id) {
       throw new AuthzError('No tenés acceso a esta meta')
+    }
+    if (session.user.role === 'gerente') {
+      const { getSessionContext } = await import('@/lib/territorios/context')
+      const ctx = await getSessionContext(session.user)
+      if (!ctx.agentesVisibles.includes(meta.vendedorId)) {
+        throw new AuthzError('No tenés acceso a esta meta')
+      }
     }
 
     return NextResponse.json({ data: meta })

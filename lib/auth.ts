@@ -66,7 +66,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      let dbUser: { role: 'admin' | 'agent'; isActive: boolean; avatarColor: string } | undefined
+      let dbUser: { role: 'admin' | 'gerente' | 'agent'; isActive: boolean; avatarColor: string } | undefined
       try {
         dbUser = await db.query.users.findFirst({
           where: eq(users.id, token.sub!),
@@ -96,7 +96,7 @@ declare module 'next-auth' {
       id: string
       email: string
       name: string | null
-      role: 'admin' | 'agent'
+      role: 'admin' | 'gerente' | 'agent'
       avatarColor: string
     }
   }

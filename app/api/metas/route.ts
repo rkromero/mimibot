@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { metas, users } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { createMetaSchema } from '@/lib/validations/metas'
-import { requireAdmin } from '@/lib/authz'
-import { toApiError } from '@/lib/errors'
+import { toApiError, AuthzError } from '@/lib/errors'
 import { createMeta, getMetaByVendedorPeriodo, isMesBloqueable } from '@/lib/metas/metas.service'
+import { getSessionContext } from '@/lib/territorios/context'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const ctx = await getSessionContext(session.user)
 
     const params = req.nextUrl.searchParams
     const anioParam = params.get('anio')
@@ -30,36 +32,32 @@ export async function GET(req: NextRequest) {
 
     const conditions: ReturnType<typeof eq>[] = []
 
-    if (session.user.role === 'agent') {
-      // Agents only see their own metas
-      conditions.push(eq(metas.vendedorId, session.user.id))
-    } else if (vendedorIdParam) {
-      // Admin can filter by vendedorId
-      conditions.push(eq(metas.vendedorId, vendedorIdParam))
+    if (ctx.role === 'agent') {
+      conditions.push(eq(metas.vendedorId, ctx.userId))
+    } else if (ctx.role === 'gerente') {
+      const agentes = ctx.agentesVisibles
+      if (agentes.length === 0) return NextResponse.json({ data: [] })
+      if (vendedorIdParam && agentes.includes(vendedorIdParam)) {
+        conditions.push(eq(metas.vendedorId, vendedorIdParam))
+      } else {
+        conditions.push(inArray(metas.vendedorId, agentes) as ReturnType<typeof eq>)
+      }
+    } else {
+      // admin
+      if (vendedorIdParam) conditions.push(eq(metas.vendedorId, vendedorIdParam))
     }
 
-    if (anio !== undefined) {
-      conditions.push(eq(metas.periodoAnio, anio) as ReturnType<typeof eq>)
-    }
-    if (mes !== undefined) {
-      conditions.push(eq(metas.periodoMes, mes) as ReturnType<typeof eq>)
-    }
+    if (anio !== undefined) conditions.push(eq(metas.periodoAnio, anio) as ReturnType<typeof eq>)
+    if (mes !== undefined) conditions.push(eq(metas.periodoMes, mes) as ReturnType<typeof eq>)
 
     const rows = await db
-      .select({
-        meta: metas,
-        vendedorNombre: users.name,
-      })
+      .select({ meta: metas, vendedorNombre: users.name })
       .from(metas)
       .leftJoin(users, eq(metas.vendedorId, users.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(metas.periodoAnio, metas.periodoMes)
 
-    const data = rows.map((r) => ({
-      ...r.meta,
-      vendedorNombre: r.vendedorNombre ?? null,
-    }))
-
+    const data = rows.map((r) => ({ ...r.meta, vendedorNombre: r.vendedorNombre ?? null }))
     return NextResponse.json({ data })
   } catch (err) {
     const { message, status } = toApiError(err)
@@ -72,34 +70,33 @@ export async function POST(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    requireAdmin(session.user)
+    const ctx = await getSessionContext(session.user)
+
+    if (ctx.role === 'agent') {
+      throw new AuthzError('Los agentes no pueden crear metas')
+    }
 
     const body: unknown = await req.json()
     const parsed = createMetaSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
     }
 
     const input = parsed.data
 
-    // Check period is not locked in the past
-    const status = isMesBloqueable(input.periodoAnio, input.periodoMes)
-    if (status === 'bloqueado_pasado') {
-      return NextResponse.json(
-        { error: 'No se pueden crear metas para períodos pasados' },
-        { status: 400 },
-      )
+    // Gerente can only create metas for agents in their territories
+    if (ctx.role === 'gerente') {
+      if (!ctx.agentesVisibles.includes(input.vendedorId)) {
+        throw new AuthzError('Solo podés crear metas para agentes de tus territorios')
+      }
     }
 
-    // Check for existing meta (UNIQUE constraint would catch this too, but return 409 early)
-    const existing = await getMetaByVendedorPeriodo(
-      input.vendedorId,
-      input.periodoAnio,
-      input.periodoMes,
-    )
+    const status = isMesBloqueable(input.periodoAnio, input.periodoMes)
+    if (status === 'bloqueado_pasado') {
+      return NextResponse.json({ error: 'No se pueden crear metas para períodos pasados' }, { status: 400 })
+    }
+
+    const existing = await getMetaByVendedorPeriodo(input.vendedorId, input.periodoAnio, input.periodoMes)
     if (existing) {
       return NextResponse.json(
         { error: `Ya existe una meta para este vendedor en ${input.periodoMes}/${input.periodoAnio}` },

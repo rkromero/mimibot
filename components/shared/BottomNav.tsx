@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ShoppingCart, Package, LayoutGrid, BarChart3 } from 'lucide-react'
+import { Users, ShoppingCart, Package, LayoutGrid, BarChart3, Map } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
@@ -23,9 +23,16 @@ const ADMIN_TABS = [
   { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid },
 ]
 
+const GERENTE_TABS = [
+  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  { href: '/territorios', label: 'Territorios', icon: Map },
+  { href: '/crm/clientes', label: 'Clientes', icon: Users },
+  { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart },
+]
+
 export default function BottomNav({ user }: Props) {
   const pathname = usePathname()
-  const tabs = user.role === 'admin' ? ADMIN_TABS : AGENT_TABS
+  const tabs = user.role === 'admin' ? ADMIN_TABS : user.role === 'gerente' ? GERENTE_TABS : AGENT_TABS
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t border-border bg-card pb-safe">

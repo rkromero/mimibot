@@ -6,26 +6,19 @@ import { eq, and, or, inArray, isNull } from 'drizzle-orm'
 import { createPedidoSchema } from '@/lib/validations/pedidos'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
+import { getSessionContext } from '@/lib/territorios/context'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const ctx = await getSessionContext(session.user)
+
     const searchParams = req.nextUrl.searchParams
     const clienteId = searchParams.get('clienteId') ?? undefined
     const estado = searchParams.get('estado') ?? undefined
     const estadoPago = searchParams.get('estadoPago') ?? undefined
-
-    // For agents: find their own clients first, then filter pedidos
-    let clienteIdsForAgent: string[] | undefined
-    if (session.user.role === 'agent') {
-      const agentClientes = await db
-        .select({ id: clientes.id })
-        .from(clientes)
-        .where(eq(clientes.asignadoA, session.user.id))
-      clienteIdsForAgent = agentClientes.map((c) => c.id)
-    }
 
     const rows = await db
       .select({
@@ -50,13 +43,22 @@ export async function GET(req: NextRequest) {
           isNull(clientes.deletedAt) as ReturnType<typeof eq>,
         ]
 
-        if (session.user.role === 'agent') {
-          // Agents see pedidos where vendedor = self OR cliente.asignadoA = self
-          const agentConditions = [eq(pedidos.vendedorId, session.user.id)]
-          if (clienteIdsForAgent && clienteIdsForAgent.length > 0) {
-            agentConditions.push(inArray(pedidos.clienteId, clienteIdsForAgent) as ReturnType<typeof eq>)
+        if (ctx.role === 'agent') {
+          const agentConditions: ReturnType<typeof eq>[] = [
+            eq(pedidos.vendedorId, ctx.userId),
+          ]
+          if (ctx.territoriosActivos.length > 0) {
+            // Also see pedidos from clients in their territories
+            agentConditions.push(
+              inArray(clientes.territorioId, ctx.territoriosActivos) as ReturnType<typeof eq>,
+            )
           }
           conditions.push(or(...agentConditions) as ReturnType<typeof eq>)
+        } else if (ctx.role === 'gerente') {
+          if (ctx.territoriosGestionados.length === 0) return and(...conditions)
+          conditions.push(
+            inArray(clientes.territorioId, ctx.territoriosGestionados) as ReturnType<typeof eq>,
+          )
         }
 
         if (clienteId) conditions.push(eq(pedidos.clienteId, clienteId))
@@ -85,41 +87,79 @@ export async function POST(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const ctx = await getSessionContext(session.user)
+
     const body: unknown = await req.json()
     const parsed = createPedidoSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
     }
 
     const input = parsed.data
 
-    // Agents can only create pedidos for their own clients
-    if (session.user.role === 'agent') {
+    // Determine vendedorId (quien recibe el crédito para metas) y creadoPor
+    let vendedorId: string = session.user.id
+    let creadoPor: string | null = null
+
+    if (ctx.role === 'agent') {
+      // Agent creates for their own clients
       const cliente = await db.query.clientes.findFirst({
         where: and(
           eq(clientes.id, input.clienteId),
           eq(clientes.asignadoA, session.user.id),
+          isNull(clientes.deletedAt),
         ),
-        columns: { id: true },
+        columns: { id: true, territorioId: true },
       })
-      if (!cliente) {
-        throw new AuthzError('Solo podés crear pedidos para tus propios clientes')
+      if (!cliente) throw new AuthzError('Solo podés crear pedidos para tus propios clientes')
+
+      // Snapshot territory
+      var territorioIdImputado = cliente.territorioId ?? null
+
+    } else if (ctx.role === 'gerente') {
+      // Gerente loads on behalf of an agent — vendedorId must be provided
+      if (!input.vendedorId) {
+        throw new AuthzError('El gerente debe indicar el agente (vendedorId) al cargar un pedido')
       }
-    } else {
-      // Admin: verify cliente exists
+      if (!ctx.agentesVisibles.includes(input.vendedorId)) {
+        throw new AuthzError('Ese agente no pertenece a tus territorios')
+      }
+
+      // Verify the client belongs to their territories
       const cliente = await db.query.clientes.findFirst({
-        where: eq(clientes.id, input.clienteId),
-        columns: { id: true },
+        where: and(
+          eq(clientes.id, input.clienteId),
+          inArray(clientes.territorioId, ctx.territoriosGestionados),
+          isNull(clientes.deletedAt),
+        ),
+        columns: { id: true, territorioId: true },
+      })
+      if (!cliente) throw new AuthzError('Ese cliente no pertenece a tus territorios')
+
+      vendedorId = input.vendedorId
+      creadoPor = session.user.id
+      var territorioIdImputado = cliente.territorioId ?? null
+
+    } else {
+      // Admin
+      const cliente = await db.query.clientes.findFirst({
+        where: and(eq(clientes.id, input.clienteId), isNull(clientes.deletedAt)),
+        columns: { id: true, territorioId: true },
       })
       if (!cliente) throw new NotFoundError('Cliente')
+
+      if (input.vendedorId) vendedorId = input.vendedorId
+      var territorioIdImputado = cliente.territorioId ?? null
     }
 
     const pedido = await crearPedidoConItems(
       input.clienteId,
-      session.user.id,
+      vendedorId,
       input.fecha ?? null,
       input.observaciones ?? null,
       input.items,
+      db,
+      { creadoPor, territorioIdImputado },
     )
 
     return NextResponse.json({ data: pedido }, { status: 201 })

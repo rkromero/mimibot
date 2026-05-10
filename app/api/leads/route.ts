@@ -19,11 +19,30 @@ export async function GET(req: NextRequest) {
 
     const { agentId, tagId, source, search, stageId } = filters.data
 
-    // Agentes solo ven sus leads
-    const effectiveAgentId = session.user.role === 'agent' ? session.user.id : agentId
+    // Scope by role
+    let effectiveAgentId: string | undefined = agentId
+    let gerenteAgenteIds: string[] | undefined
+
+    if (session.user.role === 'agent') {
+      effectiveAgentId = session.user.id
+    } else if (session.user.role === 'gerente') {
+      const { getSessionContext } = await import('@/lib/territorios/context')
+      const ctx = await getSessionContext(session.user)
+      gerenteAgenteIds = ctx.agentesVisibles
+      if (agentId && ctx.agentesVisibles.includes(agentId)) effectiveAgentId = agentId
+    }
 
     const conditions = [eq(leads.isOpen, true)]
-    if (effectiveAgentId) conditions.push(eq(leads.assignedTo, effectiveAgentId))
+    if (gerenteAgenteIds !== undefined) {
+      if (gerenteAgenteIds.length === 0) return NextResponse.json({ data: [] })
+      if (effectiveAgentId) {
+        conditions.push(eq(leads.assignedTo, effectiveAgentId))
+      } else {
+        conditions.push(inArray(leads.assignedTo, gerenteAgenteIds))
+      }
+    } else if (effectiveAgentId) {
+      conditions.push(eq(leads.assignedTo, effectiveAgentId))
+    }
     if (source) conditions.push(eq(leads.source, source))
     if (stageId) conditions.push(eq(leads.stageId, stageId))
 

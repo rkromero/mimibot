@@ -94,6 +94,12 @@ describe('crearPedidoConItems', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Set up chainable tx.update().set().where() for the total-recalc step
+    mockTxUpdate.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    })
     mockTransaction.mockImplementation(
       (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
     )

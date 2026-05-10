@@ -9,6 +9,8 @@ export const createClienteSchema = z.object({
   cuit: z.string().max(20).optional().nullable(),
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().optional().nullable(),
+  // Territory assignment — resolved by role in route handler
+  territorioId: z.string().uuid().optional().nullable(),
 })
 
 export const updateClienteSchema = z.object({
@@ -26,6 +28,7 @@ export const updateClienteSchema = z.object({
 export const clienteFiltersSchema = z.object({
   search: z.string().max(200).optional(),
   asignadoA: z.string().uuid().optional(),
+  territorioId: z.string().uuid().optional(),
   estadoActividad: z.enum(['activo', 'inactivo', 'perdido']).optional(),
 })
 

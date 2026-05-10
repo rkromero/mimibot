@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     const conditions = [eq(users.isActive, true)]
     if (role === 'agent') conditions.push(eq(users.role, 'agent'))
     if (role === 'admin') conditions.push(eq(users.role, 'admin'))
+    if (role === 'gerente') conditions.push(eq(users.role, 'gerente'))
 
     const data = await db
       .select({
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
         email: users.email,
         role: users.role,
         avatarColor: users.avatarColor,
+        isActive: users.isActive,
         isOnline: sql<boolean>`${users.lastSeenAt} > NOW() - INTERVAL '90 seconds'`,
       })
       .from(users)
