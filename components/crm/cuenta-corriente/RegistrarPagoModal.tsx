@@ -59,7 +59,7 @@ export default function RegistrarPagoModal({ clienteId, onClose, onSuccess }: Pr
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          monto,
+          monto: form.monto,
           fecha: form.fecha,
           descripcion: form.descripcion.trim() || undefined,
         }),
