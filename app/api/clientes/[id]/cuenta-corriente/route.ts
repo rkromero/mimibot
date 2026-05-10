@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { movimientosCC, pedidos, clientes } from '@/db/schema'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, and, isNull } from 'drizzle-orm'
 import { registrarPagoSchema } from '@/lib/validations/pedidos'
 import { registrarPago } from '@/lib/cuenta-corriente/pago.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
@@ -27,7 +27,7 @@ export async function GET(
 
     // Fetch movements in chronological desc order
     const movimientos = await db.query.movimientosCC.findMany({
-      where: eq(movimientosCC.clienteId, id),
+      where: and(eq(movimientosCC.clienteId, id), isNull(movimientosCC.deletedAt)),
       with: {
         registradoPor: { columns: { id: true, name: true } },
         pedido: { columns: { id: true, total: true, estado: true } },
@@ -50,7 +50,7 @@ export async function GET(
 
     // Fetch pedidos with pending balance info
     const pedidosPendientes = await db.query.pedidos.findMany({
-      where: eq(pedidos.clienteId, id),
+      where: and(eq(pedidos.clienteId, id), isNull(pedidos.deletedAt)),
       columns: {
         id: true,
         total: true,

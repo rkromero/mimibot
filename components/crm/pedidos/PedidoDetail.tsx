@@ -19,9 +19,10 @@ type PedidoItem = {
 
 type AplicacionPago = {
   id: string
-  fechaPago: string
+  createdAt: string
   montoAplicado: string
-  movimientoId: string
+  movimientoCreditoId: string
+  deletedAt: string | null
 }
 
 type Pedido = {
@@ -295,7 +296,7 @@ export default function PedidoDetail({ id }: Props) {
       </div>
 
       {/* Pagos aplicados */}
-      {pedido.aplicaciones.length > 0 && (
+      {pedido.aplicaciones.filter(ap => !ap.deletedAt).length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Pagos Aplicados</h3>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -307,10 +308,10 @@ export default function PedidoDetail({ id }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {pedido.aplicaciones.map((ap) => (
+                {pedido.aplicaciones.filter(ap => !ap.deletedAt).map((ap) => (
                   <tr key={ap.id} className="border-b border-border last:border-0">
                     <td className="py-2.5 px-3 text-muted-foreground">
-                      {format(new Date(ap.fechaPago), 'dd/MM/yyyy')}
+                      {format(new Date(ap.createdAt), 'dd/MM/yyyy')}
                     </td>
                     <td className="py-2.5 px-3 text-right font-medium text-green-600">
                       {formatMoney(ap.montoAplicado)}
