@@ -26,6 +26,7 @@ export const updateClienteSchema = z.object({
 export const clienteFiltersSchema = z.object({
   search: z.string().max(200).optional(),
   asignadoA: z.string().uuid().optional(),
+  estadoActividad: z.enum(['activo', 'inactivo', 'perdido']).optional(),
 })
 
 export type CreateClienteInput = z.infer<typeof createClienteSchema>

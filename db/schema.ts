@@ -122,6 +122,7 @@ export const leads = pgTable('leads', {
   followUpCount: integer('follow_up_count').notNull().default(0),
   followUpStatus: followUpStatusEnum('follow_up_status'),
   followUpReason: text('follow_up_reason'),
+  wonAt: timestamp('won_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -131,6 +132,7 @@ export const leads = pgTable('leads', {
   index('leads_contact_idx').on(t.contactId),
   index('leads_open_stage_idx').on(t.isOpen, t.stageId),
   index('leads_follow_up_idx').on(t.nextFollowUpAt, t.followUpStatus),
+  index('leads_won_at_idx').on(t.wonAt),
 ])
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
@@ -252,6 +254,7 @@ export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'cre
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
 export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
+export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
 
 // ─── CRM: Clientes ────────────────────────────────────────────────────────────
 
@@ -267,6 +270,9 @@ export const clientes = pgTable('clientes', {
   leadId: uuid('lead_id').references(() => leads.id),
   asignadoA: uuid('asignado_a').references(() => users.id),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  fechaConversionANuevo: timestamp('fecha_conversion_a_nuevo', { mode: 'date' }),
+  estadoActividad: estadoActividadEnum('estado_actividad'),
+  vendedorConversionId: uuid('vendedor_conversion_id').references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -275,6 +281,8 @@ export const clientes = pgTable('clientes', {
   index('clientes_email_idx').on(t.email),
   index('clientes_cuit_idx').on(t.cuit),
   index('clientes_lead_idx').on(t.leadId),
+  index('clientes_estado_actividad_idx').on(t.estadoActividad),
+  index('clientes_conversion_idx').on(t.fechaConversionANuevo),
 ])
 
 // ─── CRM: Productos ───────────────────────────────────────────────────────────
@@ -418,4 +426,54 @@ export const activityLog = pgTable('activity_log', {
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 }, (t) => [
   index('activity_log_lead_created_idx').on(t.leadId, t.createdAt),
+])
+
+// ─── Configuración global del negocio (singleton) ─────────────────────────────
+
+export const businessConfig = pgTable('business_config', {
+  id: integer('id').primaryKey().default(1),
+  clienteNuevoMinPedidos: integer('cliente_nuevo_min_pedidos').notNull().default(3),
+  clienteNuevoVentanaDias: integer('cliente_nuevo_ventana_dias').notNull().default(90),
+  clienteNuevoMontoMinimo: decimal('cliente_nuevo_monto_minimo', { precision: 12, scale: 2 }),
+  clienteActivoDias: integer('cliente_activo_dias').notNull().default(60),
+  clienteInactivoDias: integer('cliente_inactivo_dias').notNull().default(90),
+  clientePerdidoDias: integer('cliente_perdido_dias').notNull().default(180),
+  clienteMorosoDias: integer('cliente_moroso_dias').notNull().default(30),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+// ─── Metas mensuales por vendedor ─────────────────────────────────────────────
+
+export const metas = pgTable('metas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  vendedorId: uuid('vendedor_id').notNull().references(() => users.id),
+  periodoAnio: integer('periodo_anio').notNull(),
+  periodoMes: integer('periodo_mes').notNull(),
+  clientesNuevosObjetivo: integer('clientes_nuevos_objetivo').notNull().default(0),
+  pedidosObjetivo: integer('pedidos_objetivo').notNull().default(0),
+  montoCobradoObjetivo: decimal('monto_cobrado_objetivo', { precision: 12, scale: 2 }).notNull().default('0'),
+  conversionLeadsObjetivo: decimal('conversion_leads_objetivo', { precision: 5, scale: 2 }).notNull().default('0'),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  fechaCreacion: timestamp('fecha_creacion', { mode: 'date' }).notNull().defaultNow(),
+  fechaActualizacion: timestamp('fecha_actualizacion', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('metas_vendedor_periodo_idx').on(t.vendedorId, t.periodoAnio, t.periodoMes),
+  index('metas_periodo_idx').on(t.periodoAnio, t.periodoMes),
+  index('metas_vendedor_idx').on(t.vendedorId),
+])
+
+// ─── Auditoría de correcciones de metas ───────────────────────────────────────
+
+export const auditLogMetas = pgTable('audit_log_metas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  metaId: uuid('meta_id').notNull().references(() => metas.id),
+  accion: text('accion').notNull(),
+  motivo: text('motivo'),
+  cambiadoPor: uuid('cambiado_por').notNull().references(() => users.id),
+  oldValues: jsonb('old_values'),
+  newValues: jsonb('new_values'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('audit_log_metas_meta_idx').on(t.metaId),
 ])

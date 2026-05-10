@@ -5,6 +5,7 @@ import { pedidos, clientes } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { updatePedidoSchema } from '@/lib/validations/pedidos'
 import { confirmarPedido } from '@/lib/pedidos/service'
+import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
@@ -98,6 +99,12 @@ export async function PATCH(
     // If changing to 'confirmado', delegate to service
     if (estado === 'confirmado' && current.estado !== 'confirmado') {
       const updated = await confirmarPedido(id, session.user.id)
+
+      // Fire and forget — don't block the response
+      void evaluarClienteNuevo(updated.clienteId).catch((err) => {
+        console.warn('[pedidos] evaluarClienteNuevo failed:', err)
+      })
+
       return NextResponse.json({ data: updated })
     }
 

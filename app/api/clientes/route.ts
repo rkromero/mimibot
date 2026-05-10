@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
     }
 
-    const { search, asignadoA } = filters.data
+    const { search, asignadoA, estadoActividad } = filters.data
 
     const conditions: ReturnType<typeof eq>[] = [
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
@@ -30,6 +30,10 @@ export async function GET(req: NextRequest) {
     } else if (asignadoA) {
       // Admin can filter by asignadoA
       conditions.push(eq(clientes.asignadoA, asignadoA))
+    }
+
+    if (estadoActividad) {
+      conditions.push(eq(clientes.estadoActividad, estadoActividad))
     }
 
     if (search) {

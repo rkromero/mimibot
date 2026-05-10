@@ -4,7 +4,7 @@ import {
   leads, contacts, conversations, messages, attachments,
   pipelineStages, tags, leadTags, activityLog, botConfig,
   clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago,
-  actividadesCliente,
+  actividadesCliente, metas, auditLogMetas,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -15,6 +15,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   activityLogs: many(activityLog),
   clientesAsignados: many(clientes, { relationName: 'clientesAsignados' }),
   clientesCreados: many(clientes, { relationName: 'clientesCreados' }),
+  clientesConvertidos: many(clientes, { relationName: 'clientesConvertidos' }),
+  metasVendedor: many(metas, { relationName: 'metasVendedor' }),
+  metasCreadas: many(metas, { relationName: 'metasCreadas' }),
+  auditsMetas: many(auditLogMetas, { relationName: 'auditsMetas' }),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -89,6 +93,7 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
   lead: one(leads, { fields: [clientes.leadId], references: [leads.id] }),
   asignadoA: one(users, { fields: [clientes.asignadoA], references: [users.id], relationName: 'clientesAsignados' }),
   creadoPor: one(users, { fields: [clientes.creadoPor], references: [users.id], relationName: 'clientesCreados' }),
+  vendedorConversion: one(users, { fields: [clientes.vendedorConversionId], references: [users.id], relationName: 'clientesConvertidos' }),
   pedidos: many(pedidos),
   movimientosCC: many(movimientosCC),
   actividades: many(actividadesCliente),
@@ -127,4 +132,15 @@ export const movimientosCCRelations = relations(movimientosCC, ({ one, many }) =
 export const aplicacionesPagoRelations = relations(aplicacionesPago, ({ one }) => ({
   movimientoCredito: one(movimientosCC, { fields: [aplicacionesPago.movimientoCreditoId], references: [movimientosCC.id] }),
   pedido: one(pedidos, { fields: [aplicacionesPago.pedidoId], references: [pedidos.id] }),
+}))
+
+export const metasRelations = relations(metas, ({ one, many }) => ({
+  vendedor: one(users, { fields: [metas.vendedorId], references: [users.id], relationName: 'metasVendedor' }),
+  creadoPor: one(users, { fields: [metas.creadoPor], references: [users.id], relationName: 'metasCreadas' }),
+  auditLog: many(auditLogMetas),
+}))
+
+export const auditLogMetasRelations = relations(auditLogMetas, ({ one }) => ({
+  meta: one(metas, { fields: [auditLogMetas.metaId], references: [metas.id] }),
+  cambiadoPor: one(users, { fields: [auditLogMetas.cambiadoPor], references: [users.id], relationName: 'auditsMetas' }),
 }))

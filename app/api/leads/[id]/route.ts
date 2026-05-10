@@ -81,7 +81,10 @@ export async function PATCH(
         where: eq(pipelineStages.id, parsed.data.stageId),
       })
       if (newStage?.isTerminal) updates.isOpen = false
-      if (newStage?.isWon) newStageIsWon = true
+      if (newStage?.isWon) {
+        newStageIsWon = true
+        updates.wonAt = new Date()
+      }
 
       await db.insert(activityLog).values({
         leadId: id,

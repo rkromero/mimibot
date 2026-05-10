@@ -2,26 +2,38 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ShoppingCart, Package, LayoutGrid } from 'lucide-react'
+import { Users, ShoppingCart, Package, LayoutGrid, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
 type Props = { user: Session['user'] }
 
-const TABS = [
+const AGENT_TABS = [
+  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { href: '/crm/clientes', label: 'Clientes', icon: Users },
   { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/crm/productos', label: 'Productos', icon: Package },
   { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid },
 ]
 
-export default function BottomNav({ user: _ }: Props) {
+const ADMIN_TABS = [
+  { href: '/crm/clientes', label: 'Clientes', icon: Users },
+  { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart },
+  { href: '/crm/productos', label: 'Productos', icon: Package },
+  { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid },
+]
+
+export default function BottomNav({ user }: Props) {
   const pathname = usePathname()
+  const tabs = user.role === 'admin' ? ADMIN_TABS : AGENT_TABS
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t border-border bg-card pb-safe">
-      {TABS.map(({ href, label, icon: Icon }) => {
-        const active = pathname.startsWith(href)
+      {tabs.map(({ href, label, icon: Icon }) => {
+        const active =
+          href === '/dashboard'
+            ? pathname === '/dashboard' || pathname.startsWith('/dashboard/')
+            : pathname.startsWith(href)
         return (
           <Link
             key={href}
