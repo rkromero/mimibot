@@ -57,7 +57,8 @@ export async function GET(req: NextRequest) {
 
     const data = rows.map((r) => ({
       ...r.cliente,
-      asignadoAUser: r.asignadoAUser?.id ? r.asignadoAUser : null,
+      asignadoNombre: r.asignadoAUser?.id ? r.asignadoAUser.name : null,
+      asignadoColor: r.asignadoAUser?.id ? r.asignadoAUser.avatarColor : null,
     }))
 
     return NextResponse.json({ data })
