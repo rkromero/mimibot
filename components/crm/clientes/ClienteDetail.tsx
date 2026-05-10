@@ -93,6 +93,7 @@ export default function ClienteDetail({ id }: Props) {
           telefono: getField('telefono') || null,
           direccion: getField('direccion') || null,
           cuit: getField('cuit') || null,
+          ...(isAdmin && 'asignadoA' in form ? { asignadoA: form.asignadoA ?? null } : {}),
         }),
       })
       if (!res.ok) {
@@ -110,17 +111,6 @@ export default function ClienteDetail({ id }: Props) {
     }
   }
 
-  async function handleReasignar(newUserId: string) {
-    const res = await fetch(`/api/clientes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asignadoA: newUserId || null }),
-    })
-    if (res.ok) {
-      void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
-      void queryClient.invalidateQueries({ queryKey: ['clientes'] })
-    }
-  }
 
   if (isLoading) {
     return (
@@ -241,7 +231,7 @@ export default function ClienteDetail({ id }: Props) {
               <label className="block text-xs text-muted-foreground mb-1">Asignado a</label>
               <select
                 value={getField('asignadoA') ?? ''}
-                onChange={(e) => handleReasignar(e.target.value)}
+                onChange={(e) => setField('asignadoA', e.target.value || null)}
                 className={inputClass}
               >
                 <option value="">Sin asignar</option>

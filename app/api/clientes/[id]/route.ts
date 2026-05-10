@@ -41,9 +41,16 @@ export async function GET(
 
     const summary = pedidosSummary[0]
 
+    // Drizzle `with` replaces asignadoA UUID column with the user object —
+    // flatten it back to what the frontend expects
+    const asignadoUser = cliente.asignadoA as { id: string; name: string | null; avatarColor: string } | null
+
     return NextResponse.json({
       data: {
         ...cliente,
+        asignadoA: asignadoUser?.id ?? null,
+        asignadoNombre: asignadoUser?.name ?? null,
+        asignadoColor: asignadoUser?.avatarColor ?? null,
         pedidosSummary: {
           count: Number(summary?.count ?? 0),
           total: summary?.total ?? '0',
