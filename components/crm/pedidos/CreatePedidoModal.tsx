@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, Plus, Minus, Trash2, ArrowLeft, CheckCircle, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 
 type Props = {
@@ -25,8 +26,23 @@ type Producto = {
 
 type ItemRow = {
   productoId: string
-  cantidad: string
+  productoNombre: string
+  cantidad: number
   precioUnitario: string
+}
+
+type RemovedItem = {
+  item: ItemRow
+  idx: number
+}
+
+type SuccessData = {
+  pedidoId: string
+  total: string
+}
+
+function formatMoney(value: number) {
+  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
 const inputClass = cn(
@@ -36,25 +52,28 @@ const inputClass = cn(
   'transition-colors duration-100',
 )
 
-function formatMoney(value: number) {
-  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-}
-
 export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showProductSearch, setShowProductSearch] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const [removedItem, setRemovedItem] = useState<RemovedItem | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successData, setSuccessData] = useState<SuccessData | null>(null)
+
   const [form, setForm] = useState({
     clienteId: clienteId ?? '',
     fecha: todayStr,
     observaciones: '',
   })
-  const [items, setItems] = useState<ItemRow[]>([
-    { productoId: '', cantidad: '1', precioUnitario: '' },
-  ])
+  const [items, setItems] = useState<ItemRow[]>([])
 
+  // Query clientes (solo si no hay clienteId fijo)
   const { data: clientes = [] } = useQuery<ClienteOption[]>({
     queryKey: ['clientes-options'],
     queryFn: async () => {
@@ -67,6 +86,21 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     enabled: !clienteId,
   })
 
+  // Query cliente individual (para mostrar nombre en header cuando clienteId está dado)
+  const { data: clienteData } = useQuery({
+    queryKey: ['cliente', clienteId],
+    queryFn: async () => {
+      if (!clienteId) return null
+      const res = await fetch(`/api/clientes/${clienteId}`)
+      if (!res.ok) return null
+      const json = await res.json() as { data: { nombre: string; apellido: string } }
+      return json.data
+    },
+    enabled: !!clienteId,
+    staleTime: 60_000,
+  })
+
+  // Query productos
   const { data: productos = [] } = useQuery<Producto[]>({
     queryKey: ['productos-activos'],
     queryFn: async () => {
@@ -78,53 +112,82 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     staleTime: 60_000,
   })
 
+  const clienteNombreStr = clienteData
+    ? `${clienteData.nombre} ${clienteData.apellido}`
+    : ''
+
+  const filteredProducts = productos.filter((p) =>
+    !productSearch || p.nombre.toLowerCase().includes(productSearch.toLowerCase()),
+  )
+
+  const total = items.reduce(
+    (sum, item) => sum + item.cantidad * parseFloat(item.precioUnitario),
+    0,
+  )
+
   function setField<K extends keyof typeof form>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  function handleProductoChange(idx: number, productoId: string) {
-    const producto = productos.find((p) => p.id === productoId)
-    setItems((prev) =>
-      prev.map((item, i) =>
-        i === idx
-          ? { ...item, productoId, precioUnitario: producto?.precio ?? '' }
-          : item,
-      ),
-    )
+  function addProducto(producto: Producto) {
+    setItems((prev) => {
+      const existing = prev.findIndex((i) => i.productoId === producto.id)
+      if (existing >= 0) {
+        return prev.map((item, i) =>
+          i === existing ? { ...item, cantidad: item.cantidad + 1 } : item,
+        )
+      }
+      return [
+        ...prev,
+        {
+          productoId: producto.id,
+          productoNombre: producto.nombre,
+          cantidad: 1,
+          precioUnitario: producto.precio,
+        },
+      ]
+    })
+    setShowProductSearch(false)
+    setProductSearch('')
   }
 
-  function handleItemChange(idx: number, field: keyof ItemRow, value: string) {
+  function changeQty(idx: number, delta: number) {
     setItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)),
+      prev.map((item, i) => {
+        if (i !== idx) return item
+        const newQty = Math.max(1, item.cantidad + delta)
+        return { ...item, cantidad: newQty }
+      }),
     )
-  }
-
-  function addItem() {
-    setItems((prev) => [...prev, { productoId: '', cantidad: '1', precioUnitario: '' }])
   }
 
   function removeItem(idx: number) {
+    const item = items[idx]
+    if (!item) return
     setItems((prev) => prev.filter((_, i) => i !== idx))
+    setRemovedItem({ item, idx })
+    if (toastTimeout.current) clearTimeout(toastTimeout.current)
+    toastTimeout.current = setTimeout(() => setRemovedItem(null), 3500)
   }
 
-  const total = items.reduce((sum, item) => {
-    const qty = parseFloat(item.cantidad) || 0
-    const price = parseFloat(item.precioUnitario) || 0
-    return sum + qty * price
-  }, 0)
+  function undoRemove() {
+    if (!removedItem) return
+    setItems((prev) => {
+      const next = [...prev]
+      next.splice(Math.min(removedItem.idx, next.length), 0, removedItem.item)
+      return next
+    })
+    setRemovedItem(null)
+  }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleSubmit() {
     setError(null)
-
     if (!form.clienteId) {
       setError('Seleccioná un cliente')
       return
     }
-
-    const validItems = items.filter((item) => item.productoId && parseFloat(item.cantidad) > 0 && parseFloat(item.precioUnitario) >= 0)
-    if (validItems.length === 0) {
-      setError('Agregá al menos un item válido')
+    if (items.length === 0) {
+      setError('Agregá al menos un producto')
       return
     }
 
@@ -137,9 +200,9 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           clienteId: form.clienteId,
           fecha: form.fecha,
           observaciones: form.observaciones.trim() || undefined,
-          items: validItems.map((item) => ({
+          items: items.map((item) => ({
             productoId: item.productoId,
-            cantidad: parseInt(item.cantidad),
+            cantidad: item.cantidad,
             precioUnitario: parseFloat(item.precioUnitario),
           })),
         }),
@@ -151,48 +214,190 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
         return
       }
 
+      const json = await res.json() as { data: { id: string; total: string } }
       void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
       void queryClient.invalidateQueries({ queryKey: ['clientes', form.clienteId, 'pedidos'] })
       void queryClient.invalidateQueries({ queryKey: ['clientes', form.clienteId, 'cc'] })
-      onClose()
+      setSuccessData({ pedidoId: json.data.id, total: json.data.total ?? String(total) })
+      setShowSuccess(true)
     } catch {
-      setError('Error de conexión')
+      setError('Error de conexión. Intenta de nuevo.')
     } finally {
       setIsPending(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <button className="absolute inset-0" onClick={onClose} aria-label="Cerrar" />
-      <div className="relative bg-card border border-border rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Nuevo Pedido</h2>
-          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-            <X size={15} />
-          </button>
+    <>
+      {/* Pantalla de éxito */}
+      {showSuccess && successData && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-card">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
+            <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <CheckCircle className="text-green-600" size={40} />
+            </div>
+            <h2 className="text-2xl font-bold text-center text-foreground">¡Pedido confirmado!</h2>
+            <p className="text-3xl font-bold text-primary">
+              {formatMoney(parseFloat(successData.total))}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              #{successData.pedidoId.slice(-8).toUpperCase()}
+            </p>
+          </div>
+          <div className="p-4 space-y-3 border-t border-border">
+            <button
+              onClick={() => {
+                router.push(`/crm/pedidos/${successData.pedidoId}`)
+                onClose()
+              }}
+              className="w-full py-3.5 border border-border rounded-xl text-base font-medium text-foreground bg-card active:bg-accent transition-colors"
+            >
+              Ver pedido
+            </button>
+            <button
+              onClick={() => {
+                setShowSuccess(false)
+                setSuccessData(null)
+                setItems([])
+                setForm((prev) => ({ ...prev, observaciones: '' }))
+              }}
+              className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl text-base font-semibold active:bg-primary/80 transition-colors"
+            >
+              Nuevo pedido{clienteId ? ' para este cliente' : ''}
+            </button>
+          </div>
         </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Cliente + Fecha */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Cliente *</label>
-              {clienteId ? (
+      {/* Buscador de productos (full-screen overlay) */}
+      {showProductSearch && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-background">
+          <div className="flex items-center gap-3 p-4 border-b border-border">
+            <button
+              onClick={() => {
+                setShowProductSearch(false)
+                setProductSearch('')
+              }}
+              className="p-2 -ml-2 text-muted-foreground"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <input
+              autoFocus
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Buscar producto..."
+              className="flex-1 text-[16px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+            />
+            {productSearch && (
+              <button
+                onClick={() => setProductSearch('')}
+                className="p-1 text-muted-foreground"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {filteredProducts.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                {productSearch ? 'Sin resultados' : 'No hay productos disponibles'}
+              </div>
+            ) : (
+              filteredProducts.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => addProducto(p)}
+                  className="w-full flex items-center justify-between p-4 border-b border-border text-left active:bg-accent/60 transition-colors"
+                >
+                  <span className="text-base font-medium text-foreground">{p.nombre}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {formatMoney(parseFloat(p.precio))}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal principal */}
+      <div className="fixed inset-0 z-50 flex flex-col md:bg-black/50 md:items-center md:justify-center">
+        <div className="absolute inset-0 hidden md:block" onClick={onClose} />
+        <div className="relative flex flex-col h-full w-full bg-card md:h-auto md:max-h-[90vh] md:rounded-lg md:border md:border-border md:shadow-xl md:max-w-2xl">
+
+          {/* Header */}
+          <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
+            <button
+              onClick={onClose}
+              className="md:hidden p-2 -ml-2 text-muted-foreground"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex-1">
+              <h2 className="text-base md:text-sm font-semibold text-foreground">Nuevo Pedido</h2>
+              {clienteNombreStr && (
+                <p className="text-sm text-muted-foreground">{clienteNombreStr}</p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="hidden md:block p-1 text-muted-foreground hover:text-foreground"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Content scrollable */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+            {/* Desktop: selector de cliente y fecha */}
+            <div className="hidden md:grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Cliente *</label>
+                {clienteId ? (
+                  <input
+                    readOnly
+                    value={clienteNombreStr || 'Cliente seleccionado'}
+                    className={cn(inputClass, 'bg-muted cursor-not-allowed')}
+                  />
+                ) : (
+                  <select
+                    value={form.clienteId}
+                    onChange={(e) => setField('clienteId', e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Seleccionar cliente...</option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre} {c.apellido}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Fecha *</label>
                 <input
-                  readOnly
-                  value={clientes.find((c) => c.id === clienteId)
-                    ? `${clientes.find((c) => c.id === clienteId)!.nombre} ${clientes.find((c) => c.id === clienteId)!.apellido}`
-                    : 'Cliente seleccionado'
-                  }
-                  className={cn(inputClass, 'bg-muted cursor-not-allowed')}
+                  type="date"
+                  value={form.fecha}
+                  onChange={(e) => setField('fecha', e.target.value)}
+                  className={inputClass}
                 />
-              ) : (
+              </div>
+            </div>
+
+            {/* Mobile: selector de cliente (solo si no hay clienteId fijo) */}
+            {!clienteId && (
+              <div className="md:hidden">
+                <label className="block text-xs text-muted-foreground mb-1">Cliente *</label>
                 <select
-                  required
                   value={form.clienteId}
                   onChange={(e) => setField('clienteId', e.target.value)}
-                  className={inputClass}
+                  className={cn(
+                    'w-full px-3 py-2.5 text-[16px] rounded-md border border-border bg-background text-foreground',
+                    'focus:outline-none focus:ring-1 focus:ring-ring transition-colors',
+                  )}
                 >
                   <option value="">Seleccionar cliente...</option>
                   {clientes.map((c) => (
@@ -201,143 +406,117 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                     </option>
                   ))}
                 </select>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Fecha *</label>
-              <input
-                type="date"
-                required
-                value={form.fecha}
-                onChange={(e) => setField('fecha', e.target.value)}
-                className={inputClass}
+              </div>
+            )}
+
+            {/* Items list */}
+            {items.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <Package size={40} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No hay productos en el pedido</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {items.map((item, idx) => {
+                  const qty = item.cantidad
+                  const price = parseFloat(item.precioUnitario)
+                  const subtotal = qty * price
+                  return (
+                    <div key={idx} className="bg-card border border-border rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground">{item.productoNombre}</p>
+                          <p className="text-sm text-muted-foreground">{formatMoney(price)} c/u</p>
+                        </div>
+                        <button
+                          onClick={() => removeItem(idx)}
+                          className="p-2 text-muted-foreground hover:text-destructive active:text-destructive transition-colors -mt-1 -mr-1"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => changeQty(idx, -1)}
+                            disabled={qty <= 1}
+                            className="w-11 h-11 rounded-full border border-border flex items-center justify-center text-foreground active:bg-accent transition-colors disabled:opacity-40"
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <span className="w-8 text-center text-lg font-bold text-foreground">{qty}</span>
+                          <button
+                            onClick={() => changeQty(idx, 1)}
+                            className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:bg-primary/80 transition-colors"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                        <p className="text-lg font-bold text-foreground">{formatMoney(subtotal)}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Boton agregar producto */}
+            <button
+              onClick={() => setShowProductSearch(true)}
+              className="w-full py-4 md:py-3 border-2 border-dashed border-border rounded-xl text-primary font-medium text-base md:text-sm flex items-center justify-center gap-2 active:bg-accent/40 transition-colors"
+            >
+              <Plus size={20} />
+              Agregar producto
+            </button>
+
+            {/* Desktop: observaciones */}
+            <div className="hidden md:block">
+              <label className="block text-xs text-muted-foreground mb-1">Observaciones</label>
+              <textarea
+                rows={2}
+                value={form.observaciones}
+                onChange={(e) => setField('observaciones', e.target.value)}
+                placeholder="Notas o instrucciones adicionales..."
+                className={cn(inputClass, 'resize-none')}
               />
             </div>
+
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
           </div>
 
-          {/* Observaciones */}
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Observaciones</label>
-            <textarea
-              rows={2}
-              value={form.observaciones}
-              onChange={(e) => setField('observaciones', e.target.value)}
-              placeholder="Notas o instrucciones adicionales..."
-              className={cn(inputClass, 'resize-none')}
-            />
-          </div>
-
-          {/* Items */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-muted-foreground">Items</label>
-              <button
-                type="button"
-                onClick={addItem}
-                className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                <Plus size={12} />
-                Agregar item
-              </button>
+          {/* Footer sticky con total */}
+          <div className="p-4 border-t border-border bg-card shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="text-2xl font-bold text-foreground">{formatMoney(total)}</span>
             </div>
-
-            <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground px-1">
-                <div className="col-span-5">Producto</div>
-                <div className="col-span-2">Cantidad</div>
-                <div className="col-span-3">Precio unit.</div>
-                <div className="col-span-1 text-right">Subt.</div>
-                <div className="col-span-1" />
-              </div>
-
-              {items.map((item, idx) => {
-                const qty = parseFloat(item.cantidad) || 0
-                const price = parseFloat(item.precioUnitario) || 0
-                const subtotal = qty * price
-
-                return (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-5">
-                      <select
-                        value={item.productoId}
-                        onChange={(e) => handleProductoChange(idx, e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="">Seleccionar...</option>
-                        {productos.map((p) => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={item.cantidad}
-                        onChange={(e) => handleItemChange(idx, 'cantidad', e.target.value)}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.precioUnitario}
-                        onChange={(e) => handleItemChange(idx, 'precioUnitario', e.target.value)}
-                        placeholder="0.00"
-                        className={inputClass}
-                      />
-                    </div>
-                    <div className="col-span-1 text-right text-xs font-medium text-foreground">
-                      {subtotal > 0 ? formatMoney(subtotal) : '—'}
-                    </div>
-                    <div className="col-span-1 flex justify-end">
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeItem(idx)}
-                          className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Total */}
-            <div className="flex justify-end mt-3 pt-3 border-t border-border">
-              <div className="text-sm font-semibold text-foreground">
-                Total: {formatMoney(total)}
-              </div>
-            </div>
-          </div>
-
-          {error && <p className="text-xs text-destructive">{error}</p>}
-
-          <div className="flex gap-2 pt-1">
             <button
-              type="submit"
-              disabled={isPending}
-              className="px-4 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              onClick={handleSubmit}
+              disabled={isPending || items.length === 0}
+              className="w-full py-3.5 md:py-2.5 bg-primary text-primary-foreground rounded-xl md:rounded-lg text-base md:text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {isPending ? 'Creando...' : 'Crear Pedido'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancelar
+              {isPending ? 'Creando...' : 'Confirmar Pedido'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
-    </div>
+
+      {/* Toast deshacer eliminacion */}
+      {removedItem && (
+        <div className="fixed bottom-[80px] md:bottom-6 left-4 right-4 z-[80] bg-foreground text-background rounded-xl p-4 flex items-center justify-between shadow-lg">
+          <span className="text-sm">{removedItem.item.productoNombre} eliminado</span>
+          <button
+            onClick={undoRemove}
+            className="text-sm font-semibold underline ml-4 shrink-0"
+          >
+            Deshacer
+          </button>
+        </div>
+      )}
+    </>
   )
 }

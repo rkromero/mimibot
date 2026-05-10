@@ -71,99 +71,145 @@ export default function PedidosListView() {
   })
 
   const selectClass = cn(
-    'px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground',
+    'px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground',
     'focus:outline-none focus:ring-1 focus:ring-ring transition-colors',
   )
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-foreground">Pedidos</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} />
-          Nuevo Pedido
-        </button>
-      </div>
+    <div className="w-full h-full overflow-y-auto">
+      <div className="p-4 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <h1 className="text-xl font-semibold text-foreground">Pedidos</h1>
+          {/* Desktop button */}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            Nuevo Pedido
+          </button>
+        </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <select
-          value={filterEstado}
-          onChange={(e) => setFilterEstado(e.target.value)}
-          className={selectClass}
-        >
-          <option value="">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="confirmado">Confirmado</option>
-          <option value="entregado">Entregado</option>
-          <option value="cancelado">Cancelado</option>
-        </select>
-        <select
-          value={filterEstadoPago}
-          onChange={(e) => setFilterEstadoPago(e.target.value)}
-          className={selectClass}
-        >
-          <option value="">Todos los pagos</option>
-          <option value="impago">Impago</option>
-          <option value="parcial">Parcial</option>
-          <option value="pagado">Pagado</option>
-        </select>
-      </div>
+        {/* Filters */}
+        <div className="flex items-center gap-3 mb-4">
+          <select
+            value={filterEstado}
+            onChange={(e) => setFilterEstado(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="entregado">Entregado</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+          <select
+            value={filterEstadoPago}
+            onChange={(e) => setFilterEstadoPago(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">Todos los pagos</option>
+            <option value="impago">Impago</option>
+            <option value="parcial">Parcial</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Cargando pedidos...</div>
         ) : pedidos.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">No hay pedidos que mostrar</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha</th>
-                <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Cliente</th>
-                <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Vendedor</th>
-                <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
-                <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
-                <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pago</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-2">
               {pedidos.map((p) => (
-                <tr
+                <div
                   key={p.id}
                   onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                  className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
+                  className="bg-card border border-border rounded-xl p-4 active:bg-accent/60 cursor-pointer transition-colors"
                 >
-                  <td className="py-2.5 px-3 text-muted-foreground">
-                    {format(new Date(p.fecha), 'dd/MM/yyyy')}
-                  </td>
-                  <td className="py-2.5 px-3 font-medium text-foreground">
-                    {p.clienteNombre} {p.clienteApellido}
-                  </td>
-                  <td className="py-2.5 px-3 text-muted-foreground">
-                    {p.vendedorNombre ?? '—'}
-                  </td>
-                  <td className="py-2.5 px-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-foreground text-base">
+                        {p.clienteNombre} {p.clienteApellido}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                      </p>
+                    </div>
+                    <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
                     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
                       {estadoLabels[p.estado]}
                     </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>
-                  <td className="py-2.5 px-3">
                     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
                       {estadoPagoLabels[p.estadoPago]}
                     </span>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha</th>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Cliente</th>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Vendedor</th>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
+                    <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pago</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidos.map((p) => (
+                    <tr
+                      key={p.id}
+                      onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
+                    >
+                      <td className="py-2.5 px-3 text-muted-foreground">
+                        {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-foreground">
+                        {p.clienteNombre} {p.clienteApellido}
+                      </td>
+                      <td className="py-2.5 px-3 text-muted-foreground">
+                        {p.vendedorNombre ?? '—'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
+                          {estadoLabels[p.estado]}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>
+                      <td className="py-2.5 px-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
+                          {estadoPagoLabels[p.estadoPago]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
+
+      {/* FAB mobile */}
+      <button
+        onClick={() => setShowCreate(true)}
+        className="fixed bottom-[76px] right-4 z-30 flex items-center gap-2 h-14 rounded-full bg-primary text-primary-foreground shadow-lg px-5 md:hidden active:scale-95 transition-transform"
+      >
+        <Plus size={20} strokeWidth={2} />
+        <span className="text-sm font-semibold pr-1">Pedido</span>
+      </button>
 
       {showCreate && <CreatePedidoModal onClose={() => setShowCreate(false)} />}
     </div>

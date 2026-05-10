@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 
 type Props = {
   onClose: () => void
@@ -17,7 +18,7 @@ type AgentOption = {
 }
 
 const inputClass = cn(
-  'w-full px-3 py-1.5 text-sm rounded-md border',
+  'w-full px-3 py-3 md:py-1.5 text-[16px] md:text-sm rounded-lg md:rounded-md border',
   'border-border bg-background text-foreground',
   'focus:outline-none focus:ring-1 focus:ring-ring',
   'transition-colors duration-100',
@@ -25,6 +26,7 @@ const inputClass = cn(
 
 export default function CreateClienteModal({ onClose }: Props) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
 
@@ -91,8 +93,9 @@ export default function CreateClienteModal({ onClose }: Props) {
         return
       }
 
+      const data = await res.json() as { data: { id: string } }
       void queryClient.invalidateQueries({ queryKey: ['clientes'] })
-      onClose()
+      router.push(`/crm/clientes/${data.data.id}`)
     } catch {
       setError('Error de conexión')
     } finally {
@@ -101,122 +104,127 @@ export default function CreateClienteModal({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <button
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-label="Cerrar"
-      />
-      <div className="relative bg-card border border-border rounded-lg p-6 w-full max-w-lg shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Nuevo Cliente</h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-          >
+    <div className="fixed inset-0 z-50 flex flex-col md:bg-black/50 md:items-center md:justify-center">
+      {/* Backdrop desktop */}
+      <div className="absolute inset-0 hidden md:block" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="relative flex flex-col h-full w-full bg-card md:h-auto md:rounded-lg md:border md:border-border md:shadow-xl md:max-w-lg md:max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
+          <button onClick={onClose} className="md:hidden p-2 -ml-2 text-muted-foreground">
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="text-base md:text-sm font-semibold text-foreground flex-1">Nuevo Cliente</h2>
+          <button onClick={onClose} className="hidden md:block p-1 text-muted-foreground hover:text-foreground transition-colors">
             <X size={15} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Nombre *</label>
-              <input
-                autoFocus
-                required
-                value={form.nombre}
-                onChange={(e) => set('nombre', e.target.value)}
-                placeholder="Nombre"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Apellido *</label>
-              <input
-                required
-                value={form.apellido}
-                onChange={(e) => set('apellido', e.target.value)}
-                placeholder="Apellido"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => set('email', e.target.value)}
-                placeholder="email@ejemplo.com"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Teléfono</label>
-              <input
-                type="tel"
-                value={form.telefono}
-                onChange={(e) => set('telefono', e.target.value)}
-                placeholder="+549..."
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Dirección</label>
-            <input
-              value={form.direccion}
-              onChange={(e) => set('direccion', e.target.value)}
-              placeholder="Calle 123, Ciudad"
-              className={inputClass}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">CUIT</label>
-              <input
-                value={form.cuit}
-                onChange={(e) => set('cuit', e.target.value)}
-                placeholder="20-12345678-9"
-                className={inputClass}
-              />
-            </div>
-            {isAdmin && (
+        {/* Form scrollable */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 md:flex-none overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Asignar a</label>
-                <select
-                  value={form.asignadoA}
-                  onChange={(e) => set('asignadoA', e.target.value)}
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Nombre *</label>
+                <input
+                  autoFocus
+                  required
+                  value={form.nombre}
+                  onChange={(e) => set('nombre', e.target.value)}
+                  placeholder="Nombre"
                   className={inputClass}
-                >
-                  <option value="">Sin asignar</option>
-                  {agents.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
-                  ))}
-                </select>
+                />
               </div>
-            )}
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Apellido *</label>
+                <input
+                  required
+                  value={form.apellido}
+                  onChange={(e) => set('apellido', e.target.value)}
+                  placeholder="Apellido"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set('email', e.target.value)}
+                  placeholder="email@ejemplo.com"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Teléfono</label>
+                <input
+                  type="tel"
+                  value={form.telefono}
+                  onChange={(e) => set('telefono', e.target.value)}
+                  placeholder="+549..."
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Dirección</label>
+              <input
+                value={form.direccion}
+                onChange={(e) => set('direccion', e.target.value)}
+                placeholder="Calle 123, Ciudad"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">CUIT</label>
+                <input
+                  inputMode="numeric"
+                  value={form.cuit}
+                  onChange={(e) => set('cuit', e.target.value)}
+                  placeholder="20-12345678-9"
+                  className={inputClass}
+                />
+              </div>
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Asignar a</label>
+                  <select
+                    value={form.asignadoA}
+                    onChange={(e) => set('asignadoA', e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Sin asignar</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
-
-          <div className="flex gap-2 pt-1">
+          {/* Footer sticky */}
+          <div className="p-4 border-t border-border bg-card shrink-0">
             <button
               type="submit"
               disabled={isPending}
-              className="px-4 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="w-full py-3 md:py-2 bg-primary text-primary-foreground rounded-lg md:rounded-md text-base md:text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? 'Guardando...' : 'Crear Cliente'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="hidden md:block w-full mt-2 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancelar
             </button>

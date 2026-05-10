@@ -25,7 +25,7 @@ export default function Sidebar({ user }: { user: User }) {
   const pathname = usePathname()
 
   return (
-    <aside className="flex flex-col w-52 border-r border-border bg-card shrink-0">
+    <aside className="hidden md:flex flex-col w-52 border-r border-border bg-card shrink-0">
       {/* Logo / nombre de la app */}
       <div className="h-12 flex items-center px-4 border-b border-border">
         <span className="text-md font-semibold text-foreground">CRM</span>
