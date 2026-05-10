@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm'
 import { updateLeadSchema } from '@/lib/validations/lead'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { requireAdmin } from '@/lib/authz'
+import { deleteLead } from '@/lib/delete/delete.service'
 import { emitLeadEvent } from '@/lib/realtime/broker'
 import { convertirLeadACliente } from '@/lib/clientes/conversion'
 
@@ -129,6 +131,26 @@ export async function PATCH(
     }
 
     return NextResponse.json({ data: updated })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    requireAdmin(session.user)
+
+    const { id } = await params
+    await deleteLead(id, session.user.id)
+
+    return NextResponse.json({ success: true })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

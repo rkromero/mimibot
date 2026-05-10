@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, clientes, users } from '@/db/schema'
-import { eq, and, or, inArray } from 'drizzle-orm'
+import { eq, and, or, inArray, isNull } from 'drizzle-orm'
 import { createPedidoSchema } from '@/lib/validations/pedidos'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
       .innerJoin(clientes, eq(pedidos.clienteId, clientes.id))
       .innerJoin(users, eq(pedidos.vendedorId, users.id))
       .where(() => {
-        const conditions: ReturnType<typeof eq>[] = []
+        const conditions: ReturnType<typeof eq>[] = [
+          isNull(pedidos.deletedAt) as ReturnType<typeof eq>,
+          isNull(clientes.deletedAt) as ReturnType<typeof eq>,
+        ]
 
         if (session.user.role === 'agent') {
           // Agents see pedidos where vendedor = self OR cliente.asignadoA = self

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, users } from '@/db/schema'
-import { eq, and, ilike, or } from 'drizzle-orm'
+import { eq, and, ilike, or, isNull } from 'drizzle-orm'
 import { createClienteSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
 
     const { search, asignadoA } = filters.data
 
-    const conditions: ReturnType<typeof eq>[] = []
+    const conditions: ReturnType<typeof eq>[] = [
+      isNull(clientes.deletedAt) as ReturnType<typeof eq>,
+    ]
 
     // Agents only see their own clients
     if (session.user.role === 'agent') {

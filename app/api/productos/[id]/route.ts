@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { productos } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { updateProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { deleteProducto } from '@/lib/delete/delete.service'
 
 export async function GET(
   _req: NextRequest,
@@ -18,7 +19,7 @@ export async function GET(
     const { id } = await params
 
     const producto = await db.query.productos.findFirst({
-      where: eq(productos.id, id),
+      where: and(eq(productos.id, id), isNull(productos.deletedAt)),
     })
 
     if (!producto) throw new NotFoundError('Producto')
@@ -43,7 +44,7 @@ export async function PATCH(
     const { id } = await params
 
     const existing = await db.query.productos.findFirst({
-      where: eq(productos.id, id),
+      where: and(eq(productos.id, id), isNull(productos.deletedAt)),
       columns: { id: true },
     })
     if (!existing) throw new NotFoundError('Producto')
@@ -72,6 +73,26 @@ export async function PATCH(
       .returning()
 
     return NextResponse.json({ data: updated })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    requireAdmin(session.user)
+
+    const { id } = await params
+    await deleteProducto(id, session.user.id)
+
+    return NextResponse.json({ success: true })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, clientes } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { updatePedidoSchema } from '@/lib/validations/pedidos'
 import { confirmarPedido } from '@/lib/pedidos/service'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
+import { requireAdmin } from '@/lib/authz'
+import { deletePedido } from '@/lib/delete/delete.service'
 
 async function canAccessPedido(userId: string, role: string, pedidoId: string) {
   const pedido = await db.query.pedidos.findFirst({
-    where: eq(pedidos.id, pedidoId),
+    where: and(eq(pedidos.id, pedidoId), isNull(pedidos.deletedAt)),
     columns: { id: true, vendedorId: true, clienteId: true },
   })
   if (!pedido) throw new NotFoundError('Pedido')
@@ -42,7 +44,7 @@ export async function GET(
     await canAccessPedido(session.user.id, session.user.role, id)
 
     const pedido = await db.query.pedidos.findFirst({
-      where: eq(pedidos.id, id),
+      where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)),
       with: {
         cliente: true,
         vendedor: { columns: { id: true, name: true, avatarColor: true } },
@@ -81,7 +83,7 @@ export async function PATCH(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
     }
 
-    const current = await db.query.pedidos.findFirst({ where: eq(pedidos.id, id) })
+    const current = await db.query.pedidos.findFirst({ where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)) })
     if (!current) throw new NotFoundError('Pedido')
 
     const { estado, observaciones } = parsed.data
@@ -113,6 +115,26 @@ export async function PATCH(
       .returning()
 
     return NextResponse.json({ data: updated })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    requireAdmin(session.user)
+
+    const { id } = await params
+    await deletePedido(id, session.user.id)
+
+    return NextResponse.json({ success: true })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

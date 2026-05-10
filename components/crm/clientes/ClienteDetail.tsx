@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, Plus, CreditCard, Phone } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
+import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 
 type Props = { id: string }
 
@@ -35,16 +37,23 @@ const inputClass = cn(
   'transition-colors duration-100',
 )
 
+const readValueClass = 'text-sm text-foreground'
+
 export default function ClienteDetail({ id }: Props) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
+  const router = useRouter()
 
+  const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<Cliente>>({})
   const [showCreatePedido, setShowCreatePedido] = useState(false)
   const [showRegistrarPago, setShowRegistrarPago] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: cliente, isLoading, isError } = useQuery<Cliente>({
     queryKey: ['cliente', id],
@@ -78,6 +87,12 @@ export default function ClienteDetail({ id }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  function handleCancelEdit() {
+    setForm({})
+    setSaveError(null)
+    setIsEditing(false)
+  }
+
   async function handleSave() {
     setSaveError(null)
     setIsSaving(true)
@@ -103,10 +118,30 @@ export default function ClienteDetail({ id }: Props) {
       void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
       void queryClient.invalidateQueries({ queryKey: ['clientes'] })
       setForm({})
+      setIsEditing(false)
     } catch {
       setSaveError('Error de conexión')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteError(null)
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setDeleteError(data.error ?? 'Error al eliminar')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      router.push('/crm/clientes')
+    } catch {
+      setDeleteError('Error de conexión')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -128,113 +163,177 @@ export default function ClienteDetail({ id }: Props) {
 
   const datosCliente = (
     <div className="bg-card border border-border rounded-lg p-4 md:p-6 space-y-4">
-      <h2 className="text-sm font-semibold text-foreground">Datos del cliente</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Datos del cliente</h2>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors text-sm"
+            title="Editar"
+          >
+            <Edit size={14} />
+            <span className="hidden md:inline">Editar</span>
+          </button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Nombre *</label>
-          <input
-            value={getField('nombre') ?? ''}
-            onChange={(e) => setField('nombre', e.target.value)}
-            className={inputClass}
-          />
+          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Nombre</label>
+          {isEditing ? (
+            <input
+              value={getField('nombre') ?? ''}
+              onChange={(e) => setField('nombre', e.target.value)}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('nombre') || '—'}</p>
+          )}
         </div>
         <div>
-          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Apellido *</label>
-          <input
-            value={getField('apellido') ?? ''}
-            onChange={(e) => setField('apellido', e.target.value)}
-            className={inputClass}
-          />
+          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Apellido</label>
+          {isEditing ? (
+            <input
+              value={getField('apellido') ?? ''}
+              onChange={(e) => setField('apellido', e.target.value)}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('apellido') || '—'}</p>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Email</label>
-          <input
-            type="email"
-            value={getField('email') ?? ''}
-            onChange={(e) => setField('email', e.target.value)}
-            className={inputClass}
-          />
+          {isEditing ? (
+            <input
+              type="email"
+              value={getField('email') ?? ''}
+              onChange={(e) => setField('email', e.target.value)}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('email') || '—'}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Teléfono</label>
-          <input
-            type="tel"
-            value={getField('telefono') ?? ''}
-            onChange={(e) => setField('telefono', e.target.value)}
-            className={inputClass}
-          />
+          {isEditing ? (
+            <input
+              type="tel"
+              value={getField('telefono') ?? ''}
+              onChange={(e) => setField('telefono', e.target.value)}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('telefono') || '—'}</p>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Dirección</label>
-          <input
-            value={getField('direccion') ?? ''}
-            onChange={(e) => setField('direccion', e.target.value)}
-            className={inputClass}
-          />
+          {isEditing ? (
+            <input
+              value={getField('direccion') ?? ''}
+              onChange={(e) => setField('direccion', e.target.value)}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('direccion') || '—'}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">CUIT</label>
-          <input
-            value={getField('cuit') ?? ''}
-            onChange={(e) => setField('cuit', e.target.value)}
-            placeholder="20-12345678-9"
-            className={inputClass}
-          />
+          {isEditing ? (
+            <input
+              value={getField('cuit') ?? ''}
+              onChange={(e) => setField('cuit', e.target.value)}
+              placeholder="20-12345678-9"
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('cuit') || '—'}</p>
+          )}
         </div>
       </div>
 
       {isAdmin && (
         <div className="md:max-w-xs">
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Asignado a</label>
-          <select
-            value={getField('asignadoA') ?? ''}
-            onChange={(e) => setField('asignadoA', e.target.value || null)}
-            className={inputClass}
-          >
-            <option value="">Sin asignar</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
-            ))}
-          </select>
+          {isEditing ? (
+            <select
+              value={getField('asignadoA') ?? ''}
+              onChange={(e) => setField('asignadoA', e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">Sin asignar</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
+              ))}
+            </select>
+          ) : (
+            <p className={readValueClass}>
+              {agents.find((a) => a.id === getField('asignadoA'))?.name ?? getField('asignadoNombre') ?? '—'}
+            </p>
+          )}
         </div>
       )}
 
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 
-      <div className="pt-1">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="w-full md:w-auto px-4 py-3 md:py-1.5 bg-primary text-primary-foreground rounded-lg md:rounded-md text-base md:text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {isSaving ? 'Guardando...' : 'Guardar cambios'}
-        </button>
-      </div>
+      {/* Desktop inline save/cancel buttons */}
+      {isEditing && (
+        <div className="hidden md:flex items-center gap-2 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-4 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isSaving ? 'Guardando...' : 'Guardar'}
+          </button>
+          <button
+            onClick={handleCancelEdit}
+            disabled={isSaving}
+            className="px-4 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
     </div>
   )
 
   return (
     <div className="w-full h-full overflow-y-auto">
-      <div className="p-4 md:p-6 pb-24 md:pb-6 space-y-4 md:space-y-6">
+      <div className={cn(
+        'p-4 md:p-6 pb-24 md:pb-6 space-y-4 md:space-y-6',
+        isEditing && 'pb-36 md:pb-6',
+      )}>
         {/* Mobile header */}
         <div className="md:hidden space-y-4">
           <div className="flex items-center gap-3">
             <Link href="/crm/clientes" className="p-2 -ml-2 text-muted-foreground">
               <ArrowLeft size={20} />
             </Link>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-semibold text-foreground">
                 {cliente.nombre} {cliente.apellido}
               </h1>
               <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace(/_/g, ' ')}</p>
             </div>
+            {isAdmin && (
+              <button
+                onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
+                className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                title="Eliminar cliente"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -283,6 +382,16 @@ export default function ClienteDetail({ id }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-destructive/50 text-destructive rounded-md text-sm font-medium hover:bg-destructive/10 transition-colors"
+                title="Eliminar cliente"
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            )}
             <button
               onClick={() => setShowRegistrarPago(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
@@ -346,6 +455,37 @@ export default function ClienteDetail({ id }: Props) {
           />
         </div>
       </div>
+
+      {/* Mobile sticky bottom bar when editing */}
+      {isEditing && (
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 flex gap-3 md:hidden z-20">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl text-base font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isSaving ? 'Guardando...' : 'Guardar'}
+          </button>
+          <button
+            onClick={handleCancelEdit}
+            disabled={isSaving}
+            className="flex-1 py-3 border border-border rounded-xl text-base font-medium text-foreground bg-card hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <ConfirmDeleteModal
+          title="Eliminar cliente"
+          description={`¿Eliminar a ${cliente.nombre} ${cliente.apellido}? Esta acción no se puede deshacer.`}
+          warning={deleteError ?? undefined}
+          onConfirm={handleDelete}
+          onClose={() => setShowDeleteModal(false)}
+          isPending={isDeleting}
+        />
+      )}
     </div>
   )
 }

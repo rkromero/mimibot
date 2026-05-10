@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { productos, users } from '@/db/schema'
-import { eq, and, ilike } from 'drizzle-orm'
+import { eq, and, ilike, isNull } from 'drizzle-orm'
 import { createProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
     const includeInactive =
       session.user.role === 'admin' && includeInactiveParam === 'true'
 
-    const conditions: ReturnType<typeof eq>[] = []
+    const conditions: ReturnType<typeof eq>[] = [
+      isNull(productos.deletedAt) as ReturnType<typeof eq>,
+    ]
 
     if (!includeInactive) {
       conditions.push(eq(productos.activo, true))

@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import CreatePedidoModal from './CreatePedidoModal'
+import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 
 type Pedido = {
   id: string
@@ -51,9 +53,16 @@ function formatMoney(value: string | number) {
 
 export default function PedidosListView() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'admin'
+  const queryClient = useQueryClient()
+
   const [showCreate, setShowCreate] = useState(false)
   const [filterEstado, setFilterEstado] = useState('')
   const [filterEstadoPago, setFilterEstadoPago] = useState('')
+  const [deletingPedido, setDeletingPedido] = useState<Pedido | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const params = new URLSearchParams()
   if (filterEstado) params.set('estado', filterEstado)
@@ -69,6 +78,26 @@ export default function PedidosListView() {
     },
     staleTime: 30_000,
   })
+
+  async function handleDeletePedido() {
+    if (!deletingPedido) return
+    setDeleteError(null)
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/pedidos/${deletingPedido.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setDeleteError(data.error ?? 'Error al eliminar')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      setDeletingPedido(null)
+    } catch {
+      setDeleteError('Error de conexión')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const selectClass = cn(
     'px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground',
@@ -127,10 +156,12 @@ export default function PedidosListView() {
               {pedidos.map((p) => (
                 <div
                   key={p.id}
-                  onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                  className="bg-card border border-border rounded-xl p-4 active:bg-accent/60 cursor-pointer transition-colors"
+                  className="bg-card border border-border rounded-xl p-4 cursor-pointer transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div
+                    className="flex items-start justify-between gap-2"
+                    onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                  >
                     <div>
                       <p className="font-semibold text-foreground text-base">
                         {p.clienteNombre} {p.clienteApellido}
@@ -141,13 +172,31 @@ export default function PedidosListView() {
                     </div>
                     <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
-                      {estadoLabels[p.estado]}
-                    </span>
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
-                      {estadoPagoLabels[p.estadoPago]}
-                    </span>
+                  <div className="flex items-center justify-between mt-2">
+                    <div
+                      className="flex items-center gap-2"
+                      onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                    >
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
+                        {estadoLabels[p.estado]}
+                      </span>
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
+                        {estadoPagoLabels[p.estadoPago]}
+                      </span>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteError(null)
+                          setDeletingPedido(p)
+                        }}
+                        className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                        title="Eliminar pedido"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -164,35 +213,71 @@ export default function PedidosListView() {
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
                     <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pago</th>
+                    {isAdmin && (
+                      <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border" />
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {pedidos.map((p) => (
                     <tr
                       key={p.id}
-                      onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
+                      className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors"
                     >
-                      <td className="py-2.5 px-3 text-muted-foreground">
+                      <td
+                        className="py-2.5 px-3 text-muted-foreground cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
                         {format(new Date(p.fecha), 'dd/MM/yyyy')}
                       </td>
-                      <td className="py-2.5 px-3 font-medium text-foreground">
+                      <td
+                        className="py-2.5 px-3 font-medium text-foreground cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
                         {p.clienteNombre} {p.clienteApellido}
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
+                      <td
+                        className="py-2.5 px-3 text-muted-foreground cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
                         {p.vendedorNombre ?? '—'}
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td
+                        className="py-2.5 px-3 cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
                         <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
                           {estadoLabels[p.estado]}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>
-                      <td className="py-2.5 px-3">
+                      <td
+                        className="py-2.5 px-3 text-right font-medium cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
+                        {formatMoney(p.total)}
+                      </td>
+                      <td
+                        className="py-2.5 px-3 cursor-pointer"
+                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+                      >
                         <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
                           {estadoPagoLabels[p.estadoPago]}
                         </span>
                       </td>
+                      {isAdmin && (
+                        <td className="py-2.5 px-3">
+                          <button
+                            onClick={() => {
+                              setDeleteError(null)
+                              setDeletingPedido(p)
+                            }}
+                            className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                            title="Eliminar pedido"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -212,6 +297,17 @@ export default function PedidosListView() {
       </button>
 
       {showCreate && <CreatePedidoModal onClose={() => setShowCreate(false)} />}
+
+      {deletingPedido && (
+        <ConfirmDeleteModal
+          title="Eliminar pedido"
+          description={`¿Eliminar el pedido de ${deletingPedido.clienteNombre} ${deletingPedido.clienteApellido} del ${format(new Date(deletingPedido.fecha), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`}
+          warning={deleteError ?? undefined}
+          onConfirm={handleDeletePedido}
+          onClose={() => setDeletingPedido(null)}
+          isPending={isDeleting}
+        />
+      )}
     </div>
   )
 }

@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Pencil, PowerOff } from 'lucide-react'
+import { Search, Plus, Pencil, PowerOff, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import ProductoModal from './ProductoModal'
+import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 
 type Producto = {
   id: string
@@ -26,6 +27,9 @@ export default function ProductosListView() {
   const [search, setSearch] = useState('')
   const [modalMode, setModalMode] = useState<null | 'create' | { mode: 'edit'; producto: Producto }>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [deletingProducto, setDeletingProducto] = useState<Producto | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: productos = [], isLoading } = useQuery<Producto[]>({
     queryKey: ['productos'],
@@ -43,6 +47,26 @@ export default function ProductosListView() {
     const q = search.toLowerCase()
     return p.nombre.toLowerCase().includes(q) || (p.descripcion ?? '').toLowerCase().includes(q)
   })
+
+  async function handleDeleteProducto() {
+    if (!deletingProducto) return
+    setDeleteError(null)
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/productos/${deletingProducto.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setDeleteError(data.error ?? 'Error al eliminar')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['productos'] })
+      setDeletingProducto(null)
+    } catch {
+      setDeleteError('Error de conexión')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   async function handleToggleActivo(producto: Producto) {
     setTogglingId(producto.id)
@@ -147,6 +171,16 @@ export default function ProductosListView() {
                         >
                           <PowerOff size={13} />
                         </button>
+                        <button
+                          onClick={() => {
+                            setDeleteError(null)
+                            setDeletingProducto(p)
+                          }}
+                          className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   )}
@@ -162,6 +196,17 @@ export default function ProductosListView() {
       )}
       {modalMode !== null && modalMode !== 'create' && 'mode' in modalMode && modalMode.mode === 'edit' && (
         <ProductoModal producto={modalMode.producto} onClose={() => setModalMode(null)} />
+      )}
+
+      {deletingProducto && (
+        <ConfirmDeleteModal
+          title="Eliminar producto"
+          description={`¿Eliminar "${deletingProducto.nombre}"? Esta acción no se puede deshacer.`}
+          warning={deleteError ?? undefined}
+          onConfirm={handleDeleteProducto}
+          onClose={() => setDeletingProducto(null)}
+          isPending={isDeleting}
+        />
       )}
     </div>
   )

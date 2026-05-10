@@ -124,6 +124,7 @@ export const leads = pgTable('leads', {
   followUpReason: text('follow_up_reason'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('leads_stage_assigned_idx').on(t.stageId, t.assignedTo),
   index('leads_assigned_to_idx').on(t.assignedTo),
@@ -250,6 +251,7 @@ export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'par
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
 export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
+export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
 
 // ─── CRM: Clientes ────────────────────────────────────────────────────────────
 
@@ -267,6 +269,7 @@ export const clientes = pgTable('clientes', {
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('clientes_asignado_idx').on(t.asignadoA),
   index('clientes_email_idx').on(t.email),
@@ -285,6 +288,7 @@ export const productos = pgTable('productos', {
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('productos_activo_idx').on(t.activo),
 ])
@@ -304,6 +308,7 @@ export const pedidos = pgTable('pedidos', {
   observaciones: text('observaciones'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('pedidos_cliente_idx').on(t.clienteId),
   index('pedidos_vendedor_idx').on(t.vendedorId),
@@ -334,6 +339,7 @@ export const movimientosCC = pgTable('movimientos_cc', {
   descripcion: text('descripcion'),
   registradoPor: uuid('registrado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('movimientos_cc_cliente_idx').on(t.clienteId, t.fecha),
   index('movimientos_cc_pedido_idx').on(t.pedidoId),
@@ -345,6 +351,7 @@ export const aplicacionesPago = pgTable('aplicaciones_pago', {
   pedidoId: uuid('pedido_id').notNull().references(() => pedidos.id),
   montoAplicado: decimal('monto_aplicado', { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('aplicaciones_pago_credito_idx').on(t.movimientoCreditoId),
   index('aplicaciones_pago_pedido_idx').on(t.pedidoId),
@@ -370,6 +377,35 @@ export const actividadesCliente = pgTable('actividades_cliente', {
   index('actividades_cliente_asignado_idx').on(t.asignadoA),
   index('actividades_cliente_fecha_idx').on(t.fechaProgramada),
 ])
+
+// ─── CRM: Documentos (remitos / proformas) ────────────────────────────────────
+
+export const documentCounters = pgTable('document_counters', {
+  tipo: tipoDocumentoEnum('tipo').primaryKey(),
+  lastNumber: integer('last_number').notNull().default(0),
+})
+
+export const documentosEmitidos = pgTable('documentos_emitidos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tipo: tipoDocumentoEnum('tipo').notNull(),
+  numero: integer('numero').notNull(),
+  pedidoId: uuid('pedido_id').notNull().references(() => pedidos.id),
+  emitidoPor: uuid('emitido_por').notNull().references(() => users.id),
+  emitidoAt: timestamp('emitido_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('documentos_emitidos_tipo_numero_idx').on(t.tipo, t.numero),
+  index('documentos_emitidos_pedido_idx').on(t.pedidoId),
+])
+
+export const empresaConfig = pgTable('empresa_config', {
+  id: integer('id').primaryKey().default(1),
+  nombre: text('nombre').notNull().default(''),
+  direccion: text('direccion'),
+  telefono: text('telefono'),
+  email: text('email'),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
 
 // ─── Log de actividad ─────────────────────────────────────────────────────────
 

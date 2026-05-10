@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, pedidos, users } from '@/db/schema'
-import { eq, and, count, sum } from 'drizzle-orm'
+import { eq, and, count, sum, isNull } from 'drizzle-orm'
 import { updateClienteSchema } from '@/lib/validations/clientes'
 import { requireAdmin } from '@/lib/authz'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { deleteCliente } from '@/lib/delete/delete.service'
 
 export async function GET(
   _req: NextRequest,
@@ -20,7 +21,7 @@ export async function GET(
     await canAccessCliente(session.user, id)
 
     const cliente = await db.query.clientes.findFirst({
-      where: eq(clientes.id, id),
+      where: and(eq(clientes.id, id), isNull(clientes.deletedAt)),
       with: {
         asignadoA: {
           columns: { id: true, name: true, avatarColor: true },
@@ -30,14 +31,14 @@ export async function GET(
 
     if (!cliente) throw new NotFoundError('Cliente')
 
-    // Get pedidos summary
+    // Get pedidos summary (exclude soft-deleted)
     const pedidosSummary = await db
       .select({
         count: count(),
         total: sum(pedidos.total),
       })
       .from(pedidos)
-      .where(eq(pedidos.clienteId, id))
+      .where(and(eq(pedidos.clienteId, id), isNull(pedidos.deletedAt)))
 
     const summary = pedidosSummary[0]
 
@@ -108,6 +109,26 @@ export async function PATCH(
       .returning()
 
     return NextResponse.json({ data: updated })
+  } catch (err) {
+    const { message, status } = toApiError(err)
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    requireAdmin(session.user)
+
+    const { id } = await params
+    await deleteCliente(id, session.user.id)
+
+    return NextResponse.json({ success: true })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

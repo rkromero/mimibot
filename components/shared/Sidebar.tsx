@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart } from 'lucide-react'
+import { LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart, Building2 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
@@ -72,18 +72,32 @@ export default function Sidebar({ user }: { user: User }) {
         </div>
 
         {user.role === 'admin' && (
-          <Link
-            href="/settings"
-            className={cn(
-              'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100 mt-1',
-              pathname.startsWith('/settings')
-                ? 'bg-accent text-foreground font-medium'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-            )}
-          >
-            <Settings size={15} strokeWidth={1.75} />
-            Configuración
-          </Link>
+          <div className="pt-1 space-y-0.5">
+            <Link
+              href="/settings"
+              className={cn(
+                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100',
+                pathname.startsWith('/settings')
+                  ? 'bg-accent text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+            >
+              <Settings size={15} strokeWidth={1.75} />
+              Configuración
+            </Link>
+            <Link
+              href="/admin/empresa-config"
+              className={cn(
+                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100',
+                pathname.startsWith('/admin/empresa-config')
+                  ? 'bg-accent text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+            >
+              <Building2 size={15} strokeWidth={1.75} />
+              Empresa
+            </Link>
+          </div>
         )}
       </nav>
 

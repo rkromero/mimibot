@@ -36,6 +36,13 @@
       "when": 1778377888671,
       "tag": "0004_brainy_lester",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778381687052,
+      "tag": "0005_safe_emma_frost",
+      "breakpoints": true
     }
   ]
 }
