@@ -1,9 +1,12 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import { Trash2 } from 'lucide-react'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 
 type Props = {
@@ -53,6 +56,31 @@ const estadoPagoLabels: Record<string, string> = {
 }
 
 export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago, onClosePago }: Props) {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'admin'
+  const queryClient = useQueryClient()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDeleteMovimiento(movimientoId: string) {
+    if (!confirm('¿Eliminar este pago? Se revertirán los saldos de los pedidos asociados.')) return
+    setDeletingId(movimientoId)
+    try {
+      const res = await fetch(`/api/clientes/${clienteId}/cuenta-corriente/${movimientoId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const json = await res.json() as { error: string }
+        alert(json.error ?? 'Error al eliminar')
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'cc'] })
+    } catch {
+      alert('Error de conexión')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const { data, isLoading, isError } = useQuery<CuentaCorrienteData>({
     queryKey: ['clientes', clienteId, 'cc'],
     queryFn: async () => {
@@ -113,9 +141,21 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
                       <p className="text-sm text-muted-foreground">{format(new Date(m.fecha), 'dd/MM/yy')}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{m.descripcion ?? (m.tipo === 'credito' ? 'Pago recibido' : 'Pedido')}</p>
                     </div>
-                    <span className={cn('text-base font-semibold', m.tipo === 'credito' ? 'text-green-600' : 'text-red-600')}>
-                      {m.tipo === 'credito' ? '+' : '-'}{formatMoney(m.monto)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('text-base font-semibold', m.tipo === 'credito' ? 'text-green-600' : 'text-red-600')}>
+                        {m.tipo === 'credito' ? '+' : '-'}{formatMoney(m.monto)}
+                      </span>
+                      {isAdmin && m.tipo === 'credito' && (
+                        <button
+                          onClick={() => void handleDeleteMovimiento(m.id)}
+                          disabled={deletingId === m.id}
+                          className="p-1 text-muted-foreground hover:text-red-600 disabled:opacity-50 transition-colors"
+                          title="Eliminar pago"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -129,6 +169,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Descripción</th>
                       <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Monto</th>
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pedido</th>
+                      {isAdmin && <th className="py-2 px-3 border-b border-border" />}
                     </tr>
                   </thead>
                   <tbody>
@@ -156,6 +197,20 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
                             </Link>
                           ) : '—'}
                         </td>
+                        {isAdmin && (
+                          <td className="py-2.5 px-3 text-center">
+                            {m.tipo === 'credito' && (
+                              <button
+                                onClick={() => void handleDeleteMovimiento(m.id)}
+                                disabled={deletingId === m.id}
+                                className="p-1 text-muted-foreground hover:text-red-600 disabled:opacity-50 transition-colors"
+                                title="Eliminar pago"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
