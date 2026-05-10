@@ -4,6 +4,7 @@ import {
   leads, contacts, conversations, messages, attachments,
   pipelineStages, tags, leadTags, activityLog, botConfig,
   clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago,
+  actividadesCliente,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -90,6 +91,13 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
   creadoPor: one(users, { fields: [clientes.creadoPor], references: [users.id], relationName: 'clientesCreados' }),
   pedidos: many(pedidos),
   movimientosCC: many(movimientosCC),
+  actividades: many(actividadesCliente),
+}))
+
+export const actividadesClienteRelations = relations(actividadesCliente, ({ one }) => ({
+  cliente: one(clientes, { fields: [actividadesCliente.clienteId], references: [clientes.id] }),
+  asignadoA: one(users, { fields: [actividadesCliente.asignadoA], references: [users.id], relationName: 'actividadesAsignadas' }),
+  creadoPor: one(users, { fields: [actividadesCliente.creadoPor], references: [users.id], relationName: 'actividadesCreadas' }),
 }))
 
 export const productosRelations = relations(productos, ({ one, many }) => ({

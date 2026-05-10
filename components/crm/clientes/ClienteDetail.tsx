@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
+import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 
 type Props = { id: string }
 
@@ -254,6 +255,13 @@ export default function ClienteDetail({ id }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Actividades */}
+      <ActividadesSection
+        clienteId={id}
+        asignadoA={cliente.asignadoA}
+        agents={agents}
+      />
 
       {/* Pedidos */}
       <PedidosTab

@@ -29,6 +29,13 @@
       "when": 1778373666583,
       "tag": "0003_magenta_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778377888671,
+      "tag": "0004_brainy_lester",
+      "breakpoints": true
     }
   ]
 }

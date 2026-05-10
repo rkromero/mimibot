@@ -248,6 +248,8 @@ export const origenClienteEnum = pgEnum('origen_cliente', ['manual', 'convertido
 export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'confirmado', 'entregado', 'cancelado'])
 export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'parcial', 'pagado'])
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
+export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
+export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
 
 // ─── CRM: Clientes ────────────────────────────────────────────────────────────
 
@@ -346,6 +348,27 @@ export const aplicacionesPago = pgTable('aplicaciones_pago', {
 }, (t) => [
   index('aplicaciones_pago_credito_idx').on(t.movimientoCreditoId),
   index('aplicaciones_pago_pedido_idx').on(t.pedidoId),
+])
+
+// ─── CRM: Actividades de cliente ──────────────────────────────────────────────
+
+export const actividadesCliente = pgTable('actividades_cliente', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clienteId: uuid('cliente_id').notNull().references(() => clientes.id, { onDelete: 'cascade' }),
+  tipo: actividadTipoEnum('tipo').notNull().default('tarea'),
+  titulo: text('titulo').notNull(),
+  notas: text('notas'),
+  estado: actividadEstadoEnum('estado').notNull().default('pendiente'),
+  fechaProgramada: timestamp('fecha_programada', { mode: 'date' }),
+  fechaCompletada: timestamp('fecha_completada', { mode: 'date' }),
+  asignadoA: uuid('asignado_a').references(() => users.id),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('actividades_cliente_cliente_idx').on(t.clienteId, t.estado),
+  index('actividades_cliente_asignado_idx').on(t.asignadoA),
+  index('actividades_cliente_fecha_idx').on(t.fechaProgramada),
 ])
 
 // ─── Log de actividad ─────────────────────────────────────────────────────────
