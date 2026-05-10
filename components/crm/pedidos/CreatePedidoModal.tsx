@@ -231,92 +231,42 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     <>
       {/* Pantalla de éxito */}
       {showSuccess && successData && (
-        <div className="fixed inset-0 z-[70] flex flex-col bg-card">
-          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
-            <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <CheckCircle className="text-green-600" size={40} />
-            </div>
-            <h2 className="text-2xl font-bold text-center text-foreground">¡Pedido confirmado!</h2>
-            <p className="text-3xl font-bold text-primary">
-              {formatMoney(parseFloat(successData.total))}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              #{successData.pedidoId.slice(-8).toUpperCase()}
-            </p>
-          </div>
-          <div className="p-4 space-y-3 border-t border-border">
-            <button
-              onClick={() => {
-                router.push(`/crm/pedidos/${successData.pedidoId}`)
-                onClose()
-              }}
-              className="w-full py-3.5 border border-border rounded-xl text-base font-medium text-foreground bg-card active:bg-accent transition-colors"
-            >
-              Ver pedido
-            </button>
-            <button
-              onClick={() => {
-                setShowSuccess(false)
-                setSuccessData(null)
-                setItems([])
-                setForm((prev) => ({ ...prev, observaciones: '' }))
-              }}
-              className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl text-base font-semibold active:bg-primary/80 transition-colors"
-            >
-              Nuevo pedido{clienteId ? ' para este cliente' : ''}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Buscador de productos (full-screen overlay) */}
-      {showProductSearch && (
-        <div className="fixed inset-0 z-[60] flex flex-col bg-background">
-          <div className="flex items-center gap-3 p-4 border-b border-border">
-            <button
-              onClick={() => {
-                setShowProductSearch(false)
-                setProductSearch('')
-              }}
-              className="p-2 -ml-2 text-muted-foreground"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <input
-              autoFocus
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Buscar producto..."
-              className="flex-1 text-[16px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
-            />
-            {productSearch && (
-              <button
-                onClick={() => setProductSearch('')}
-                className="p-1 text-muted-foreground"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {filteredProducts.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {productSearch ? 'Sin resultados' : 'No hay productos disponibles'}
+        <div className="fixed inset-0 z-[70] flex flex-col bg-card md:bg-black/50 md:items-center md:justify-center">
+          <div className="flex flex-col h-full md:h-auto md:max-w-sm md:w-full md:bg-card md:rounded-lg md:border md:border-border md:shadow-xl md:overflow-hidden">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4 md:py-8">
+              <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle className="text-green-600" size={40} />
               </div>
-            ) : (
-              filteredProducts.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => addProducto(p)}
-                  className="w-full flex items-center justify-between p-4 border-b border-border text-left active:bg-accent/60 transition-colors"
-                >
-                  <span className="text-base font-medium text-foreground">{p.nombre}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatMoney(parseFloat(p.precio))}
-                  </span>
-                </button>
-              ))
-            )}
+              <h2 className="text-2xl font-bold text-center text-foreground">¡Pedido confirmado!</h2>
+              <p className="text-3xl font-bold text-primary">
+                {formatMoney(parseFloat(successData.total))}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                #{successData.pedidoId.slice(-8).toUpperCase()}
+              </p>
+            </div>
+            <div className="p-4 space-y-2 border-t border-border">
+              <button
+                onClick={() => {
+                  router.push(`/crm/pedidos/${successData.pedidoId}`)
+                  onClose()
+                }}
+                className="w-full py-3.5 md:py-2 border border-border rounded-xl md:rounded-md text-base md:text-sm font-medium text-foreground bg-card active:bg-accent hover:bg-accent transition-colors"
+              >
+                Ver pedido
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuccess(false)
+                  setSuccessData(null)
+                  setItems([])
+                  setForm((prev) => ({ ...prev, observaciones: '' }))
+                }}
+                className="w-full py-3.5 md:py-2 bg-primary text-primary-foreground rounded-xl md:rounded-md text-base md:text-sm font-semibold active:bg-primary/80 hover:bg-primary/90 transition-colors"
+              >
+                Nuevo pedido{clienteId ? ' para este cliente' : ''}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -324,7 +274,60 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
       {/* Modal principal */}
       <div className="fixed inset-0 z-50 flex flex-col md:bg-black/50 md:items-center md:justify-center">
         <div className="absolute inset-0 hidden md:block" onClick={onClose} />
-        <div className="relative flex flex-col h-full w-full bg-card md:h-auto md:max-h-[90vh] md:rounded-lg md:border md:border-border md:shadow-xl md:max-w-2xl">
+        <div className="relative flex flex-col h-full w-full bg-card md:h-auto md:max-h-[90vh] md:rounded-lg md:border md:border-border md:shadow-xl md:max-w-2xl md:overflow-hidden">
+
+          {/* Buscador de productos — full-screen mobile, contained in modal on desktop */}
+          {showProductSearch && (
+            <div className="fixed inset-0 z-[60] flex flex-col bg-background md:absolute md:inset-0 md:z-10">
+              <div className="flex items-center gap-3 p-4 border-b border-border">
+                <button
+                  onClick={() => {
+                    setShowProductSearch(false)
+                    setProductSearch('')
+                  }}
+                  className="p-2 -ml-2 text-muted-foreground"
+                >
+                  <ArrowLeft size={20} className="md:hidden" />
+                  <X size={16} className="hidden md:block" />
+                </button>
+                <input
+                  autoFocus
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="Buscar producto..."
+                  className="flex-1 text-[16px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+                />
+                {productSearch && (
+                  <button
+                    onClick={() => setProductSearch('')}
+                    className="p-1 text-muted-foreground"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {filteredProducts.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    {productSearch ? 'Sin resultados' : 'No hay productos disponibles'}
+                  </div>
+                ) : (
+                  filteredProducts.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => addProducto(p)}
+                      className="w-full flex items-center justify-between p-4 md:py-2.5 border-b border-border text-left active:bg-accent/60 hover:bg-accent/40 transition-colors"
+                    >
+                      <span className="text-base md:text-sm font-medium text-foreground">{p.nombre}</span>
+                      <span className="text-sm md:text-xs text-muted-foreground">
+                        {formatMoney(parseFloat(p.precio))}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Header */}
           <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
@@ -422,11 +425,11 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                   const price = parseFloat(item.precioUnitario)
                   const subtotal = qty * price
                   return (
-                    <div key={idx} className="bg-card border border-border rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-2 mb-3">
+                    <div key={idx} className="bg-card border border-border rounded-xl p-4 md:rounded-md md:p-3">
+                      <div className="flex items-start justify-between gap-2 mb-3 md:mb-2">
                         <div className="flex-1">
-                          <p className="font-semibold text-foreground">{item.productoNombre}</p>
-                          <p className="text-sm text-muted-foreground">{formatMoney(price)} c/u</p>
+                          <p className="font-semibold text-foreground md:text-sm">{item.productoNombre}</p>
+                          <p className="text-sm text-muted-foreground md:text-xs">{formatMoney(price)} c/u</p>
                         </div>
                         <button
                           onClick={() => removeItem(idx)}
@@ -436,23 +439,23 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                         </button>
                       </div>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 md:gap-2">
                           <button
                             onClick={() => changeQty(idx, -1)}
                             disabled={qty <= 1}
-                            className="w-11 h-11 rounded-full border border-border flex items-center justify-center text-foreground active:bg-accent transition-colors disabled:opacity-40"
+                            className="w-11 h-11 rounded-full border border-border flex items-center justify-center text-foreground active:bg-accent transition-colors disabled:opacity-40 md:w-8 md:h-8 md:rounded-md"
                           >
                             <Minus size={18} />
                           </button>
-                          <span className="w-8 text-center text-lg font-bold text-foreground">{qty}</span>
+                          <span className="w-8 text-center text-lg font-bold text-foreground md:text-base md:w-6">{qty}</span>
                           <button
                             onClick={() => changeQty(idx, 1)}
-                            className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:bg-primary/80 transition-colors"
+                            className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:bg-primary/80 transition-colors md:w-8 md:h-8 md:rounded-md"
                           >
                             <Plus size={18} />
                           </button>
                         </div>
-                        <p className="text-lg font-bold text-foreground">{formatMoney(subtotal)}</p>
+                        <p className="text-lg font-bold text-foreground md:text-base">{formatMoney(subtotal)}</p>
                       </div>
                     </div>
                   )
