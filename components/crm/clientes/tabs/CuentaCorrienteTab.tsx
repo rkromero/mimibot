@@ -1,14 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 
-type Props = { clienteId: string }
+type Props = {
+  clienteId: string
+  showPago: boolean
+  onClosePago: () => void
+}
 
 type Movimiento = {
   id: string
@@ -57,8 +60,7 @@ const estadoPagoLabels: Record<string, string> = {
   pagado: 'Pagado',
 }
 
-export default function CuentaCorrienteTab({ clienteId }: Props) {
-  const [showPago, setShowPago] = useState(false)
+export default function CuentaCorrienteTab({ clienteId, showPago, onClosePago }: Props) {
   const [lastPagoResult, setLastPagoResult] = useState<PagoResult | null>(null)
 
   const { data, isLoading, isError } = useQuery<CuentaCorrienteData>({
@@ -83,27 +85,20 @@ export default function CuentaCorrienteTab({ clienteId }: Props) {
   const saldoPositivo = saldo > 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <h2 className="text-sm font-semibold text-foreground">Cuenta Corriente</h2>
+
       {/* Saldo */}
-      <div className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">
-            {saldoPositivo ? 'Saldo deudor' : saldo < 0 ? 'Saldo a favor' : 'Saldo'}
-          </p>
-          <p className={cn('text-2xl font-semibold', saldoPositivo ? 'text-red-600' : saldo < 0 ? 'text-green-600' : 'text-foreground')}>
-            {formatMoney(Math.abs(saldo))}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowPago(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} />
-          Registrar Pago
-        </button>
+      <div className="bg-card border border-border rounded-lg p-4">
+        <p className="text-xs text-muted-foreground mb-1">
+          {saldoPositivo ? 'Saldo deudor' : saldo < 0 ? 'Saldo a favor' : 'Saldo'}
+        </p>
+        <p className={cn('text-2xl font-semibold', saldoPositivo ? 'text-red-600' : saldo < 0 ? 'text-green-600' : 'text-foreground')}>
+          {formatMoney(Math.abs(saldo))}
+        </p>
       </div>
 
-      {/* Distribución del último pago */}
+      {/* Resultado del último pago */}
       {lastPagoResult && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2">Pago registrado</h3>
@@ -121,10 +116,7 @@ export default function CuentaCorrienteTab({ clienteId }: Props) {
               </li>
             )}
           </ul>
-          <button
-            onClick={() => setLastPagoResult(null)}
-            className="mt-2 text-xs text-green-600 hover:underline"
-          >
+          <button onClick={() => setLastPagoResult(null)} className="mt-2 text-xs text-green-600 hover:underline">
             Cerrar
           </button>
         </div>
@@ -224,10 +216,10 @@ export default function CuentaCorrienteTab({ clienteId }: Props) {
       {showPago && (
         <RegistrarPagoModal
           clienteId={clienteId}
-          onClose={() => setShowPago(false)}
+          onClose={onClosePago}
           onSuccess={(result) => {
             setLastPagoResult(result)
-            setShowPago(false)
+            onClosePago()
           }}
         />
       )}

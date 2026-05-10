@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 
-type Props = { clienteId: string }
+type Props = {
+  clienteId: string
+  showCreate: boolean
+  onCloseCreate: () => void
+}
 
 type Pedido = {
   id: string
@@ -50,9 +52,8 @@ function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
-export default function PedidosTab({ clienteId }: Props) {
+export default function PedidosTab({ clienteId, showCreate, onCloseCreate }: Props) {
   const router = useRouter()
-  const [showCreate, setShowCreate] = useState(false)
 
   const { data: pedidos = [], isLoading } = useQuery<Pedido[]>({
     queryKey: ['clientes', clienteId, 'pedidos'],
@@ -67,16 +68,7 @@ export default function PedidosTab({ clienteId }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-foreground">Pedidos</h2>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={14} />
-          Nuevo Pedido
-        </button>
-      </div>
+      <h2 className="text-sm font-semibold text-foreground mb-3">Pedidos</h2>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         {isLoading ? (
@@ -128,7 +120,7 @@ export default function PedidosTab({ clienteId }: Props) {
       {showCreate && (
         <CreatePedidoModal
           clienteId={clienteId}
-          onClose={() => setShowCreate(false)}
+          onClose={onCloseCreate}
         />
       )}
     </div>

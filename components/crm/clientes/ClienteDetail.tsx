@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -34,16 +34,16 @@ const inputClass = cn(
   'transition-colors duration-100',
 )
 
-const TABS = ['Datos', 'Pedidos', 'Cuenta Corriente'] as const
-type Tab = (typeof TABS)[number]
-
 export default function ClienteDetail({ id }: Props) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<Tab>('Datos')
+
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [form, setForm] = useState<Partial<Cliente>>({})
+  const [showCreatePedido, setShowCreatePedido] = useState(false)
+  const [showRegistrarPago, setShowRegistrarPago] = useState(false)
 
   const { data: cliente, isLoading, isError } = useQuery<Cliente>({
     queryKey: ['cliente', id],
@@ -67,8 +67,6 @@ export default function ClienteDetail({ id }: Props) {
     staleTime: 60_000,
     enabled: isAdmin,
   })
-
-  const [form, setForm] = useState<Partial<Cliente>>({})
 
   function getField<K extends keyof Cliente>(key: K): Cliente[K] | undefined {
     if (key in form) return form[key] as Cliente[K]
@@ -111,10 +109,9 @@ export default function ClienteDetail({ id }: Props) {
     }
   }
 
-
   if (isLoading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 max-w-4xl mx-auto">
         <div className="text-sm text-muted-foreground">Cargando cliente...</div>
       </div>
     )
@@ -122,91 +119,94 @@ export default function ClienteDetail({ id }: Props) {
 
   if (isError || !cliente) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 max-w-4xl mx-auto">
         <div className="text-sm text-destructive">Error al cargar el cliente.</div>
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto overflow-y-auto h-full space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/crm/clientes"
-          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={16} />
-        </Link>
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            {cliente.nombre} {cliente.apellido}
-          </h1>
-          <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace('_', ' ')}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/crm/clientes"
+            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">
+              {cliente.nombre} {cliente.apellido}
+            </h1>
+            <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace('_', ' ')}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRegistrarPago(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            <CreditCard size={14} />
+            Registrar Pago
+          </button>
+          <button
+            onClick={() => setShowCreatePedido(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={14} />
+            Crear Pedido
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border mb-6">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === tab
-                ? 'border-b-2 border-primary text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      {/* Datos del cliente */}
+      <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Datos del cliente</h2>
 
-      {/* Tab Content */}
-      {activeTab === 'Datos' && (
-        <div className="bg-card border border-border rounded-lg p-6 max-w-xl space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Nombre *</label>
-              <input
-                value={getField('nombre') ?? ''}
-                onChange={(e) => setField('nombre', e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Apellido *</label>
-              <input
-                value={getField('apellido') ?? ''}
-                onChange={(e) => setField('apellido', e.target.value)}
-                className={inputClass}
-              />
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Nombre *</label>
+            <input
+              value={getField('nombre') ?? ''}
+              onChange={(e) => setField('nombre', e.target.value)}
+              className={inputClass}
+            />
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Email</label>
-              <input
-                type="email"
-                value={getField('email') ?? ''}
-                onChange={(e) => setField('email', e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Teléfono</label>
-              <input
-                type="tel"
-                value={getField('telefono') ?? ''}
-                onChange={(e) => setField('telefono', e.target.value)}
-                className={inputClass}
-              />
-            </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Apellido *</label>
+            <input
+              value={getField('apellido') ?? ''}
+              onChange={(e) => setField('apellido', e.target.value)}
+              className={inputClass}
+            />
           </div>
+        </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Email</label>
+            <input
+              type="email"
+              value={getField('email') ?? ''}
+              onChange={(e) => setField('email', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Teléfono</label>
+            <input
+              type="tel"
+              value={getField('telefono') ?? ''}
+              onChange={(e) => setField('telefono', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Dirección</label>
             <input
@@ -215,7 +215,6 @@ export default function ClienteDetail({ id }: Props) {
               className={inputClass}
             />
           </div>
-
           <div>
             <label className="block text-xs text-muted-foreground mb-1">CUIT</label>
             <input
@@ -225,44 +224,50 @@ export default function ClienteDetail({ id }: Props) {
               className={inputClass}
             />
           </div>
-
-          {isAdmin && (
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Asignado a</label>
-              <select
-                value={getField('asignadoA') ?? ''}
-                onChange={(e) => setField('asignadoA', e.target.value || null)}
-                className={inputClass}
-              >
-                <option value="">Sin asignar</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {saveError && <p className="text-xs text-destructive">{saveError}</p>}
-
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {isSaving ? 'Guardando...' : 'Guardar cambios'}
-            </button>
-          </div>
         </div>
-      )}
 
-      {activeTab === 'Pedidos' && (
-        <PedidosTab clienteId={id} />
-      )}
+        {isAdmin && (
+          <div className="max-w-xs">
+            <label className="block text-xs text-muted-foreground mb-1">Asignado a</label>
+            <select
+              value={getField('asignadoA') ?? ''}
+              onChange={(e) => setField('asignadoA', e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">Sin asignar</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
-      {activeTab === 'Cuenta Corriente' && (
-        <CuentaCorrienteTab clienteId={id} />
-      )}
+        {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+
+        <div className="pt-1">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isSaving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+
+      {/* Pedidos */}
+      <PedidosTab
+        clienteId={id}
+        showCreate={showCreatePedido}
+        onCloseCreate={() => setShowCreatePedido(false)}
+      />
+
+      {/* Cuenta Corriente */}
+      <CuentaCorrienteTab
+        clienteId={id}
+        showPago={showRegistrarPago}
+        onClosePago={() => setShowRegistrarPago(false)}
+      />
     </div>
   )
 }
