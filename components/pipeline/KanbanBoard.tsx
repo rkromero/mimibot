@@ -17,13 +17,15 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
+import LeadList from './LeadList'
 import PipelineFilters from './PipelineFilters'
 import CreateLeadModal from './CreateLeadModal'
+import BulkImportModal from './BulkImportModal'
 import LeadPanel from '@/components/lead/LeadPanel'
 import type { PipelineStage } from '@/types/db'
 import type { Session } from 'next-auth'
 import type { LeadFilters } from '@/lib/validations/lead'
-import { Plus } from 'lucide-react'
+import { Plus, LayoutGrid, List, Upload } from 'lucide-react'
 
 type Props = {
   stages: PipelineStage[]
@@ -36,7 +38,10 @@ export default function KanbanBoard({ stages, user }: Props) {
   const [overStageId, setOverStageId] = useState<string | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [view, setView] = useState<'board' | 'list'>('board')
   const [filters, setFilters] = useState<LeadFilters>({})
+  const canImport = user.role === 'admin' || user.role === 'gerente'
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -161,39 +166,78 @@ export default function KanbanBoard({ stages, user }: Props) {
           filters={filters}
           onChange={setFilters}
         />
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-100 shrink-0"
-        >
-          <Plus size={13} />
-          Nuevo lead
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* View toggle */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden">
+            <button
+              onClick={() => setView('board')}
+              title="Tablero"
+              className={`p-1.5 transition-colors ${view === 'board' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => setView('list')}
+              title="Listado"
+              className={`p-1.5 transition-colors ${view === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <List size={14} />
+            </button>
+          </div>
+          {/* Import button (admin/gerente) */}
+          {canImport && (
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:bg-muted transition-colors duration-100"
+              title="Importar CSV"
+            >
+              <Upload size={13} />
+              Importar
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-100"
+          >
+            <Plus size={13} />
+            Nuevo lead
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-1 overflow-x-auto overflow-y-hidden gap-0 border-t border-border">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          {stages.map((stage) => (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              leads={leadsByStage[stage.id] ?? []}
-              onLeadClick={setSelectedLeadId}
-              isTargetColumn={overStageId === stage.id}
-            />
-          ))}
-          <DragOverlay dropAnimation={{ duration: 120, easing: 'ease' }}>
-            {activeLead && (
-              <LeadCard lead={activeLead} isDragging />
-            )}
-          </DragOverlay>
-        </DndContext>
-      </div>
+      {view === 'list' ? (
+        <LeadList
+          leads={leadsQuery.data ?? []}
+          stages={stages}
+          loading={leadsQuery.isLoading}
+          onLeadClick={setSelectedLeadId}
+        />
+      ) : (
+        <div className="flex flex-1 overflow-x-auto overflow-y-hidden gap-0 border-t border-border">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            {stages.map((stage) => (
+              <KanbanColumn
+                key={stage.id}
+                stage={stage}
+                leads={leadsByStage[stage.id] ?? []}
+                onLeadClick={setSelectedLeadId}
+                isTargetColumn={overStageId === stage.id}
+              />
+            ))}
+            <DragOverlay dropAnimation={{ duration: 120, easing: 'ease' }}>
+              {activeLead && (
+                <LeadCard lead={activeLead} isDragging />
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
+      )}
 
       {selectedLeadId && (
         <LeadPanel
@@ -207,6 +251,14 @@ export default function KanbanBoard({ stages, user }: Props) {
         <CreateLeadModal
           stages={stages}
           onClose={() => setShowCreate(false)}
+        />
+      )}
+
+      {showImport && (
+        <BulkImportModal
+          stages={stages}
+          userRole={user.role}
+          onClose={() => setShowImport(false)}
         />
       )}
     </div>
