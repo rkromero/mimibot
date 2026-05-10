@@ -97,7 +97,7 @@ export async function POST(
     const body: unknown = await req.json()
     const parsed = registrarPagoSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
     }
 
     const result = await registrarPago(

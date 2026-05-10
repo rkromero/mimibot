@@ -26,7 +26,7 @@ export async function PATCH(
       const body: unknown = await req.json()
       const parsed = updateStageSchema.safeParse(body)
       if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+        return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
       }
 
       const stage = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.id, id) })

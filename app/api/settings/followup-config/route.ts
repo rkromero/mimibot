@@ -34,7 +34,7 @@ export async function PATCH(req: Request) {
 
   const body = await req.json()
   const parsed = configSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
 
   const [updated] = await db.insert(followUpConfig)
     .values({ id: 1, ...parsed.data, updatedAt: new Date() })

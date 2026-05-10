@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
       const body: unknown = await req.json()
       const parsed = updateBotSchema.safeParse(body)
       if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+        return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
       }
 
       const updates: Partial<typeof botConfig.$inferInsert> = {

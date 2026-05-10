@@ -51,7 +51,8 @@ export async function PATCH(
     const body: unknown = await req.json()
     const parsed = updateProductoSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+      const message = parsed.error.issues[0]?.message ?? 'Datos inválidos'
+      return NextResponse.json({ error: message }, { status: 400 })
     }
 
     const updates: Partial<typeof productos.$inferInsert> = {

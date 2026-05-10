@@ -18,7 +18,7 @@ export async function POST(
   const { leadId } = await params
   const body = await req.json()
   const parsed = scheduleSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
 
   await scheduleFollowUp(leadId, parsed.data.reason, parsed.data.delayMinutes)
   return NextResponse.json({ ok: true })

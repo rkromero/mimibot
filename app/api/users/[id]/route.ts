@@ -28,7 +28,7 @@ export async function PATCH(
       const body: unknown = await req.json()
       const parsed = updateUserSchema.safeParse(body)
       if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+        return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
       }
 
       const user = await db.query.users.findFirst({ where: eq(users.id, id) })

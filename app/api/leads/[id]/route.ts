@@ -54,7 +54,7 @@ export async function PATCH(
     const body: unknown = await req.json()
     const parsed = updateLeadSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
     }
 
     const current = await db.query.leads.findFirst({ where: eq(leads.id, id) })

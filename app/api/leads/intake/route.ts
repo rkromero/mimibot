@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const body: unknown = await req.json()
     const parsed = intakeSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400, headers })
     }
 
     const { name, email, phone, message, source } = parsed.data

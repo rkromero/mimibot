@@ -66,7 +66,7 @@ export default function ProductoModal({ producto, onClose }: Props) {
         body: JSON.stringify({
           nombre: form.nombre.trim(),
           descripcion: form.descripcion.trim() || null,
-          precio,
+          precio: form.precio,
         }),
       })
 
