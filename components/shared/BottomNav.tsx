@@ -106,14 +106,14 @@ function AgentNav({ user, onNewPedido, onSearchOpen }: Props) {
   const [masOpen, setMasOpen] = useState(false)
   const unreadCount = useUnreadCount(user.role === 'agent')
 
-  const inicioActive = pathname === '/'
+  const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
   const inboxActive = pathname.startsWith('/inbox')
   const clientesActive = pathname.startsWith('/crm/clientes')
 
   return (
     <>
       {/* Tab: Inicio */}
-      <NavTab href="/" label="Inicio" icon={Home} active={inicioActive} />
+      <NavTab href="/agent/home" label="Inicio" icon={Home} active={inicioActive} />
 
       {/* Tab: Inbox (with badge) */}
       <NavTab href="/inbox" label="Inbox" icon={MessageSquare} active={inboxActive}>
