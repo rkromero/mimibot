@@ -13,7 +13,7 @@ export default function LoginPage() {
             Ingresá con tu cuenta del CRM
           </p>
         </div>
-        <Suspense>
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />}>
           <LoginForm />
         </Suspense>
       </div>
