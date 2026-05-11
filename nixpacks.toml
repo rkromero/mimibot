@@ -6,4 +6,8 @@ cmds = ["npm ci --cache /tmp/npm-cache"]
 cacheDirectories = ["/tmp/npm-cache"]
 
 [phases.build]
-cmds = ["rm -rf .next && npm run build"]
+cmds = [
+  "npm run build",
+  "cp -r .next/static .next/standalone/.next/static",
+  "cp -r public .next/standalone/public || true"
+]
