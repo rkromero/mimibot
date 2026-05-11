@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -301,7 +301,21 @@ export default function ClienteDetail({ id }: Props) {
               className={inputClass}
             />
           ) : (
-            <p className={readValueClass}>{getField('direccion') || '—'}</p>
+            <div className="flex items-center gap-2">
+              <p className={cn(readValueClass, 'flex-1')}>{getField('direccion') || '—'}</p>
+              {getField('direccion') && (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(getField('direccion') ?? '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+                  title="Cómo llegar"
+                >
+                  <MapPin size={12} />
+                  <span className="hidden sm:inline">Llegar</span>
+                </a>
+              )}
+            </div>
           )}
         </div>
         <div>
@@ -438,60 +452,81 @@ export default function ClienteDetail({ id }: Props) {
       )}>
         {/* Mobile header */}
         <div className="md:hidden space-y-4">
-          <div className="flex items-center gap-3">
-            <Link href="/crm/clientes" className="p-2 -ml-2 text-muted-foreground">
+          {/* Title row */}
+          <div className="flex items-center gap-2">
+            <Link href="/crm/clientes" className="p-2 -ml-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center">
               <ArrowLeft size={20} />
             </Link>
-            <div className="flex-1">
-              <h1 className="text-xl font-semibold text-foreground">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-semibold text-foreground truncate">
                 {cliente.nombre} {cliente.apellido}
               </h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace(/_/g, ' ')}</p>
-                {cliente.estadoActividad && (
-                  <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
-                    {estadoActividadLabels[cliente.estadoActividad]}
-                  </span>
-                )}
-              </div>
+              {cliente.estadoActividad && (
+                <span className={cn('inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
+                  {estadoActividadLabels[cliente.estadoActividad]}
+                </span>
+              )}
             </div>
-            {isAdmin && (
-              <button
-                onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
-                className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                title="Eliminar cliente"
-              >
-                <Trash2 size={18} />
-              </button>
-            )}
+            <button
+              onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
+              className="p-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
+              title="Más opciones"
+            >
+              <MoreVertical size={20} />
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setShowRegistrarPago(true)}
-              className="flex items-center justify-center gap-2 py-3.5 border border-border rounded-xl text-base font-medium text-foreground bg-card active:bg-accent/70 transition-colors"
-            >
-              <CreditCard size={18} />
-              Registrar Pago
-            </button>
+          {/* 3 primary action buttons */}
+          <div className="grid grid-cols-3 gap-2">
+            {cliente.telefono ? (
+              <a
+                href={`https://wa.me/${cliente.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${cliente.nombre}!`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl active:bg-green-100 transition-colors"
+              >
+                <MessageCircle size={22} className="text-green-600" />
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">WhatsApp</span>
+              </a>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-muted rounded-xl opacity-40">
+                <MessageCircle size={22} className="text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">WhatsApp</span>
+              </div>
+            )}
+
+            {cliente.telefono ? (
+              <a
+                href={`tel:${cliente.telefono}`}
+                className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl active:bg-blue-100 transition-colors"
+              >
+                <Phone size={22} className="text-blue-600" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Llamar</span>
+              </a>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-muted rounded-xl opacity-40">
+                <Phone size={22} className="text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Llamar</span>
+              </div>
+            )}
+
             <button
               onClick={() => setShowCreatePedido(true)}
-              className="flex items-center justify-center gap-2 py-3.5 bg-primary text-primary-foreground rounded-xl text-base font-medium active:bg-primary/80 transition-colors"
+              className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-primary text-primary-foreground rounded-xl active:bg-primary/80 transition-colors"
             >
-              <Plus size={18} />
-              Crear Pedido
+              <Plus size={22} />
+              <span className="text-xs font-medium">Pedido</span>
             </button>
           </div>
 
-          {cliente.telefono && (
-            <a
-              href={`tel:${cliente.telefono}`}
-              className="flex items-center gap-2 text-primary text-base font-medium py-1"
-            >
-              <Phone size={16} />
-              {cliente.telefono}
-            </a>
-          )}
+          {/* Secondary: Registrar pago */}
+          <button
+            onClick={() => setShowRegistrarPago(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-medium text-foreground bg-card active:bg-accent/70 transition-colors"
+          >
+            <CreditCard size={16} />
+            Registrar pago
+          </button>
         </div>
 
         {/* Desktop header */}

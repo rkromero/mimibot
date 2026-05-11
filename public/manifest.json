@@ -1,0 +1,12 @@
+{
+  "name": "Mimi CRM",
+  "short_name": "Mimi",
+  "description": "CRM de ventas para equipos de campo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
+  "icons": []
+}

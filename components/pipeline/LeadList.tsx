@@ -1,6 +1,7 @@
 'use client'
 
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import type { LeadWithContact, PipelineStage } from '@/types/db'
 
@@ -23,12 +24,17 @@ const sourceColors: Record<string, string> = {
   landing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
 }
 
+function relativeContact(date: Date | null | undefined): string {
+  if (!date) return 'Sin contacto'
+  return formatDistanceToNow(date, { addSuffix: true, locale: es })
+}
+
 export default function LeadList({ leads, stages, loading, onLeadClick }: Props) {
   if (loading) {
     return (
       <div className="flex-1 p-4 space-y-2">
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-12 bg-muted/40 rounded animate-pulse" />
+          <div key={i} className="h-16 bg-muted/40 rounded-xl animate-pulse" />
         ))}
       </div>
     )
@@ -36,15 +42,65 @@ export default function LeadList({ leads, stages, loading, onLeadClick }: Props)
 
   if (leads.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        No hay leads
+      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-12">
+        No hay leads en esta etapa
       </div>
     )
   }
 
   return (
     <div className="flex-1 overflow-auto">
-      <table className="w-full text-sm">
+      {/* Mobile card view */}
+      <div className="md:hidden divide-y divide-border">
+        {leads.map((lead) => {
+          const stage = stages.find((s) => s.id === lead.stageId) ?? lead.stage
+          const lastContact = lead.lastContactedAt ? new Date(lead.lastContactedAt) : null
+          const preview = lead.lastMessage?.body?.slice(0, 60) ?? null
+          return (
+            <button
+              key={lead.id}
+              onClick={() => onLeadClick(lead.id)}
+              className={cn(
+                'w-full flex items-start gap-3 px-4 py-4 text-left active:bg-accent/60 transition-colors',
+                lead.unreadCount > 0 && 'border-l-[3px] border-l-primary',
+              )}
+            >
+              {/* Stage color dot */}
+              <span
+                className="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: stage?.color ?? '#94a3b8' }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn(
+                    'text-base truncate',
+                    lead.unreadCount > 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground',
+                  )}>
+                    {lead.contact.name}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {lead.unreadCount > 0 && (
+                      <span className="text-[10px] font-bold text-primary-foreground bg-primary rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center tabular-nums">
+                        {lead.unreadCount}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {lastContact ? relativeContact(lastContact) : '—'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{stage?.name ?? '—'}</p>
+                {preview && (
+                  <p className="text-xs text-muted-foreground mt-1 truncate">{preview}</p>
+                )}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Desktop table view */}
+      <table className="hidden md:table w-full text-sm">
         <thead className="sticky top-0 bg-background z-10 border-b border-border">
           <tr>
             <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Nombre</th>

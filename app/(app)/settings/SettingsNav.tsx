@@ -9,6 +9,7 @@ const TABS = [
   { href: '/settings/followup', label: 'Seguimiento' },
   { href: '/settings/stages',   label: 'Etapas' },
   { href: '/settings/team',     label: 'Equipo' },
+  { href: '/settings/security', label: 'Seguridad' },
 ]
 
 export default function SettingsNav() {

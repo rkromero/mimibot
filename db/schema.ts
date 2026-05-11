@@ -35,6 +35,8 @@ export const users = pgTable('users', {
   lastSeenAt: timestamp('last_seen_at', { mode: 'date' }),
   avatarColor: text('avatar_color').notNull().default('#1d4ed8'),
   isActive: boolean('is_active').notNull().default(true),
+  totpSecret: text('totp_secret'),
+  totpEnabled: boolean('totp_enabled').notNull().default(false),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

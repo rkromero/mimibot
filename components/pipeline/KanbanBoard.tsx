@@ -26,6 +26,7 @@ import type { PipelineStage } from '@/types/db'
 import type { Session } from 'next-auth'
 import type { LeadFilters } from '@/lib/validations/lead'
 import { Plus, LayoutGrid, List, Upload } from 'lucide-react'
+import ChipFilter from '@/components/shared/ChipFilter'
 
 type Props = {
   stages: PipelineStage[]
@@ -39,8 +40,11 @@ export default function KanbanBoard({ stages, user }: Props) {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [view, setView] = useState<'board' | 'list'>('board')
+  const [view, setView] = useState<'board' | 'list'>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'board',
+  )
   const [filters, setFilters] = useState<LeadFilters>({})
+  const [mobileStageId, setMobileStageId] = useState<string>('all')
   const canImport = user.role === 'admin' || user.role === 'gerente'
 
   const sensors = useSensors(
@@ -206,12 +210,31 @@ export default function KanbanBoard({ stages, user }: Props) {
       </div>
 
       {view === 'list' ? (
-        <LeadList
-          leads={leadsQuery.data ?? []}
-          stages={stages}
-          loading={leadsQuery.isLoading}
-          onLeadClick={setSelectedLeadId}
-        />
+        <>
+          {/* Mobile stage ChipFilter */}
+          <div className="md:hidden px-4 py-2 border-b border-border">
+            <ChipFilter
+              options={[
+                { key: 'all', label: 'Todos', count: leadsQuery.data?.length ?? 0 },
+                ...stages.map((s) => ({
+                  key: s.id,
+                  label: s.name,
+                  count: leadsQuery.data?.filter((l) => l.stageId === s.id).length ?? 0,
+                })),
+              ]}
+              value={mobileStageId}
+              onChange={setMobileStageId}
+            />
+          </div>
+          <LeadList
+            leads={(leadsQuery.data ?? []).filter(
+              (l) => mobileStageId === 'all' || l.stageId === mobileStageId,
+            )}
+            stages={stages}
+            loading={leadsQuery.isLoading}
+            onLeadClick={setSelectedLeadId}
+          />
+        </>
       ) : (
         <div className="flex flex-1 overflow-x-auto overflow-y-hidden gap-0 border-t border-border">
           <DndContext

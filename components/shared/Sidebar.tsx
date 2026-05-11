@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
-  Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers,
+  Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -99,14 +99,22 @@ function SidebarLink({
   )
 }
 
-export default function Sidebar({ user }: { user: User }) {
+export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOpen?: () => void }) {
   const pathname = usePathname()
   const groups = filterGroups(user.role as Role)
 
   return (
     <aside className="hidden md:flex flex-col w-52 border-r border-border bg-card shrink-0">
       <div className="h-12 flex items-center px-4 border-b border-border shrink-0">
-        <span className="text-md font-semibold text-foreground">Mimi Alfajores</span>
+        <span className="text-md font-semibold text-foreground flex-1">Mimi Alfajores</span>
+        <button
+          onClick={onSearchOpen}
+          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+          title="Buscar (Ctrl+K)"
+          aria-label="Abrir búsqueda"
+        >
+          <Search size={15} />
+        </button>
       </div>
 
       <nav className="flex-1 py-2 px-2 overflow-y-auto" aria-label="Navegación principal">

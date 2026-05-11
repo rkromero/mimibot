@@ -3,10 +3,20 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Plus, Phone, ChevronRight, Download } from 'lucide-react'
+import { Search, Plus, Phone, ChevronRight, Download, Map, List } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import CreateClienteModal from './CreateClienteModal'
+import dynamic from 'next/dynamic'
+
+const ClientesMap = dynamic(() => import('./ClientesMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-sm text-muted-foreground">Cargando mapa...</div>
+    </div>
+  ),
+})
 
 type Cliente = {
   id: string
@@ -54,6 +64,7 @@ export default function ClientesListView() {
   const [filterEstado, setFilterEstado] = useState(searchParams.get('estadoActividad') ?? '')
   const [showCreate, setShowCreate] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [mapView, setMapView] = useState(false)
 
   async function handleExport() {
     setIsExporting(true)
@@ -103,22 +114,41 @@ export default function ClientesListView() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-lg md:text-xl font-semibold text-foreground">Clientes</h1>
-          <div className="hidden md:flex items-center gap-2">
-            <button
-              onClick={() => void handleExport()}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-            >
-              <Download size={13} />
-              CSV
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus size={14} />
-              Agregar Cliente
-            </button>
+          <div className="flex items-center gap-2">
+            {/* Map/List toggle — mobile only */}
+            <div className="flex md:hidden items-center rounded-md border border-border overflow-hidden">
+              <button
+                onClick={() => setMapView(false)}
+                title="Lista"
+                className={`p-2 transition-colors ${!mapView ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                <List size={14} />
+              </button>
+              <button
+                onClick={() => setMapView(true)}
+                title="Mapa"
+                className={`p-2 transition-colors ${mapView ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                <Map size={14} />
+              </button>
+            </div>
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={() => void handleExport()}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <Download size={13} />
+                CSV
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus size={14} />
+                Agregar Cliente
+              </button>
+            </div>
           </div>
         </div>
 
@@ -144,6 +174,25 @@ export default function ClientesListView() {
             <option value="perdido">Perdido</option>
           </select>
         </div>
+
+        {/* Mobile: map view */}
+        {mapView && (
+          <div className="md:hidden fixed inset-0 top-0 z-20 bg-background flex flex-col pt-16">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h2 className="text-sm font-semibold">Clientes en el mapa</h2>
+              <button
+                onClick={() => setMapView(false)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
+                <List size={13} />
+                Lista
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ClientesMap clientes={filtered} />
+            </div>
+          </div>
+        )}
 
         {/* Mobile: cards */}
         <div className="md:hidden">

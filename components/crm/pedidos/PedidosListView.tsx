@@ -1,14 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Plus, Trash2, Download } from 'lucide-react'
+import { Plus, Trash2, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import CreatePedidoModal from './CreatePedidoModal'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
+import SwipeableListItem from '@/components/shared/SwipeableListItem'
+import { useToast } from '@/components/shared/ToastProvider'
 
 type Pedido = {
   id: string
@@ -57,6 +59,7 @@ export default function PedidosListView() {
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
 
+  const toast = useToast()
   const [showCreate, setShowCreate] = useState(false)
   const [filterEstado, setFilterEstado] = useState('')
   const [filterEstadoPago, setFilterEstadoPago] = useState('')
@@ -64,6 +67,24 @@ export default function PedidosListView() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+
+  const confirmMutation = useMutation({
+    mutationFn: async (pedidoId: string) => {
+      const res = await fetch(`/api/pedidos/${pedidoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'confirmado' }),
+      })
+      if (!res.ok) throw new Error('Error al confirmar')
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      toast.success('Pedido confirmado')
+    },
+    onError: () => {
+      toast.error('No se pudo confirmar el pedido')
+    },
+  })
 
   async function handleExport() {
     setIsExporting(true)
@@ -110,6 +131,7 @@ export default function PedidosListView() {
       }
       void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
       setDeletingPedido(null)
+      toast.success('Pedido eliminado')
     } catch {
       setDeleteError('Error de conexión')
     } finally {
@@ -179,32 +201,48 @@ export default function PedidosListView() {
           <div className="p-8 text-center text-sm text-muted-foreground">No hay pedidos que mostrar</div>
         ) : (
           <>
-            {/* Mobile cards */}
-            <div className="md:hidden space-y-2">
+            {/* Mobile cards with swipe actions */}
+            <div className="md:hidden space-y-2 overflow-hidden rounded-xl">
               {pedidos.map((p) => (
-                <div
+                <SwipeableListItem
                   key={p.id}
-                  className="bg-card border border-border rounded-xl p-4 cursor-pointer transition-colors"
+                  leftAction={
+                    p.estado === 'pendiente'
+                      ? {
+                          label: 'Confirmar',
+                          icon: <CheckCircle size={20} />,
+                          className: 'bg-green-500 text-white',
+                          onClick: () => confirmMutation.mutate(p.id),
+                        }
+                      : undefined
+                  }
+                  rightAction={
+                    isAdmin
+                      ? {
+                          label: 'Eliminar',
+                          icon: <Trash2 size={20} />,
+                          className: 'bg-destructive text-white',
+                          onClick: () => { setDeleteError(null); setDeletingPedido(p) },
+                        }
+                      : undefined
+                  }
                 >
                   <div
-                    className="flex items-start justify-between gap-2"
+                    className="bg-card border border-border rounded-xl p-4 cursor-pointer transition-colors"
                     onClick={() => router.push(`/crm/pedidos/${p.id}`)}
                   >
-                    <div>
-                      <p className="font-semibold text-foreground text-base">
-                        {p.clienteNombre} {p.clienteApellido}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        {format(new Date(p.fecha), 'dd/MM/yyyy')}
-                      </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-foreground text-base">
+                          {p.clienteNombre} {p.clienteApellido}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                        </p>
+                      </div>
+                      <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
                     </div>
-                    <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div
-                      className="flex items-center gap-2"
-                      onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                    >
+                    <div className="flex items-center gap-2 mt-2">
                       <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
                         {estadoLabels[p.estado]}
                       </span>
@@ -212,21 +250,8 @@ export default function PedidosListView() {
                         {estadoPagoLabels[p.estadoPago]}
                       </span>
                     </div>
-                    {isAdmin && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteError(null)
-                          setDeletingPedido(p)
-                        }}
-                        className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                        title="Eliminar pedido"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
-                </div>
+                </SwipeableListItem>
               ))}
             </div>
 

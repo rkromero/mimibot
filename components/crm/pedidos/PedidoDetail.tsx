@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download } from 'lucide-react'
+import EntregaProofModal from './EntregaProofModal'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
+import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
 
@@ -74,7 +76,9 @@ function formatMoney(value: string | number) {
 
 export default function PedidoDetail({ id }: Props) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [showProof, setShowProof] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [generatingDoc, setGeneratingDoc] = useState<'remito' | 'proforma' | null>(null)
 
@@ -134,6 +138,7 @@ export default function PedidoDetail({ id }: Props) {
     onSuccess: (_data, estado) => {
       setActionError(null)
       setConfirmCancel(false)
+      setShowProof(false)
       void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
       void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
       if (pedido) {
@@ -142,10 +147,16 @@ export default function PedidoDetail({ id }: Props) {
       }
       if (estado === 'confirmado') {
         void queryClient.invalidateQueries({ queryKey: ['stock-saldos'] })
+        toast.success('Pedido confirmado')
+      } else if (estado === 'entregado') {
+        toast.success('Entrega registrada')
+      } else if (estado === 'cancelado') {
+        toast.warning('Pedido cancelado')
       }
     },
     onError: (err: Error) => {
       setActionError(err.message)
+      toast.error(err.message)
     },
   })
 
@@ -235,7 +246,7 @@ export default function PedidoDetail({ id }: Props) {
           )}
           {pedido.estado === 'confirmado' && (
             <button
-              onClick={() => updateEstado('entregado')}
+              onClick={() => setShowProof(true)}
               disabled={isUpdating}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
@@ -354,6 +365,17 @@ export default function PedidoDetail({ id }: Props) {
           </table>
         </div>
       </div>
+
+      {showProof && (
+        <EntregaProofModal
+          onConfirm={() => {
+            updateEstado('entregado')
+            setShowProof(false)
+          }}
+          onClose={() => setShowProof(false)}
+          isLoading={isUpdating}
+        />
+      )}
 
       {/* Pagos aplicados */}
       {pedido.aplicaciones.filter(ap => !ap.deletedAt).length > 0 && (

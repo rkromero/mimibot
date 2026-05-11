@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // Rutas públicas — no requieren sesión
 const PUBLIC_PREFIXES = [
   '/login',
+  '/verify-2fa',
   '/api/auth',
   '/api/leads/intake',
   '/api/whatsapp/webhook',
   '/api/health',
 ]
 
-// Middleware ligero sin acceso a DB para ser compatible con Edge Runtime.
-// La verificación completa de sesión (role, permisos) se hace en cada route handler
-// y server component mediante auth() de lib/auth.ts (que sí usa Node.js runtime).
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
@@ -27,6 +26,16 @@ export function middleware(req: NextRequest) {
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Si hay sesión, verificar si tiene TOTP pendiente
+  try {
+    const token = await getToken({ req, secret: process.env['NEXTAUTH_SECRET'] })
+    if (token?.totpPending) {
+      return NextResponse.redirect(new URL('/verify-2fa', req.url))
+    }
+  } catch {
+    // No bloquear si falla el decode — la verificación real ocurre en los route handlers
   }
 
   return NextResponse.next()

@@ -79,3 +79,12 @@
     padding-bottom: max(5rem, calc(4rem + env(safe-area-inset-bottom)));
   }
 }
+
+@keyframes scan {
+  0%, 100% { transform: translateY(-50%); opacity: 0.4; }
+  50% { transform: translateY(50%); opacity: 1; }
+}
+
+.animate-scan {
+  animation: scan 2s ease-in-out infinite;
+}

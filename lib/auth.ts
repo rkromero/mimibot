@@ -44,6 +44,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          // Signal that a TOTP step is required before full access
+          totpPending: user.totpEnabled === true,
         }
       },
     }),
@@ -58,10 +60,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       : []),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
         token.role = (user as { role?: string }).role
+        token.totpPending = (user as { totpPending?: boolean }).totpPending ?? false
+      }
+      // Client called useSession().update({ totpVerified: true }) after TOTP check passed
+      if (trigger === 'update' && (session as { totpVerified?: boolean } | null)?.totpVerified) {
+        token.totpPending = false
       }
       return token
     },
@@ -83,13 +90,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: token.sub!,
           role: dbUser?.role ?? 'agent',
           avatarColor: dbUser?.avatarColor ?? '#1d4ed8',
+          totpPending: (token.totpPending as boolean | undefined) ?? false,
         },
       }
     },
   },
 })
 
-// Extender tipos de Auth.js para incluir role
 declare module 'next-auth' {
   interface Session {
     user: {
@@ -98,6 +105,13 @@ declare module 'next-auth' {
       name: string | null
       role: 'admin' | 'gerente' | 'agent'
       avatarColor: string
+      totpPending?: boolean
     }
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    totpPending?: boolean
   }
 }
