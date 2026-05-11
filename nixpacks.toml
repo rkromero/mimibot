@@ -6,5 +6,4 @@ cmds = ["npm ci --cache /tmp/npm-cache"]
 cacheDirectories = ["/tmp/npm-cache"]
 
 [phases.build]
-cmds = ["npm run build"]
-cacheDirectories = ["/app/.next/cache"]
+cmds = ["rm -rf .next && npm run build"]
