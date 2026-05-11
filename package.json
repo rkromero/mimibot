@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/migrate.mjs && node .next/standalone/server.js",
+    "start": "node scripts/migrate.mjs && node $(find .next/standalone -name 'server.js' | head -1)",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
