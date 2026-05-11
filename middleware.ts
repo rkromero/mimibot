@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
 
   // Si hay sesión, verificar si tiene TOTP pendiente
   try {
-    const token = await getToken({ req, secret: process.env['NEXTAUTH_SECRET'] })
+    const token = await getToken({ req, secret: process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] })
     if (token?.totpPending) {
       return NextResponse.redirect(new URL('/verify-2fa', req.url))
     }

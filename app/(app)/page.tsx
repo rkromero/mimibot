@@ -2,6 +2,8 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import MiDiaView from '@/components/dashboard/vendedor/MiDiaView'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const session = await auth()
 

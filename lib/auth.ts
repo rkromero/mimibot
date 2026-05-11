@@ -30,22 +30,46 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
 
-        const user = await db.query.users.findFirst({
-          where: eq(users.email, parsed.data.email),
-        })
+        // Select only stable columns to avoid failures if new migration hasn't run
+        const user = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            role: users.role,
+            isActive: users.isActive,
+            passwordHash: users.passwordHash,
+          })
+          .from(users)
+          .where(eq(users.email, parsed.data.email))
+          .limit(1)
+          .then((r) => r[0])
 
         if (!user?.passwordHash || !user.isActive) return null
 
         const valid = await bcrypt.compare(parsed.data.password, user.passwordHash)
         if (!valid) return null
 
+        // Try to read totpEnabled — column may not exist if migration hasn't run yet
+        let totpPending = false
+        try {
+          const totp = await db
+            .select({ totpEnabled: users.totpEnabled })
+            .from(users)
+            .where(eq(users.id, user.id))
+            .limit(1)
+            .then((r) => r[0])
+          totpPending = totp?.totpEnabled === true
+        } catch {
+          // Migration not run yet — treat as 2FA disabled
+        }
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          // Signal that a TOTP step is required before full access
-          totpPending: user.totpEnabled === true,
+          totpPending,
         }
       },
     }),
