@@ -45,7 +45,9 @@ export async function middleware(req: NextRequest) {
     const role = token?.role
     if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', req.url))
     if (role === 'gerente') return NextResponse.redirect(new URL('/dashboard', req.url))
-    return NextResponse.redirect(new URL('/agent/home', req.url))
+    if (role === 'agent') return NextResponse.redirect(new URL('/agent/home', req.url))
+    // role desconocido (JWT viejo sin role): dejar que app/(app)/page.tsx resuelva con auth() desde DB
+    return NextResponse.next()
   }
 
   return NextResponse.next()
