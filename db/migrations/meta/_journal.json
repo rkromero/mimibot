@@ -71,6 +71,13 @@
       "when": 1747094400000,
       "tag": "0009_stock_movements",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1747180800000,
+      "tag": "0010_2fa_totp",
+      "breakpoints": true
     }
   ]
 }
