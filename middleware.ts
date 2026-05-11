@@ -28,14 +28,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Si hay sesión, verificar si tiene TOTP pendiente
+  // Decodificar JWT para TOTP y redirect en raíz
+  let token: { totpPending?: boolean; role?: string } | null = null
   try {
-    const token = await getToken({ req, secret: process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] })
-    if (token?.totpPending) {
-      return NextResponse.redirect(new URL('/verify-2fa', req.url))
-    }
+    token = await getToken({ req, secret: process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] })
   } catch {
-    // No bloquear si falla el decode — la verificación real ocurre en los route handlers
+    // No bloquear si falla el decode
+  }
+
+  if (token?.totpPending) {
+    return NextResponse.redirect(new URL('/verify-2fa', req.url))
+  }
+
+  // Redirect en raíz basado en rol — evita que la (app)/page renderice sin manifest
+  if (pathname === '/') {
+    const role = token?.role
+    if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', req.url))
+    if (role === 'gerente') return NextResponse.redirect(new URL('/dashboard', req.url))
+    return NextResponse.redirect(new URL('/agent/home', req.url))
   }
 
   return NextResponse.next()
