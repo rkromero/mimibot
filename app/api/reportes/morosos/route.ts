@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest) {
       where: and(
         isNull(pedidos.deletedAt),
         sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
-        sql`${pedidos.fecha} < NOW() - (${morosoDias} || ' days')::interval`,
+        sql`${pedidos.fecha} < NOW() - (${morosoDias}::text || ' days')::interval`,
       ),
       with: {
         cliente: {
