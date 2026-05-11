@@ -1,6 +1,6 @@
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { pedidos, pedidoItems, productos, movimientosCC } from '@/db/schema'
+import { pedidos, pedidoItems, productos, movimientosCC, stockMovements } from '@/db/schema'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { aplicarSaldoAFavorAPedido } from '@/lib/cuenta-corriente/pago.service'
 import type { Db } from '@/db'
@@ -155,6 +155,29 @@ export async function confirmarPedido(
       descripcion: `Pedido confirmado #${pedidoId.slice(0, 8)}`,
       registradoPor: userId,
     })
+
+    // 5. Create stock salida movements for each item
+    for (const item of pedido.items) {
+      const [latest] = await tx
+        .select({ saldo: stockMovements.saldoResultante })
+        .from(stockMovements)
+        .where(eq(stockMovements.productoId, item.productoId))
+        .orderBy(sql`${stockMovements.createdAt} DESC`)
+        .limit(1)
+
+      const saldoActual = latest?.saldo ?? 0
+      const nuevoSaldo = saldoActual - item.cantidad
+
+      await tx.insert(stockMovements).values({
+        productoId: item.productoId,
+        tipo: 'salida',
+        cantidad: item.cantidad,
+        saldoResultante: nuevoSaldo,
+        pedidoId,
+        referencia: `Pedido #${pedidoId.slice(0, 8)}`,
+        registradoPor: userId,
+      })
+    }
 
     return updated!
   })

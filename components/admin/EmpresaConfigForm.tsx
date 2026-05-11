@@ -111,7 +111,7 @@ export default function EmpresaConfigForm() {
           placeholder="Ej: Distribuidora Rodriguez S.A."
           required
           className={cn(
-            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
           )}
@@ -130,7 +130,7 @@ export default function EmpresaConfigForm() {
           onChange={(e) => handleChange('direccion', e.target.value)}
           placeholder="Ej: Av. Corrientes 1234, CABA"
           className={cn(
-            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
           )}
@@ -149,7 +149,7 @@ export default function EmpresaConfigForm() {
           onChange={(e) => handleChange('telefono', e.target.value)}
           placeholder="Ej: +54 11 4444-5555"
           className={cn(
-            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
           )}
@@ -168,7 +168,7 @@ export default function EmpresaConfigForm() {
           onChange={(e) => handleChange('email', e.target.value)}
           placeholder="Ej: contacto@empresa.com"
           className={cn(
-            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
           )}

@@ -23,11 +23,24 @@ type Cliente = {
   direccion: string | null
   cuit: string | null
   origen: 'manual' | 'convertido_de_lead'
+  estadoActividad: 'activo' | 'inactivo' | 'perdido' | null
   asignadoA: string | null
   asignadoNombre: string | null
   asignadoColor: string | null
   territorioId: string | null
   territorioNombre: string | null
+}
+
+const estadoActividadColors: Record<string, string> = {
+  activo: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  inactivo: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  perdido: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+}
+
+const estadoActividadLabels: Record<string, string> = {
+  activo: 'Activo',
+  inactivo: 'Inactivo',
+  perdido: 'Perdido',
 }
 
 type AgentOption = { id: string; name: string | null; avatarColor: string }
@@ -433,7 +446,14 @@ export default function ClienteDetail({ id }: Props) {
               <h1 className="text-xl font-semibold text-foreground">
                 {cliente.nombre} {cliente.apellido}
               </h1>
-              <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace(/_/g, ' ')}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace(/_/g, ' ')}</p>
+                {cliente.estadoActividad && (
+                  <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
+                    {estadoActividadLabels[cliente.estadoActividad]}
+                  </span>
+                )}
+              </div>
             </div>
             {isAdmin && (
               <button
@@ -484,9 +504,16 @@ export default function ClienteDetail({ id }: Props) {
               <ArrowLeft size={16} />
             </Link>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">
-                {cliente.nombre} {cliente.apellido}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold text-foreground">
+                  {cliente.nombre} {cliente.apellido}
+                </h1>
+                {cliente.estadoActividad && (
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
+                    {estadoActividadLabels[cliente.estadoActividad]}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground capitalize">{cliente.origen.replace('_', ' ')}</p>
             </div>
           </div>

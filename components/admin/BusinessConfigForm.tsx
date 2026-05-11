@@ -11,6 +11,9 @@ type BusinessConfigData = {
   clienteInactivoDias: number
   clientePerdidoDias: number
   clienteMorosoDias: number
+  alertaLeadHoras: number
+  alertaMetaDia: number
+  alertaMetaPct: string
 }
 
 type FormState = {
@@ -21,6 +24,9 @@ type FormState = {
   clienteInactivoDias: string
   clientePerdidoDias: string
   clienteMorosoDias: string
+  alertaLeadHoras: string
+  alertaMetaDia: string
+  alertaMetaPct: string
 }
 
 const DEFAULT_FORM: FormState = {
@@ -31,6 +37,9 @@ const DEFAULT_FORM: FormState = {
   clienteInactivoDias: '90',
   clientePerdidoDias: '180',
   clienteMorosoDias: '30',
+  alertaLeadHoras: '24',
+  alertaMetaDia: '20',
+  alertaMetaPct: '0.50',
 }
 
 function dataToForm(data: BusinessConfigData): FormState {
@@ -42,11 +51,14 @@ function dataToForm(data: BusinessConfigData): FormState {
     clienteInactivoDias: String(data.clienteInactivoDias),
     clientePerdidoDias: String(data.clientePerdidoDias),
     clienteMorosoDias: String(data.clienteMorosoDias),
+    alertaLeadHoras: String(data.alertaLeadHoras),
+    alertaMetaDia: String(data.alertaMetaDia),
+    alertaMetaPct: String(data.alertaMetaPct),
   }
 }
 
 const inputClass = cn(
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+  'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
   'placeholder:text-muted-foreground',
   'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
 )
@@ -59,6 +71,8 @@ export default function BusinessConfigForm() {
   const [error, setError] = useState<string | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [recalcMsg, setRecalcMsg] = useState<string | null>(null)
+  const [recalcEstados, setRecalcEstados] = useState(false)
+  const [recalcEstadosMsg, setRecalcEstadosMsg] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchConfig() {
@@ -101,6 +115,9 @@ export default function BusinessConfigForm() {
       clienteInactivoDias: toInt(form.clienteInactivoDias),
       clientePerdidoDias: toInt(form.clientePerdidoDias),
       clienteMorosoDias: toInt(form.clienteMorosoDias),
+      alertaLeadHoras: toInt(form.alertaLeadHoras),
+      alertaMetaDia: toInt(form.alertaMetaDia),
+      alertaMetaPct: toFloat(form.alertaMetaPct),
     }
   }
 
@@ -118,6 +135,8 @@ export default function BusinessConfigForm() {
       ['clienteInactivoDias', 'Días para inactivo'],
       ['clientePerdidoDias', 'Días para perdido'],
       ['clienteMorosoDias', 'Días de atraso para moroso'],
+      ['alertaLeadHoras', 'Horas sin atender lead'],
+      ['alertaMetaDia', 'Día del mes para alerta meta'],
     ]
 
     for (const [field, label] of intFields) {
@@ -299,6 +318,66 @@ export default function BusinessConfigForm() {
         </div>
       </section>
 
+      {/* Section: Alertas del job diario */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Alertas (Job Diario)</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Parámetros que usa el job <code className="text-xs bg-muted px-1 rounded">POST /api/jobs/alertas</code> para decidir qué alertas enviar por email.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="alertaLeadHoras" className="block text-sm font-medium text-foreground">
+            Horas sin atender lead para alertar
+          </label>
+          <input
+            id="alertaLeadHoras"
+            type="number"
+            min={1}
+            step={1}
+            value={form.alertaLeadHoras}
+            onChange={(e) => handleChange('alertaLeadHoras', e.target.value)}
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">Si un lead no tiene contacto en estas horas, aparece en el resumen.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="alertaMetaDia" className="block text-sm font-medium text-foreground">
+            Día del mes para recordatorio de metas
+          </label>
+          <input
+            id="alertaMetaDia"
+            type="number"
+            min={1}
+            max={28}
+            step={1}
+            value={form.alertaMetaDia}
+            onChange={(e) => handleChange('alertaMetaDia', e.target.value)}
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">A partir de este día del mes se incluye el recordatorio de avance de metas.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="alertaMetaPct" className="block text-sm font-medium text-foreground">
+            % mínimo de avance antes de alertar
+          </label>
+          <input
+            id="alertaMetaPct"
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={form.alertaMetaPct}
+            onChange={(e) => handleChange('alertaMetaPct', e.target.value)}
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">Ejemplo: <code className="bg-muted px-1 rounded">0.5</code> = alerta si un vendedor lleva menos del 50%.</p>
+        </div>
+      </section>
+
       {/* Feedback */}
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
@@ -362,6 +441,47 @@ export default function BusinessConfigForm() {
           )}
         >
           {recalculating ? 'Recalculando...' : 'Recalcular ahora'}
+        </button>
+      </section>
+
+      {/* Recalcular estados de actividad */}
+      <section className="space-y-3 pt-4 border-t border-border">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Recalcular Estado de Actividad</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Re-evalúa el estado de actividad (activo / inactivo / perdido) de todos los clientes según los umbrales configurados arriba.
+          </p>
+        </div>
+        {recalcEstadosMsg && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+            {recalcEstadosMsg}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={recalcEstados}
+          onClick={() => {
+            setRecalcEstadosMsg(null)
+            setRecalcEstados(true)
+            void fetch('/api/admin/recalcular-estados-actividad', { method: 'POST' })
+              .then(async (r) => {
+                const json = (await r.json()) as { data?: { updated: number }; error?: string }
+                if (!r.ok) {
+                  setRecalcEstadosMsg(`Error: ${json.error ?? 'desconocido'}`)
+                } else {
+                  setRecalcEstadosMsg(`${json.data?.updated ?? 0} clientes actualizados correctamente.`)
+                }
+              })
+              .catch(() => setRecalcEstadosMsg('Error de conexión'))
+              .finally(() => setRecalcEstados(false))
+          }}
+          className={cn(
+            'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
+            'bg-muted text-foreground hover:bg-muted/70 border border-border',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+          )}
+        >
+          {recalcEstados ? 'Recalculando...' : 'Recalcular ahora'}
         </button>
       </section>
     </form>

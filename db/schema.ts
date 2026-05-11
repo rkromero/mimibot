@@ -255,6 +255,8 @@ export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 
 export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
 export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
+export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
+export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
 
 // ─── Territorios ──────────────────────────────────────────────────────────────
 
@@ -339,9 +341,17 @@ export const clientes = pgTable('clientes', {
 
 export const productos = pgTable('productos', {
   id: uuid('id').defaultRandom().primaryKey(),
+  sku: text('sku'),
   nombre: text('nombre').notNull(),
   descripcion: text('descripcion'),
   precio: decimal('precio', { precision: 12, scale: 2 }).notNull(),
+  costo: decimal('costo', { precision: 12, scale: 2 }),
+  categoria: text('categoria'),
+  imagenUrl: text('imagen_url'),
+  unidadVenta: unidadVentaEnum('unidad_venta').notNull().default('unidad'),
+  pesoG: integer('peso_g'),
+  ivaPct: decimal('iva_pct', { precision: 5, scale: 2 }).notNull().default('21.00'),
+  stockMinimo: integer('stock_minimo').notNull().default(0),
   activo: boolean('activo').notNull().default(true),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
@@ -349,6 +359,7 @@ export const productos = pgTable('productos', {
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('productos_activo_idx').on(t.activo),
+  uniqueIndex('productos_sku_idx').on(t.sku),
 ])
 
 // ─── CRM: Pedidos ─────────────────────────────────────────────────────────────
@@ -386,6 +397,24 @@ export const pedidoItems = pgTable('pedido_items', {
   subtotal: decimal('subtotal', { precision: 12, scale: 2 }).notNull(),
 }, (t) => [
   index('pedido_items_pedido_idx').on(t.pedidoId),
+])
+
+// ─── Stock movements ──────────────────────────────────────────────────────────
+
+export const stockMovements = pgTable('stock_movements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  productoId: uuid('producto_id').notNull().references(() => productos.id),
+  tipo: tipoStockMovementEnum('tipo').notNull(),
+  cantidad: integer('cantidad').notNull(),
+  saldoResultante: integer('saldo_resultante').notNull(),
+  pedidoId: uuid('pedido_id').references(() => pedidos.id),
+  referencia: text('referencia'),
+  notas: text('notas'),
+  registradoPor: uuid('registrado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('stock_movements_producto_idx').on(t.productoId, t.createdAt),
+  index('stock_movements_pedido_idx').on(t.pedidoId),
 ])
 
 // ─── CRM: Cuenta Corriente ────────────────────────────────────────────────────
@@ -492,6 +521,9 @@ export const businessConfig = pgTable('business_config', {
   clienteInactivoDias: integer('cliente_inactivo_dias').notNull().default(90),
   clientePerdidoDias: integer('cliente_perdido_dias').notNull().default(180),
   clienteMorosoDias: integer('cliente_moroso_dias').notNull().default(30),
+  alertaLeadHoras: integer('alerta_lead_horas').notNull().default(24),
+  alertaMetaDia: integer('alerta_meta_dia').notNull().default(20),
+  alertaMetaPct: decimal('alerta_meta_pct', { precision: 5, scale: 2 }).notNull().default('0.50'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

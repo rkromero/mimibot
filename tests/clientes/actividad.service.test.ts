@@ -72,6 +72,9 @@ const DEFAULT_CONFIG = {
   clienteInactivoDias: 90,
   clientePerdidoDias: 180,
   clienteMorosoDias: 30,
+  alertaLeadHoras: 24,
+  alertaMetaDia: 20,
+  alertaMetaPct: '0.50',
   updatedBy: null,
   updatedAt: new Date(),
 }

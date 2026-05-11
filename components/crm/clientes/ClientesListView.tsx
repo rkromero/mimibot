@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
-import { Search, Plus, Phone, ChevronRight } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Search, Plus, Phone, ChevronRight, Download } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import CreateClienteModal from './CreateClienteModal'
@@ -16,11 +16,24 @@ type Cliente = {
   telefono: string | null
   cuit: string | null
   origen: 'manual' | 'convertido_de_lead'
+  estadoActividad: 'activo' | 'inactivo' | 'perdido' | null
   asignadoA: string | null
   asignadoNombre: string | null
   asignadoColor: string | null
   saldoPendiente?: string | null
   createdAt: string
+}
+
+const estadoActividadLabels: Record<string, string> = {
+  activo: 'Activo',
+  inactivo: 'Inactivo',
+  perdido: 'Perdido',
+}
+
+const estadoActividadColors: Record<string, string> = {
+  activo: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  inactivo: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  perdido: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 }
 
 const origenLabels: Record<string, string> = {
@@ -34,15 +47,38 @@ const origenColors: Record<string, string> = {
 
 export default function ClientesListView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const [search, setSearch] = useState('')
+  const [filterEstado, setFilterEstado] = useState(searchParams.get('estadoActividad') ?? '')
   const [showCreate, setShowCreate] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      const res = await fetch('/api/export/clientes')
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clientes_${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const apiParams = new URLSearchParams()
+  if (filterEstado) apiParams.set('estadoActividad', filterEstado)
 
   const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
-    queryKey: ['clientes'],
+    queryKey: ['clientes', filterEstado],
     queryFn: async () => {
-      const res = await fetch('/api/clientes')
+      const res = await fetch(`/api/clientes?${apiParams}`)
       if (!res.ok) throw new Error('Error al cargar clientes')
       const json = await res.json() as { data: Cliente[] }
       return json.data
@@ -67,24 +103,46 @@ export default function ClientesListView() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-lg md:text-xl font-semibold text-foreground">Clientes</h1>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={14} />
-            Agregar Cliente
-          </button>
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              onClick={() => void handleExport()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <Download size={13} />
+              CSV
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={14} />
+              Agregar Cliente
+            </button>
+          </div>
         </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, email, CUIT..."
-            className="w-full md:max-w-sm pl-10 pr-3 py-2.5 md:py-1.5 border border-border rounded-lg text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+        {/* Search + filters */}
+        <div className="flex flex-col md:flex-row gap-2 mb-4">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre, email, CUIT..."
+              className="w-full md:max-w-sm pl-10 pr-3 py-2.5 md:py-1.5 border border-border rounded-lg text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <select
+            value={filterEstado}
+            onChange={(e) => setFilterEstado(e.target.value)}
+            className="px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+          >
+            <option value="">Todos los estados</option>
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+            <option value="perdido">Perdido</option>
+          </select>
         </div>
 
         {/* Mobile: cards */}
@@ -119,11 +177,18 @@ export default function ClientesListView() {
                           {c.telefono}
                         </a>
                       )}
-                      {saldo > 0 && (
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                          Debe: ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {c.estadoActividad && (
+                          <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
+                            {estadoActividadLabels[c.estadoActividad]}
+                          </span>
+                        )}
+                        {saldo > 0 && (
+                          <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                            Debe: ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <ChevronRight size={18} className="text-muted-foreground shrink-0" />
                   </div>
@@ -149,6 +214,7 @@ export default function ClientesListView() {
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Email</th>
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Teléfono</th>
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Origen</th>
+                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
                   {isAdmin && (
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Asignado a</th>
                   )}
@@ -170,6 +236,13 @@ export default function ClientesListView() {
                       <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', origenColors[c.origen])}>
                         {origenLabels[c.origen]}
                       </span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {c.estadoActividad ? (
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
+                          {estadoActividadLabels[c.estadoActividad]}
+                        </span>
+                      ) : '—'}
                     </td>
                     {isAdmin && (
                       <td className="py-2.5 px-3 text-muted-foreground">

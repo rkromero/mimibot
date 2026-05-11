@@ -71,8 +71,9 @@ export async function GET(req: NextRequest) {
 
     const data = rows.map((r) => ({
       ...r.pedido,
-      cliente: r.cliente,
-      vendedor: r.vendedor,
+      clienteNombre: r.cliente.nombre,
+      clienteApellido: r.cliente.apellido,
+      vendedorNombre: r.vendedor.name ?? null,
     }))
 
     return NextResponse.json({ data })

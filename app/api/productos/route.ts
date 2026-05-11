@@ -64,9 +64,17 @@ export async function POST(req: NextRequest) {
     const [producto] = await db
       .insert(productos)
       .values({
+        sku: input.sku ?? null,
         nombre: input.nombre,
         descripcion: input.descripcion ?? null,
         precio: input.precio,
+        costo: input.costo ?? null,
+        categoria: input.categoria ?? null,
+        imagenUrl: input.imagenUrl ?? null,
+        unidadVenta: input.unidadVenta ?? 'unidad',
+        pesoG: input.pesoG ?? null,
+        ivaPct: input.ivaPct ?? '21.00',
+        stockMinimo: input.stockMinimo ?? 0,
         activo: true,
         creadoPor: session.user.id,
       })

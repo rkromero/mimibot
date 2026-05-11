@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
+import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 
 type Props = {
   clienteId: string
@@ -60,22 +61,26 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  async function handleDeleteMovimiento(movimientoId: string) {
-    if (!confirm('¿Eliminar este pago? Se revertirán los saldos de los pedidos asociados.')) return
-    setDeletingId(movimientoId)
+  async function handleDeleteMovimiento() {
+    if (!pendingDeleteId) return
+    setDeleteError(null)
+    setDeletingId(pendingDeleteId)
     try {
-      const res = await fetch(`/api/clientes/${clienteId}/cuenta-corriente/${movimientoId}`, {
+      const res = await fetch(`/api/clientes/${clienteId}/cuenta-corriente/${pendingDeleteId}`, {
         method: 'DELETE',
       })
       if (!res.ok) {
         const json = await res.json() as { error: string }
-        alert(json.error ?? 'Error al eliminar')
+        setDeleteError(json.error ?? 'Error al eliminar')
         return
       }
       await queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'cc'] })
+      setPendingDeleteId(null)
     } catch {
-      alert('Error de conexión')
+      setDeleteError('Error de conexión')
     } finally {
       setDeletingId(null)
     }
@@ -147,7 +152,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
                       </span>
                       {isAdmin && m.tipo === 'credito' && (
                         <button
-                          onClick={() => void handleDeleteMovimiento(m.id)}
+                          onClick={() => { setDeleteError(null); setPendingDeleteId(m.id) }}
                           disabled={deletingId === m.id}
                           className="p-1 text-muted-foreground hover:text-red-600 disabled:opacity-50 transition-colors"
                           title="Eliminar pago"
@@ -201,7 +206,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
                           <td className="py-2.5 px-3 text-center">
                             {m.tipo === 'credito' && (
                               <button
-                                onClick={() => void handleDeleteMovimiento(m.id)}
+                                onClick={() => { setDeleteError(null); setPendingDeleteId(m.id) }}
                                 disabled={deletingId === m.id}
                                 className="p-1 text-muted-foreground hover:text-red-600 disabled:opacity-50 transition-colors"
                                 title="Eliminar pago"
@@ -297,6 +302,17 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
           onSuccess={(_result) => {
             onClosePago()
           }}
+        />
+      )}
+
+      {pendingDeleteId && (
+        <ConfirmDeleteModal
+          title="Eliminar pago"
+          description="¿Eliminar este pago? Se revertirán los saldos de los pedidos asociados."
+          warning={deleteError ?? undefined}
+          onConfirm={() => void handleDeleteMovimiento()}
+          onClose={() => { setPendingDeleteId(null); setDeleteError(null) }}
+          isPending={deletingId === pendingDeleteId}
         />
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle, Truck, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -11,10 +11,10 @@ type Props = { id: string }
 
 type PedidoItem = {
   id: string
-  productoNombre: string
   cantidad: number
   precioUnitario: string
   subtotal: string
+  producto: { id: string; nombre: string; sku?: string | null }
 }
 
 type AplicacionPago = {
@@ -76,6 +76,36 @@ export default function PedidoDetail({ id }: Props) {
   const queryClient = useQueryClient()
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [generatingDoc, setGeneratingDoc] = useState<'remito' | 'proforma' | null>(null)
+
+  async function handleGenerarDocumento(tipo: 'remito' | 'proforma') {
+    setGeneratingDoc(tipo)
+    try {
+      const res = await fetch(`/api/pedidos/${id}/documentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setActionError(data.error ?? 'Error al generar documento')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const disposition = res.headers.get('Content-Disposition') ?? ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      a.download = match?.[1] ?? `${tipo}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setActionError('Error de conexión al generar documento')
+    } finally {
+      setGeneratingDoc(null)
+    }
+  }
 
   const { data: pedido, isLoading, isError } = useQuery<Pedido>({
     queryKey: ['pedido', id],
@@ -101,7 +131,7 @@ export default function PedidoDetail({ id }: Props) {
       }
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (_data, estado) => {
       setActionError(null)
       setConfirmCancel(false)
       void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
@@ -109,6 +139,9 @@ export default function PedidoDetail({ id }: Props) {
       if (pedido) {
         void queryClient.invalidateQueries({ queryKey: ['clientes', pedido.clienteId, 'pedidos'] })
         void queryClient.invalidateQueries({ queryKey: ['clientes', pedido.clienteId, 'cc'] })
+      }
+      if (estado === 'confirmado') {
+        void queryClient.invalidateQueries({ queryKey: ['stock-saldos'] })
       }
     },
     onError: (err: Error) => {
@@ -210,6 +243,28 @@ export default function PedidoDetail({ id }: Props) {
               Marcar Entregado
             </button>
           )}
+          {(pedido.estado === 'confirmado' || pedido.estado === 'entregado') && (
+            <>
+              <button
+                onClick={() => void handleGenerarDocumento('remito')}
+                disabled={!!generatingDoc}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                title="Descargar remito PDF"
+              >
+                <FileText size={14} />
+                {generatingDoc === 'remito' ? 'Generando...' : 'Remito'}
+              </button>
+              <button
+                onClick={() => void handleGenerarDocumento('proforma')}
+                disabled={!!generatingDoc}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                title="Descargar proforma PDF"
+              >
+                <Download size={14} />
+                {generatingDoc === 'proforma' ? 'Generando...' : 'Proforma'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -274,7 +329,12 @@ export default function PedidoDetail({ id }: Props) {
             <tbody>
               {pedido.items.map((item) => (
                 <tr key={item.id} className="border-b border-border last:border-0">
-                  <td className="py-2.5 px-3 text-foreground">{item.productoNombre}</td>
+                  <td className="py-2.5 px-3 text-foreground">
+                    {item.producto?.nombre ?? '—'}
+                    {item.producto?.sku && (
+                      <span className="block text-xs text-muted-foreground font-mono">{item.producto.sku}</span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-3 text-right text-muted-foreground">{item.cantidad}</td>
                   <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(item.precioUnitario)}</td>
                   <td className="py-2.5 px-3 text-right font-medium">{formatMoney(item.subtotal)}</td>

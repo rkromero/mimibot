@@ -63,6 +63,14 @@ export async function PATCH(
     if (parsed.data.nombre !== undefined) updates.nombre = parsed.data.nombre
     if (parsed.data.descripcion !== undefined) updates.descripcion = parsed.data.descripcion
     if (parsed.data.precio !== undefined) updates.precio = parsed.data.precio
+    if (parsed.data.costo !== undefined) updates.costo = parsed.data.costo ?? null
+    if (parsed.data.categoria !== undefined) updates.categoria = parsed.data.categoria ?? null
+    if (parsed.data.imagenUrl !== undefined) updates.imagenUrl = parsed.data.imagenUrl ?? null
+    if (parsed.data.unidadVenta !== undefined) updates.unidadVenta = parsed.data.unidadVenta
+    if (parsed.data.pesoG !== undefined) updates.pesoG = parsed.data.pesoG ?? null
+    if (parsed.data.ivaPct !== undefined && parsed.data.ivaPct !== null) updates.ivaPct = parsed.data.ivaPct
+    if (parsed.data.stockMinimo !== undefined) updates.stockMinimo = parsed.data.stockMinimo
+    if (parsed.data.sku !== undefined) updates.sku = parsed.data.sku ?? null
     // Soft delete / reactivate via activo flag
     if (parsed.data.activo !== undefined) updates.activo = parsed.data.activo
 

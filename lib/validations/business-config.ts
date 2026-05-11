@@ -8,6 +8,9 @@ export const businessConfigSchema = z.object({
   clienteInactivoDias: z.number().int().min(1, 'Debe ser al menos 1'),
   clientePerdidoDias: z.number().int().min(1, 'Debe ser al menos 1'),
   clienteMorosoDias: z.number().int().min(1, 'Debe ser al menos 1'),
+  alertaLeadHoras: z.number().int().min(1).optional(),
+  alertaMetaDia: z.number().int().min(1).max(31).optional(),
+  alertaMetaPct: z.number().min(0).max(1).optional(),
 })
 
 export const updateBusinessConfigSchema = businessConfigSchema.partial()

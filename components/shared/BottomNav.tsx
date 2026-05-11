@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, ShoppingCart, Package, LayoutGrid, BarChart3, Map } from 'lucide-react'
+import { Users, ShoppingCart, Package, LayoutGrid, BarChart3, Map, Boxes } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
@@ -20,6 +20,7 @@ const ADMIN_TABS = [
   { href: '/crm/clientes', label: 'Clientes', icon: Users },
   { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/crm/productos', label: 'Productos', icon: Package },
+  { href: '/stock', label: 'Stock', icon: Boxes },
   { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid },
 ]
 
@@ -45,6 +46,7 @@ export default function BottomNav({ user }: Props) {
           <Link
             key={href}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] transition-colors min-h-[56px]',
               active ? 'text-primary' : 'text-muted-foreground',

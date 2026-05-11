@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import MetaCard from './MetaCard'
 import CarteraSection from './CarteraSection'
 import HistoricoTable from './HistoricoTable'
@@ -35,10 +35,6 @@ function getPctMesTranscurrido(): number {
 }
 
 export default function VendedorDashboard({ user }: Props) {
-  const [avance, setAvance] = useState<MetaAvance | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [noMeta, setNoMeta] = useState(false)
-
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth() + 1
@@ -47,28 +43,18 @@ export default function VendedorDashboard({ user }: Props) {
   const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${currentYear}`
   const firstName = user.name?.split(' ')[0] ?? 'agente'
 
-  useEffect(() => {
-    async function fetchAvance() {
-      try {
-        const res = await fetch(`/api/metas/avance?anio=${currentYear}&mes=${currentMonth}`)
-        if (!res.ok) {
-          setNoMeta(true)
-          return
-        }
-        const json = (await res.json()) as { data: MetaAvance | null }
-        if (!json.data) {
-          setNoMeta(true)
-          return
-        }
-        setAvance(json.data)
-      } catch {
-        setNoMeta(true)
-      } finally {
-        setLoading(false)
-      }
-    }
-    void fetchAvance()
-  }, [currentYear, currentMonth])
+  const { data: avance, isLoading, isError } = useQuery<MetaAvance | null>({
+    queryKey: ['meta-avance', currentYear, currentMonth],
+    queryFn: async () => {
+      const res = await fetch(`/api/metas/avance?anio=${currentYear}&mes=${currentMonth}`)
+      if (!res.ok) return null
+      const json = (await res.json()) as { data: MetaAvance | null }
+      return json.data ?? null
+    },
+    staleTime: 60_000,
+  })
+
+  const noMeta = !isLoading && (isError || avance === null)
 
   return (
     <div className="space-y-6">
@@ -83,7 +69,7 @@ export default function VendedorDashboard({ user }: Props) {
       </div>
 
       {/* Loading skeleton */}
-      {loading && (
+      {isLoading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[0, 1, 2, 3].map((i) => (
             <div
@@ -95,14 +81,14 @@ export default function VendedorDashboard({ user }: Props) {
       )}
 
       {/* No meta state */}
-      {!loading && noMeta && (
+      {noMeta && (
         <div className="rounded-xl border border-border bg-blue-50 p-4 text-sm text-blue-800">
           No hay meta cargada para este mes. Consulta con tu administrador.
         </div>
       )}
 
       {/* Meta cards */}
-      {!loading && avance && (
+      {!isLoading && avance && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetaCard
             title="Clientes Nuevos"

@@ -105,7 +105,7 @@ export default function MetaFormRow({
   const avatarColor = vendedor.avatarColor ?? '#6b7280'
   const initial = (vendedor.name[0] ?? '?').toUpperCase()
 
-  const inputClass = 'w-full border border-border rounded px-2 py-1 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring'
+  const inputClass = 'w-full border border-border rounded px-2 py-2.5 md:py-1 text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring'
   const readonlyClass = 'text-sm text-muted-foreground'
 
   const hasMeta = meta !== null

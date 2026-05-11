@@ -228,7 +228,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
 }
 
 const inputClass = cn(
-  'w-full px-3 py-1.5 text-sm rounded-md border',
+  'w-full px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border',
   'border-border bg-background text-foreground',
   'focus:outline-none focus:ring-1 focus:ring-ring',
   'transition-colors duration-100',

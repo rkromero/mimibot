@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import CreatePedidoModal from './CreatePedidoModal'
@@ -63,6 +63,24 @@ export default function PedidosListView() {
   const [deletingPedido, setDeletingPedido] = useState<Pedido | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      const res = await fetch('/api/export/pedidos')
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `pedidos_${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const params = new URLSearchParams()
   if (filterEstado) params.set('estado', filterEstado)
@@ -110,14 +128,24 @@ export default function PedidosListView() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-xl font-semibold text-foreground">Pedidos</h1>
-          {/* Desktop button */}
-          <button
-            onClick={() => setShowCreate(true)}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={14} />
-            Nuevo Pedido
-          </button>
+          {/* Desktop buttons */}
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              onClick={() => void handleExport()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <Download size={13} />
+              CSV
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={14} />
+              Nuevo Pedido
+            </button>
+          </div>
         </div>
 
         {/* Filters */}

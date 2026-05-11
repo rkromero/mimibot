@@ -22,6 +22,10 @@ type Producto = {
   id: string
   nombre: string
   precio: string
+  sku: string | null
+  stockActual: number
+  stockMinimo: number
+  bajoCritico: boolean
 }
 
 type ItemRow = {
@@ -46,7 +50,7 @@ function formatMoney(value: number) {
 }
 
 const inputClass = cn(
-  'w-full px-3 py-1.5 text-sm rounded-md border',
+  'w-full px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border',
   'border-border bg-background text-foreground',
   'focus:outline-none focus:ring-1 focus:ring-ring',
   'transition-colors duration-100',
@@ -100,16 +104,41 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     staleTime: 60_000,
   })
 
-  // Query productos
-  const { data: productos = [] } = useQuery<Producto[]>({
+  type RawProducto = { id: string; nombre: string; precio: string; sku: string | null }
+  type StockSaldo = { id: string; stockActual: number; stockMinimo: number; bajoCritico: boolean }
+
+  const { data: rawProductos = [] } = useQuery<RawProducto[]>({
     queryKey: ['productos-activos'],
     queryFn: async () => {
       const res = await fetch('/api/productos?activo=true')
       if (!res.ok) return []
-      const json = await res.json() as { data: Producto[] }
+      const json = await res.json() as { data: RawProducto[] }
       return json.data
     },
     staleTime: 60_000,
+  })
+
+  const { data: stockSaldos = [] } = useQuery<StockSaldo[]>({
+    queryKey: ['stock-saldos'],
+    queryFn: async () => {
+      const res = await fetch('/api/stock/saldos')
+      if (!res.ok) return []
+      const json = await res.json() as { data: StockSaldo[] }
+      return json.data
+    },
+    staleTime: 30_000,
+  })
+
+  const stockMap = new Map(stockSaldos.map((s) => [s.id, s]))
+
+  const productos: Producto[] = rawProductos.map((p) => {
+    const stock = stockMap.get(p.id)
+    return {
+      ...p,
+      stockActual: stock?.stockActual ?? 0,
+      stockMinimo: stock?.stockMinimo ?? 0,
+      bajoCritico: stock?.bajoCritico ?? false,
+    }
   })
 
   const clienteNombreStr = clienteData
@@ -318,10 +347,24 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                       onClick={() => addProducto(p)}
                       className="w-full flex items-center justify-between p-4 md:py-2.5 border-b border-border text-left active:bg-accent/60 hover:bg-accent/40 transition-colors"
                     >
-                      <span className="text-base md:text-sm font-medium text-foreground">{p.nombre}</span>
-                      <span className="text-sm md:text-xs text-muted-foreground">
-                        {formatMoney(parseFloat(p.precio))}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-base md:text-sm font-medium text-foreground">{p.nombre}</span>
+                        {p.sku && <span className="text-xs text-muted-foreground font-mono">{p.sku}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {p.bajoCritico ? (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                            Stock: {p.stockActual}
+                          </span>
+                        ) : p.stockActual > 0 ? (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                            Stock: {p.stockActual}
+                          </span>
+                        ) : null}
+                        <span className="text-sm md:text-xs text-muted-foreground">
+                          {formatMoney(parseFloat(p.precio))}
+                        </span>
+                      </div>
                     </button>
                   ))
                 )}

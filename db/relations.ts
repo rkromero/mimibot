@@ -3,7 +3,7 @@ import {
   users, accounts, sessions,
   leads, contacts, conversations, messages, attachments,
   pipelineStages, tags, leadTags, activityLog, botConfig,
-  clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago,
+  clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago, stockMovements,
   actividadesCliente, metas, auditLogMetas,
   territorios, territorioAgente, territorioGerente, historialTeritorioCliente,
 } from './schema'
@@ -151,6 +151,7 @@ export const actividadesClienteRelations = relations(actividadesCliente, ({ one 
 export const productosRelations = relations(productos, ({ one, many }) => ({
   creadoPor: one(users, { fields: [productos.creadoPor], references: [users.id] }),
   items: many(pedidoItems),
+  stockMovements: many(stockMovements),
 }))
 
 export const pedidosRelations = relations(pedidos, ({ one, many }) => ({
@@ -160,6 +161,7 @@ export const pedidosRelations = relations(pedidos, ({ one, many }) => ({
   territorioImputado: one(territorios, { fields: [pedidos.territorioIdImputado], references: [territorios.id] }),
   items: many(pedidoItems),
   aplicaciones: many(aplicacionesPago),
+  stockMovements: many(stockMovements),
 }))
 
 export const pedidoItemsRelations = relations(pedidoItems, ({ one }) => ({
@@ -188,4 +190,10 @@ export const metasRelations = relations(metas, ({ one, many }) => ({
 export const auditLogMetasRelations = relations(auditLogMetas, ({ one }) => ({
   meta: one(metas, { fields: [auditLogMetas.metaId], references: [metas.id] }),
   cambiadoPor: one(users, { fields: [auditLogMetas.cambiadoPor], references: [users.id], relationName: 'auditsMetas' }),
+}))
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  producto: one(productos, { fields: [stockMovements.productoId], references: [productos.id] }),
+  pedido: one(pedidos, { fields: [stockMovements.pedidoId], references: [pedidos.id] }),
+  registradoPor: one(users, { fields: [stockMovements.registradoPor], references: [users.id] }),
 }))
