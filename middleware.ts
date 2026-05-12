@@ -40,12 +40,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/verify-2fa', req.url))
   }
 
-  // Proteger rutas exclusivas de admin (sin llamar a la DB)
+  // Proteger rutas exclusivas de admin — solo si el token se decodificó bien
+  // Si token es null (getToken falló), dejar pasar: la API ya tiene requireAdmin como guardia real
   if (
-    pathname.startsWith('/admin') ||
-    (pathname.startsWith('/api/admin') && !pathname.startsWith('/api/auth'))
+    token !== null &&
+    (pathname.startsWith('/admin') ||
+      (pathname.startsWith('/api/admin') && !pathname.startsWith('/api/auth')))
   ) {
-    if (token?.role !== 'admin') {
+    if (token.role !== 'admin') {
       return NextResponse.redirect(new URL('/pipeline', req.url))
     }
   }

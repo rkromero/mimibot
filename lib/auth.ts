@@ -112,7 +112,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         user: {
           ...session.user,
           id: token.sub!,
-          role: dbUser?.role ?? 'agent',
+          role: dbUser?.role ?? ((token.role as 'admin' | 'gerente' | 'agent' | undefined) ?? 'agent'),
           avatarColor: dbUser?.avatarColor ?? '#1d4ed8',
           totpPending: (token.totpPending as boolean | undefined) ?? false,
         },
