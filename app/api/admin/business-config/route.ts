@@ -32,11 +32,18 @@ export async function GET(_req: NextRequest) {
 
     requireAdmin(session.user)
 
-    const [config] = await db
-      .select()
-      .from(businessConfig)
-      .where(eq(businessConfig.id, 1))
-      .limit(1)
+    let config
+    try {
+      const [row] = await db
+        .select()
+        .from(businessConfig)
+        .where(eq(businessConfig.id, 1))
+        .limit(1)
+      config = row
+    } catch (dbErr) {
+      console.error('[business-config GET] DB query failed:', dbErr)
+      config = undefined
+    }
 
     return NextResponse.json({ data: config ?? SCHEMA_DEFAULTS })
   } catch (err) {

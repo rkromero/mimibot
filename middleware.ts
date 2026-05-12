@@ -40,6 +40,16 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/verify-2fa', req.url))
   }
 
+  // Proteger rutas exclusivas de admin (sin llamar a la DB)
+  if (
+    pathname.startsWith('/admin') ||
+    (pathname.startsWith('/api/admin') && !pathname.startsWith('/api/auth'))
+  ) {
+    if (token?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/pipeline', req.url))
+    }
+  }
+
   // Redirect en raíz basado en rol — evita que la (app)/page renderice sin manifest
   if (pathname === '/') {
     const role = token?.role
