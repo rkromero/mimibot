@@ -1,17 +1,30 @@
+import { db } from '@/db'
+
 const WA_API_VERSION = 'v21.0'
 const WA_API_BASE = `https://graph.facebook.com/${WA_API_VERSION}`
 
-function getConfig() {
-  const phoneNumberId = process.env['WA_PHONE_NUMBER_ID']
-  const accessToken = process.env['WA_ACCESS_TOKEN']
+async function getConfig() {
+  const cfg = await db.query.whatsappConfig.findFirst()
+
+  const phoneNumberId = (cfg?.isConfigured && cfg.phoneNumberId) || process.env['WA_PHONE_NUMBER_ID']
+  const accessToken = (cfg?.isConfigured && cfg.accessToken) || process.env['WA_ACCESS_TOKEN']
+
   if (!phoneNumberId || !accessToken) {
-    throw new Error('WA_PHONE_NUMBER_ID y WA_ACCESS_TOKEN son requeridos')
+    throw new Error('WhatsApp no está configurado. Completá la configuración en Ajustes → WhatsApp.')
   }
   return { phoneNumberId, accessToken }
 }
 
+export async function getWaSecrets(): Promise<{ appSecret: string; verifyToken: string }> {
+  const cfg = await db.query.whatsappConfig.findFirst()
+  return {
+    appSecret: (cfg?.isConfigured && cfg.appSecret) || process.env['WA_APP_SECRET'] || '',
+    verifyToken: (cfg?.isConfigured && cfg.verifyToken) || process.env['WA_VERIFY_TOKEN'] || '',
+  }
+}
+
 async function waFetch(path: string, options: RequestInit): Promise<unknown> {
-  const { accessToken } = getConfig()
+  const { accessToken } = await getConfig()
   const res = await fetch(`${WA_API_BASE}${path}`, {
     ...options,
     headers: {
@@ -30,7 +43,7 @@ async function waFetch(path: string, options: RequestInit): Promise<unknown> {
 }
 
 export async function sendTextMessage(to: string, body: string): Promise<string> {
-  const { phoneNumberId } = getConfig()
+  const { phoneNumberId } = await getConfig()
   const data = await waFetch(`/${phoneNumberId}/messages`, {
     method: 'POST',
     body: JSON.stringify({
@@ -56,7 +69,7 @@ export async function sendTemplateMessage(
   language: string,
   components?: TemplateComponent[],
 ): Promise<string> {
-  const { phoneNumberId } = getConfig()
+  const { phoneNumberId } = await getConfig()
   const data = await waFetch(`/${phoneNumberId}/messages`, {
     method: 'POST',
     body: JSON.stringify({
@@ -81,7 +94,7 @@ export async function sendMediaMessage(
   mediaType: 'image' | 'audio' | 'video' | 'document',
   caption?: string,
 ): Promise<string> {
-  const { phoneNumberId } = getConfig()
+  const { phoneNumberId } = await getConfig()
 
   const mediaPayload: Record<string, unknown> = { id: mediaId }
   if (caption && (mediaType === 'image' || mediaType === 'video' || mediaType === 'document')) {
@@ -102,13 +115,12 @@ export async function sendMediaMessage(
   return data.messages[0]!.id
 }
 
-// Sube un buffer a Meta y devuelve el media_id para usarlo en mensajes
 export async function uploadMediaToMeta(
   buffer: Buffer,
   mimeType: string,
   filename: string,
 ): Promise<string> {
-  const { phoneNumberId, accessToken } = getConfig()
+  const { phoneNumberId, accessToken } = await getConfig()
 
   const form = new FormData()
   form.append('messaging_product', 'whatsapp')
@@ -130,18 +142,15 @@ export async function uploadMediaToMeta(
   return data.id
 }
 
-// Obtiene la URL de descarga de un media de Meta y lo devuelve como Buffer
 export async function downloadMediaFromMeta(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  const { accessToken } = getConfig()
+  const { accessToken } = await getConfig()
 
-  // Paso 1: obtener la URL
   const metaRes = await fetch(`${WA_API_BASE}/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!metaRes.ok) throw new Error(`No se pudo obtener metadata del media ${mediaId}`)
   const meta = await metaRes.json() as { url: string; mime_type: string }
 
-  // Paso 2: descargar el binario
   const fileRes = await fetch(meta.url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })

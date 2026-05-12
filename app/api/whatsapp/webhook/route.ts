@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
+import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaMessage } from '@/lib/validations/webhook'
 import { db } from '@/db'
 import { leads, contacts, conversations, messages, activityLog, pipelineStages } from '@/db/schema'
@@ -18,7 +19,8 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('hub.verify_token')
   const challenge = req.nextUrl.searchParams.get('hub.challenge')
 
-  if (mode === 'subscribe' && token === process.env['WA_VERIFY_TOKEN']) {
+  const { verifyToken } = await getWaSecrets()
+  if (mode === 'subscribe' && token === verifyToken) {
     return new Response(challenge, { status: 200 })
   }
   return new Response('Forbidden', { status: 403 })
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
 
   const signature = req.headers.get('x-hub-signature-256')
-  const appSecret = process.env['WA_APP_SECRET'] ?? ''
+  const { appSecret } = await getWaSecrets()
 
   if (!verifyWhatsAppSignature(rawBody, signature, appSecret)) {
     console.error('[webhook] HMAC inválido')

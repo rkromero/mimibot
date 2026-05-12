@@ -1,7 +1,7 @@
 import type {
   users, leads, contacts, conversations, messages,
   pipelineStages, tags, activityLog, attachments, botConfig,
-  followUpTemplates, followUpConfig,
+  followUpTemplates, followUpConfig, whatsappConfig,
 } from '@/db/schema'
 
 export type User = typeof users.$inferSelect
@@ -16,6 +16,7 @@ export type Attachment = typeof attachments.$inferSelect
 export type BotConfig = typeof botConfig.$inferSelect
 export type FollowUpTemplate = typeof followUpTemplates.$inferSelect
 export type FollowUpConfig = typeof followUpConfig.$inferSelect
+export type WhatsappConfig = typeof whatsappConfig.$inferSelect
 
 export type TemplateParameter = {
   position: number

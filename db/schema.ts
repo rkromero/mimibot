@@ -499,6 +499,19 @@ export const empresaConfig = pgTable('empresa_config', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
 
+// ─── Configuración de WhatsApp (singleton) ────────────────────────────────────
+
+export const whatsappConfig = pgTable('whatsapp_config', {
+  id: integer('id').primaryKey().default(1),
+  phoneNumberId: text('phone_number_id').notNull().default(''),
+  accessToken: text('access_token').notNull().default(''),
+  appSecret: text('app_secret').notNull().default(''),
+  verifyToken: text('verify_token').notNull().default(''),
+  isConfigured: boolean('is_configured').notNull().default(false),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
 // ─── Log de actividad ─────────────────────────────────────────────────────────
 
 export const activityLog = pgTable('activity_log', {
