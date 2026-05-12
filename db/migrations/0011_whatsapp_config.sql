@@ -1,10 +1,12 @@
-CREATE TABLE IF NOT EXISTS "whatsapp_config" (
-  "id" integer PRIMARY KEY DEFAULT 1,
-  "phone_number_id" text NOT NULL DEFAULT '',
-  "access_token" text NOT NULL DEFAULT '',
-  "app_secret" text NOT NULL DEFAULT '',
-  "verify_token" text NOT NULL DEFAULT '',
-  "is_configured" boolean NOT NULL DEFAULT false,
-  "updated_by" uuid REFERENCES "users"("id"),
-  "updated_at" timestamp NOT NULL DEFAULT now()
+CREATE TABLE "whatsapp_config" (
+	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
+	"phone_number_id" text DEFAULT '' NOT NULL,
+	"access_token" text DEFAULT '' NOT NULL,
+	"app_secret" text DEFAULT '' NOT NULL,
+	"verify_token" text DEFAULT '' NOT NULL,
+	"is_configured" boolean DEFAULT false NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+ALTER TABLE "whatsapp_config" ADD CONSTRAINT "whatsapp_config_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
