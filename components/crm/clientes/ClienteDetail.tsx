@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -29,6 +29,32 @@ type Cliente = {
   asignadoColor: string | null
   territorioId: string | null
   territorioNombre: string | null
+  pedidosSummary?: {
+    count: number
+    total: string
+    saldoPendiente: string
+    ultimoPedidoFecha: string | null
+  }
+}
+
+function formatMoney(value: number): string {
+  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+function formatRelativeDate(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(d)
+  target.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'hoy'
+  if (diffDays === 1) return 'ayer'
+  if (diffDays < 7) return `hace ${diffDays} días`
+  if (diffDays < 30) return `hace ${Math.floor(diffDays / 7)} sem`
+  if (diffDays < 365) return `hace ${Math.floor(diffDays / 30)} m`
+  return `hace ${Math.floor(diffDays / 365)} a`
 }
 
 const estadoActividadColors: Record<string, string> = {
@@ -527,6 +553,57 @@ export default function ClienteDetail({ id }: Props) {
             <CreditCard size={16} />
             Registrar pago
           </button>
+
+          {/* Saldo + ultimo pedido — info "de campo" para el vendedor */}
+          {(() => {
+            const saldo = parseFloat(cliente.pedidosSummary?.saldoPendiente ?? '0')
+            const count = cliente.pedidosSummary?.count ?? 0
+            const ultima = cliente.pedidosSummary?.ultimoPedidoFecha ?? null
+            const hasSaldo = saldo > 0
+            return (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => hasSaldo && setShowRegistrarPago(true)}
+                  disabled={!hasSaldo}
+                  className={cn(
+                    'flex flex-col items-start justify-center gap-0.5 rounded-xl p-3 text-left transition-colors',
+                    hasSaldo
+                      ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 active:bg-red-100'
+                      : 'bg-card border border-border',
+                  )}
+                >
+                  <span className={cn(
+                    'text-[11px] uppercase tracking-wide font-medium',
+                    hasSaldo ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground',
+                  )}>
+                    {hasSaldo ? (
+                      <span className="inline-flex items-center gap-1">
+                        <AlertTriangle size={11} />
+                        Saldo pendiente
+                      </span>
+                    ) : 'Saldo'}
+                  </span>
+                  <span className={cn(
+                    'text-xl font-bold leading-none mt-0.5',
+                    hasSaldo ? 'text-red-700 dark:text-red-300' : 'text-foreground',
+                  )}>
+                    {hasSaldo ? formatMoney(saldo) : 'Al día'}
+                  </span>
+                </button>
+                <div className="flex flex-col items-start justify-center gap-0.5 rounded-xl p-3 bg-card border border-border">
+                  <span className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground">
+                    Último pedido
+                  </span>
+                  <span className="text-xl font-bold leading-none mt-0.5 text-foreground">
+                    {ultima ? formatRelativeDate(ultima) : '—'}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-[11px] text-muted-foreground mt-0.5">{count} pedido{count === 1 ? '' : 's'}</span>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Desktop header */}

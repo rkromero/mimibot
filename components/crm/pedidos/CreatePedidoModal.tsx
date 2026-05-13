@@ -75,18 +75,30 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     enabled: !clienteId,
   })
 
-  // Get selected cliente details
+  // Get selected cliente details + productos habituales (top compras del cliente)
+  type ProductoHabitual = { id: string; nombre: string; precio: string; sku: string | null; totalCantidad: number }
   const { data: clienteData } = useQuery({
     queryKey: ['cliente', selectedClienteId],
     queryFn: async () => {
       const res = await fetch(`/api/clientes/${selectedClienteId}`)
       if (!res.ok) return null
-      const json = await res.json() as { data: { nombre: string; apellido: string; saldo?: number } }
+      const json = await res.json() as {
+        data: {
+          nombre: string
+          apellido: string
+          saldo?: number
+          productosHabituales?: ProductoHabitual[]
+        }
+      }
       return json.data
     },
     enabled: !!selectedClienteId,
     staleTime: 60_000,
   })
+
+  // Habituales that are not already in the cart — so the chip count stays useful
+  const habitualesDisponibles: ProductoHabitual[] = (clienteData?.productosHabituales ?? [])
+    .filter(p => !items.some(i => i.productoId === p.id))
 
   // Computed values
   const subtotal = items.reduce((sum, i) => sum + i.cantidad * parseFloat(i.precioUnitario), 0)
@@ -265,10 +277,42 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           {step === 1 && (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Productos habituales del cliente — 1 toque para sumar */}
+                {habitualesDisponibles.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground px-1">
+                      Habituales de este cliente
+                    </p>
+                    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {habitualesDisponibles.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setItems(prev => [
+                            ...prev,
+                            { productoId: p.id, productoNombre: p.nombre, cantidad: 1, precioUnitario: p.precio },
+                          ])}
+                          className="shrink-0 flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/5 active:bg-primary/15 transition-colors min-w-[120px] max-w-[180px]"
+                        >
+                          <span className="text-sm font-semibold text-foreground truncate w-full text-left">
+                            {p.nombre}
+                          </span>
+                          <span className="text-xs text-primary font-medium">
+                            + {formatMoney(parseFloat(p.precio))}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {items.length === 0 ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
                     <Package size={40} className="opacity-30 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Aún no agregaste productos</p>
+                    <p className="text-sm text-muted-foreground">
+                      {habitualesDisponibles.length > 0
+                        ? 'Tocá un habitual o agregá un producto'
+                        : 'Aún no agregaste productos'}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
