@@ -34,6 +34,16 @@ export function toApiError(err: unknown): { message: string; code?: string; stat
   if (err instanceof AppError) {
     return { message: err.message, code: err.code, status: err.statusCode }
   }
-  console.error('[unhandled error]', err)
-  return { message: 'Error interno del servidor', status: 500 }
+  // Log with full context so the trace appears in Railway logs
+  const rawMessage = err instanceof Error ? err.message : String(err)
+  const rawStack = err instanceof Error ? err.stack : undefined
+  console.error('[unhandled error]', { message: rawMessage, stack: rawStack, err })
+  // Expose underlying error message only when explicitly enabled via env flag.
+  // Useful for short-term diagnosis on a deployed environment without leaking
+  // sensitive details by default.
+  const expose = process.env['EXPOSE_ERROR_DETAILS'] === '1'
+  return {
+    message: expose ? `Error interno: ${rawMessage}` : 'Error interno del servidor',
+    status: 500,
+  }
 }

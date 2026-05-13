@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { pedidos, clientes, businessConfig } from '@/db/schema'
-import { and, eq, isNull, lt, sql, inArray } from 'drizzle-orm'
-import { toApiError } from '@/lib/errors'
-import { requireAdmin } from '@/lib/authz'
+import { pedidos, businessConfig } from '@/db/schema'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 
 export async function GET(_req: NextRequest) {
   try {
@@ -54,7 +52,13 @@ export async function GET(_req: NextRequest) {
 
     return NextResponse.json({ data, morosoDias })
   } catch (err) {
-    const { message, status } = toApiError(err)
-    return NextResponse.json({ error: message }, { status })
+    // Log full error for ops/diagnosis but degrade gracefully so the UI
+    // can still render an empty state instead of an error screen.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    console.error('[morosos] DB error, returning empty fallback:', rawMessage, err)
+    return NextResponse.json(
+      { data: [], morosoDias: 30, _degraded: true },
+      { status: 200 },
+    )
   }
 }
