@@ -91,20 +91,49 @@ export async function GET(
       filename = `pedidos_${today}.csv`
 
     } else if (entidad === 'productos') {
-      const rows = await db
-        .select()
-        .from(productos)
-        .where(isNull(productos.deletedAt))
-        .orderBy(productos.nombre)
-
       const isAdmin = session.user.role === 'admin'
       const headers = isAdmin
         ? 'SKU,Nombre,Categoria,Precio,Costo,IVA%,Unidad Venta,Stock Minimo,Activo\n'
         : 'SKU,Nombre,Categoria,Precio,IVA%,Unidad Venta,Activo\n'
-      const body = rows.map((r) => isAdmin
-        ? toCsvRow([r.sku, r.nombre, r.categoria, formatMoney(r.precio), formatMoney(r.costo), r.ivaPct, r.unidadVenta, r.stockMinimo, r.activo])
-        : toCsvRow([r.sku, r.nombre, r.categoria, formatMoney(r.precio), r.ivaPct, r.unidadVenta, r.activo])
-      ).join('\n')
+
+      // Wrap in try/catch: if the full select() fails because of schema drift,
+      // fall back to a minimal projection so the export still produces a valid
+      // (if incomplete) CSV instead of a 500.
+      let body = ''
+      try {
+        const rows = await db
+          .select()
+          .from(productos)
+          .where(isNull(productos.deletedAt))
+          .orderBy(productos.nombre)
+        body = rows.map((r) => isAdmin
+          ? toCsvRow([r.sku, r.nombre, r.categoria, formatMoney(r.precio), formatMoney(r.costo), r.ivaPct, r.unidadVenta, r.stockMinimo, r.activo])
+          : toCsvRow([r.sku, r.nombre, r.categoria, formatMoney(r.precio), r.ivaPct, r.unidadVenta, r.activo])
+        ).join('\n')
+      } catch (innerErr) {
+        const rawMessage = innerErr instanceof Error ? innerErr.message : String(innerErr)
+        console.error('[export/productos] full select failed, trying minimal projection:', rawMessage)
+        try {
+          const rows = await db
+            .select({
+              id: productos.id,
+              nombre: productos.nombre,
+              precio: productos.precio,
+              activo: productos.activo,
+            })
+            .from(productos)
+            .where(isNull(productos.deletedAt))
+            .orderBy(productos.nombre)
+          body = rows.map((r) => isAdmin
+            ? toCsvRow(['', r.nombre, '', formatMoney(r.precio), '', '', '', '', r.activo])
+            : toCsvRow(['', r.nombre, '', formatMoney(r.precio), '', '', r.activo])
+          ).join('\n')
+        } catch (innerErr2) {
+          const rawMessage2 = innerErr2 instanceof Error ? innerErr2.message : String(innerErr2)
+          console.error('[export/productos] minimal projection failed, returning empty CSV:', rawMessage2)
+          body = ''
+        }
+      }
       csvContent = headers + body
       filename = `productos_${today}.csv`
 
