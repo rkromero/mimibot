@@ -18,7 +18,16 @@ export async function GET() {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const config = await db.query.whatsappConfig.findFirst()
+    // Defensive: if the whatsapp_config table doesn't exist yet (migration
+    // 0011 not applied), fall back to "not configured" instead of 500ing.
+    let config: Awaited<ReturnType<typeof db.query.whatsappConfig.findFirst>> | undefined
+    try {
+      config = await db.query.whatsappConfig.findFirst()
+    } catch (innerErr) {
+      const msg = innerErr instanceof Error ? innerErr.message : String(innerErr)
+      console.error('[settings/whatsapp GET] table missing or query failed:', msg)
+      return NextResponse.json({ data: null, _degraded: true })
+    }
 
     // Enmascarar tokens sensibles en la respuesta
     if (config?.isConfigured) {
