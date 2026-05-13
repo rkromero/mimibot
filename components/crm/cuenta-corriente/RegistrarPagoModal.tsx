@@ -4,11 +4,17 @@ import { useState, useRef, useEffect } from 'react'
 import { ArrowLeft, X, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
+import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
+import { cobroConfirmadoMessage } from '@/lib/whatsapp/messages'
 
 type Props = {
   clienteId: string
   clienteNombre: string
+  /** Teléfono del cliente para el botón de WhatsApp. Opcional — si no viene,
+   *  el botón se muestra deshabilitado con tooltip explicativo. */
+  clienteTelefono?: string | null
   saldo: number
   pedidosPendientes: Array<{
     id: string
@@ -37,8 +43,10 @@ function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
-export default function RegistrarPagoModal({ clienteId, clienteNombre, saldo, pedidosPendientes, onClose, onSuccess }: Props) {
+export default function RegistrarPagoModal({ clienteId, clienteNombre, clienteTelefono, saldo, pedidosPendientes, onClose, onSuccess }: Props) {
   const queryClient = useQueryClient()
+  const { data: session } = useSession()
+  const vendedorName = session?.user?.name ?? null
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [isPending, setIsPending] = useState(false)
@@ -168,7 +176,31 @@ export default function RegistrarPagoModal({ clienteId, clienteNombre, saldo, pe
                 )}
               </div>
             </div>
-            <div className="p-4 border-t border-border bg-card shrink-0">
+            <div className="p-4 border-t border-border bg-card shrink-0 space-y-3">
+              {/* Saldo restante = saldo previo - lo aplicado a pedidos (no cuenta
+                  el sobrante porque eso es crédito a favor del cliente). */}
+              {(() => {
+                const aplicado = successData.result.aplicaciones.reduce(
+                  (sum, ap) => sum + parseFloat(ap.montoAplicado),
+                  0,
+                )
+                const saldoRestante = Math.max(0, saldo - aplicado)
+                return (
+                  <WhatsappLinkButton
+                    phone={clienteTelefono ?? null}
+                    label="Enviar comprobante por WhatsApp"
+                    variant="subtle"
+                    className="w-full"
+                    message={cobroConfirmadoMessage({
+                      clienteNombre,
+                      vendedorName,
+                      monto: successData.monto,
+                      saldoRestante,
+                      fecha: new Date(),
+                    })}
+                  />
+                )
+              })()}
               <button onClick={handleSuccessClose}
                 className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl text-base font-semibold active:bg-primary/80 transition-colors">
                 Volver al cliente

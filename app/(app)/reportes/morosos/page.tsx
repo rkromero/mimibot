@@ -2,9 +2,12 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, MessageCircle } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
+import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
+import { recordatorioMorosoMessage } from '@/lib/whatsapp/messages'
 
 type Moroso = {
   id: string
@@ -30,6 +33,8 @@ function formatMoney(value: string | number) {
 }
 
 export default function MorososPage() {
+  const { data: session } = useSession()
+  const vendedorName = session?.user?.name ?? null
   const [isExporting, setIsExporting] = useState(false)
 
   const { data, isLoading, error } = useQuery<ApiResponse>({
@@ -62,13 +67,8 @@ export default function MorososPage() {
     }
   }
 
-  function openWhatsApp(telefono: string, nombre: string, saldo: string) {
-    const phone = telefono.replace(/\D/g, '')
-    const text = encodeURIComponent(
-      `Hola ${nombre}, te contactamos de Mimi Alfajores para recordarte que tenés un saldo pendiente de ${formatMoney(saldo)}. ¿Cuándo podemos coordinar el pago? Muchas gracias.`
-    )
-    window.open(`https://wa.me/54${phone}?text=${text}`, '_blank')
-  }
+  // El mensaje se arma en cada fila desde el helper unificado para mantener
+  // consistencia con los otros puntos de salida a WhatsApp (pedido, cobro).
 
   return (
     <div className="w-full h-full overflow-y-auto">
@@ -128,16 +128,18 @@ export default function MorososPage() {
                     <div className="text-xs text-muted-foreground">
                       <span className="text-destructive font-medium">{m.diasVencido} días</span> vencido · {m.vendedorNombre ?? '—'}
                     </div>
-                    {m.clienteTelefono && (
-                      <button
-                        onClick={() => openWhatsApp(m.clienteTelefono!, m.clienteNombre, m.saldoPendiente)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                        aria-label="Abrir WhatsApp"
-                      >
-                        <MessageCircle size={12} />
-                        WA
-                      </button>
-                    )}
+                    <WhatsappLinkButton
+                      phone={m.clienteTelefono}
+                      label="Recordar"
+                      variant="subtle"
+                      message={recordatorioMorosoMessage({
+                        clienteNombre: m.clienteNombre,
+                        vendedorName,
+                        saldoPendiente: m.saldoPendiente,
+                        diasVencido: m.diasVencido,
+                        fechaPedido: m.fecha,
+                      })}
+                    />
                   </div>
                 </div>
               ))}
@@ -184,17 +186,18 @@ export default function MorososPage() {
                         {formatMoney(m.saldoPendiente)}
                       </td>
                       <td className="py-2.5 px-3">
-                        {m.clienteTelefono && (
-                          <button
-                            onClick={() => openWhatsApp(m.clienteTelefono!, m.clienteNombre, m.saldoPendiente)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                            title="Enviar WhatsApp"
-                            aria-label="Enviar WhatsApp a este cliente"
-                          >
-                            <MessageCircle size={12} />
-                            WA
-                          </button>
-                        )}
+                        <WhatsappLinkButton
+                          phone={m.clienteTelefono}
+                          label="Recordar"
+                          variant="subtle"
+                          message={recordatorioMorosoMessage({
+                            clienteNombre: m.clienteNombre,
+                            vendedorName,
+                            saldoPendiente: m.saldoPendiente,
+                            diasVencido: m.diasVencido,
+                            fechaPedido: m.fecha,
+                          })}
+                        />
                       </td>
                     </tr>
                   ))}

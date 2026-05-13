@@ -678,6 +678,7 @@ export default function ClienteDetail({ id }: Props) {
             <CuentaCorrienteTab
               clienteId={id}
               clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+              clienteTelefono={cliente.telefono ?? null}
               showPago={showRegistrarPago}
               onClosePago={() => setShowRegistrarPago(false)}
             />
@@ -701,6 +702,7 @@ export default function ClienteDetail({ id }: Props) {
           <CuentaCorrienteTab
             clienteId={id}
             clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+            clienteTelefono={cliente.telefono ?? null}
             showPago={showRegistrarPago}
             onClosePago={() => setShowRegistrarPago(false)}
           />

@@ -5,11 +5,14 @@ import { Plus, Minus, Trash2, CheckCircle, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { format, addDays } from 'date-fns'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 import Stepper from '@/components/shared/Stepper'
 import SearchSheet from '@/components/shared/SearchSheet'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
+import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
+import { pedidoConfirmadoMessage } from '@/lib/whatsapp/messages'
 
 type Props = {
   clienteId?: string
@@ -75,6 +78,10 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     enabled: !clienteId,
   })
 
+  // Nombre del vendedor logueado para firmar el mensaje de WhatsApp.
+  const { data: session } = useSession()
+  const vendedorName = session?.user?.name ?? null
+
   // Get selected cliente details + productos habituales (top compras del cliente)
   type ProductoHabitual = { id: string; nombre: string; precio: string; sku: string | null; totalCantidad: number }
   const { data: clienteData } = useQuery({
@@ -86,6 +93,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
         data: {
           nombre: string
           apellido: string
+          telefono?: string | null
           saldo?: number
           productosHabituales?: ProductoHabitual[]
         }
@@ -180,6 +188,24 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
               >
                 Cobrar ahora
               </button>
+              {/* Enviar comprobante por WhatsApp — el vendedor entrega el resumen
+                  apenas confirmado el pedido. Si el cliente no tiene teléfono,
+                  el componente muestra el botón en estado deshabilitado. */}
+              <WhatsappLinkButton
+                phone={clienteData?.telefono ?? null}
+                label="Enviar comprobante por WhatsApp"
+                variant="subtle"
+                className="w-full"
+                message={pedidoConfirmadoMessage({
+                  clienteNombre: clienteNombre,
+                  vendedorName,
+                  items,
+                  total: parseFloat(successData.total),
+                  condicionPago,
+                  fechaEntrega,
+                  fecha: todayStr,
+                })}
+              />
               <button
                 onClick={() => { router.push(`/crm/pedidos/${successData.pedidoId}`); onClose() }}
                 className="w-full py-3.5 border border-border rounded-xl text-base font-medium text-foreground bg-card active:bg-accent"
@@ -208,6 +234,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           <RegistrarPagoModal
             clienteId={selectedClienteId}
             clienteNombre={clienteNombre}
+            clienteTelefono={clienteData?.telefono ?? null}
             saldo={parseFloat(successData.total)}
             pedidosPendientes={[{
               id: successData.pedidoId,
@@ -523,6 +550,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
         <RegistrarPagoModal
           clienteId={selectedClienteId}
           clienteNombre={clienteNombre}
+          clienteTelefono={clienteData?.telefono ?? null}
           saldo={parseFloat(successData.total)}
           pedidosPendientes={[{
             id: successData.pedidoId,

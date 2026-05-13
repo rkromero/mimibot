@@ -13,6 +13,7 @@ import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 type Props = {
   clienteId: string
   clienteNombre: string
+  clienteTelefono?: string | null
   showPago: boolean
   onClosePago: () => void
 }
@@ -56,7 +57,7 @@ const estadoPagoLabels: Record<string, string> = {
   pagado: 'Pagado',
 }
 
-export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago, onClosePago }: Props) {
+export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTelefono, showPago, onClosePago }: Props) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
@@ -296,6 +297,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, showPago,
         <RegistrarPagoModal
           clienteId={clienteId}
           clienteNombre={clienteNombre}
+          clienteTelefono={clienteTelefono ?? null}
           saldo={saldo}
           pedidosPendientes={pedidosPendientes}
           onClose={onClosePago}
