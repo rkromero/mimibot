@@ -177,14 +177,13 @@ export default function RegistrarPagoModal({ clienteId, clienteNombre, clienteTe
               </div>
             </div>
             <div className="p-4 border-t border-border bg-card shrink-0 space-y-3">
-              {/* Saldo restante = saldo previo - lo aplicado a pedidos (no cuenta
-                  el sobrante porque eso es crédito a favor del cliente). */}
+              {/* Saldo restante = saldo previo - lo pagado. Usamos `monto`
+                  (no `aplicado`) porque si el cliente paga de más, el sobrante
+                  va a crédito a favor y la cuenta queda al día — no es deuda.
+                  Math.max(0,...) cubre el caso de sobrepago: nunca mostramos
+                  "saldo negativo" sino "al día". */}
               {(() => {
-                const aplicado = successData.result.aplicaciones.reduce(
-                  (sum, ap) => sum + parseFloat(ap.montoAplicado),
-                  0,
-                )
-                const saldoRestante = Math.max(0, saldo - aplicado)
+                const saldoRestante = Math.max(0, saldo - successData.monto)
                 return (
                   <WhatsappLinkButton
                     phone={clienteTelefono ?? null}

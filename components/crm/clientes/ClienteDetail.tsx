@@ -11,6 +11,7 @@ import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
+import { buildWhatsappLink } from '@/lib/whatsapp/messages'
 
 type Props = { id: string }
 
@@ -506,7 +507,7 @@ export default function ClienteDetail({ id }: Props) {
           <div className="grid grid-cols-3 gap-2">
             {cliente.telefono ? (
               <a
-                href={`https://wa.me/${cliente.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${cliente.nombre}!`)}`}
+                href={buildWhatsappLink(cliente.telefono, `Hola ${cliente.nombre}!`) ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl active:bg-green-100 transition-colors"
