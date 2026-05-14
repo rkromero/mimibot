@@ -14,12 +14,11 @@ import {
   LayoutGrid,
   Package,
   BarChart3,
-  Map,
-  Settings,
   LogOut,
   ShoppingCart,
   Boxes,
   Search,
+  TrendingDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
@@ -31,7 +30,11 @@ type Props = {
   onSearchOpen?: () => void
 }
 
-// ─── Admin / Gerente tabs (unchanged) ────────────────────────────────────────
+// ─── Admin tabs ──────────────────────────────────────────────────────────────
+//
+// Solo el admin tiene una barra "amplia" con accesos a Productos, Stock, etc.
+// Agente y gerente comparten el FieldNav (más abajo) que prioriza el flujo
+// de campo: Inicio / Inbox / + Pedido (FAB) / Buscar / Más.
 
 const ADMIN_TABS = [
   { href: '/crm/clientes', label: 'Clientes', icon: Users },
@@ -39,13 +42,6 @@ const ADMIN_TABS = [
   { href: '/crm/productos', label: 'Productos', icon: Package },
   { href: '/stock', label: 'Stock', icon: Boxes },
   { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid },
-]
-
-const GERENTE_TABS = [
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
-  { href: '/territorios', label: 'Territorios', icon: Map },
-  { href: '/crm/clientes', label: 'Clientes', icon: Users },
-  { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart },
 ]
 
 // ─── Inbox unread badge ───────────────────────────────────────────────────────
@@ -99,16 +95,22 @@ function NavTab({
   )
 }
 
-// ─── Agent navigation ─────────────────────────────────────────────────────────
+// ─── Field navigation (agent + gerente) ──────────────────────────────────────
+//
+// Agente y gerente comparten esta barra porque ambos trabajan "en el campo"
+// con clientes. La diferencia entre ellos no está en el menú sino en qué
+// datos ven (filtros aplicados en el backend). Gerente además tendrá selector
+// "Ver por agente" dentro de las listas.
 
-function AgentNav({ user, onNewPedido, onSearchOpen }: Props) {
+function FieldNav({ user, onNewPedido, onSearchOpen }: Props) {
   const pathname = usePathname()
   const [masOpen, setMasOpen] = useState(false)
-  const unreadCount = useUnreadCount(user.role === 'agent')
+  // Activamos el polling de inbox para ambos roles porque ambos pueden tener
+  // mensajes sin leer asignados a ellos.
+  const unreadCount = useUnreadCount(user.role === 'agent' || user.role === 'gerente')
 
-  const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
+  const inicioActive = pathname === '/' || pathname.startsWith('/agent/home') || pathname.startsWith('/dashboard')
   const inboxActive = pathname.startsWith('/inbox')
-  const clientesActive = pathname.startsWith('/crm/clientes')
 
   return (
     <>
@@ -171,12 +173,20 @@ function AgentNav({ user, onNewPedido, onSearchOpen }: Props) {
             <span className="text-sm font-medium text-foreground">Pipeline</span>
           </Link>
           <Link
-            href="/crm/productos"
+            href="/crm/pedidos"
             onClick={() => setMasOpen(false)}
             className="flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent min-h-[56px]"
           >
-            <Package size={20} className="text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium text-foreground">Productos</span>
+            <ShoppingCart size={20} className="text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-foreground">Pedidos</span>
+          </Link>
+          <Link
+            href="/crm/clientes"
+            onClick={() => setMasOpen(false)}
+            className="flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent min-h-[56px]"
+          >
+            <Users size={20} className="text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-foreground">Clientes</span>
           </Link>
           <Link
             href="/dashboard"
@@ -187,20 +197,12 @@ function AgentNav({ user, onNewPedido, onSearchOpen }: Props) {
             <span className="text-sm font-medium text-foreground">Dashboard</span>
           </Link>
           <Link
-            href="/territorios"
+            href="/reportes/morosos"
             onClick={() => setMasOpen(false)}
             className="flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent min-h-[56px]"
           >
-            <Map size={20} className="text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium text-foreground">Territorios</span>
-          </Link>
-          <Link
-            href="/settings/bot"
-            onClick={() => setMasOpen(false)}
-            className="flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent min-h-[56px]"
-          >
-            <Settings size={20} className="text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium text-foreground">Configuración</span>
+            <TrendingDown size={20} className="text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-foreground">Morosos</span>
           </Link>
 
           <div className="border-t border-border my-2" />
@@ -219,7 +221,7 @@ function AgentNav({ user, onNewPedido, onSearchOpen }: Props) {
   )
 }
 
-// ─── Admin / Gerente generic tabs ─────────────────────────────────────────────
+// ─── Admin generic tabs ───────────────────────────────────────────────────────
 
 function GenericTabs({ tabs, pathname, onSearchOpen }: { tabs: typeof ADMIN_TABS; pathname: string; onSearchOpen?: () => void }) {
   return (
@@ -264,14 +266,12 @@ export default function BottomNav({ user, onNewPedido, onSearchOpen }: Props) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t border-border bg-card pb-safe">
-      {user.role === 'admin' && (
+      {user.role === 'admin' ? (
         <GenericTabs tabs={ADMIN_TABS} pathname={pathname} onSearchOpen={onSearchOpen} />
-      )}
-      {user.role === 'gerente' && (
-        <GenericTabs tabs={GERENTE_TABS} pathname={pathname} onSearchOpen={onSearchOpen} />
-      )}
-      {user.role === 'agent' && (
-        <AgentNav user={user} onNewPedido={onNewPedido} onSearchOpen={onSearchOpen} />
+      ) : (
+        // agent y gerente comparten el nav optimizado para campo:
+        // Inicio / Inbox / + Pedido (FAB) / Buscar / Más
+        <FieldNav user={user} onNewPedido={onNewPedido} onSearchOpen={onSearchOpen} />
       )}
     </nav>
   )

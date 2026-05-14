@@ -28,6 +28,17 @@ type NavGroup = {
 
 const ALL_ROLES: Role[] = ['admin', 'gerente', 'agent']
 
+// Reglas de visibilidad por rol acordadas con el usuario:
+//   - Agente: Pipeline, Inbox, Pedidos, Clientes, Dashboard, Morosos.
+//   - Gerente: mismo menú que el agente. Las restricciones de qué datos ve
+//     dentro de cada sección se aplican en el backend (filtros por territorio
+//     y por agente). Sin items de admin (Productos / Stock / Territorios /
+//     Metas / Config / Empresa / Sistema).
+//   - Admin: todo.
+//
+// Productos no aparece para agente/gerente porque su único caso de uso es
+// elegirlos al cargar un pedido, y eso se hace desde el modal — no necesitan
+// la vista de listado.
 const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Operación',
@@ -41,9 +52,9 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Maestros',
     items: [
       { href: '/crm/clientes', label: 'Clientes', icon: Users, roles: ALL_ROLES },
-      { href: '/crm/productos', label: 'Productos', icon: Package, roles: ALL_ROLES },
-      { href: '/stock', label: 'Stock', icon: Boxes, roles: ALL_ROLES },
-      { href: '/territorios', label: 'Territorios', icon: Map, roles: ['admin', 'gerente'] },
+      { href: '/crm/productos', label: 'Productos', icon: Package, roles: ['admin'] },
+      { href: '/stock', label: 'Stock', icon: Boxes, roles: ['admin'] },
+      { href: '/territorios', label: 'Territorios', icon: Map, roles: ['admin'] },
     ],
   },
   {
@@ -51,8 +62,8 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'gerente'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin'] },
-      { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
-      { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ['admin', 'gerente'] },
+      { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin'] },
+      { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
   },
   {
