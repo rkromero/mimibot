@@ -23,8 +23,11 @@ async function canAccessPedido(
 
   if (ctx.role === 'admin') return pedido
 
+  // Regla acordada con el usuario: el agente solo accede al pedido si el
+  // cliente sigue asignado a él HOY. Si reasignan al cliente, el agente
+  // original pierde acceso al pedido (aunque siga siendo el vendedorId
+  // original a efectos históricos de metas).
   if (ctx.role === 'agent') {
-    if (pedido.vendedorId === ctx.userId) return pedido
     const cliente = await db.query.clientes.findFirst({
       where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
       columns: { id: true },

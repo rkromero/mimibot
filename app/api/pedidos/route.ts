@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, clientes, users } from '@/db/schema'
-import { eq, and, or, inArray, isNull } from 'drizzle-orm'
+import { eq, and, inArray, isNull } from 'drizzle-orm'
 import { createPedidoSchema } from '@/lib/validations/pedidos'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
     const clienteId = searchParams.get('clienteId') ?? undefined
     const estado = searchParams.get('estado') ?? undefined
     const estadoPago = searchParams.get('estadoPago') ?? undefined
+    // Selector "Ver por agente" para gerente/admin (filtra por clientes
+    // asignados a ese agente, no por pedidos.vendedorId — así el filtro
+    // refleja el estado actual de la asignación, no el histórico).
+    const filterVendedorId = searchParams.get('vendedorId') ?? undefined
 
     const rows = await db
       .select({
@@ -43,22 +47,24 @@ export async function GET(req: NextRequest) {
           isNull(clientes.deletedAt) as ReturnType<typeof eq>,
         ]
 
+        // Regla acordada con el usuario: el agente SOLO ve pedidos cuyo
+        // cliente sigue asignado a él HOY. Si reasignan al cliente a otro
+        // agente, los pedidos viejos desaparecen de su vista (aunque él
+        // siga siendo el `vendedorId` original a efectos de metas).
+        // Por eso el filtro es por `clientes.asignadoA`, no por
+        // `pedidos.vendedorId`.
         if (ctx.role === 'agent') {
-          const agentConditions: ReturnType<typeof eq>[] = [
-            eq(pedidos.vendedorId, ctx.userId),
-          ]
-          if (ctx.territoriosActivos.length > 0) {
-            // Also see pedidos from clients in their territories
-            agentConditions.push(
-              inArray(clientes.territorioId, ctx.territoriosActivos) as ReturnType<typeof eq>,
-            )
-          }
-          conditions.push(or(...agentConditions) as ReturnType<typeof eq>)
+          conditions.push(eq(clientes.asignadoA, ctx.userId))
         } else if (ctx.role === 'gerente') {
           if (ctx.territoriosGestionados.length === 0) return and(...conditions)
           conditions.push(
             inArray(clientes.territorioId, ctx.territoriosGestionados) as ReturnType<typeof eq>,
           )
+          if (filterVendedorId && ctx.agentesVisibles.includes(filterVendedorId)) {
+            conditions.push(eq(clientes.asignadoA, filterVendedorId) as ReturnType<typeof eq>)
+          }
+        } else if (ctx.role === 'admin' && filterVendedorId) {
+          conditions.push(eq(clientes.asignadoA, filterVendedorId) as ReturnType<typeof eq>)
         }
 
         if (clienteId) conditions.push(eq(pedidos.clienteId, clienteId))
