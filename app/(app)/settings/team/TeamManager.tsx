@@ -15,7 +15,7 @@ export default function TeamManager({ initialUsers }: Props) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' as 'admin' | 'agent' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' as 'admin' | 'agent' | 'gerente' })
 
   async function toggleActive(userId: string, current: boolean) {
     const res = await fetch(`/api/users/${userId}`, {
@@ -65,7 +65,7 @@ export default function TeamManager({ initialUsers }: Props) {
           onClick={() => setShowForm((v) => !v)}
           className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-100"
         >
-          Crear agente
+          {showForm ? 'Cancelar' : 'Crear usuario'}
         </button>
       </div>
 
@@ -113,10 +113,11 @@ export default function TeamManager({ initialUsers }: Props) {
               <label className="block text-xs text-muted-foreground mb-1">Rol</label>
               <select
                 value={newUser.role}
-                onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as 'admin' | 'agent' }))}
+                onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' }))}
                 className={inputClass}
               >
                 <option value="agent">Agente</option>
+                <option value="gerente">Gerente</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
