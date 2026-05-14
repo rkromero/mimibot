@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { db, type Db } from '@/db'
-import { leads, clientes } from '@/db/schema'
+import { leads, clientes, territorioAgente } from '@/db/schema'
 import { NotFoundError } from '@/lib/errors'
 
 type DrizzleDb = Db
@@ -60,6 +60,23 @@ export async function convertirLeadACliente(
       const nombre = nameParts[0] ?? contact.name
       const apellido = nameParts.slice(1).join(' ') || '-'
 
+      // Heredar el territorio del agente asignado: si el lead tiene un agente,
+      // buscamos algún territorio activo donde ese agente esté asignado y se
+      // lo seteamos al cliente. Si el agente está en varios, tomamos el
+      // primero (heurística simple). Si no hay agente o no tiene territorio,
+      // queda en null y un admin lo asigna después.
+      let territorioId: string | null = null
+      if (lead.assignedTo) {
+        const territorioRow = await tx.query.territorioAgente.findFirst({
+          where: and(
+            eq(territorioAgente.agenteId, lead.assignedTo),
+            isNull(territorioAgente.fechaDesasignacion),
+          ),
+          columns: { territorioId: true },
+        })
+        territorioId = territorioRow?.territorioId ?? null
+      }
+
       // Create new cliente from lead data
       const [created] = await tx
         .insert(clientes)
@@ -70,6 +87,7 @@ export async function convertirLeadACliente(
           telefono: contact.phone ?? undefined,
           origen: 'convertido_de_lead',
           leadId,
+          territorioId: territorioId ?? undefined,
           asignadoA: lead.assignedTo ?? undefined,
           creadoPor: userId,
         })

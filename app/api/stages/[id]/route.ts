@@ -10,6 +10,12 @@ import { toApiError, NotFoundError, ValidationError } from '@/lib/errors'
 const updateStageSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  // isWon e isTerminal son flags admin-only que controlan el comportamiento
+  // de cierre y conversión a cliente. Útiles para corregir un seed antiguo
+  // donde "Cerrado Ganado" quedó con isWon=false y por eso no disparaba la
+  // creación del cliente al mover un lead a esa etapa.
+  isWon: z.boolean().optional(),
+  isTerminal: z.boolean().optional(),
 })
 
 export async function PATCH(
@@ -35,6 +41,8 @@ export async function PATCH(
       const updates: Partial<typeof pipelineStages.$inferInsert> = { updatedAt: new Date() }
       if (parsed.data.name !== undefined) updates.name = parsed.data.name
       if (parsed.data.color !== undefined) updates.color = parsed.data.color
+      if (parsed.data.isWon !== undefined) updates.isWon = parsed.data.isWon
+      if (parsed.data.isTerminal !== undefined) updates.isTerminal = parsed.data.isTerminal
 
       const [updated] = await db
         .update(pipelineStages)
