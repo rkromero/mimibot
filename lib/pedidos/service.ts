@@ -14,6 +14,25 @@ function addDecimals(a: string, b: string): string {
 
 // ─── Crear pedido con items ────────────────────────────────────────────────────
 
+/**
+ * Crea un pedido + items en una sola transacción y lo deja directamente en
+ * estado `confirmado`. Esto incluye:
+ *
+ *   - validar productos activos
+ *   - calcular total
+ *   - insertar el pedido (estado='confirmado', saldoPendiente=total)
+ *   - insertar los items con snapshot de precio
+ *   - insertar movimiento de cuenta corriente (débito por el total)
+ *   - generar movimientos de stock (salida por cada item)
+ *
+ * Después del commit, aplica saldo a favor del cliente si tiene crédito,
+ * y re-fetchea el pedido para reflejar el estado de pago final.
+ *
+ * Se eliminó el paso intermedio `pendiente` porque agregaba fricción al
+ * vendedor en campo (un toque más sin valor de negocio). La función
+ * `confirmarPedido` queda como compatibilidad para pedidos viejos que
+ * estuvieran en pendiente, pero ya no se usa para flujos nuevos.
+ */
 export async function crearPedidoConItems(
   clienteId: string,
   vendedorId: string,
@@ -21,9 +40,13 @@ export async function crearPedidoConItems(
   observaciones: string | null | undefined,
   items: Array<{ productoId: string; cantidad: number }>,
   drizzleDb: Db = db,
-  extra?: { creadoPor?: string | null; territorioIdImputado?: string | null },
+  extra?: { creadoPor?: string | null; territorioIdImputado?: string | null; registradoPor?: string | null },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
-  return drizzleDb.transaction(async (tx) => {
+  // `registradoPor` es quien deja la huella en CC y stock_movements.
+  // Si no se pasa explícitamente, cae al vendedor (caso agent crea su pedido).
+  const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
+
+  const { pedidoCreado, insertedItems, totalCalculado } = await drizzleDb.transaction(async (tx) => {
     // 1. Fetch productos by IDs to get current prices
     const productoIds = items.map((i) => i.productoId)
     const productosRows = await tx.query.productos.findMany({
@@ -48,7 +71,19 @@ export async function crearPedidoConItems(
 
     const fechaDate = fecha ? new Date(fecha) : new Date()
 
-    // 3. Insert pedido (estado=pendiente, total=0 — will be set on confirm)
+    // Pre-calculate item rows and total before inserting the pedido, so we can
+    // store the right total + saldoPendiente from the start.
+    const itemsBase = items.map((item) => {
+      const producto = productosMap.get(item.productoId)!
+      const precioUnitario = producto.precio
+      const subtotal = (parseFloat(precioUnitario) * item.cantidad).toFixed(2)
+      return { productoId: item.productoId, cantidad: item.cantidad, precioUnitario, subtotal }
+    })
+    const totalCalculado = itemsBase
+      .reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
+      .toFixed(2)
+
+    // 2. Insert pedido directly as confirmed
     const [pedido] = await tx
       .insert(pedidos)
       .values({
@@ -57,48 +92,81 @@ export async function crearPedidoConItems(
         creadoPor: extra?.creadoPor ?? null,
         territorioIdImputado: extra?.territorioIdImputado ?? null,
         fecha: fechaDate,
-        estado: 'pendiente',
-        total: '0',
+        estado: 'confirmado',
+        total: totalCalculado,
         montoPagado: '0',
-        saldoPendiente: '0',
+        saldoPendiente: totalCalculado,
         estadoPago: 'impago',
         observaciones: observaciones ?? null,
       })
       .returning()
 
-    // 4. Insert pedido_items with precio_unitario snapshot
-    const itemsToInsert = items.map((item) => {
-      const producto = productosMap.get(item.productoId)!
-      const precioUnitario = producto.precio
-      const subtotal = (parseFloat(precioUnitario) * item.cantidad).toFixed(2)
-
-      return {
-        pedidoId: pedido!.id,
-        productoId: item.productoId,
-        cantidad: item.cantidad,
-        precioUnitario,
-        subtotal,
-      }
-    })
-
+    // 3. Insert pedido_items with the pedidoId we now have
     const insertedItems = await tx
       .insert(pedidoItems)
-      .values(itemsToInsert)
+      .values(itemsBase.map(i => ({ ...i, pedidoId: pedido!.id })))
       .returning()
 
-    // 5. Update pedido total (pre-calculated for display; saldoPendiente stays 0 until confirm)
-    const totalCalculado = itemsToInsert
-      .reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
-      .toFixed(2)
+    // 4. Insert débito en cuenta corriente por el total del pedido
+    await tx.insert(movimientosCC).values({
+      clienteId,
+      tipo: 'debito',
+      monto: totalCalculado,
+      pedidoId: pedido!.id,
+      fecha: new Date(),
+      descripcion: `Pedido confirmado #${pedido!.id.slice(0, 8)}`,
+      registradoPor,
+    })
 
-    await tx
-      .update(pedidos)
-      .set({ total: totalCalculado })
-      .where(eq(pedidos.id, pedido!.id))
+    // 5. Insertar salidas de stock por cada item (saldo resultante = saldo anterior - cantidad)
+    for (const item of insertedItems) {
+      const [latest] = await tx
+        .select({ saldo: stockMovements.saldoResultante })
+        .from(stockMovements)
+        .where(eq(stockMovements.productoId, item.productoId))
+        .orderBy(sql`${stockMovements.createdAt} DESC`)
+        .limit(1)
 
-    // 6. Return pedido with items and corrected total
-    return { ...pedido!, total: totalCalculado, items: insertedItems }
+      const saldoActual = latest?.saldo ?? 0
+      await tx.insert(stockMovements).values({
+        productoId: item.productoId,
+        tipo: 'salida',
+        cantidad: item.cantidad,
+        saldoResultante: saldoActual - item.cantidad,
+        pedidoId: pedido!.id,
+        referencia: `Pedido #${pedido!.id.slice(0, 8)}`,
+        registradoPor,
+      })
+    }
+
+    return { pedidoCreado: pedido!, insertedItems, totalCalculado }
   })
+
+  // 6. Aplicar saldo a favor del cliente fuera de la transacción principal
+  //    (mismo patrón que confirmarPedido). Si falla, no rompe la creación.
+  try {
+    await aplicarSaldoAFavorAPedido(
+      clienteId,
+      pedidoCreado.id,
+      drizzleDb,
+      registradoPor,
+    )
+  } catch {
+    console.warn(
+      `[crearPedidoConItems] No se pudo aplicar saldo a favor al pedido ${pedidoCreado.id}`,
+    )
+  }
+
+  // 7. Re-fetch pedido para reflejar cualquier aplicación de saldo a favor
+  const finalPedido = await drizzleDb.query.pedidos.findFirst({
+    where: eq(pedidos.id, pedidoCreado.id),
+  })
+
+  return {
+    ...(finalPedido ?? pedidoCreado),
+    total: totalCalculado,
+    items: insertedItems,
+  }
 }
 
 // ─── Confirmar pedido ─────────────────────────────────────────────────────────

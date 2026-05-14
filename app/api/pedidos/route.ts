@@ -160,7 +160,14 @@ export async function POST(req: NextRequest) {
       input.observaciones ?? null,
       input.items,
       db,
-      { creadoPor, territorioIdImputado },
+      {
+        creadoPor,
+        territorioIdImputado,
+        // Quien queda registrado como autor del débito de CC y los stock
+        // movements es siempre el usuario logueado (la sesión actual),
+        // independientemente de a qué vendedor se le acredite la venta.
+        registradoPor: session.user.id,
+      },
     )
 
     return NextResponse.json({ data: pedido }, { status: 201 })
