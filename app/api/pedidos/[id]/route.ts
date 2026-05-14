@@ -77,7 +77,23 @@ export async function GET(
 
     if (!pedido) throw new NotFoundError('Pedido')
 
-    return NextResponse.json({ data: pedido })
+    // Flatten cliente + vendedor a campos planos (clienteNombre, vendedorNombre,
+    // etc.) para que coincida con el contrato que espera el frontend
+    // (PedidoDetail.tsx) y con el formato que ya devuelve GET /api/pedidos.
+    const cliente = pedido.cliente as { nombre: string; apellido: string; telefono: string | null; cuit: string | null } | null
+    const vendedor = pedido.vendedor as { id: string; name: string | null; avatarColor: string } | null
+
+    return NextResponse.json({
+      data: {
+        ...pedido,
+        clienteNombre: cliente?.nombre ?? null,
+        clienteApellido: cliente?.apellido ?? null,
+        clienteTelefono: cliente?.telefono ?? null,
+        clienteCuit: cliente?.cuit ?? null,
+        vendedorNombre: vendedor?.name ?? null,
+        vendedorAvatarColor: vendedor?.avatarColor ?? null,
+      },
+    })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
