@@ -5,7 +5,7 @@ import Link from 'next/link'
 import PeriodoSelector from './PeriodoSelector'
 import EquipoResumen from './EquipoResumen'
 import VendedoresGrid from './VendedoresGrid'
-import RankingSection from './RankingSection'
+import RankingSection, { type GerenteEquipo } from './RankingSection'
 import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
 
@@ -71,16 +71,19 @@ export default function AdminDashboard({
   const [gerentes, setGerentes] = useState<GerenteUser[]>([])
   const [avances, setAvances] = useState<MetaAvance[] | null>(null)
   const [users, setUsers] = useState<User[] | null>(null)
+  const [equipos, setEquipos] = useState<GerenteEquipo[]>([])
+  const [rankingMode, setRankingMode] = useState<'vendedor' | 'gerente'>('vendedor')
   const [selectedVendedorId, setSelectedVendedorId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Load static filter options once
+  // Load static filter options + equipos por gerente (para el toggle "Por gerente")
   useEffect(() => {
     void Promise.all([
       fetch('/api/territorios').then(async (r) => r.ok ? ((await r.json()) as { data: Territorio[] }).data : []),
       fetch('/api/users?role=gerente').then(async (r) => r.ok ? ((await r.json()) as { data: GerenteUser[] }).data : []),
-    ]).then(([t, g]) => { setTerritorios(t); setGerentes(g) })
+      fetch('/api/admin/gerentes-equipos').then(async (r) => r.ok ? ((await r.json()) as { data: GerenteEquipo[] }).data : []),
+    ]).then(([t, g, eq]) => { setTerritorios(t); setGerentes(g); setEquipos(eq) })
   }, [])
 
   const fetchData = useCallback(async (a: number, m: number, tid: string, gid: string) => {
@@ -196,7 +199,13 @@ export default function AdminDashboard({
             mes={mes}
           />
           <EquipoResumen avances={avances} />
-          <RankingSection avances={avances} users={users} />
+          <RankingSection
+            avances={avances}
+            users={users}
+            equipos={equipos}
+            modo={rankingMode}
+            onModoChange={setRankingMode}
+          />
           <VendedoresGrid
             avances={avances}
             users={users}
