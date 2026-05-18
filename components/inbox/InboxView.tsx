@@ -35,17 +35,36 @@ export default function InboxView({ user }: Props) {
   const [mobileView, setMobileView] = useState<'list' | 'conversation'>('list')
   const [qrOpen, setQrOpen] = useState(false)
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ['inbox', filter],
-    queryFn: async () => {
-      const res = await fetch(`/api/inbox?filter=${filter}`)
-      if (!res.ok) throw new Error('Error al cargar inbox')
-      const json = await res.json() as { data: InboxItem[] }
-      return json.data
-    },
+  const fetchFilter = async (f: Filter): Promise<InboxItem[]> => {
+    const res = await fetch(`/api/inbox?filter=${f}`)
+    if (!res.ok) throw new Error('Error al cargar inbox')
+    const json = await res.json() as { data: InboxItem[] }
+    return json.data
+  }
+
+  const { data: mineData = [], isLoading: loadingMine } = useQuery({
+    queryKey: ['inbox', 'mine'],
+    queryFn: () => fetchFilter('mine'),
     refetchOnWindowFocus: false,
     staleTime: 15_000,
   })
+  const { data: unassignedData = [], isLoading: loadingUnassigned } = useQuery({
+    queryKey: ['inbox', 'unassigned'],
+    queryFn: () => fetchFilter('unassigned'),
+    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+  })
+  const { data: allData = [], isLoading: loadingAll } = useQuery({
+    queryKey: ['inbox', 'all'],
+    queryFn: () => fetchFilter('all'),
+    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+  })
+
+  const dataMap: Record<Filter, InboxItem[]> = { mine: mineData, unassigned: unassignedData, all: allData }
+  const items = dataMap[filter]
+  const isLoading = loadingMine || loadingUnassigned || loadingAll
+  const counts: Record<Filter, number> = { mine: mineData.length, unassigned: unassignedData.length, all: allData.length }
 
   // SSE para actualizar inbox en tiempo real
   useEffect(() => {
@@ -57,6 +76,7 @@ export default function InboxView({ user }: Props) {
   }, [queryClient])
 
   const totalUnread = items.reduce((sum, i) => sum + (i.unreadCount ?? 0), 0)
+  const formatCount = (n: number) => (n > 99 ? '99+' : String(n))
 
   function handleCloseLead() {
     setSelectedLeadId(null)
@@ -127,7 +147,6 @@ export default function InboxView({ user }: Props) {
               { key: 'all' as Filter, label: 'Todos' },
             ] as const).map(({ key, label }) => {
               const isActive = filter === key
-              const unread = isActive ? totalUnread : 0
               return (
                 <button
                   key={key}
@@ -140,11 +159,16 @@ export default function InboxView({ user }: Props) {
                   )}
                 >
                   {label}
-                  {isActive && unread > 0 && (
-                    <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums">
-                      {unread > 99 ? '99+' : unread}
-                    </span>
-                  )}
+                  <span
+                    className={cn(
+                      'ml-0.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-medium tabular-nums',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {formatCount(counts[key])}
+                  </span>
                 </button>
               )
             })}

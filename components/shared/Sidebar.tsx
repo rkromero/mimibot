@@ -130,8 +130,8 @@ export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOp
 
       <nav className="flex-1 py-2 px-2 overflow-y-auto" aria-label="Navegación principal">
         {groups.map((group, gi) => (
-          <div key={group.label} className={cn('pb-1', gi > 0 && 'pt-3')}>
-            <p className="px-2.5 pb-0.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <div key={group.label} className={cn('pb-1', gi > 0 && 'pt-5')}>
+            <p className="px-2.5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               {group.label}
             </p>
             <div className="space-y-0.5">
