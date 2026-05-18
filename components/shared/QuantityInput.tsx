@@ -113,7 +113,7 @@ export default function QuantityInput({
           <button
             onClick={increment}
             disabled={qty >= produto.stockActual}
-            className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 active:scale-95 transition-all"
+            className="w-14 h-14 rounded-full border border-border flex items-center justify-center text-primary disabled:opacity-40 active:scale-95 transition-all"
             aria-label="Aumentar cantidad"
           >
             <Plus size={20} />

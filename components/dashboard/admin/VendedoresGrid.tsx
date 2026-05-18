@@ -108,23 +108,15 @@ export default function VendedoresGrid({
 
   const proyeccionGeneral = (a: MetaAvance): number => {
     const values = [
-      a.clientesNuevos.proyeccion,
-      a.pedidos.proyeccion,
-      a.montoCobrado.proyeccion,
-      a.conversionLeads.proyeccion,
+      { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
+      { v: a.pedidos.proyeccion, obj: a.meta.pedidosObjetivo },
+      { v: a.montoCobrado.proyeccion, obj: parseFloat(a.meta.montoCobradoObjetivo) },
+      { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
     ]
-    const pcts = values.map((v, i) => {
-      const obj =
-        i === 0
-          ? a.meta.clientesNuevosObjetivo
-          : i === 1
-            ? a.meta.pedidosObjetivo
-            : i === 2
-              ? parseFloat(a.meta.montoCobradoObjetivo)
-              : parseFloat(a.meta.conversionLeadsObjetivo)
-      return obj > 0 ? Math.round((v / obj) * 100) : 100
-    })
-    return Math.round(pcts.reduce((s, p) => s + p, 0) / pcts.length)
+    const pcts = values.map(({ v, obj }) =>
+      obj > 0 ? Math.min(Math.round((v / obj) * 100), 999) : 100,
+    )
+    return Math.min(Math.round(pcts.reduce((s, p) => s + p, 0) / pcts.length), 999)
   }
 
   return (
@@ -212,7 +204,7 @@ export default function VendedoresGrid({
                             : 'text-red-600'
                       }`}
                     >
-                      {proy}%
+                      {proy >= 999 ? '>999' : proy}%
                     </span>
                     <div className="h-1 w-full rounded-full bg-gray-100 mt-0.5">
                       <div

@@ -118,10 +118,10 @@ export default function EmpresaConfigForm() {
         />
       </div>
 
-      {/* Direccion */}
+      {/* Dirección */}
       <div className="space-y-1.5">
         <label htmlFor="direccion" className="block text-sm font-medium text-foreground">
-          Direccion
+          Dirección
         </label>
         <input
           id="direccion"
@@ -137,10 +137,10 @@ export default function EmpresaConfigForm() {
         />
       </div>
 
-      {/* Telefono */}
+      {/* Teléfono */}
       <div className="space-y-1.5">
         <label htmlFor="telefono" className="block text-sm font-medium text-foreground">
-          Telefono
+          Teléfono
         </label>
         <input
           id="telefono"
@@ -193,7 +193,7 @@ export default function EmpresaConfigForm() {
         disabled={isPending}
         className={cn(
           'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
-          'bg-foreground text-background hover:bg-foreground/90',
+          'bg-primary text-primary-foreground hover:bg-primary/90',
           'disabled:opacity-50 disabled:cursor-not-allowed',
         )}
       >

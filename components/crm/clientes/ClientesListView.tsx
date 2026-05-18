@@ -197,7 +197,18 @@ export default function ClientesListView() {
         {/* Mobile: cards */}
         <div className="md:hidden">
           {isLoading ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Cargando clientes...</div>
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 animate-pulse">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted rounded w-2/5" />
+                    <div className="h-3 bg-muted rounded w-1/3" />
+                    <div className="h-3 bg-muted rounded w-1/4" />
+                  </div>
+                  <div className="w-5 h-5 bg-muted rounded" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               {search ? 'Sin resultados' : 'No hay clientes registrados'}
@@ -250,7 +261,26 @@ export default function ClientesListView() {
         {/* Desktop: table */}
         <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Cargando clientes...</div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  {['Nombre', 'Email', 'Teléfono', 'Origen', 'Estado'].map((h) => (
+                    <th key={h} className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="animate-pulse">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-32" /></td>
+                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-40" /></td>
+                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-24" /></td>
+                    <td className="py-2.5 px-3"><div className="h-5 bg-muted rounded-full w-14" /></td>
+                    <td className="py-2.5 px-3"><div className="h-5 bg-muted rounded-full w-16" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               {search ? 'Sin resultados para la búsqueda' : 'No hay clientes registrados'}

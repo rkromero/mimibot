@@ -4,12 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
-import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 
 type Props = {
   clienteId: string
-  showCreate: boolean
-  onCloseCreate: () => void
 }
 
 type Pedido = {
@@ -52,7 +49,7 @@ function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
-export default function PedidosTab({ clienteId, showCreate, onCloseCreate }: Props) {
+export default function PedidosTab({ clienteId }: Props) {
   const router = useRouter()
 
   const { data: pedidos = [], isLoading } = useQuery<Pedido[]>({
@@ -117,12 +114,6 @@ export default function PedidosTab({ clienteId, showCreate, onCloseCreate }: Pro
         )}
       </div>
 
-      {showCreate && (
-        <CreatePedidoModal
-          clienteId={clienteId}
-          onClose={onCloseCreate}
-        />
-      )}
     </div>
   )
 }

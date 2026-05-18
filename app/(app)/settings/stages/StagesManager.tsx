@@ -8,7 +8,7 @@ import {
   SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Pencil, Trash2, Check, X } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, Check, X, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PipelineStage } from '@/types/db'
 
@@ -86,8 +86,9 @@ export default function StagesManager({ initialStages }: Props) {
         </div>
         <button
           onClick={() => setShowNewForm(true)}
-          className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
         >
+          <Plus size={14} />
           Agregar etapa
         </button>
       </div>

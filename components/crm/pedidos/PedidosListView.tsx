@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Plus, Trash2, Download, CheckCircle } from 'lucide-react'
+import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import CreatePedidoModal from './CreatePedidoModal'
@@ -67,6 +67,18 @@ export default function PedidosListView() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    if (openMenuId) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openMenuId])
 
   const confirmMutation = useMutation({
     mutationFn: async (pedidoId: string) => {
@@ -266,9 +278,7 @@ export default function PedidosListView() {
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
                     <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pago</th>
-                    {isAdmin && (
-                      <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border" />
-                    )}
+                    <th className="py-2 px-3 border-b border-border w-10" />
                   </tr>
                 </thead>
                 <tbody>
@@ -317,20 +327,40 @@ export default function PedidosListView() {
                           {estadoPagoLabels[p.estadoPago]}
                         </span>
                       </td>
-                      {isAdmin && (
-                        <td className="py-2.5 px-3">
+                      <td className="py-2.5 px-3">
+                        <div className="relative flex justify-end" ref={openMenuId === p.id ? menuRef : undefined}>
                           <button
-                            onClick={() => {
-                              setDeleteError(null)
-                              setDeletingPedido(p)
-                            }}
-                            className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                            title="Eliminar pedido"
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === p.id ? null : p.id) }}
+                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                            title="Acciones"
                           >
-                            <Trash2 size={14} />
+                            <MoreVertical size={14} />
                           </button>
-                        </td>
-                      )}
+                          {openMenuId === p.id && (
+                            <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-border bg-card shadow-lg py-1">
+                              <button
+                                onClick={() => { setOpenMenuId(null); router.push(`/crm/pedidos/${p.id}`) }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                              >
+                                <Eye size={13} className="text-muted-foreground" />
+                                Ver pedido
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <div className="border-t border-border my-1" />
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); setDeleteError(null); setDeletingPedido(p) }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                                  >
+                                    <Trash2 size={13} />
+                                    Eliminar
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Minus, Trash2, CheckCircle, Package } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Minus, Trash2, CheckCircle, Package, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -9,7 +9,6 @@ import { useSession } from 'next-auth/react'
 import { format, addDays } from 'date-fns'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 import Stepper from '@/components/shared/Stepper'
-import SearchSheet from '@/components/shared/SearchSheet'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
 import { pedidoConfirmadoMessage } from '@/lib/whatsapp/messages'
@@ -52,7 +51,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const [selectedClienteId, setSelectedClienteId] = useState(clienteId ?? '')
   const [items, setItems] = useState<SelectedItem[]>([])
   const [showProductSheet, setShowProductSheet] = useState(false)
-  const [showClientSearch, setShowClientSearch] = useState(!clienteId)
+  const [clienteQuery, setClienteQuery] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [successData, setSuccessData] = useState<SuccessData | null>(null)
   const [showCobrar, setShowCobrar] = useState(false)
@@ -268,36 +267,74 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
 
           {/* ---- STEP 0: Cliente ---- */}
           {step === 0 && (
-            <>
-              <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4 text-center">
-                <p className="text-sm text-muted-foreground">Seleccioná un cliente para continuar</p>
-                {!showClientSearch && (
-                  <button
-                    onClick={() => setShowClientSearch(true)}
-                    className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold"
-                  >
-                    Buscar cliente
-                  </button>
-                )}
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Search input */}
+              <div className="px-4 pt-3 pb-2 shrink-0">
+                <div className="flex items-center gap-2 border border-border rounded-xl px-3 py-2.5 bg-muted">
+                  <Search size={16} className="text-muted-foreground shrink-0" />
+                  <input
+                    autoFocus
+                    value={clienteQuery}
+                    onChange={(e) => setClienteQuery(e.target.value)}
+                    placeholder="Buscar cliente..."
+                    className="flex-1 text-[16px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+                    inputMode="search"
+                  />
+                  {clienteQuery && (
+                    <button
+                      onClick={() => setClienteQuery('')}
+                      className="p-1 text-muted-foreground"
+                      aria-label="Limpiar búsqueda"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <SearchSheet
-                open={showClientSearch}
-                onClose={() => setShowClientSearch(false)}
-                items={clientes.map(c => ({
-                  id: c.id,
-                  label: `${c.nombre} ${c.apellido}`,
-                  sublabel: undefined,
-                }))}
-                onSelect={(id) => {
-                  setSelectedClienteId(id)
-                  setShowClientSearch(false)
-                  setStep(1)
-                }}
-                isLoading={clientesLoading}
-                placeholder="Buscar cliente..."
-              />
-            </>
+              {/* Client list */}
+              <div className="flex-1 overflow-y-auto px-4 pb-4">
+                {clientesLoading ? (
+                  <div className="space-y-2 pt-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="animate-pulse bg-muted h-14 rounded-xl" />
+                    ))}
+                  </div>
+                ) : (() => {
+                  const q = clienteQuery.toLowerCase().trim()
+                  const filtered = q
+                    ? clientes.filter((c) =>
+                        `${c.nombre} ${c.apellido}`.toLowerCase().includes(q),
+                      )
+                    : clientes
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Sin resultados
+                      </p>
+                    )
+                  }
+                  return (
+                    <div className="space-y-0.5 pt-1">
+                      {filtered.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedClienteId(c.id)
+                            setStep(1)
+                          }}
+                          className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent transition-colors min-h-[56px] text-left"
+                        >
+                          <span className="text-base font-medium text-foreground">
+                            {c.nombre} {c.apellido}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
           )}
 
           {/* ---- STEP 1: Productos ---- */}

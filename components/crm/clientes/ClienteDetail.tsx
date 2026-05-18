@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
+import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { buildWhatsappLink } from '@/lib/whatsapp/messages'
@@ -671,11 +672,7 @@ export default function ClienteDetail({ id }: Props) {
             />
           </div>
           <div className="lg:col-span-3 space-y-6">
-            <PedidosTab
-              clienteId={id}
-              showCreate={showCreatePedido}
-              onCloseCreate={() => setShowCreatePedido(false)}
-            />
+            <PedidosTab clienteId={id} />
             <CuentaCorrienteTab
               clienteId={id}
               clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
@@ -695,11 +692,7 @@ export default function ClienteDetail({ id }: Props) {
             asignadoA={cliente.asignadoA}
             agents={agents}
           />
-          <PedidosTab
-            clienteId={id}
-            showCreate={showCreatePedido}
-            onCloseCreate={() => setShowCreatePedido(false)}
-          />
+          <PedidosTab clienteId={id} />
           <CuentaCorrienteTab
             clienteId={id}
             clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
@@ -728,6 +721,13 @@ export default function ClienteDetail({ id }: Props) {
             Cancelar
           </button>
         </div>
+      )}
+
+      {showCreatePedido && (
+        <CreatePedidoModal
+          clienteId={id}
+          onClose={() => setShowCreatePedido(false)}
+        />
       )}
 
       {showDeleteModal && (

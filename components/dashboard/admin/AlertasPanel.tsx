@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, AlertTriangle, AlertCircle } from 'lucide-react'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 
@@ -130,14 +130,16 @@ export default function AlertasPanel({
       {alertas.map((alerta) => (
         <div
           key={alerta.id}
-          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+          className={`flex items-start gap-3 rounded-lg border-y border-r border-l-4 px-4 py-3 text-sm ${
             alerta.tipo === 'danger'
-              ? 'bg-red-50 border-red-200 text-red-800'
-              : 'bg-amber-50 border-amber-200 text-amber-800'
+              ? 'bg-red-50 border-red-200 border-l-red-500 text-red-800 dark:bg-red-950/30 dark:border-red-900 dark:border-l-red-500 dark:text-red-300'
+              : 'bg-amber-50 border-amber-200 border-l-amber-500 text-amber-800 dark:bg-amber-950/30 dark:border-amber-900 dark:border-l-amber-500 dark:text-amber-300'
           }`}
         >
           <span className="mt-0.5 shrink-0">
-            {alerta.tipo === 'danger' ? '!' : '⚠'}
+            {alerta.tipo === 'danger'
+              ? <AlertCircle size={15} />
+              : <AlertTriangle size={15} />}
           </span>
           <span className="flex-1">{alerta.mensaje}</span>
           <button

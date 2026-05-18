@@ -179,204 +179,148 @@ export default function BusinessConfigForm() {
     )
   }
 
+  const cardClass = 'bg-card border border-border rounded-lg p-5 space-y-4'
+
   return (
-    <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-8">
+    <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-6 max-w-4xl">
 
-      {/* Section: Cliente Nuevo */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Cliente Nuevo</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Criterios para clasificar un cliente como nuevo.
-          </p>
+      {/* 2-column grid for config sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Card: Cliente Nuevo */}
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Cliente Nuevo</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Criterios para clasificar un cliente como nuevo.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteNuevoMinPedidos" className="block text-sm font-medium text-foreground">
+              Mínimo de pedidos
+            </label>
+            <input id="clienteNuevoMinPedidos" type="number" min={1} step={1}
+              value={form.clienteNuevoMinPedidos}
+              onChange={(e) => handleChange('clienteNuevoMinPedidos', e.target.value)}
+              className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteNuevoVentanaDias" className="block text-sm font-medium text-foreground">
+              Ventana en días
+            </label>
+            <input id="clienteNuevoVentanaDias" type="number" min={1} step={1}
+              value={form.clienteNuevoVentanaDias}
+              onChange={(e) => handleChange('clienteNuevoVentanaDias', e.target.value)}
+              className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteNuevoMontoMinimo" className="block text-sm font-medium text-foreground">
+              Monto mínimo acumulado (opcional)
+            </label>
+            <input id="clienteNuevoMontoMinimo" type="number" min={0} step={0.01}
+              value={form.clienteNuevoMontoMinimo}
+              onChange={(e) => handleChange('clienteNuevoMontoMinimo', e.target.value)}
+              placeholder="Sin mínimo de monto"
+              className={inputClass} />
+          </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="clienteNuevoMinPedidos" className="block text-sm font-medium text-foreground">
-            Mínimo de pedidos
-          </label>
-          <input
-            id="clienteNuevoMinPedidos"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clienteNuevoMinPedidos}
-            onChange={(e) => handleChange('clienteNuevoMinPedidos', e.target.value)}
-            className={inputClass}
-          />
+        {/* Card: Estado de Actividad */}
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Estado de Actividad</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Umbral de días sin pedidos para cada estado.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteActivoDias" className="block text-sm font-medium text-foreground">
+              Días para cliente activo
+            </label>
+            <input id="clienteActivoDias" type="number" min={1} step={1}
+              value={form.clienteActivoDias}
+              onChange={(e) => handleChange('clienteActivoDias', e.target.value)}
+              className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteInactivoDias" className="block text-sm font-medium text-foreground">
+              Días para inactivo
+            </label>
+            <input id="clienteInactivoDias" type="number" min={1} step={1}
+              value={form.clienteInactivoDias}
+              onChange={(e) => handleChange('clienteInactivoDias', e.target.value)}
+              className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clientePerdidoDias" className="block text-sm font-medium text-foreground">
+              Días para perdido
+            </label>
+            <input id="clientePerdidoDias" type="number" min={1} step={1}
+              value={form.clientePerdidoDias}
+              onChange={(e) => handleChange('clientePerdidoDias', e.target.value)}
+              className={inputClass} />
+          </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="clienteNuevoVentanaDias" className="block text-sm font-medium text-foreground">
-            Ventana en días
-          </label>
-          <input
-            id="clienteNuevoVentanaDias"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clienteNuevoVentanaDias}
-            onChange={(e) => handleChange('clienteNuevoVentanaDias', e.target.value)}
-            className={inputClass}
-          />
+        {/* Card: Morosidad */}
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Morosidad</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Días de deuda vencida para marcar a un cliente como moroso.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="clienteMorosoDias" className="block text-sm font-medium text-foreground">
+              Días de atraso para moroso
+            </label>
+            <input id="clienteMorosoDias" type="number" min={1} step={1}
+              value={form.clienteMorosoDias}
+              onChange={(e) => handleChange('clienteMorosoDias', e.target.value)}
+              className={inputClass} />
+          </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="clienteNuevoMontoMinimo" className="block text-sm font-medium text-foreground">
-            Monto mínimo acumulado (opcional)
-          </label>
-          <input
-            id="clienteNuevoMontoMinimo"
-            type="number"
-            min={0}
-            step={0.01}
-            value={form.clienteNuevoMontoMinimo}
-            onChange={(e) => handleChange('clienteNuevoMontoMinimo', e.target.value)}
-            placeholder="Sin mínimo de monto"
-            className={inputClass}
-          />
+        {/* Card: Alertas */}
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Alertas diarias</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Parámetros para el envío automático de alertas por email.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="alertaLeadHoras" className="block text-sm font-medium text-foreground">
+              Horas sin atender lead para alertar
+            </label>
+            <input id="alertaLeadHoras" type="number" min={1} step={1}
+              value={form.alertaLeadHoras}
+              onChange={(e) => handleChange('alertaLeadHoras', e.target.value)}
+              className={inputClass} />
+            <p className="text-xs text-muted-foreground">Si un lead no tiene contacto en estas horas, aparece en el resumen.</p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="alertaMetaDia" className="block text-sm font-medium text-foreground">
+              Día del mes para recordatorio de metas
+            </label>
+            <input id="alertaMetaDia" type="number" min={1} max={28} step={1}
+              value={form.alertaMetaDia}
+              onChange={(e) => handleChange('alertaMetaDia', e.target.value)}
+              className={inputClass} />
+            <p className="text-xs text-muted-foreground">A partir de este día del mes se incluye el recordatorio de avance de metas.</p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="alertaMetaPct" className="block text-sm font-medium text-foreground">
+              % mínimo de avance antes de alertar
+            </label>
+            <input id="alertaMetaPct" type="number" min={0} max={1} step={0.05}
+              value={form.alertaMetaPct}
+              onChange={(e) => handleChange('alertaMetaPct', e.target.value)}
+              className={inputClass} />
+            <p className="text-xs text-muted-foreground">Ejemplo: 0.5 = alerta si un vendedor lleva menos del 50%.</p>
+          </div>
         </div>
-      </section>
-
-      {/* Section: Estado de Actividad */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Estado de Actividad</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Umbral de días sin pedidos para cada estado.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="clienteActivoDias" className="block text-sm font-medium text-foreground">
-            Días para cliente activo
-          </label>
-          <input
-            id="clienteActivoDias"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clienteActivoDias}
-            onChange={(e) => handleChange('clienteActivoDias', e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="clienteInactivoDias" className="block text-sm font-medium text-foreground">
-            Días para inactivo
-          </label>
-          <input
-            id="clienteInactivoDias"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clienteInactivoDias}
-            onChange={(e) => handleChange('clienteInactivoDias', e.target.value)}
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="clientePerdidoDias" className="block text-sm font-medium text-foreground">
-            Días para perdido
-          </label>
-          <input
-            id="clientePerdidoDias"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clientePerdidoDias}
-            onChange={(e) => handleChange('clientePerdidoDias', e.target.value)}
-            className={inputClass}
-          />
-        </div>
-      </section>
-
-      {/* Section: Morosidad */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Morosidad</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Días de deuda vencida para marcar a un cliente como moroso.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="clienteMorosoDias" className="block text-sm font-medium text-foreground">
-            Días de atraso para moroso
-          </label>
-          <input
-            id="clienteMorosoDias"
-            type="number"
-            min={1}
-            step={1}
-            value={form.clienteMorosoDias}
-            onChange={(e) => handleChange('clienteMorosoDias', e.target.value)}
-            className={inputClass}
-          />
-        </div>
-      </section>
-
-      {/* Section: Alertas del job diario */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Alertas (Job Diario)</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Parámetros que usa el job <code className="text-xs bg-muted px-1 rounded">POST /api/jobs/alertas</code> para decidir qué alertas enviar por email.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="alertaLeadHoras" className="block text-sm font-medium text-foreground">
-            Horas sin atender lead para alertar
-          </label>
-          <input
-            id="alertaLeadHoras"
-            type="number"
-            min={1}
-            step={1}
-            value={form.alertaLeadHoras}
-            onChange={(e) => handleChange('alertaLeadHoras', e.target.value)}
-            className={inputClass}
-          />
-          <p className="text-xs text-muted-foreground">Si un lead no tiene contacto en estas horas, aparece en el resumen.</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="alertaMetaDia" className="block text-sm font-medium text-foreground">
-            Día del mes para recordatorio de metas
-          </label>
-          <input
-            id="alertaMetaDia"
-            type="number"
-            min={1}
-            max={28}
-            step={1}
-            value={form.alertaMetaDia}
-            onChange={(e) => handleChange('alertaMetaDia', e.target.value)}
-            className={inputClass}
-          />
-          <p className="text-xs text-muted-foreground">A partir de este día del mes se incluye el recordatorio de avance de metas.</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="alertaMetaPct" className="block text-sm font-medium text-foreground">
-            % mínimo de avance antes de alertar
-          </label>
-          <input
-            id="alertaMetaPct"
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={form.alertaMetaPct}
-            onChange={(e) => handleChange('alertaMetaPct', e.target.value)}
-            className={inputClass}
-          />
-          <p className="text-xs text-muted-foreground">Ejemplo: <code className="bg-muted px-1 rounded">0.5</code> = alerta si un vendedor lleva menos del 50%.</p>
-        </div>
-      </section>
+      </div>
 
       {/* Feedback */}
       {error && (
@@ -396,94 +340,95 @@ export default function BusinessConfigForm() {
         disabled={isPending}
         className={cn(
           'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
-          'bg-foreground text-background hover:bg-foreground/90',
+          'bg-primary text-primary-foreground hover:bg-primary/90',
           'disabled:opacity-50 disabled:cursor-not-allowed',
         )}
       >
         {isPending ? 'Guardando...' : 'Guardar cambios'}
       </button>
 
-      {/* Recalcular clientes nuevos */}
-      <section className="space-y-3 pt-4 border-t border-border">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Recalcular Clientes Nuevos</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Re-evalúa todos los clientes que aún no tienen fecha de conversión. Útil para actualizar datos históricos.
-          </p>
-        </div>
-        {recalcMsg && (
-          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-            {recalcMsg}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={recalculating}
-          onClick={() => {
-            setRecalcMsg(null)
-            setRecalculating(true)
-            void fetch('/api/admin/recalcular-clientes-nuevos', { method: 'POST' })
-              .then(async (r) => {
-                const json = (await r.json()) as { data?: { evaluated: number }; error?: string }
-                if (!r.ok) {
-                  setRecalcMsg(`Error: ${json.error ?? 'desconocido'}`)
-                } else {
-                  setRecalcMsg(`Evaluados ${json.data?.evaluated ?? 0} clientes correctamente.`)
-                }
-              })
-              .catch(() => setRecalcMsg('Error de conexión'))
-              .finally(() => setRecalculating(false))
-          }}
-          className={cn(
-            'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
-            'bg-muted text-foreground hover:bg-muted/70 border border-border',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
+      {/* Action cards: Recalcular */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Recalcular Clientes Nuevos</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Re-evalúa todos los clientes que aún no tienen fecha de conversión. Útil para actualizar datos históricos.
+            </p>
+          </div>
+          {recalcMsg && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+              {recalcMsg}
+            </p>
           )}
-        >
-          {recalculating ? 'Recalculando...' : 'Recalcular ahora'}
-        </button>
-      </section>
+          <button
+            type="button"
+            disabled={recalculating}
+            onClick={() => {
+              setRecalcMsg(null)
+              setRecalculating(true)
+              void fetch('/api/admin/recalcular-clientes-nuevos', { method: 'POST' })
+                .then(async (r) => {
+                  const json = (await r.json()) as { data?: { evaluated: number }; error?: string }
+                  if (!r.ok) {
+                    setRecalcMsg(`Error: ${json.error ?? 'desconocido'}`)
+                  } else {
+                    setRecalcMsg(`Evaluados ${json.data?.evaluated ?? 0} clientes correctamente.`)
+                  }
+                })
+                .catch(() => setRecalcMsg('Error de conexión'))
+                .finally(() => setRecalculating(false))
+            }}
+            className={cn(
+              'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
+              'bg-muted text-foreground hover:bg-muted/70 border border-border',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+            )}
+          >
+            {recalculating ? 'Recalculando...' : 'Recalcular ahora'}
+          </button>
+        </div>
 
-      {/* Recalcular estados de actividad */}
-      <section className="space-y-3 pt-4 border-t border-border">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Recalcular Estado de Actividad</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Re-evalúa el estado de actividad (activo / inactivo / perdido) de todos los clientes según los umbrales configurados arriba.
-          </p>
-        </div>
-        {recalcEstadosMsg && (
-          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-            {recalcEstadosMsg}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={recalcEstados}
-          onClick={() => {
-            setRecalcEstadosMsg(null)
-            setRecalcEstados(true)
-            void fetch('/api/admin/recalcular-estados-actividad', { method: 'POST' })
-              .then(async (r) => {
-                const json = (await r.json()) as { data?: { updated: number }; error?: string }
-                if (!r.ok) {
-                  setRecalcEstadosMsg(`Error: ${json.error ?? 'desconocido'}`)
-                } else {
-                  setRecalcEstadosMsg(`${json.data?.updated ?? 0} clientes actualizados correctamente.`)
-                }
-              })
-              .catch(() => setRecalcEstadosMsg('Error de conexión'))
-              .finally(() => setRecalcEstados(false))
-          }}
-          className={cn(
-            'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
-            'bg-muted text-foreground hover:bg-muted/70 border border-border',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
+        <div className={cardClass}>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Recalcular Estado de Actividad</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Re-evalúa el estado de actividad (activo / inactivo / perdido) de todos los clientes según los umbrales configurados arriba.
+            </p>
+          </div>
+          {recalcEstadosMsg && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+              {recalcEstadosMsg}
+            </p>
           )}
-        >
-          {recalcEstados ? 'Recalculando...' : 'Recalcular ahora'}
-        </button>
-      </section>
+          <button
+            type="button"
+            disabled={recalcEstados}
+            onClick={() => {
+              setRecalcEstadosMsg(null)
+              setRecalcEstados(true)
+              void fetch('/api/admin/recalcular-estados-actividad', { method: 'POST' })
+                .then(async (r) => {
+                  const json = (await r.json()) as { data?: { updated: number }; error?: string }
+                  if (!r.ok) {
+                    setRecalcEstadosMsg(`Error: ${json.error ?? 'desconocido'}`)
+                  } else {
+                    setRecalcEstadosMsg(`${json.data?.updated ?? 0} clientes actualizados correctamente.`)
+                  }
+                })
+                .catch(() => setRecalcEstadosMsg('Error de conexión'))
+                .finally(() => setRecalcEstados(false))
+            }}
+            className={cn(
+              'w-full sm:w-auto px-5 py-2 rounded-md text-sm font-medium transition-colors duration-100',
+              'bg-muted text-foreground hover:bg-muted/70 border border-border',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+            )}
+          >
+            {recalcEstados ? 'Recalculando...' : 'Recalcular ahora'}
+          </button>
+        </div>
+      </div>
     </form>
   )
 }

@@ -83,7 +83,7 @@ export default function EquipoResumen({ avances }: EquipoResumenProps) {
       />
       <KpiCard
         label="Conversión Promedio"
-        value={`${Math.round(avgConversion * 100) / 100}%`}
+        value={`${Number(avgConversion.toFixed(1))}%`}
       />
     </div>
   )

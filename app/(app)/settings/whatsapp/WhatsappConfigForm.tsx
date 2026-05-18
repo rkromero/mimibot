@@ -1,8 +1,47 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsappConfig } from '@/types/db'
+
+function WebhookUrlBlock() {
+  const [copied, setCopied] = useState(false)
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const url = `${base}/api/whatsapp/webhook`
+
+  function handleCopy() {
+    void navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-accent/30 px-4 py-3 space-y-1">
+      <p className="text-xs font-medium text-foreground">URL del Webhook</p>
+      <p className="text-xs text-muted-foreground">
+        Configurá esta URL en Meta como Callback URL del webhook:
+      </p>
+      <div className="flex items-center gap-2 mt-1">
+        <p className="text-xs font-mono bg-background border border-border rounded px-2 py-1 break-all flex-1">
+          {url}
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 p-1.5 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
+          title="Copiar URL"
+        >
+          {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">
+        Suscribite al campo <span className="font-mono">messages</span> en la configuración del webhook.
+      </p>
+    </div>
+  )
+}
 
 type Props = { initialConfig: WhatsappConfig | null }
 
@@ -167,18 +206,7 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
         </div>
 
         {/* Webhook URL info */}
-        <div className="rounded-md border border-border bg-accent/30 px-4 py-3 space-y-1">
-          <p className="text-xs font-medium text-foreground">URL del Webhook</p>
-          <p className="text-xs text-muted-foreground">
-            Configurá esta URL en Meta como Callback URL del webhook:
-          </p>
-          <p className="text-xs font-mono bg-background border border-border rounded px-2 py-1 mt-1 break-all">
-            {'https://<tu-dominio>/api/whatsapp/webhook'}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Suscribite al campo <span className="font-mono">messages</span> en la configuración del webhook.
-          </p>
-        </div>
+        <WebhookUrlBlock />
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 

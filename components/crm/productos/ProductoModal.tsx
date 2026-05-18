@@ -289,18 +289,18 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
 
           <div className="flex gap-2 pt-1">
             <button
-              type="submit"
-              disabled={isPending}
-              className="px-4 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {isPending ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear Producto'}
-            </button>
-            <button
               type="button"
               onClick={onClose}
               className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-4 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isPending ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear Producto'}
             </button>
           </div>
         </form>

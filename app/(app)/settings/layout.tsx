@@ -9,7 +9,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-4 px-6 h-12 border-b border-border shrink-0">
-        <h1 className="text-md font-semibold">Configuración</h1>
+        <h1 className="text-md font-semibold">Sistema</h1>
         <SettingsNav />
       </div>
       <div className="flex-1 overflow-y-auto p-6">

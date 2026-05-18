@@ -125,20 +125,29 @@ export default function InboxView({ user }: Props) {
               { key: 'mine' as Filter, label: 'Mis leads' },
               { key: 'unassigned' as Filter, label: 'Sin asignar' },
               { key: 'all' as Filter, label: 'Todos' },
-            ] as const).map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={cn(
-                  'px-2.5 py-1 text-xs rounded-md transition-colors duration-100',
-                  filter === key
-                    ? 'bg-accent text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            ] as const).map(({ key, label }) => {
+              const isActive = filter === key
+              const unread = isActive ? totalUnread : 0
+              return (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={cn(
+                    'flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors duration-100',
+                    isActive
+                      ? 'bg-accent text-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+                  )}
+                >
+                  {label}
+                  {isActive && unread > 0 && (
+                    <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
