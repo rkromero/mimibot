@@ -33,7 +33,8 @@ export default function ReasignacionMasivaView() {
   const { data: clientes = [], refetch } = useQuery<Cliente[]>({
     queryKey: ['clientes-reasignacion'],
     queryFn: async () => {
-      const res = await fetch('/api/clientes')
+      // TODO: implement cursor-based pagination for admins with >500 clients
+      const res = await fetch('/api/clientes?limit=500&sortBy=nombre&sortDir=asc')
       if (!res.ok) return []
       return (await res.json() as { data: Cliente[] }).data
     },

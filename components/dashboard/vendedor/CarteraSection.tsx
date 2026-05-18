@@ -8,29 +8,36 @@ interface Props {
   vendedorId: string
 }
 
-interface ClienteRow {
-  estadoActividad: 'activo' | 'inactivo' | 'perdido' | null
+interface CountResponse {
+  activos: number
+  inactivos: number
+  perdidos: number
 }
 
-interface ApiResponse {
-  data: ClienteRow[]
+async function fetchEstadoCount(estado: string): Promise<number> {
+  const res = await fetch(`/api/clientes?estadoActividad=${estado}&limit=1`)
+  if (!res.ok) return 0
+  const json = await res.json() as { total?: number }
+  return json.total ?? 0
 }
 
 export default function CarteraSection({ vendedorId: _ }: Props) {
-  const { data, isLoading, isError } = useQuery<ApiResponse>({
+  const { data, isLoading, isError } = useQuery<CountResponse>({
     queryKey: ['cartera-stats'],
     queryFn: async () => {
-      const res = await fetch('/api/clientes')
-      if (!res.ok) throw new Error('Error al cargar cartera')
-      return res.json() as Promise<ApiResponse>
+      const [activos, inactivos, perdidos] = await Promise.all([
+        fetchEstadoCount('activo'),
+        fetchEstadoCount('inactivo'),
+        fetchEstadoCount('perdido'),
+      ])
+      return { activos, inactivos, perdidos }
     },
     staleTime: 60_000,
   })
 
-  const clientes = data?.data ?? []
-  const activos = clientes.filter((c) => c.estadoActividad === 'activo').length
-  const inactivos = clientes.filter((c) => c.estadoActividad === 'inactivo').length
-  const perdidos = clientes.filter((c) => c.estadoActividad === 'perdido').length
+  const activos = data?.activos ?? 0
+  const inactivos = data?.inactivos ?? 0
+  const perdidos = data?.perdidos ?? 0
 
   return (
     <section className="space-y-3">

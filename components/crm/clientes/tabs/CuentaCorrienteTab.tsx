@@ -37,8 +37,13 @@ type PedidoCC = {
 }
 
 type CuentaCorrienteData = {
-  saldo: string
+  saldo: number
+  saldoLabel: string
   movimientos: Movimiento[]
+  movimientosTotal: number
+  movimientosTotalPages: number
+  movimientosPage: number
+  movimientosLimit: number
   pedidos: PedidoCC[]
 }
 
@@ -87,10 +92,13 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
     }
   }
 
+  const [ccPage, setCcPage] = useState(1)
+  const ccLimit = 50
+
   const { data, isLoading, isError } = useQuery<CuentaCorrienteData>({
-    queryKey: ['clientes', clienteId, 'cc'],
+    queryKey: ['clientes', clienteId, 'cc', ccPage],
     queryFn: async () => {
-      const res = await fetch(`/api/clientes/${clienteId}/cuenta-corriente`)
+      const res = await fetch(`/api/clientes/${clienteId}/cuenta-corriente?page=${ccPage}&limit=${ccLimit}`)
       if (!res.ok) throw new Error('Error al cargar cuenta corriente')
       const json = await res.json() as { data: CuentaCorrienteData }
       return json.data
@@ -105,7 +113,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
     return <div className="text-sm text-destructive p-2">Error al cargar cuenta corriente</div>
   }
 
-  const saldo = parseFloat(data.saldo)
+  const saldo = data.saldo
   const saldoPositivo = saldo > 0
 
   const pedidosPendientes = data.pedidos
@@ -225,6 +233,31 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
             </>
           )}
         </div>
+        {/* Pagination for movimientos */}
+        {(data.movimientosTotal ?? 0) > ccLimit && (
+          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <span>
+              {((ccPage - 1) * ccLimit + 1)}–{Math.min(ccPage * ccLimit, data.movimientosTotal)} de {data.movimientosTotal}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={ccPage <= 1}
+                onClick={() => setCcPage((p) => p - 1)}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40"
+              >
+                &#8592;
+              </button>
+              <span>{ccPage} / {data.movimientosTotalPages}</span>
+              <button
+                disabled={ccPage >= data.movimientosTotalPages}
+                onClick={() => setCcPage((p) => p + 1)}
+                className="px-2 py-1 rounded border border-border disabled:opacity-40"
+              >
+                &#8594;
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pedidos */}

@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, users, territorios } from '@/db/schema'
-import { eq, and, ilike, or, isNull, inArray } from 'drizzle-orm'
+import { eq, and, ilike, or, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
 import { createClienteSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { resolverTerritorioPorRol } from '@/lib/territorios/asignacion.service'
+import { parsePagination } from '@/lib/api/pagination'
+import type { Paginated } from '@/lib/types/pagination'
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,24 +17,27 @@ export async function GET(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
+    const { page, limit, sortBy, sortDir, search } = parsePagination(
+      req.nextUrl.searchParams,
+      { sortBy: 'createdAt', sortDir: 'desc' },
+    )
+
     const params = Object.fromEntries(req.nextUrl.searchParams)
     const filters = clienteFiltersSchema.safeParse(params)
     if (!filters.success) {
       return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
     }
-
-    const { search, asignadoA, territorioId, estadoActividad } = filters.data
+    const { asignadoA, territorioId, estadoActividad } = filters.data
 
     const conditions: ReturnType<typeof eq>[] = [
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
     ]
 
-    // Scope by role
     if (ctx.role === 'agent') {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
-        return NextResponse.json({ data: [] })
+        return NextResponse.json<Paginated<unknown>>({ data: [], page: 1, limit, total: 0, totalPages: 0 })
       }
       const scopeTerritorioId = territorioId && ctx.territoriosGestionados.includes(territorioId)
         ? [territorioId]
@@ -44,7 +49,6 @@ export async function GET(req: NextRequest) {
         conditions.push(eq(clientes.asignadoA, asignadoA))
       }
     } else {
-      // admin
       if (asignadoA) conditions.push(eq(clientes.asignadoA, asignadoA))
       if (territorioId) conditions.push(eq(clientes.territorioId, territorioId))
     }
@@ -64,6 +68,26 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(clientes)
+      .where(whereClause)
+
+    const total = countRow?.total ?? 0
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit)
+
+    const sortCol = (() => {
+      switch (sortBy) {
+        case 'nombre': return clientes.nombre
+        case 'apellido': return clientes.apellido
+        case 'email': return clientes.email
+        default: return clientes.createdAt
+      }
+    })()
+    const orderFn = sortDir === 'asc' ? asc : desc
+
     const rows = await db
       .select({
         cliente: clientes,
@@ -80,8 +104,10 @@ export async function GET(req: NextRequest) {
       .from(clientes)
       .leftJoin(users, eq(clientes.asignadoA, users.id))
       .leftJoin(territorios, eq(clientes.territorioId, territorios.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(clientes.createdAt)
+      .where(whereClause)
+      .orderBy(orderFn(sortCol))
+      .limit(limit)
+      .offset((page - 1) * limit)
 
     const data = rows.map((r) => ({
       ...r.cliente,
@@ -90,7 +116,7 @@ export async function GET(req: NextRequest) {
       territorioNombre: r.territorio?.id ? r.territorio.nombre : null,
     }))
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data, page, limit, total, totalPages })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
@@ -112,13 +138,11 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
-    // Resolve territory and agent based on role
     const { territorioId, agenteId } = await resolverTerritorioPorRol(
       ctx,
       input.territorioId,
     )
 
-    // Determine asignadoA
     let asignadoA: string | null = null
     if (ctx.role === 'agent') {
       asignadoA = ctx.userId

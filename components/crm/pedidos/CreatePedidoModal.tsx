@@ -64,16 +64,27 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const [fechaEntrega, setFechaEntrega] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
   const [observaciones, setObservaciones] = useState('')
 
-  // Fetch clientes list (for SearchSheet)
+  // Debounce the client search input (250 ms) for server-side search
+  const [debouncedQuery, setDebouncedQuery] = useState(clienteQuery)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(clienteQuery), 250)
+    return () => clearTimeout(t)
+  }, [clienteQuery])
+
   const { data: clientes = [], isLoading: clientesLoading } = useQuery<ClienteOption[]>({
-    queryKey: ['clientes-options'],
+    queryKey: ['clientes-search', debouncedQuery],
     queryFn: async () => {
-      const res = await fetch('/api/clientes')
+      const params = new URLSearchParams()
+      params.set('limit', '20')
+      params.set('sortBy', 'nombre')
+      params.set('sortDir', 'asc')
+      if (debouncedQuery.trim()) params.set('search', debouncedQuery.trim())
+      const res = await fetch(`/api/clientes?${params.toString()}`)
       if (!res.ok) return []
       const json = await res.json() as { data: ClienteOption[] }
       return json.data
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
     enabled: !clienteId,
   })
 
@@ -292,7 +303,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Client list */}
+              {/* Client list — results come from server-side search */}
               <div className="flex-1 overflow-y-auto px-4 pb-4">
                 {clientesLoading ? (
                   <div className="space-y-2 pt-2">
@@ -300,39 +311,30 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                       <div key={i} className="animate-pulse bg-muted h-14 rounded-xl" />
                     ))}
                   </div>
-                ) : (() => {
-                  const q = clienteQuery.toLowerCase().trim()
-                  const filtered = q
-                    ? clientes.filter((c) =>
-                        `${c.nombre} ${c.apellido}`.toLowerCase().includes(q),
-                      )
-                    : clientes
-                  if (filtered.length === 0) {
-                    return (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Sin resultados
-                      </p>
-                    )
-                  }
-                  return (
-                    <div className="space-y-0.5 pt-1">
-                      {filtered.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            setSelectedClienteId(c.id)
-                            setStep(1)
-                          }}
-                          className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent transition-colors min-h-[56px] text-left"
-                        >
-                          <span className="text-base font-medium text-foreground">
-                            {c.nombre} {c.apellido}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )
-                })()}
+                ) : clientes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {debouncedQuery.trim()
+                      ? 'Sin resultados para la búsqueda'
+                      : 'Empezá a escribir para buscar un cliente'}
+                  </p>
+                ) : (
+                  <div className="space-y-0.5 pt-1">
+                    {clientes.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedClienteId(c.id)
+                          setStep(1)
+                        }}
+                        className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent transition-colors min-h-[56px] text-left"
+                      >
+                        <span className="text-base font-medium text-foreground">
+                          {c.nombre} {c.apellido}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

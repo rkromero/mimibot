@@ -8,9 +8,10 @@ import { registrarPago } from '@/lib/cuenta-corriente/pago.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
+import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -26,30 +27,49 @@ export async function GET(
     })
     if (!cliente) throw new NotFoundError('Cliente')
 
-    // Fetch movements in chronological desc order
+    // Parse pagination — use "cc" prefix mentally but still simple query params
+    const { page, limit } = parsePagination(req.nextUrl.searchParams, { limit: 50 })
+
+    const whereMovimientos = and(
+      eq(movimientosCC.clienteId, id),
+      isNull(movimientosCC.deletedAt),
+    )
+
+    // Calculate saldo from ALL movements (not paginated)
+    const [saldoRow] = await db
+      .select({
+        totalDebito: sql<string>`coalesce(sum(case when tipo = 'debito' then monto::numeric else 0 end), 0)`,
+        totalCredito: sql<string>`coalesce(sum(case when tipo = 'credito' then monto::numeric else 0 end), 0)`,
+      })
+      .from(movimientosCC)
+      .where(whereMovimientos)
+
+    const saldo =
+      parseFloat(saldoRow?.totalDebito ?? '0') -
+      parseFloat(saldoRow?.totalCredito ?? '0')
+
+    // Count for pagination
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(movimientosCC)
+      .where(whereMovimientos)
+
+    const total = countRow?.total ?? 0
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit)
+
+    // Paginated movimientos
     const movimientos = await db.query.movimientosCC.findMany({
-      where: and(eq(movimientosCC.clienteId, id), isNull(movimientosCC.deletedAt)),
+      where: whereMovimientos,
       with: {
         registradoPor: { columns: { id: true, name: true } },
         pedido: { columns: { id: true, total: true, estado: true } },
       },
       orderBy: [desc(movimientosCC.fecha)],
+      limit,
+      offset: (page - 1) * limit,
     })
 
-    // Calculate saldo: positive = debe al negocio, negative = saldo a favor del cliente
-    // creditos = pagos recibidos (reducen deuda)
-    // debitos = ventas/cargos (aumentan deuda)
-    let saldo = 0
-    for (const m of movimientos) {
-      const monto = parseFloat(m.monto)
-      if (m.tipo === 'debito') {
-        saldo += monto
-      } else {
-        saldo -= monto
-      }
-    }
-
-    // Fetch pedidos with pending balance info
+    // Fetch pedidos (not paginated — typically small)
     const pedidosPendientes = await db.query.pedidos.findMany({
       where: and(eq(pedidos.clienteId, id), isNull(pedidos.deletedAt)),
       columns: {
@@ -67,6 +87,10 @@ export async function GET(
     return NextResponse.json({
       data: {
         movimientos,
+        movimientosTotal: total,
+        movimientosTotalPages: totalPages,
+        movimientosPage: page,
+        movimientosLimit: limit,
         saldo,
         saldoLabel: saldo > 0 ? 'debe' : saldo < 0 ? 'a_favor' : 'saldado',
         pedidos: pedidosPendientes,
@@ -98,7 +122,7 @@ export async function POST(
     const body: unknown = await req.json()
     const parsed = registrarPagoSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
     }
 
     const result = await registrarPago(

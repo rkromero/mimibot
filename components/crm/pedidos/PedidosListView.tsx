@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useRef, useState, useEffect } from 'react'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye } from 'lucide-react'
@@ -11,6 +11,7 @@ import CreatePedidoModal from './CreatePedidoModal'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import SwipeableListItem from '@/components/shared/SwipeableListItem'
 import { useToast } from '@/components/shared/ToastProvider'
+import DataTable from '@/components/data-table/DataTable'
 
 type Pedido = {
   id: string
@@ -58,8 +59,8 @@ export default function PedidosListView() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
-
   const toast = useToast()
+
   const [showCreate, setShowCreate] = useState(false)
   const [filterEstado, setFilterEstado] = useState('')
   const [filterEstadoPago, setFilterEstadoPago] = useState('')
@@ -90,7 +91,7 @@ export default function PedidosListView() {
       if (!res.ok) throw new Error('Error al confirmar')
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      void queryClient.invalidateQueries({ queryKey: ['/api/pedidos'] })
       toast.success('Pedido confirmado')
     },
     onError: () => {
@@ -115,21 +116,6 @@ export default function PedidosListView() {
     }
   }
 
-  const params = new URLSearchParams()
-  if (filterEstado) params.set('estado', filterEstado)
-  if (filterEstadoPago) params.set('estadoPago', filterEstadoPago)
-
-  const { data: pedidos = [], isLoading } = useQuery<Pedido[]>({
-    queryKey: ['pedidos', filterEstado, filterEstadoPago],
-    queryFn: async () => {
-      const res = await fetch(`/api/pedidos?${params}`)
-      if (!res.ok) throw new Error('Error al cargar pedidos')
-      const json = await res.json() as { data: Pedido[] }
-      return json.data
-    },
-    staleTime: 30_000,
-  })
-
   async function handleDeletePedido() {
     if (!deletingPedido) return
     setDeleteError(null)
@@ -141,7 +127,7 @@ export default function PedidosListView() {
         setDeleteError(data.error ?? 'Error al eliminar')
         return
       }
-      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      void queryClient.invalidateQueries({ queryKey: ['/api/pedidos'] })
       setDeletingPedido(null)
       toast.success('Pedido eliminado')
     } catch {
@@ -156,13 +142,116 @@ export default function PedidosListView() {
     'focus:outline-none focus:ring-1 focus:ring-ring transition-colors',
   )
 
+  const extraParams: Record<string, string> = {}
+  if (filterEstado) extraParams['estado'] = filterEstado
+  if (filterEstadoPago) extraParams['estadoPago'] = filterEstadoPago
+
+  const columns = [
+    {
+      key: 'fecha',
+      label: 'Fecha',
+      sortable: true,
+      render: (row: Pedido) => (
+        <span className="text-muted-foreground">
+          {format(new Date(row.fecha), 'dd/MM/yyyy')}
+        </span>
+      ),
+    },
+    {
+      key: 'clienteNombre',
+      label: 'Cliente',
+      sortable: true,
+      render: (row: Pedido) => (
+        <span className="font-medium text-foreground">
+          {row.clienteNombre} {row.clienteApellido}
+        </span>
+      ),
+    },
+    {
+      key: 'vendedorNombre',
+      label: 'Vendedor',
+      render: (row: Pedido) => (
+        <span className="text-muted-foreground">{row.vendedorNombre ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'estado',
+      label: 'Estado',
+      render: (row: Pedido) => (
+        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[row.estado])}>
+          {estadoLabels[row.estado]}
+        </span>
+      ),
+    },
+    {
+      key: 'total',
+      label: 'Total',
+      sortable: true,
+      headerClassName: 'text-right',
+      className: 'text-right font-medium',
+      render: (row: Pedido) => <span>{formatMoney(row.total)}</span>,
+    },
+    {
+      key: 'estadoPago',
+      label: 'Pago',
+      render: (row: Pedido) => (
+        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[row.estadoPago])}>
+          {estadoPagoLabels[row.estadoPago]}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: '',
+      headerClassName: 'w-10',
+      render: (row: Pedido) => (
+        <div
+          className="relative flex justify-end"
+          ref={openMenuId === row.id ? menuRef : undefined}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpenMenuId(openMenuId === row.id ? null : row.id)
+            }}
+            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+            title="Acciones"
+          >
+            <MoreVertical size={14} />
+          </button>
+          {openMenuId === row.id && (
+            <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-border bg-card shadow-lg py-1">
+              <button
+                onClick={() => { setOpenMenuId(null); router.push(`/crm/pedidos/${row.id}`) }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+              >
+                <Eye size={13} className="text-muted-foreground" />
+                Ver pedido
+              </button>
+              {isAdmin && (
+                <>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => { setOpenMenuId(null); setDeleteError(null); setDeletingPedido(row) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 size={13} />
+                    Eliminar
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className="p-4 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-xl font-semibold text-foreground">Pedidos</h1>
-          {/* Desktop buttons */}
           <div className="hidden md:flex items-center gap-2">
             <button
               onClick={() => void handleExport()}
@@ -182,24 +271,15 @@ export default function PedidosListView() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex items-center gap-3 mb-4">
-          <select
-            value={filterEstado}
-            onChange={(e) => setFilterEstado(e.target.value)}
-            className={selectClass}
-          >
+          <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className={selectClass}>
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
             <option value="confirmado">Confirmado</option>
             <option value="entregado">Entregado</option>
             <option value="cancelado">Cancelado</option>
           </select>
-          <select
-            value={filterEstadoPago}
-            onChange={(e) => setFilterEstadoPago(e.target.value)}
-            className={selectClass}
-          >
+          <select value={filterEstadoPago} onChange={(e) => setFilterEstadoPago(e.target.value)} className={selectClass}>
             <option value="">Todos los pagos</option>
             <option value="impago">Impago</option>
             <option value="parcial">Parcial</option>
@@ -207,170 +287,67 @@ export default function PedidosListView() {
           </select>
         </div>
 
-        {isLoading ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">Cargando pedidos...</div>
-        ) : pedidos.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">No hay pedidos que mostrar</div>
-        ) : (
-          <>
-            {/* Mobile cards with swipe actions */}
-            <div className="md:hidden space-y-2 overflow-hidden rounded-xl">
-              {pedidos.map((p) => (
-                <SwipeableListItem
-                  key={p.id}
-                  leftAction={
-                    p.estado === 'pendiente'
-                      ? {
-                          label: 'Confirmar',
-                          icon: <CheckCircle size={20} />,
-                          className: 'bg-green-500 text-white',
-                          onClick: () => confirmMutation.mutate(p.id),
-                        }
-                      : undefined
-                  }
-                  rightAction={
-                    isAdmin
-                      ? {
-                          label: 'Eliminar',
-                          icon: <Trash2 size={20} />,
-                          className: 'bg-destructive text-white',
-                          onClick: () => { setDeleteError(null); setDeletingPedido(p) },
-                        }
-                      : undefined
-                  }
-                >
-                  <div
-                    className="bg-card border border-border rounded-xl p-4 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-foreground text-base">
-                          {p.clienteNombre} {p.clienteApellido}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          {format(new Date(p.fecha), 'dd/MM/yyyy')}
-                        </p>
-                      </div>
-                      <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
-                        {estadoLabels[p.estado]}
-                      </span>
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
-                        {estadoPagoLabels[p.estadoPago]}
-                      </span>
-                    </div>
+        <DataTable<Pedido>
+          endpoint="/api/pedidos"
+          columns={columns}
+          extraParams={extraParams}
+          defaultPageSize={50}
+          showSearch={false}
+          onRowClick={(row) => router.push(`/crm/pedidos/${row.id}`)}
+          renderMobileCard={(p) => (
+            <SwipeableListItem
+              key={p.id}
+              leftAction={
+                p.estado === 'pendiente'
+                  ? {
+                      label: 'Confirmar',
+                      icon: <CheckCircle size={20} />,
+                      className: 'bg-green-500 text-white',
+                      onClick: () => confirmMutation.mutate(p.id),
+                    }
+                  : undefined
+              }
+              rightAction={
+                isAdmin
+                  ? {
+                      label: 'Eliminar',
+                      icon: <Trash2 size={20} />,
+                      className: 'bg-destructive text-white',
+                      onClick: () => { setDeleteError(null); setDeletingPedido(p) },
+                    }
+                  : undefined
+              }
+            >
+              <div
+                className="bg-card border border-border rounded-xl p-4 cursor-pointer transition-colors"
+                onClick={() => router.push(`/crm/pedidos/${p.id}`)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-foreground text-base">
+                      {p.clienteNombre} {p.clienteApellido}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                    </p>
                   </div>
-                </SwipeableListItem>
-              ))}
-            </div>
-
-            {/* Desktop table */}
-            <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha</th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Cliente</th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Vendedor</th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
-                    <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pago</th>
-                    <th className="py-2 px-3 border-b border-border w-10" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pedidos.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors"
-                    >
-                      <td
-                        className="py-2.5 px-3 text-muted-foreground cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        {format(new Date(p.fecha), 'dd/MM/yyyy')}
-                      </td>
-                      <td
-                        className="py-2.5 px-3 font-medium text-foreground cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        {p.clienteNombre} {p.clienteApellido}
-                      </td>
-                      <td
-                        className="py-2.5 px-3 text-muted-foreground cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        {p.vendedorNombre ?? '—'}
-                      </td>
-                      <td
-                        className="py-2.5 px-3 cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
-                          {estadoLabels[p.estado]}
-                        </span>
-                      </td>
-                      <td
-                        className="py-2.5 px-3 text-right font-medium cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        {formatMoney(p.total)}
-                      </td>
-                      <td
-                        className="py-2.5 px-3 cursor-pointer"
-                        onClick={() => router.push(`/crm/pedidos/${p.id}`)}
-                      >
-                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
-                          {estadoPagoLabels[p.estadoPago]}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="relative flex justify-end" ref={openMenuId === p.id ? menuRef : undefined}>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === p.id ? null : p.id) }}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-                            title="Acciones"
-                          >
-                            <MoreVertical size={14} />
-                          </button>
-                          {openMenuId === p.id && (
-                            <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-border bg-card shadow-lg py-1">
-                              <button
-                                onClick={() => { setOpenMenuId(null); router.push(`/crm/pedidos/${p.id}`) }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-                              >
-                                <Eye size={13} className="text-muted-foreground" />
-                                Ver pedido
-                              </button>
-                              {isAdmin && (
-                                <>
-                                  <div className="border-t border-border my-1" />
-                                  <button
-                                    onClick={() => { setOpenMenuId(null); setDeleteError(null); setDeletingPedido(p) }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                                  >
-                                    <Trash2 size={13} />
-                                    Eliminar
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+                  <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
+                    {estadoLabels[p.estado]}
+                  </span>
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
+                    {estadoPagoLabels[p.estadoPago]}
+                  </span>
+                </div>
+              </div>
+            </SwipeableListItem>
+          )}
+          emptyMessage="No hay pedidos que mostrar"
+        />
       </div>
 
-      {/* FAB mobile */}
       <button
         onClick={() => setShowCreate(true)}
         className="fixed bottom-[76px] right-4 z-30 flex items-center gap-2 h-14 rounded-full bg-primary text-primary-foreground shadow-lg px-5 md:hidden active:scale-95 transition-transform"

@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { productos, users } from '@/db/schema'
-import { eq, and, ilike, isNull } from 'drizzle-orm'
+import { productos } from '@/db/schema'
+import { eq, and, ilike, isNull, asc, desc, sql } from 'drizzle-orm'
 import { createProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
+import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const searchParams = req.nextUrl.searchParams
-    const search = searchParams.get('search') ?? undefined
-    const includeInactiveParam = searchParams.get('includeInactive')
+    const { page, limit, sortBy, sortDir, search } = parsePagination(
+      req.nextUrl.searchParams,
+      { sortBy: 'nombre', sortDir: 'asc' },
+    )
 
-    // includeInactive is admin-only
+    const searchParams = req.nextUrl.searchParams
+    const includeInactiveParam = searchParams.get('includeInactive')
     const includeInactive =
       session.user.role === 'admin' && includeInactiveParam === 'true'
 
@@ -32,19 +35,36 @@ export async function GET(req: NextRequest) {
       conditions.push(ilike(productos.nombre, `%${search}%`) as ReturnType<typeof eq>)
     }
 
-    // Defensive: project only columns that have existed in the schema since
-    // migration 0002. If newer columns (added in 0008) are missing in the
-    // deployed DB, a `select()` (which projects every column declared in the
-    // Drizzle schema) would fail with a 500. Selecting an explicit safe subset
-    // keeps the list view alive while ops investigates the schema drift.
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
     try {
+      const [countRow] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(productos)
+        .where(whereClause)
+
+      const total = countRow?.total ?? 0
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit)
+
+      const sortCol = (() => {
+        switch (sortBy) {
+          case 'precio': return productos.precio
+          case 'sku': return productos.sku
+          case 'categoria': return productos.categoria
+          default: return productos.nombre
+        }
+      })()
+      const orderFn = sortDir === 'asc' ? asc : desc
+
       const rows = await db
         .select()
         .from(productos)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(productos.nombre)
+        .where(whereClause)
+        .orderBy(orderFn(sortCol))
+        .limit(limit)
+        .offset((page - 1) * limit)
 
-      return NextResponse.json({ data: rows })
+      return NextResponse.json({ data: rows, page, limit, total, totalPages })
     } catch (innerErr) {
       const rawMessage = innerErr instanceof Error ? innerErr.message : String(innerErr)
       console.error('[productos GET] full select failed, trying minimal projection:', rawMessage)
@@ -61,17 +81,17 @@ export async function GET(req: NextRequest) {
           updatedAt: productos.updatedAt,
         })
         .from(productos)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(productos.nombre)
+        .where(whereClause)
+        .orderBy(asc(productos.nombre))
+        .limit(limit)
+        .offset((page - 1) * limit)
 
-      return NextResponse.json({ data: rows, _degraded: true })
+      return NextResponse.json({ data: rows, page, limit, total: rows.length, totalPages: 1, _degraded: true })
     }
   } catch (err) {
-    // Final safety net: log full error and degrade to empty list so the
-    // productos page can still render its empty state.
     const rawMessage = err instanceof Error ? err.message : String(err)
     console.error('[productos GET] returning empty fallback:', rawMessage, err)
-    return NextResponse.json({ data: [], _degraded: true }, { status: 200 })
+    return NextResponse.json({ data: [], page: 1, limit: 50, total: 0, totalPages: 0, _degraded: true }, { status: 200 })
   }
 }
 

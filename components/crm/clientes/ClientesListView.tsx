@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Plus, Phone, ChevronRight, Download, Map, List } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Phone, ChevronRight, Download, Map, List } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import CreateClienteModal from './CreateClienteModal'
 import dynamic from 'next/dynamic'
+import DataTable from '@/components/data-table/DataTable'
 
 const ClientesMap = dynamic(() => import('./ClientesMap'), {
   ssr: false,
@@ -57,14 +57,13 @@ const origenColors: Record<string, string> = {
 
 export default function ClientesListView() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
-  const [search, setSearch] = useState('')
-  const [filterEstado, setFilterEstado] = useState(searchParams.get('estadoActividad') ?? '')
+  const [filterEstado, setFilterEstado] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [mapView, setMapView] = useState(false)
+  const [mapClientes, setMapClientes] = useState<Cliente[]>([])
 
   async function handleExport() {
     setIsExporting(true)
@@ -83,39 +82,83 @@ export default function ClientesListView() {
     }
   }
 
-  const apiParams = new URLSearchParams()
-  if (filterEstado) apiParams.set('estadoActividad', filterEstado)
-
-  const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
-    queryKey: ['clientes', filterEstado],
-    queryFn: async () => {
-      const res = await fetch(`/api/clientes?${apiParams}`)
-      if (!res.ok) throw new Error('Error al cargar clientes')
-      const json = await res.json() as { data: Cliente[] }
-      return json.data
+  const columns = [
+    {
+      key: 'nombre',
+      label: 'Nombre',
+      sortable: true,
+      render: (row: Cliente) => (
+        <span className="font-medium text-foreground">
+          {row.nombre} {row.apellido}
+        </span>
+      ),
     },
-    staleTime: 30_000,
-  })
-
-  const filtered = clientes.filter((c) => {
-    if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return (
-      c.nombre.toLowerCase().includes(q) ||
-      c.apellido.toLowerCase().includes(q) ||
-      (c.email ?? '').toLowerCase().includes(q) ||
-      (c.cuit ?? '').toLowerCase().includes(q)
-    )
-  })
+    {
+      key: 'email',
+      label: 'Email',
+      render: (row: Cliente) => (
+        <span className="text-muted-foreground">{row.email ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'telefono',
+      label: 'Teléfono',
+      render: (row: Cliente) => (
+        <span className="text-muted-foreground">{row.telefono ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'origen',
+      label: 'Origen',
+      render: (row: Cliente) => (
+        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', origenColors[row.origen])}>
+          {origenLabels[row.origen]}
+        </span>
+      ),
+    },
+    {
+      key: 'estadoActividad',
+      label: 'Estado',
+      sortable: true,
+      render: (row: Cliente) =>
+        row.estadoActividad ? (
+          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[row.estadoActividad])}>
+            {estadoActividadLabels[row.estadoActividad]}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    ...(isAdmin
+      ? [
+          {
+            key: 'asignadoNombre',
+            label: 'Asignado a',
+            render: (row: Cliente) =>
+              row.asignadoNombre ? (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span
+                    className="w-5 h-5 rounded-full inline-flex items-center justify-center text-white text-xs shrink-0"
+                    style={{ backgroundColor: row.asignadoColor ?? '#6b7280' }}
+                  >
+                    {(row.asignadoNombre ?? '?')[0]?.toUpperCase()}
+                  </span>
+                  {row.asignadoNombre}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              ),
+          },
+        ]
+      : []),
+  ]
 
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className="p-4 md:p-6 pb-24 md:pb-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-lg md:text-xl font-semibold text-foreground">Clientes</h1>
           <div className="flex items-center gap-2">
-            {/* Map/List toggle — mobile only */}
             <div className="flex md:hidden items-center rounded-md border border-border overflow-hidden">
               <button
                 onClick={() => setMapView(false)}
@@ -152,17 +195,8 @@ export default function ClientesListView() {
           </div>
         </div>
 
-        {/* Search + filters */}
-        <div className="flex flex-col md:flex-row gap-2 mb-4">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, email, CUIT..."
-              className="w-full md:max-w-sm pl-10 pr-3 py-2.5 md:py-1.5 border border-border rounded-lg text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
+        {/* Extra filter (outside DataTable) */}
+        <div className="flex items-center gap-2 mb-4">
           <select
             value={filterEstado}
             onChange={(e) => setFilterEstado(e.target.value)}
@@ -175,7 +209,7 @@ export default function ClientesListView() {
           </select>
         </div>
 
-        {/* Mobile: map view */}
+        {/* Mobile map view */}
         {mapView && (
           <div className="md:hidden fixed inset-0 top-0 z-20 bg-background flex flex-col pt-16">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -189,164 +223,61 @@ export default function ClientesListView() {
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <ClientesMap clientes={filtered} />
+              <ClientesMap clientes={mapClientes} />
             </div>
           </div>
         )}
 
-        {/* Mobile: cards */}
-        <div className="md:hidden">
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 animate-pulse">
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-muted rounded w-2/5" />
-                    <div className="h-3 bg-muted rounded w-1/3" />
-                    <div className="h-3 bg-muted rounded w-1/4" />
-                  </div>
-                  <div className="w-5 h-5 bg-muted rounded" />
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              {search ? 'Sin resultados' : 'No hay clientes registrados'}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filtered.map((c) => {
-                const saldo = c.saldoPendiente ? parseFloat(c.saldoPendiente) : 0
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => router.push(`/crm/clientes/${c.id}`)}
-                    className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 active:bg-accent/60 cursor-pointer transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground text-base truncate">
-                        {c.nombre} {c.apellido}
-                      </p>
-                      {c.telefono && (
-                        <a
-                          href={`tel:${c.telefono}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1.5 text-sm text-primary mt-0.5 w-fit"
-                        >
-                          <Phone size={13} />
-                          {c.telefono}
-                        </a>
-                      )}
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {c.estadoActividad && (
-                          <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
-                            {estadoActividadLabels[c.estadoActividad]}
-                          </span>
-                        )}
-                        {saldo > 0 && (
-                          <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                            Debe: ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="text-muted-foreground shrink-0" />
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Desktop: table */}
-        <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
-          {isLoading ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  {['Nombre', 'Email', 'Teléfono', 'Origen', 'Estado'].map((h) => (
-                    <th key={h} className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="animate-pulse">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-32" /></td>
-                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-40" /></td>
-                    <td className="py-2.5 px-3"><div className="h-3.5 bg-muted rounded w-24" /></td>
-                    <td className="py-2.5 px-3"><div className="h-5 bg-muted rounded-full w-14" /></td>
-                    <td className="py-2.5 px-3"><div className="h-5 bg-muted rounded-full w-16" /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              {search ? 'Sin resultados para la búsqueda' : 'No hay clientes registrados'}
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Nombre</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Email</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Teléfono</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Origen</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
-                  {isAdmin && (
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Asignado a</th>
+        <DataTable<Cliente>
+          endpoint="/api/clientes"
+          columns={columns}
+          extraParams={filterEstado ? { estadoActividad: filterEstado } : {}}
+          defaultPageSize={50}
+          searchPlaceholder="Buscar por nombre, email, CUIT..."
+          onRowClick={(row) => router.push(`/crm/clientes/${row.id}`)}
+          renderMobileCard={(c) => {
+            const saldo = c.saldoPendiente ? parseFloat(c.saldoPendiente) : 0
+            return (
+              <div
+                key={c.id}
+                onClick={() => router.push(`/crm/clientes/${c.id}`)}
+                className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 active:bg-accent/60 cursor-pointer transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground text-base truncate">
+                    {c.nombre} {c.apellido}
+                  </p>
+                  {c.telefono && (
+                    <a
+                      href={`tel:${c.telefono}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1.5 text-sm text-primary mt-0.5 w-fit"
+                    >
+                      <Phone size={13} />
+                      {c.telefono}
+                    </a>
                   )}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    onClick={() => router.push(`/crm/clientes/${c.id}`)}
-                    className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
-                  >
-                    <td className="py-2.5 px-3 font-medium text-foreground">
-                      {c.nombre} {c.apellido}
-                    </td>
-                    <td className="py-2.5 px-3 text-muted-foreground">{c.email ?? '—'}</td>
-                    <td className="py-2.5 px-3 text-muted-foreground">{c.telefono ?? '—'}</td>
-                    <td className="py-2.5 px-3">
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', origenColors[c.origen])}>
-                        {origenLabels[c.origen]}
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {c.estadoActividad && (
+                      <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
+                        {estadoActividadLabels[c.estadoActividad]}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      {c.estadoActividad ? (
-                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
-                          {estadoActividadLabels[c.estadoActividad]}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    {isAdmin && (
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {c.asignadoNombre ? (
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="w-5 h-5 rounded-full inline-flex items-center justify-center text-white text-xs shrink-0"
-                              style={{ backgroundColor: c.asignadoColor ?? '#6b7280' }}
-                            >
-                              {(c.asignadoNombre ?? '?')[0]?.toUpperCase()}
-                            </span>
-                            {c.asignadoNombre}
-                          </span>
-                        ) : '—'}
-                      </td>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                    {saldo > 0 && (
+                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                        Debe: ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-muted-foreground shrink-0" />
+              </div>
+            )
+          }}
+          emptyMessage="No hay clientes registrados"
+        />
       </div>
 
-      {/* Mobile FAB */}
       <button
         onClick={() => setShowCreate(true)}
         className="fixed bottom-[76px] right-4 z-30 flex items-center gap-2 h-14 rounded-full bg-primary text-primary-foreground shadow-lg px-5 md:hidden active:scale-95 transition-transform"
