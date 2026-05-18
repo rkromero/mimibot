@@ -9,6 +9,7 @@ import { withAdminAuth } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { sql } from 'drizzle-orm'
 import { stringToColor } from '@/lib/utils'
+import { cachedJson } from '@/lib/api/cache'
 
 const createUserSchema = z.object({
   name: z.string().min(2).max(100),
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
       .from(users)
       .where(and(...conditions))
 
-    return NextResponse.json({ data })
+    return cachedJson(req, { data })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

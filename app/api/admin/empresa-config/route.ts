@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { empresaConfig } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { toApiError, AuthzError, ValidationError } from '@/lib/errors'
+import { cachedJson } from '@/lib/api/cache'
 
 const DEFAULT_CONFIG = {
   id: 1,
@@ -15,7 +16,7 @@ const DEFAULT_CONFIG = {
   updatedAt: new Date(),
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) {
@@ -28,7 +29,7 @@ export async function GET(_req: NextRequest) {
       .where(eq(empresaConfig.id, 1))
       .limit(1)
 
-    return NextResponse.json({ data: config ?? DEFAULT_CONFIG })
+    return cachedJson(req, { data: config ?? DEFAULT_CONFIG })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

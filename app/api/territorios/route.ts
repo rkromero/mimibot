@@ -5,8 +5,9 @@ import { toApiError } from '@/lib/errors'
 import { createTerritorioSchema } from '@/lib/validations/territorios'
 import { listarTerritorios, crearTerritorio } from '@/lib/territorios/territorios.service'
 import { getSessionContext } from '@/lib/territorios/context'
+import { cachedJson } from '@/lib/api/cache'
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -17,7 +18,7 @@ export async function GET(_req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
     const data = await listarTerritorios(ctx)
-    return NextResponse.json({ data })
+    return cachedJson(req, { data })
   } catch (err) {
     const { message, status } = toApiError(err)
     const detail = process.env.NODE_ENV !== 'production' && err instanceof Error ? err.stack : undefined

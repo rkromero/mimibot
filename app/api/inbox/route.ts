@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { conversations, leads, contacts, users } from '@/db/schema'
-import { eq, and, isNull, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, isNull, desc, sql, inArray, count as sqlCount } from 'drizzle-orm'
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
+import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const filter = req.nextUrl.searchParams.get('filter') ?? 'mine'
-    // Selector opcional "Ver por agente" — útil para gerente/admin con filter=all
-    const filterVendedorId = req.nextUrl.searchParams.get('vendedorId') ?? null
+    const sp = req.nextUrl.searchParams
+    const filter = sp.get('filter') ?? 'mine'
+    const filterVendedorId = sp.get('vendedorId') ?? null
+    const { page, limit } = parsePagination(sp, { page: 1, limit: 50 })
 
     const conditions: ReturnType<typeof eq>[] = [eq(leads.isOpen, true) as ReturnType<typeof eq>]
 
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest) {
       } else if (session.user.role === 'gerente') {
         const ctx = await getSessionContext(session.user)
         if (ctx.agentesVisibles.length === 0) {
-          return NextResponse.json({ data: [] })
+          return NextResponse.json({ data: [], page: 1, limit, total: 0, totalPages: 1 })
         }
         if (filterVendedorId && ctx.agentesVisibles.includes(filterVendedorId)) {
           conditions.push(eq(leads.assignedTo, filterVendedorId))
@@ -72,9 +74,21 @@ export async function GET(req: NextRequest) {
       .leftJoin(users, eq(leads.assignedTo, users.id))
       .where(and(...conditions))
       .orderBy(desc(conversations.unreadCount), desc(conversations.lastMessageAt))
-      .limit(100)
+      .limit(limit)
+      .offset((page - 1) * limit)
 
-    return NextResponse.json({ data: rows })
+    // total count (same conditions, no limit)
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(conversations)
+      .innerJoin(leads, eq(conversations.leadId, leads.id))
+      .innerJoin(contacts, eq(leads.contactId, contacts.id))
+      .where(and(...conditions))
+
+    const total = countRow?.total ?? 0
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+
+    return NextResponse.json({ data: rows, page, limit, total, totalPages })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

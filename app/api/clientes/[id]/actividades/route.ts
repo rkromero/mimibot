@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { actividadesCliente, users } from '@/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, asc, sql } from 'drizzle-orm'
 import { createActividadSchema } from '@/lib/validations/actividades'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError } from '@/lib/errors'
+import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -17,6 +18,23 @@ export async function GET(
 
     const { id } = await params
     await canAccessCliente(session.user, id)
+
+    const { page, limit, sortBy, sortDir } = parsePagination(req.nextUrl.searchParams, {
+      page: 1,
+      limit: 50,
+      sortBy: 'fechaProgramada',
+      sortDir: 'desc',
+    })
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(actividadesCliente)
+      .where(eq(actividadesCliente.clienteId, id))
+
+    const total = countRow?.total ?? 0
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const orderFn = sortDir === 'asc' ? asc : desc
+    const sortCol = sortBy === 'createdAt' ? actividadesCliente.createdAt : actividadesCliente.fechaProgramada
 
     const rows = await db
       .select({
@@ -27,7 +45,9 @@ export async function GET(
       .from(actividadesCliente)
       .leftJoin(users, eq(actividadesCliente.asignadoA, users.id))
       .where(eq(actividadesCliente.clienteId, id))
-      .orderBy(desc(actividadesCliente.fechaProgramada), desc(actividadesCliente.createdAt))
+      .orderBy(orderFn(sortCol), desc(actividadesCliente.createdAt))
+      .limit(limit)
+      .offset((page - 1) * limit)
 
     const data = rows.map((r) => ({
       ...r.actividad,
@@ -35,7 +55,7 @@ export async function GET(
       asignadoColor: r.asignadoColor,
     }))
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data, page, limit, total, totalPages })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
@@ -61,7 +81,6 @@ export async function POST(
 
     const { tipo, titulo, notas, fechaProgramada, asignadoA } = parsed.data
 
-    // Agents can only assign to themselves
     const assignee = session.user.role === 'admin'
       ? (asignadoA ?? session.user.id)
       : session.user.id

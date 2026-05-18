@@ -14,15 +14,15 @@ import {
   rectIntersection,
   type CollisionDetection,
 } from '@dnd-kit/core'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import KanbanColumn from './KanbanColumn'
+import { useQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import KanbanColumn, { type ColumnPage } from './KanbanColumn'
 import LeadCard from './LeadCard'
 import LeadList from './LeadList'
 import PipelineFilters from './PipelineFilters'
 import CreateLeadModal from './CreateLeadModal'
 import BulkImportModal from './BulkImportModal'
 import LeadPanel from '@/components/lead/LeadPanel'
-import type { PipelineStage } from '@/types/db'
+import type { PipelineStage, LeadWithContact } from '@/types/db'
 import type { Session } from 'next-auth'
 import type { LeadFilters } from '@/lib/validations/lead'
 import { Plus, LayoutGrid, List, Upload } from 'lucide-react'
@@ -36,6 +36,7 @@ type Props = {
 export default function KanbanBoard({ stages, user }: Props) {
   const queryClient = useQueryClient()
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
+  const [activeLead, setActiveLead] = useState<LeadWithContact | null>(null)
   const [overStageId, setOverStageId] = useState<string | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -46,6 +47,7 @@ export default function KanbanBoard({ stages, user }: Props) {
   const [filters, setFilters] = useState<LeadFilters>({})
   const [mobileStageId, setMobileStageId] = useState<string>('all')
   const canImport = user.role === 'admin' || user.role === 'gerente'
+  const filtersKey = JSON.stringify(filters)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -56,19 +58,21 @@ export default function KanbanBoard({ stages, user }: Props) {
     return pointer.length > 0 ? pointer : rectIntersection(args)
   }, [])
 
-  const leadsQuery = useQuery({
-    queryKey: ['leads', filters],
+  // List view: flat query (only enabled when list view is active)
+  const leadsListQuery = useQuery({
+    queryKey: ['leads-list', filters],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (filters.agentId) params.set('agentId', filters.agentId)
       if (filters.tagId) params.set('tagId', filters.tagId)
       if (filters.source) params.set('source', filters.source)
       if (filters.search) params.set('search', filters.search)
-      const res = await fetch(`/api/leads?${params}`)
+      const res = await fetch(`/api/leads?${params.toString()}`)
       if (!res.ok) throw new Error('Error al cargar leads')
-      const json = await res.json() as { data: import('@/types/db').LeadWithContact[] }
+      const json = await res.json() as { data: LeadWithContact[] }
       return json.data
     },
+    enabled: view === 'list',
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   })
@@ -83,28 +87,32 @@ export default function KanbanBoard({ stages, user }: Props) {
       if (!res.ok) throw new Error('Error al mover lead')
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['leads'] })
+      void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+      void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
+    },
+    onError: () => {
+      // Revert optimistic update on failure
+      void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
     },
   })
 
-  // SSE para actualizaciones en tiempo real
+  // SSE for real-time updates
   useEffect(() => {
     const es = new EventSource('/api/realtime/stream')
     es.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data as string) as { type: string }
         if (event.type === 'new_message' || event.type === 'lead_updated') {
-          void queryClient.invalidateQueries({ queryKey: ['leads'] })
+          void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+          void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
         }
       } catch {}
     }
-    es.onerror = () => {
-      // EventSource reconecta automáticamente
-    }
+    es.onerror = () => {}
     return () => es.close()
   }, [queryClient])
 
-  // Heartbeat de presencia online
+  // Presence heartbeat
   useEffect(() => {
     const ping = () => void fetch('/api/users/me/heartbeat', { method: 'PUT' })
     ping()
@@ -112,8 +120,21 @@ export default function KanbanBoard({ stages, user }: Props) {
     return () => clearInterval(interval)
   }, [])
 
+  // Find a lead across all column caches
+  function findLeadInCache(leadId: string): { lead: LeadWithContact; stageId: string } | null {
+    for (const stage of stages) {
+      const colData = queryClient.getQueryData<InfiniteData<ColumnPage>>(['leads-col', stage.id, filtersKey])
+      const lead = colData?.pages.flatMap((p) => p.data).find((l) => l.id === leadId)
+      if (lead) return { lead, stageId: stage.id }
+    }
+    return null
+  }
+
   function handleDragStart(event: DragStartEvent) {
-    setActiveLeadId(event.active.id as string)
+    const leadId = event.active.id as string
+    setActiveLeadId(leadId)
+    const found = findLeadInCache(leadId)
+    if (found) setActiveLead(found.lead)
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -125,6 +146,7 @@ export default function KanbanBoard({ stages, user }: Props) {
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveLeadId(null)
+    setActiveLead(null)
     setOverStageId(null)
     const { active, over } = event
     if (!over) return
@@ -132,46 +154,57 @@ export default function KanbanBoard({ stages, user }: Props) {
     const leadId = active.id as string
     const data = over.data.current as { stageId?: string } | undefined
     const targetStageId = data?.stageId ?? null
-
     if (!targetStageId) return
 
-    const lead = leadsQuery.data?.find((l) => l.id === leadId)
-    if (!lead || lead.stageId === targetStageId) return
+    const found = findLeadInCache(leadId)
+    if (!found || found.stageId === targetStageId) return
 
-    // Optimistic update
-    queryClient.setQueryData(['leads', filters], (old: typeof leadsQuery.data) =>
-      old?.map((l) =>
-        l.id === leadId
-          ? { ...l, stageId: targetStageId, stage: stages.find((s) => s.id === targetStageId) ?? l.stage }
-          : l,
-      ),
+    const movedLead = {
+      ...found.lead,
+      stageId: targetStageId,
+      stage: stages.find((s) => s.id === targetStageId) ?? found.lead.stage,
+    }
+
+    // Optimistic: remove from source column first page
+    queryClient.setQueryData<InfiniteData<ColumnPage>>(
+      ['leads-col', found.stageId, filtersKey],
+      (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((p, i) =>
+            i === 0
+              ? { ...p, data: p.data.filter((l) => l.id !== leadId), total: Math.max(0, p.total - 1) }
+              : { ...p, data: p.data.filter((l) => l.id !== leadId) },
+          ),
+        }
+      },
+    )
+
+    // Optimistic: prepend to target column first page
+    queryClient.setQueryData<InfiniteData<ColumnPage>>(
+      ['leads-col', targetStageId, filtersKey],
+      (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((p, i) =>
+            i === 0
+              ? { ...p, data: [movedLead, ...p.data], total: p.total + 1 }
+              : p,
+          ),
+        }
+      },
     )
 
     moveMutation.mutate({ leadId, stageId: targetStageId })
   }
 
-  const leadsByStage = stages.reduce<Record<string, import('@/types/db').LeadWithContact[]>>(
-    (acc, stage) => {
-      acc[stage.id] = leadsQuery.data?.filter((l) => l.stageId === stage.id) ?? []
-      return acc
-    },
-    {},
-  )
-
-  const activeLead = activeLeadId
-    ? leadsQuery.data?.find((l) => l.id === activeLeadId) ?? null
-    : null
-
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between pr-4 border-b border-border">
-        <PipelineFilters
-          user={user}
-          filters={filters}
-          onChange={setFilters}
-        />
+        <PipelineFilters user={user} filters={filters} onChange={setFilters} />
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* View toggle */}
           <div className="flex items-center rounded-md border border-border overflow-hidden">
             <button
               onClick={() => setView('board')}
@@ -188,7 +221,6 @@ export default function KanbanBoard({ stages, user }: Props) {
               <List size={14} />
             </button>
           </div>
-          {/* Import button (admin/gerente) */}
           {canImport && (
             <button
               onClick={() => setShowImport(true)}
@@ -211,15 +243,14 @@ export default function KanbanBoard({ stages, user }: Props) {
 
       {view === 'list' ? (
         <>
-          {/* Mobile stage ChipFilter */}
           <div className="md:hidden px-4 py-2 border-b border-border">
             <ChipFilter
               options={[
-                { key: 'all', label: 'Todos', count: leadsQuery.data?.length ?? 0 },
+                { key: 'all', label: 'Todos', count: leadsListQuery.data?.length ?? 0 },
                 ...stages.map((s) => ({
                   key: s.id,
                   label: s.name,
-                  count: leadsQuery.data?.filter((l) => l.stageId === s.id).length ?? 0,
+                  count: leadsListQuery.data?.filter((l) => l.stageId === s.id).length ?? 0,
                 })),
               ]}
               value={mobileStageId}
@@ -227,11 +258,11 @@ export default function KanbanBoard({ stages, user }: Props) {
             />
           </div>
           <LeadList
-            leads={(leadsQuery.data ?? []).filter(
+            leads={(leadsListQuery.data ?? []).filter(
               (l) => mobileStageId === 'all' || l.stageId === mobileStageId,
             )}
             stages={stages}
-            loading={leadsQuery.isLoading}
+            loading={leadsListQuery.isLoading}
             onLeadClick={setSelectedLeadId}
           />
         </>
@@ -248,33 +279,24 @@ export default function KanbanBoard({ stages, user }: Props) {
               <KanbanColumn
                 key={stage.id}
                 stage={stage}
-                leads={leadsByStage[stage.id] ?? []}
+                filters={filters}
                 onLeadClick={setSelectedLeadId}
                 isTargetColumn={overStageId === stage.id}
               />
             ))}
             <DragOverlay dropAnimation={{ duration: 120, easing: 'ease' }}>
-              {activeLead && (
-                <LeadCard lead={activeLead} isDragging />
-              )}
+              {activeLead && <LeadCard lead={activeLead} isDragging />}
             </DragOverlay>
           </DndContext>
         </div>
       )}
 
       {selectedLeadId && (
-        <LeadPanel
-          leadId={selectedLeadId}
-          onClose={() => setSelectedLeadId(null)}
-          user={user}
-        />
+        <LeadPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} user={user} />
       )}
 
       {showCreate && (
-        <CreateLeadModal
-          stages={stages}
-          onClose={() => setShowCreate(false)}
-        />
+        <CreateLeadModal stages={stages} onClose={() => setShowCreate(false)} />
       )}
 
       {showImport && (

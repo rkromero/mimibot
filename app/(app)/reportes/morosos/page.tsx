@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Download } from 'lucide-react'
+import { Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
@@ -25,6 +25,10 @@ type Moroso = {
 
 type ApiResponse = {
   data: Moroso[]
+  page: number
+  limit: number
+  total: number
+  totalPages: number
   morosoDias: number
 }
 
@@ -36,19 +40,26 @@ export default function MorososPage() {
   const { data: session } = useSession()
   const vendedorName = session?.user?.name ?? null
   const [isExporting, setIsExporting] = useState(false)
+  const [page, setPage] = useState(1)
+  const limit = 50
 
   const { data, isLoading, error } = useQuery<ApiResponse>({
-    queryKey: ['morosos'],
+    queryKey: ['morosos', page, limit],
     queryFn: async () => {
-      const res = await fetch('/api/reportes/morosos')
+      const res = await fetch(`/api/reportes/morosos?page=${page}&limit=${limit}`)
       if (!res.ok) throw new Error('Error al cargar morosos')
       return res.json() as Promise<ApiResponse>
     },
     staleTime: 60_000,
+    placeholderData: (prev) => prev,
   })
 
   const morosos = data?.data ?? []
   const morosoDias = data?.morosoDias ?? 30
+  const total = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
+  const from = total === 0 ? 0 : (page - 1) * limit + 1
+  const to = Math.min(page * limit, total)
 
   async function handleExport() {
     setIsExporting(true)
@@ -67,9 +78,6 @@ export default function MorososPage() {
     }
   }
 
-  // El mensaje se arma en cada fila desde el helper unificado para mantener
-  // consistencia con los otros puntos de salida a WhatsApp (pedido, cobro).
-
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className="p-4 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto">
@@ -77,12 +85,12 @@ export default function MorososPage() {
           <div>
             <h1 className="text-xl font-semibold text-foreground">Morosos</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Pedidos con deuda mayor a {morosoDias} días
+              Pedidos con deuda mayor a {morosoDias} dias
             </p>
           </div>
           <button
             onClick={handleExport}
-            disabled={isExporting || morosos.length === 0}
+            disabled={isExporting || total === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
             aria-label="Exportar CSV"
           >
@@ -95,23 +103,22 @@ export default function MorososPage() {
           <div className="p-8 text-center text-sm text-muted-foreground">Cargando...</div>
         ) : error ? (
           <div className="p-8 text-center text-sm text-destructive">Error al cargar los datos</div>
-        ) : morosos.length === 0 ? (
+        ) : total === 0 && page === 1 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
               <span className="text-xl">&#10003;</span>
             </div>
             <h3 className="text-sm font-medium text-foreground mb-1">Sin morosos</h3>
-            <p className="text-sm text-muted-foreground">No hay clientes con deuda vencida mayor a {morosoDias} días.</p>
+            <p className="text-sm text-muted-foreground">No hay clientes con deuda vencida mayor a {morosoDias} dias.</p>
           </div>
         ) : (
           <>
             <div className="mb-3 text-sm text-muted-foreground">
-              <span className="font-medium text-destructive">{morosos.length}</span> cliente{morosos.length !== 1 ? 's' : ''} con deuda vencida —{' '}
-              Total: <span className="font-medium text-foreground">
-                {formatMoney(morosos.reduce((sum, m) => sum + parseFloat(m.saldoPendiente ?? '0'), 0))}
-              </span>
+              <span className="font-medium text-destructive">{total}</span> cliente{total !== 1 ? 's' : ''} con deuda vencida —{' '}
+              mostrando {from}–{to}
             </div>
 
+            {/* Mobile */}
             <div className="md:hidden space-y-2">
               {morosos.map((m) => (
                 <div key={m.id} className="bg-card border border-border rounded-xl p-4">
@@ -126,7 +133,7 @@ export default function MorososPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
-                      <span className="text-destructive font-medium">{m.diasVencido} días</span> vencido · {m.vendedorNombre ?? '—'}
+                      <span className="text-destructive font-medium">{m.diasVencido} dias</span> vencido · {m.vendedorNombre ?? '—'}
                     </div>
                     <WhatsappLinkButton
                       phone={m.clienteTelefono}
@@ -145,15 +152,16 @@ export default function MorososPage() {
               ))}
             </div>
 
+            {/* Desktop */}
             <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr>
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Cliente</th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Teléfono</th>
+                    <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Telefono</th>
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Vendedor</th>
                     <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha pedido</th>
-                    <th className="text-center py-2 px-3 text-muted-foreground font-medium border-b border-border">Días vencido</th>
+                    <th className="text-center py-2 px-3 text-muted-foreground font-medium border-b border-border">Dias vencido</th>
                     <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Deuda</th>
                     <th className="py-2 px-3 border-b border-border" />
                   </tr>
@@ -204,6 +212,32 @@ export default function MorososPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination footer */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
+                <span>{from.toLocaleString('es-AR')}–{to.toLocaleString('es-AR')} de {total.toLocaleString('es-AR')}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => p - 1)}
+                    disabled={page <= 1}
+                    className="p-1.5 rounded hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Pagina anterior"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="px-2 tabular-nums">{page} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page >= totalPages}
+                    className="p-1.5 rounded hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Pagina siguiente"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

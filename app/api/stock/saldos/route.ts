@@ -2,14 +2,36 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { stockMovements, productos } from '@/db/schema'
-import { eq, sql, isNull, and } from 'drizzle-orm'
+import { eq, sql, isNull, and, asc, desc } from 'drizzle-orm'
+import { parsePagination } from '@/lib/api/pagination'
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Simpler approach: get all products and their latest movement
+    const { page, limit, sortBy, sortDir } = parsePagination(req.nextUrl.searchParams, {
+      page: 1,
+      limit: 50,
+      sortBy: 'nombre',
+      sortDir: 'asc',
+    })
+
+    const whereClause = and(isNull(productos.deletedAt), eq(productos.activo, true))
+
+    const [countRow] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(productos)
+      .where(whereClause)
+
+    const total = countRow?.total ?? 0
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const orderFn = sortDir === 'asc' ? asc : desc
+    const sortCol =
+      sortBy === 'sku' ? productos.sku :
+      sortBy === 'categoria' ? productos.categoria :
+      productos.nombre
+
     const productosActivos = await db
       .select({
         id: productos.id,
@@ -21,10 +43,12 @@ export async function GET(_req: NextRequest) {
         activo: productos.activo,
       })
       .from(productos)
-      .where(and(isNull(productos.deletedAt), eq(productos.activo, true)))
-      .orderBy(productos.nombre)
+      .where(whereClause)
+      .orderBy(orderFn(sortCol))
+      .limit(limit)
+      .offset((page - 1) * limit)
 
-    // For each product, get the latest stock movement
+    // TODO: replace N+1 with a single lateral join when the product catalog grows beyond ~200 items
     const result = await Promise.all(
       productosActivos.map(async (p) => {
         const [latest] = await db
@@ -46,14 +70,10 @@ export async function GET(_req: NextRequest) {
       }),
     )
 
-    return NextResponse.json({ data: result })
+    return NextResponse.json({ data: result, page, limit, total, totalPages })
   } catch (err) {
-    // The query above implicitly depends on the productos table schema being
-    // in sync. If productos is broken in the deployed DB, the stock saldos
-    // page would show an error screen. Degrade gracefully so the empty state
-    // renders and log the underlying cause for ops.
     const rawMessage = err instanceof Error ? err.message : String(err)
     console.error('[stock/saldos] DB error, returning empty fallback:', rawMessage, err)
-    return NextResponse.json({ data: [], _degraded: true }, { status: 200 })
+    return NextResponse.json({ data: [], page: 1, limit: 50, total: 0, totalPages: 1, _degraded: true }, { status: 200 })
   }
 }

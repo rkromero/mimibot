@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { businessConfigSchema } from '@/lib/validations/business-config'
+import { cachedJson } from '@/lib/api/cache'
 
 const SCHEMA_DEFAULTS = {
   id: 1,
@@ -23,7 +24,7 @@ const SCHEMA_DEFAULTS = {
   updatedAt: new Date(),
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) {
@@ -45,7 +46,7 @@ export async function GET(_req: NextRequest) {
       config = undefined
     }
 
-    return NextResponse.json({ data: config ?? SCHEMA_DEFAULTS })
+    return cachedJson(req, { data: config ?? SCHEMA_DEFAULTS })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

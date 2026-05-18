@@ -2,16 +2,58 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { leads, contacts, pipelineStages, users, conversations, leadTags, tags, messages, activityLog } from '@/db/schema'
-import { eq, and, ilike, inArray, desc, sql } from 'drizzle-orm'
+import { eq, and, ilike, inArray, desc, sql, lt, or } from 'drizzle-orm'
 import { createLeadSchema, leadFiltersSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
+
+// ─── Cursor helpers ────────────────────────────────────────────────────────────
+
+interface CursorPayload { updatedAt: string; id: string }
+
+function encodeCursor(updatedAt: Date, id: string): string {
+  return Buffer.from(JSON.stringify({ updatedAt: updatedAt.toISOString(), id })).toString('base64url')
+}
+
+function decodeCursor(raw: string): CursorPayload | null {
+  try {
+    return JSON.parse(Buffer.from(raw, 'base64url').toString()) as CursorPayload
+  } catch {
+    return null
+  }
+}
+
+// ─── Shared lead select shape ─────────────────────────────────────────────────
+
+const leadSelect = {
+  lead: leads,
+  contact: contacts,
+  stage: pipelineStages,
+  assignedUser: {
+    id: users.id,
+    name: users.name,
+    avatarColor: users.avatarColor,
+  },
+  unreadCount: conversations.unreadCount,
+  lastMessageBody: messages.body,
+  lastMessageType: messages.contentType,
+  lastMessageAt: messages.sentAt,
+  lastMessageDirection: messages.direction,
+}
+
+async function attachTagsAndMessages(
+  rows: (typeof leadSelect extends infer S ? Record<keyof S, unknown>[] : never)[],
+) {
+  // TypeScript-safe version that works with the actual query result
+  return rows
+}
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const params = Object.fromEntries(req.nextUrl.searchParams)
+    const sp = req.nextUrl.searchParams
+    const params = Object.fromEntries(sp)
     const filters = leadFiltersSchema.safeParse(params)
     if (!filters.success) {
       return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
@@ -19,7 +61,7 @@ export async function GET(req: NextRequest) {
 
     const { agentId, tagId, source, search, stageId } = filters.data
 
-    // Scope by role
+    // ── Role scoping ──────────────────────────────────────────────────────────
     let effectiveAgentId: string | undefined = agentId
     let gerenteAgenteIds: string[] | undefined
 
@@ -32,21 +74,124 @@ export async function GET(req: NextRequest) {
       if (agentId && ctx.agentesVisibles.includes(agentId)) effectiveAgentId = agentId
     }
 
-    const conditions = [eq(leads.isOpen, true)]
+    const baseConditions = [eq(leads.isOpen, true)]
     if (gerenteAgenteIds !== undefined) {
-      if (gerenteAgenteIds.length === 0) return NextResponse.json({ data: [] })
+      if (gerenteAgenteIds.length === 0) {
+        return stageId
+          ? NextResponse.json({ data: [], hasMore: false, total: 0, nextCursor: null })
+          : NextResponse.json({ data: [] })
+      }
       if (effectiveAgentId) {
-        conditions.push(eq(leads.assignedTo, effectiveAgentId))
+        baseConditions.push(eq(leads.assignedTo, effectiveAgentId))
       } else {
-        conditions.push(inArray(leads.assignedTo, gerenteAgenteIds))
+        baseConditions.push(inArray(leads.assignedTo, gerenteAgenteIds))
       }
     } else if (effectiveAgentId) {
-      conditions.push(eq(leads.assignedTo, effectiveAgentId))
+      baseConditions.push(eq(leads.assignedTo, effectiveAgentId))
     }
+
+    if (source) baseConditions.push(eq(leads.source, source))
+
+    // ── Per-column cursor pagination (when stageId is provided) ───────────────
+    if (stageId) {
+      const rawLimit = sp.get('limit')
+      const colLimit = Math.min(100, Math.max(1, parseInt(rawLimit ?? '20', 10) || 20))
+      const rawCursor = sp.get('cursor') ?? null
+      const conditions = [...baseConditions, eq(leads.stageId, stageId)]
+
+      if (search) conditions.push(ilike(contacts.name, `%${search}%`))
+      if (tagId) {
+        conditions.push(
+          sql`EXISTS (SELECT 1 FROM ${leadTags} WHERE ${leadTags.leadId} = ${leads.id} AND ${leadTags.tagId} = ${tagId})`,
+        )
+      }
+
+      // Count without cursor for accurate total
+      const [countRow] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(leads)
+        .innerJoin(contacts, eq(leads.contactId, contacts.id))
+        .where(and(...conditions))
+
+      const total = countRow?.total ?? 0
+
+      // Apply cursor
+      const conditionsWithCursor = [...conditions]
+      if (rawCursor) {
+        const cursor = decodeCursor(rawCursor)
+        if (cursor) {
+          const cursorDate = new Date(cursor.updatedAt)
+          const tiebreaker = and(
+            eq(leads.updatedAt, cursorDate),
+            sql`${leads.id} < ${cursor.id}::uuid`,
+          )
+          const cursorSql = or(lt(leads.updatedAt, cursorDate), tiebreaker)
+          if (cursorSql) conditionsWithCursor.push(cursorSql)
+        }
+      }
+
+      const rows = await db
+        .select({
+          lead: leads,
+          contact: contacts,
+          stage: pipelineStages,
+          assignedUser: {
+            id: users.id,
+            name: users.name,
+            avatarColor: users.avatarColor,
+          },
+          unreadCount: conversations.unreadCount,
+        })
+        .from(leads)
+        .innerJoin(contacts, eq(leads.contactId, contacts.id))
+        .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
+        .leftJoin(users, eq(leads.assignedTo, users.id))
+        .leftJoin(conversations, eq(conversations.leadId, leads.id))
+        .where(and(...conditionsWithCursor))
+        .orderBy(desc(leads.updatedAt), sql`${leads.id} DESC`)
+        .limit(colLimit + 1)
+
+      const hasMore = rows.length > colLimit
+      const page = rows.slice(0, colLimit)
+      const lastRow = page[page.length - 1]
+      const nextCursor = hasMore && lastRow
+        ? encodeCursor(lastRow.lead.updatedAt, lastRow.lead.id)
+        : null
+
+      // Load tags for these leads
+      const leadIds = page.map((r) => r.lead.id)
+      const allLeadTags = leadIds.length > 0
+        ? await db
+            .select({ leadId: leadTags.leadId, tag: tags })
+            .from(leadTags)
+            .innerJoin(tags, eq(leadTags.tagId, tags.id))
+            .where(inArray(leadTags.leadId, leadIds))
+        : []
+
+      const tagsByLead = allLeadTags.reduce<Record<string, typeof tags.$inferSelect[]>>(
+        (acc, r) => { (acc[r.leadId] ??= []).push(r.tag); return acc },
+        {},
+      )
+
+      const data = page.map((r) => ({
+        ...r.lead,
+        contact: r.contact,
+        stage: r.stage,
+        assignedUser: r.assignedUser,
+        tags: tagsByLead[r.lead.id] ?? [],
+        unreadCount: r.unreadCount ?? 0,
+        lastMessage: null,
+      }))
+
+      return NextResponse.json({ data, hasMore, total, nextCursor })
+    }
+
+    // ── Board / list view: return all matching leads (existing behavior) ───────
+    const conditions = [...baseConditions]
     if (source) conditions.push(eq(leads.source, source))
     if (stageId) conditions.push(eq(leads.stageId, stageId))
 
-    let query = db
+    const query = db
       .select({
         lead: leads,
         contact: contacts,
@@ -84,7 +229,6 @@ export async function GET(req: NextRequest) {
 
     const rows = await query
 
-    // Si hay filtro por tag, filtrar en memoria (evita JOIN complejo para MVP)
     let result = rows
     if (tagId) {
       const leadIdsWithTag = await db
@@ -95,7 +239,6 @@ export async function GET(req: NextRequest) {
       result = rows.filter((r) => ids.has(r.lead.id))
     }
 
-    // Cargar tags para cada lead
     const leadIds = result.map((r) => r.lead.id)
     const allLeadTags =
       leadIds.length > 0
@@ -107,10 +250,7 @@ export async function GET(req: NextRequest) {
         : []
 
     const tagsByLead = allLeadTags.reduce<Record<string, typeof tags.$inferSelect[]>>(
-      (acc, r) => {
-        ;(acc[r.leadId] ??= []).push(r.tag)
-        return acc
-      },
+      (acc, r) => { (acc[r.leadId] ??= []).push(r.tag); return acc },
       {},
     )
 
@@ -151,7 +291,6 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
-    // Buscar o crear contacto por teléfono / email
     let contactId: string
 
     const existingContact = input.contactPhone
@@ -160,7 +299,6 @@ export async function POST(req: NextRequest) {
 
     if (existingContact) {
       contactId = existingContact.id
-      // Actualizar nombre si cambió
       if (existingContact.name !== input.contactName) {
         await db.update(contacts).set({ name: input.contactName, updatedAt: new Date() }).where(eq(contacts.id, contactId))
       }
@@ -176,7 +314,6 @@ export async function POST(req: NextRequest) {
       contactId = newContact!.id
     }
 
-    // Determinar etapa inicial
     const stage = await db.query.pipelineStages.findFirst({
       where: eq(pipelineStages.id, input.stageId),
     })
@@ -196,7 +333,6 @@ export async function POST(req: NextRequest) {
       })
       .returning()
 
-    // Log de actividad
     await db.insert(activityLog).values({
       leadId: lead!.id,
       userId: session.user.id,
@@ -204,14 +340,12 @@ export async function POST(req: NextRequest) {
       metadata: { source: input.source },
     })
 
-    // Tags
     if (input.tags?.length) {
       await db.insert(leadTags).values(
         input.tags.map((tagId) => ({ leadId: lead!.id, tagId })),
       )
     }
 
-    // Crear conversación si tiene teléfono
     if (input.contactPhone) {
       await db.insert(conversations).values({
         leadId: lead!.id,

@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, Download, AlertTriangle, History } from 'lucide-react'
+import { Plus, Download, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
+import DataTable, { type DataTableColumn } from '@/components/data-table/DataTable'
 
 type StockSaldo = {
   id: string
@@ -32,25 +33,21 @@ type Movimiento = {
 }
 
 const TIPO_LABELS: Record<string, { label: string; color: string }> = {
-  entrada:            { label: 'Entrada',    color: 'text-green-700 bg-green-100' },
-  salida:             { label: 'Salida',     color: 'text-red-700 bg-red-100' },
-  ajuste:             { label: 'Ajuste',     color: 'text-blue-700 bg-blue-100' },
-  reserva:            { label: 'Reserva',    color: 'text-amber-700 bg-amber-100' },
-  cancelacion_reserva:{ label: 'Canc. res.', color: 'text-gray-700 bg-gray-100' },
+  entrada:             { label: 'Entrada',    color: 'text-green-700 bg-green-100' },
+  salida:              { label: 'Salida',     color: 'text-red-700 bg-red-100' },
+  ajuste:              { label: 'Ajuste',     color: 'text-blue-700 bg-blue-100' },
+  reserva:             { label: 'Reserva',    color: 'text-amber-700 bg-amber-100' },
+  cancelacion_reserva: { label: 'Canc. res.', color: 'text-gray-700 bg-gray-100' },
 }
 
 const UNIDAD_LABELS: Record<string, string> = {
-  unidad: 'Unidad',
+  unidad:  'Unidad',
   caja_12: 'Caja x12',
   caja_24: 'Caja x24',
   display: 'Display',
 }
 
-type EntradaForm = {
-  productoId: string
-  cantidad: string
-  notas: string
-}
+type EntradaForm = { productoId: string; cantidad: string; notas: string }
 
 export default function StockPage() {
   const { data: session } = useSession()
@@ -62,6 +59,19 @@ export default function StockPage() {
   const [entradaError, setEntradaError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [historialProducto, setHistorialProducto] = useState<StockSaldo | null>(null)
+
+  // Products list for the "entrada" dropdown — queried separately from DataTable
+  const { data: productosParaEntrada = [] } = useQuery<{ id: string; sku: string | null; nombre: string }[]>({
+    queryKey: ['productos-entrada-select'],
+    queryFn: async () => {
+      const res = await fetch('/api/stock/saldos?limit=200&sortBy=nombre&sortDir=asc')
+      if (!res.ok) return []
+      const json = await res.json() as { data: { id: string; sku: string | null; nombre: string }[] }
+      return json.data
+    },
+    staleTime: 60_000,
+    enabled: showEntrada,
+  })
 
   const { data: movimientos = [], isLoading: loadingMovimientos } = useQuery<Movimiento[]>({
     queryKey: ['stock-movimientos', historialProducto?.id],
@@ -75,19 +85,6 @@ export default function StockPage() {
     enabled: !!historialProducto,
     staleTime: 10_000,
   })
-
-  const { data: saldos = [], isLoading } = useQuery<StockSaldo[]>({
-    queryKey: ['stock-saldos'],
-    queryFn: async () => {
-      const res = await fetch('/api/stock/saldos')
-      if (!res.ok) throw new Error('Error al cargar stock')
-      const json = await res.json() as { data: StockSaldo[] }
-      return json.data
-    },
-    staleTime: 30_000,
-  })
-
-  const bajoMinimo = saldos.filter((s) => s.bajoCritico)
 
   async function handleExport() {
     setIsExporting(true)
@@ -110,9 +107,8 @@ export default function StockPage() {
     e.preventDefault()
     setEntradaError(null)
     const cantidad = parseInt(entradaForm.cantidad, 10)
-    if (!entradaForm.productoId) { setEntradaError('Seleccioná un producto'); return }
+    if (!entradaForm.productoId) { setEntradaError('Selecciona un producto'); return }
     if (isNaN(cantidad) || cantidad <= 0) { setEntradaError('La cantidad debe ser mayor a 0'); return }
-
     setIsSaving(true)
     try {
       const res = await fetch('/api/stock/movimientos', {
@@ -125,29 +121,97 @@ export default function StockPage() {
         setEntradaError(data.error ?? 'Error al registrar')
         return
       }
-      void queryClient.invalidateQueries({ queryKey: ['stock-saldos'] })
+      void queryClient.invalidateQueries({ queryKey: ['/api/stock/saldos'] })
+      void queryClient.invalidateQueries({ queryKey: ['productos-entrada-select'] })
       setShowEntrada(false)
       setEntradaForm({ productoId: '', cantidad: '', notas: '' })
     } catch {
-      setEntradaError('Error de conexión')
+      setEntradaError('Error de conexion')
     } finally {
       setIsSaving(false)
     }
   }
 
+  const columns: DataTableColumn<StockSaldo>[] = [
+    {
+      key: 'sku',
+      label: 'SKU',
+      className: 'font-mono text-xs text-muted-foreground',
+      render: (row) => row.sku ?? '—',
+    },
+    {
+      key: 'nombre',
+      label: 'Producto',
+      sortable: true,
+      render: (row) => (
+        <div>
+          <span className="font-medium text-foreground">{row.nombre}</span>
+          {row.categoria && <span className="block text-xs text-muted-foreground font-normal">{row.categoria}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'unidadVenta',
+      label: 'Unidad',
+      headerClassName: 'hidden md:table-cell',
+      className: 'hidden md:table-cell text-muted-foreground',
+      render: (row) => UNIDAD_LABELS[row.unidadVenta] ?? row.unidadVenta,
+    },
+    {
+      key: 'stockActual',
+      label: 'Stock actual',
+      headerClassName: 'text-center',
+      className: 'text-center',
+      render: (row) => (
+        <span className={cn('font-bold', row.bajoCritico ? 'text-destructive' : 'text-foreground')}>
+          {row.stockActual}
+        </span>
+      ),
+    },
+    {
+      key: 'stockMinimo',
+      label: 'Minimo',
+      headerClassName: 'text-center',
+      className: 'text-center text-muted-foreground',
+    },
+    {
+      key: 'ultimoMovimiento',
+      label: 'Ultimo mov.',
+      headerClassName: 'hidden lg:table-cell',
+      className: 'hidden lg:table-cell text-xs text-muted-foreground',
+      render: (row) => row.ultimoMovimiento
+        ? format(new Date(row.ultimoMovimiento), 'dd/MM/yyyy HH:mm')
+        : 'Sin movimientos',
+    },
+    {
+      key: 'id',
+      label: '',
+      className: 'text-right',
+      render: (row) => (
+        <div className="flex items-center gap-1.5 justify-end">
+          {row.bajoCritico && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+              BAJO
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); setHistorialProducto(row) }}
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            title="Ver historial"
+            aria-label="Ver historial de movimientos"
+          >
+            <History size={13} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className="p-4 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Stock</h1>
-            {bajoMinimo.length > 0 && (
-              <p className="text-sm text-destructive mt-0.5 flex items-center gap-1">
-                <AlertTriangle size={13} />
-                {bajoMinimo.length} producto{bajoMinimo.length !== 1 ? 's' : ''} bajo mínimo
-              </p>
-            )}
-          </div>
+          <h1 className="text-xl font-semibold text-foreground">Stock</h1>
           <div className="flex items-center gap-2">
             <button
               onClick={handleExport}
@@ -170,82 +234,16 @@ export default function StockPage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">Cargando...</div>
-        ) : saldos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <span className="text-xl">&#128230;</span>
-            </div>
-            <h3 className="text-sm font-medium text-foreground mb-1">Sin stock registrado</h3>
-            <p className="text-sm text-muted-foreground">Registrá la primera entrada de stock para comenzar.</p>
-          </div>
-        ) : (
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">SKU</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Producto</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border hidden md:table-cell">Unidad</th>
-                  <th className="text-center py-2 px-3 text-muted-foreground font-medium border-b border-border">Stock actual</th>
-                  <th className="text-center py-2 px-3 text-muted-foreground font-medium border-b border-border">Mínimo</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border hidden lg:table-cell">Último mov.</th>
-                  <th className="py-2 px-3 border-b border-border" />
-                </tr>
-              </thead>
-              <tbody>
-                {saldos.map((s) => (
-                  <tr key={s.id} className={cn(
-                    'border-b border-border last:border-0 transition-colors',
-                    s.bajoCritico ? 'bg-red-50/50 dark:bg-red-950/10 hover:bg-red-50 dark:hover:bg-red-950/20' : 'hover:bg-accent/50',
-                  )}>
-                    <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">
-                      {s.sku ?? '—'}
-                    </td>
-                    <td className="py-2.5 px-3 font-medium text-foreground">
-                      {s.nombre}
-                      {s.categoria && <span className="block text-xs text-muted-foreground font-normal">{s.categoria}</span>}
-                    </td>
-                    <td className="py-2.5 px-3 text-muted-foreground hidden md:table-cell">
-                      {UNIDAD_LABELS[s.unidadVenta] ?? s.unidadVenta}
-                    </td>
-                    <td className="py-2.5 px-3 text-center font-bold">
-                      <span className={cn(
-                        s.bajoCritico ? 'text-destructive' : 'text-foreground',
-                      )}>
-                        {s.stockActual}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-center text-muted-foreground">{s.stockMinimo}</td>
-                    <td className="py-2.5 px-3 text-muted-foreground hidden lg:table-cell text-xs">
-                      {s.ultimoMovimiento ? format(new Date(s.ultimoMovimiento), 'dd/MM/yyyy HH:mm') : 'Sin movimientos'}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        {s.bajoCritico && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                            BAJO
-                          </span>
-                        )}
-                        <button
-                          onClick={() => setHistorialProducto(s)}
-                          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                          title="Ver historial"
-                          aria-label="Ver historial de movimientos"
-                        >
-                          <History size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable<StockSaldo>
+          endpoint="/api/stock/saldos"
+          columns={columns}
+          defaultPageSize={50}
+          searchPlaceholder="Buscar producto..."
+          emptyMessage="Sin stock registrado"
+        />
       </div>
 
+      {/* Historial modal */}
       {historialProducto && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <button className="absolute inset-0" onClick={() => setHistorialProducto(null)} aria-label="Cerrar" />
@@ -255,7 +253,9 @@ export default function StockPage() {
                 <h2 className="text-sm font-semibold text-foreground">
                   Historial — {historialProducto.sku ? `[${historialProducto.sku}] ` : ''}{historialProducto.nombre}
                 </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Stock actual: <strong>{historialProducto.stockActual}</strong></p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Stock actual: <strong>{historialProducto.stockActual}</strong>
+                </p>
               </div>
               <button onClick={() => setHistorialProducto(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">&times;</button>
             </div>
@@ -313,6 +313,7 @@ export default function StockPage() {
         </div>
       )}
 
+      {/* Entrada modal */}
       {showEntrada && isAdmin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <button className="absolute inset-0" onClick={() => setShowEntrada(false)} aria-label="Cerrar" />
@@ -328,9 +329,9 @@ export default function StockPage() {
                   required
                 >
                   <option value="">Seleccionar producto...</option>
-                  {saldos.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.sku ? `[${s.sku}] ` : ''}{s.nombre}
+                  {productosParaEntrada.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.sku ? `[${p.sku}] ` : ''}{p.nombre}
                     </option>
                   ))}
                 </select>

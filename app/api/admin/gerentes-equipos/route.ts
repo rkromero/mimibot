@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { users, territorioGerente, territorioAgente } from '@/db/schema'
 import { eq, inArray, isNull, and } from 'drizzle-orm'
 import { toApiError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
+import { cachedJson } from '@/lib/api/cache'
 
 /**
  * Endpoint admin-only que devuelve, para cada gerente activo, qué agentes tiene
@@ -24,7 +25,7 @@ import { requireAdmin } from '@/lib/authz'
  * territorios, su `agenteIds` viene vacío. Si tiene agentes que aparecen en
  * varios territorios, salen únicos (Set).
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -100,7 +101,7 @@ export async function GET() {
       agenteIds: Array.from(gerenteToAgentes.get(g.id) ?? []),
     }))
 
-    return NextResponse.json({ data })
+    return cachedJson(req, { data })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
