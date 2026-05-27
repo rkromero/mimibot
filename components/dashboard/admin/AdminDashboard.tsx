@@ -13,12 +13,20 @@ type Territorio = { id: string; nombre: string }
 type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' }
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+type EstadoCobertura = EstadoMeta | 'na'
 
 interface MetricaAvance {
   alcanzado: number
   pct: number
   proyeccion: number
   estado: EstadoMeta
+}
+
+interface MetricaCobertura {
+  alcanzado: number | null
+  pct: number | null
+  proyeccion: number | null
+  estado: EstadoCobertura
 }
 
 interface MetaAvance {
@@ -31,11 +39,13 @@ interface MetaAvance {
     pedidosObjetivo: number
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
+    pctClientesConPedidoObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 
 interface User {
