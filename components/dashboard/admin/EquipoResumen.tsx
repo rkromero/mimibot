@@ -1,12 +1,20 @@
 'use client'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+type EstadoCobertura = EstadoMeta | 'na'
 
 interface MetricaAvance {
   alcanzado: number
   pct: number
   proyeccion: number
   estado: EstadoMeta
+}
+
+interface MetricaCobertura {
+  alcanzado: number | null
+  pct: number | null
+  proyeccion: number | null
+  estado: EstadoCobertura
 }
 
 interface MetaAvance {
@@ -19,11 +27,13 @@ interface MetaAvance {
     pedidosObjetivo: number
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
+    pctClientesConPedidoObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 
 interface EquipoResumenProps {
@@ -67,8 +77,19 @@ export default function EquipoResumen({ avances }: EquipoResumenProps) {
         avances.length
       : 0
 
+  const coberturaVendedores = avances.filter(
+    (a) => a.pctClientesConPedido.estado !== 'na',
+  )
+  const avgCobertura =
+    coberturaVendedores.length > 0
+      ? coberturaVendedores.reduce(
+          (acc, a) => acc + (a.pctClientesConPedido.alcanzado ?? 0),
+          0,
+        ) / coberturaVendedores.length
+      : null
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <KpiCard
         label="Total Clientes Nuevos"
         value={String(totalClientesNuevos)}
@@ -84,6 +105,10 @@ export default function EquipoResumen({ avances }: EquipoResumenProps) {
       <KpiCard
         label="Conversión Promedio"
         value={`${Number(avgConversion.toFixed(1))}%`}
+      />
+      <KpiCard
+        label="Cobertura promedio"
+        value={avgCobertura !== null ? `${Number(avgCobertura.toFixed(1))}%` : '—'}
       />
     </div>
   )

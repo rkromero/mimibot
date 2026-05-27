@@ -13,12 +13,14 @@ import type { Session } from 'next-auth'
 type User = Session['user']
 
 type MetricaAvance = { alcanzado: number; pct: number; proyeccion: number; estado: 'en_curso' | 'cumplida' | 'no_cumplida' }
+type MetricaCobertura = { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: 'en_curso' | 'cumplida' | 'no_cumplida' | 'na' }
 type MetaAvance = {
-  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string }
+  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 type AgentUser = { id: string; name: string | null; email: string; role: string; avatarColor: string; isActive: boolean }
 type Territorio = { id: string; nombre: string; sinAgente: boolean; agente: { id: string } | null }

@@ -39,14 +39,20 @@ function cellClass(estado: EstadoMeta | undefined): string {
   return 'text-amber-600'
 }
 
-function countCumplidas(avance: MetaAvance): number {
+function countCumplidas(avance: MetaAvance): { cumplidas: number; total: number } {
   const kpis = [
     avance.clientesNuevos.estado,
     avance.pedidos.estado,
     avance.montoCobrado.estado,
     avance.conversionLeads.estado,
   ]
-  return kpis.filter((e) => e === 'cumplida').length
+  let cumplidas = kpis.filter((e) => e === 'cumplida').length
+  let total = 4
+  if (avance.pctClientesConPedido.estado !== 'na') {
+    total = 5
+    if (avance.pctClientesConPedido.estado === 'cumplida') cumplidas++
+  }
+  return { cumplidas, total }
 }
 
 const fmtARS = (v: number) =>
@@ -103,6 +109,7 @@ export default function HistoricoTable() {
                   <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
                   <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Monto</th>
                   <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Conversión</th>
+                  <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Cobertura</th>
                   <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Resultado</th>
                 </tr>
               </thead>
@@ -112,7 +119,7 @@ export default function HistoricoTable() {
                     return (
                       <tr key={`${anio}-${mes}`} className="border-b border-border last:border-0">
                         <td className="px-3 py-2 font-medium text-foreground">{label}</td>
-                        <td colSpan={5} className="px-2 py-2 text-center text-muted-foreground italic">
+                        <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground italic">
                           Error al cargar
                         </td>
                       </tr>
@@ -122,13 +129,13 @@ export default function HistoricoTable() {
                     return (
                       <tr key={`${anio}-${mes}`} className="border-b border-border last:border-0">
                         <td className="px-3 py-2 font-medium text-foreground">{label}</td>
-                        <td colSpan={5} className="px-2 py-2 text-center text-muted-foreground italic">
+                        <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground italic">
                           Sin meta
                         </td>
                       </tr>
                     )
                   }
-                  const cumplidas = countCumplidas(avance)
+                  const { cumplidas, total } = countCumplidas(avance)
                   const { meta } = avance
                   return (
                     <tr key={`${anio}-${mes}`} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
@@ -147,16 +154,25 @@ export default function HistoricoTable() {
                       <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.conversionLeads.estado))}>
                         {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
                       </td>
+                      <td className={cn('px-2 py-2 text-center tabular-nums',
+                        avance.pctClientesConPedido.estado === 'na'
+                          ? 'text-muted-foreground'
+                          : cellClass(avance.pctClientesConPedido.estado),
+                      )}>
+                        {avance.pctClientesConPedido.estado === 'na'
+                          ? '—'
+                          : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
+                      </td>
                       <td className="px-2 py-2 text-center">
                         <span
                           className={cn(
                             'inline-block rounded-full px-1.5 py-0.5 font-semibold tabular-nums',
-                            cumplidas === 4 ? 'bg-green-100 text-green-700' :
-                            cumplidas >= 2 ? 'bg-amber-100 text-amber-700' :
+                            cumplidas === total ? 'bg-green-100 text-green-700' :
+                            cumplidas >= Math.ceil(total / 2) ? 'bg-amber-100 text-amber-700' :
                             'bg-red-100 text-red-700',
                           )}
                         >
-                          {cumplidas}/4
+                          {cumplidas}/{total}
                         </span>
                       </td>
                     </tr>

@@ -1,12 +1,20 @@
 'use client'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+type EstadoCobertura = EstadoMeta | 'na'
 
 interface MetricaAvance {
   alcanzado: number
   pct: number
   proyeccion: number
   estado: EstadoMeta
+}
+
+interface MetricaCobertura {
+  alcanzado: number | null
+  pct: number | null
+  proyeccion: number | null
+  estado: EstadoCobertura
 }
 
 interface MetaAvance {
@@ -19,11 +27,13 @@ interface MetaAvance {
     pedidosObjetivo: number
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
+    pctClientesConPedidoObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 
 interface User {
@@ -136,6 +146,26 @@ function rankingPorVendedor(
     })
 }
 
+function rankingCoberturaPorVendedor(
+  avances: MetaAvance[],
+  users: User[],
+): RankingEntry[] {
+  return [...avances]
+    .filter((a) => a.pctClientesConPedido.estado !== 'na')
+    .sort((a, b) => (b.pctClientesConPedido.alcanzado ?? 0) - (a.pctClientesConPedido.alcanzado ?? 0))
+    .map((a) => {
+      const user = users.find((u) => u.id === a.meta.vendedorId)
+      const displayName = user?.name ?? user?.email ?? a.meta.vendedorId
+      const val = a.pctClientesConPedido.alcanzado ?? 0
+      return {
+        id: a.meta.vendedorId,
+        displayName,
+        value: val,
+        displayValue: `${val}%`,
+      }
+    })
+}
+
 function rankingPorGerente(
   avances: MetaAvance[],
   equipos: GerenteEquipo[],
@@ -176,6 +206,34 @@ function rankingPorGerente(
   return entries.sort((a, b) => b.value - a.value)
 }
 
+function rankingCoberturaPorGerente(
+  avances: MetaAvance[],
+  equipos: GerenteEquipo[],
+): RankingEntry[] {
+  const avanceByVendedor = new Map(avances.map((a) => [a.meta.vendedorId, a]))
+
+  const entries = equipos.map((eq) => {
+    const conCobertura = eq.agenteIds
+      .map((id) => avanceByVendedor.get(id))
+      .filter((a): a is MetaAvance => a != null && a.pctClientesConPedido.estado !== 'na')
+
+    const value =
+      conCobertura.length > 0
+        ? conCobertura.reduce((sum, a) => sum + (a.pctClientesConPedido.alcanzado ?? 0), 0) /
+          conCobertura.length
+        : 0
+
+    return {
+      id: eq.gerenteId,
+      displayName: eq.gerenteName ?? eq.gerenteEmail,
+      value,
+      displayValue: `${Math.round(value * 100) / 100}%`,
+    }
+  })
+
+  return entries.sort((a, b) => b.value - a.value)
+}
+
 export default function RankingSection({
   avances,
   users,
@@ -192,12 +250,14 @@ export default function RankingSection({
       pedidos: rankingPorGerente(avances, equipos, 'pedidos', fmtInt),
       montoCobrado: rankingPorGerente(avances, equipos, 'montoCobrado', formatARS),
       conversionLeads: rankingPorGerente(avances, equipos, 'conversionLeads', fmtPct),
+      cobertura: rankingCoberturaPorGerente(avances, equipos),
     }
     : {
       clientesNuevos: rankingPorVendedor(avances, users, 'clientesNuevos', fmtInt),
       pedidos: rankingPorVendedor(avances, users, 'pedidos', fmtInt),
       montoCobrado: rankingPorVendedor(avances, users, 'montoCobrado', formatARS),
       conversionLeads: rankingPorVendedor(avances, users, 'conversionLeads', fmtPct),
+      cobertura: rankingCoberturaPorVendedor(avances, users),
     }
 
   return (
@@ -235,6 +295,7 @@ export default function RankingSection({
         <RankingCard title="Pedidos" entries={ranks.pedidos} />
         <RankingCard title="Monto Cobrado" entries={ranks.montoCobrado} />
         <RankingCard title="Conversión" entries={ranks.conversionLeads} />
+        <RankingCard title="Cobertura" entries={ranks.cobertura} />
       </div>
     </div>
   )
