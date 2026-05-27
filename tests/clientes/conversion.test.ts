@@ -4,9 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // when vi.mock factories run (vi.mock is hoisted to top by Vitest). ─────────
 
 const { mockTransaction, mockTxQueryLeadsFindFirst, mockTxQueryClientesFindFirst,
-  mockTxInsert, mockTxUpdate } = vi.hoisted(() => {
+  mockTxQueryTerritorioAgenteFindFirst, mockTxInsert, mockTxUpdate } = vi.hoisted(() => {
   const mockTxQueryLeadsFindFirst = vi.fn()
   const mockTxQueryClientesFindFirst = vi.fn()
+  const mockTxQueryTerritorioAgenteFindFirst = vi.fn()
   const mockTxInsert = vi.fn()
   const mockTxUpdate = vi.fn()
   const mockTransaction = vi.fn()
@@ -14,6 +15,7 @@ const { mockTransaction, mockTxQueryLeadsFindFirst, mockTxQueryClientesFindFirst
     mockTransaction,
     mockTxQueryLeadsFindFirst,
     mockTxQueryClientesFindFirst,
+    mockTxQueryTerritorioAgenteFindFirst,
     mockTxInsert,
     mockTxUpdate,
   }
@@ -50,6 +52,7 @@ function makeTx() {
     query: {
       leads: { findFirst: mockTxQueryLeadsFindFirst },
       clientes: { findFirst: mockTxQueryClientesFindFirst },
+      territorioAgente: { findFirst: mockTxQueryTerritorioAgenteFindFirst },
     },
     insert: mockTxInsert,
     update: mockTxUpdate,
@@ -103,6 +106,8 @@ describe('convertirLeadACliente', () => {
     mockTransaction.mockImplementation((fn: (tx: ReturnType<typeof makeTx>) => unknown) =>
       fn(makeTx()),
     )
+    // Default: el agente asignado no tiene territorio (null)
+    mockTxQueryTerritorioAgenteFindFirst.mockResolvedValue(null)
   })
 
   // ── No cliente with same email → create new ──────────────────────────────

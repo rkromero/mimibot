@@ -83,3 +83,6 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: message }, { status })
   }
 }
+
+// PATCH is semantically equivalent: updateMetaSchema uses optional fields (partial update)
+export const PATCH = PUT

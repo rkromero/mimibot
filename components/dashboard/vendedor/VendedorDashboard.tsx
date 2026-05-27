@@ -70,8 +70,8 @@ export default function VendedorDashboard({ user }: Props) {
 
       {/* Loading skeleton */}
       {isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[0, 1, 2, 3].map((i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}
               className="rounded-xl border border-border bg-card p-4 h-32 animate-pulse"
@@ -89,7 +89,7 @@ export default function VendedorDashboard({ user }: Props) {
 
       {/* Meta cards */}
       {!isLoading && avance && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           <MetaCard
             title="Clientes Nuevos"
             objetivo={avance.meta.clientesNuevosObjetivo}
@@ -126,6 +126,17 @@ export default function VendedorDashboard({ user }: Props) {
             proyeccion={avance.conversionLeads.proyeccion}
             estado={avance.conversionLeads.estado}
             formatValue={fmtPct}
+            pctMesTranscurrido={pctMesTranscurrido}
+          />
+          <MetaCard
+            title="Cobertura de Cartera"
+            objetivo={Number(avance.meta.pctClientesConPedidoObjetivo)}
+            alcanzado={avance.pctClientesConPedido.alcanzado ?? 0}
+            pct={avance.pctClientesConPedido.pct ?? 0}
+            proyeccion={avance.pctClientesConPedido.proyeccion ?? 0}
+            estado={avance.pctClientesConPedido.estado}
+            formatValue={fmtPct}
+            naMessage="Sin cartera asignada"
             pctMesTranscurrido={pctMesTranscurrido}
           />
         </div>

@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
         pedidosObjetivo: input.pedidosObjetivo,
         montoCobradoObjetivo: input.montoCobradoObjetivo,
         conversionLeadsObjetivo: input.conversionLeadsObjetivo,
+        pctClientesConPedidoObjetivo: input.pctClientesConPedidoObjetivo,
       },
       session.user.id,
     )

@@ -11,6 +11,7 @@ const {
   mockTxQueryProductosFindMany,
   mockTxInsert,
   mockTxUpdate,
+  mockTxSelect,
 } = vi.hoisted(() => {
   return {
     mockTransaction: vi.fn(),
@@ -19,6 +20,7 @@ const {
     mockTxQueryProductosFindMany: vi.fn(),
     mockTxInsert: vi.fn(),
     mockTxUpdate: vi.fn(),
+    mockTxSelect: vi.fn(),
   }
 })
 
@@ -65,7 +67,22 @@ function makeTx() {
     },
     insert: mockTxInsert,
     update: mockTxUpdate,
+    select: mockTxSelect,
   }
+}
+
+/** Crea una cadena mock para tx.select({}).from(...).where(...).orderBy(...).limit(n) */
+function makeSelectChain(resolvedValue: unknown[] = []) {
+  const chain = {
+    from: vi.fn(),
+    where: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn().mockResolvedValue(resolvedValue),
+  }
+  chain.from.mockReturnValue(chain)
+  chain.where.mockReturnValue(chain)
+  chain.orderBy.mockReturnValue(chain)
+  return chain
 }
 
 // ─── Tests: crearPedidoConItems ───────────────────────────────────────────────
@@ -94,6 +111,10 @@ describe('crearPedidoConItems', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default select chain: sin movimientos de stock previos
+    mockTxSelect.mockReturnValue(makeSelectChain([]))
+    // Fallback para inserts de CC y stock movements (llamadas 3+)
+    mockTxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
     // Set up chainable tx.update().set().where() for the total-recalc step
     mockTxUpdate.mockReturnValue({
       set: vi.fn().mockReturnValue({
@@ -185,10 +206,11 @@ describe('crearPedidoConItems', () => {
     ).rejects.toThrow('no está activo')
   })
 
-  it('inserta el pedido con estado pendiente y total 0', async () => {
+  it('inserta el pedido con estado confirmado y el total calculado', async () => {
+    // El service crea pedidos directamente como 'confirmado' con el total real
     mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA])
 
-    const returningPedido = vi.fn().mockResolvedValue([{ ...fakePedido }])
+    const returningPedido = vi.fn().mockResolvedValue([{ ...fakePedido, estado: 'confirmado', total: '100.00' }])
     const valuesPedido = vi.fn().mockReturnValue({ returning: returningPedido })
 
     const returningItems = vi.fn().mockResolvedValue([
@@ -206,6 +228,7 @@ describe('crearPedidoConItems', () => {
     mockTxInsert
       .mockReturnValueOnce({ values: valuesPedido })
       .mockReturnValueOnce({ values: valuesItems })
+    // Las llamadas 3+ (CC + stock) las maneja el fallback del beforeEach
 
     await crearPedidoConItems(CLIENTE_ID, VENDEDOR_ID, null, null, [
       { productoId: 'prod-a', cantidad: 1 },
@@ -215,8 +238,8 @@ describe('crearPedidoConItems', () => {
       estado: string
       total: string
     }
-    expect(pedidoInsertArg.estado).toBe('pendiente')
-    expect(pedidoInsertArg.total).toBe('0')
+    expect(pedidoInsertArg.estado).toBe('confirmado')
+    expect(pedidoInsertArg.total).toBe('100.00')
   })
 })
 
@@ -271,6 +294,8 @@ describe('confirmarPedido', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default select chain: sin movimientos de stock previos
+    mockTxSelect.mockReturnValue(makeSelectChain([]))
     mockTransaction.mockImplementation(
       (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
     )

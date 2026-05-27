@@ -13,6 +13,7 @@ export type MetaRow = {
   pedidosObjetivo: number
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
+  pctClientesConPedidoObjetivo: string
   fechaCreacion: string
   fechaActualizacion: string
 }
@@ -31,6 +32,7 @@ export type MetaFormValues = {
   pedidosObjetivo: number
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
+  pctClientesConPedidoObjetivo: string
 }
 
 type Props = {
@@ -50,6 +52,7 @@ function initValues(meta: MetaRow | null): MetaFormValues {
       pedidosObjetivo: 0,
       montoCobradoObjetivo: '0',
       conversionLeadsObjetivo: '0',
+      pctClientesConPedidoObjetivo: '0',
     }
   }
   return {
@@ -57,6 +60,7 @@ function initValues(meta: MetaRow | null): MetaFormValues {
     pedidosObjetivo: meta.pedidosObjetivo,
     montoCobradoObjetivo: meta.montoCobradoObjetivo,
     conversionLeadsObjetivo: meta.conversionLeadsObjetivo,
+    pctClientesConPedidoObjetivo: meta.pctClientesConPedidoObjetivo,
   }
 }
 
@@ -65,7 +69,8 @@ function valuesEqual(a: MetaFormValues, b: MetaFormValues): boolean {
     a.clientesNuevosObjetivo === b.clientesNuevosObjetivo &&
     a.pedidosObjetivo === b.pedidosObjetivo &&
     a.montoCobradoObjetivo === b.montoCobradoObjetivo &&
-    a.conversionLeadsObjetivo === b.conversionLeadsObjetivo
+    a.conversionLeadsObjetivo === b.conversionLeadsObjetivo &&
+    a.pctClientesConPedidoObjetivo === b.pctClientesConPedidoObjetivo
   )
 }
 
@@ -190,6 +195,25 @@ export default function MetaFormRow({
             value={values.conversionLeadsObjetivo}
             onChange={(e) => handleChange('conversionLeadsObjetivo', e.target.value)}
             className={inputClass}
+          />
+        )}
+      </td>
+
+      {/* % Cobertura Cartera */}
+      <td className="py-2.5 px-3">
+        {isLocked ? (
+          <span className={readonlyClass}>
+            {meta ? `${parseFloat(meta.pctClientesConPedidoObjetivo).toFixed(1)}%` : '—'}
+          </span>
+        ) : (
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.5"
+            value={values.pctClientesConPedidoObjetivo}
+            onChange={(e) => handleChange('pctClientesConPedidoObjetivo', e.target.value)}
+            className={cn(inputClass, 'min-w-[90px]')}
           />
         )}
       </td>

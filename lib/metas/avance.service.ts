@@ -4,7 +4,7 @@ import { eq, and, gte, lt, isNull, sum, count, inArray } from 'drizzle-orm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+export type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida' | 'na'
 
 type MetaRow = typeof metas.$inferSelect
 
@@ -14,6 +14,7 @@ export type MetaAvance = {
   pedidos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   montoCobrado: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   conversionLeads: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
+  pctClientesConPedido: { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: EstadoMeta }
 }
 
 // ─── Period Helpers ───────────────────────────────────────────────────────────
@@ -183,6 +184,49 @@ async function conversionLeadsDelPeriodo(
   return Math.round(((ganados / gestionados) * 100) * 100) / 100
 }
 
+export async function pctClientesConPedidoDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number | null> {
+  const { start, end } = periodoRange(anio, mes)
+
+  // Denominador: clientes asignados al vendedor sin borrar (snapshot hoy)
+  const clienteRows = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(
+      and(
+        eq(clientes.asignadoA, vendedorId),
+        isNull(clientes.deletedAt),
+      ),
+    )
+
+  const denominador = clienteRows.length
+  if (denominador === 0) return null
+
+  const clienteIds = clienteRows.map((c) => c.id)
+
+  // Numerador: distinct clientes con al menos 1 pedido confirmado en el período
+  const pedidoRows = await db
+    .select({ clienteId: pedidos.clienteId })
+    .from(pedidos)
+    .where(
+      and(
+        eq(pedidos.vendedorId, vendedorId),
+        eq(pedidos.estado, 'confirmado'),
+        isNull(pedidos.deletedAt),
+        gte(pedidos.fecha, start),
+        lt(pedidos.fecha, end),
+        inArray(pedidos.clienteId, clienteIds),
+      ),
+    )
+
+  const clientesConPedido = new Set(pedidoRows.map((p) => p.clienteId)).size
+
+  return Math.round((clientesConPedido / denominador) * 100 * 100) / 100
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
@@ -196,18 +240,20 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
 
   const { vendedorId, periodoAnio, periodoMes } = meta
 
-  const [alcanzadoClientesNuevos, alcanzadoPedidos, alcanzadoMonto, alcanzadoConversion] =
+  const [alcanzadoClientesNuevos, alcanzadoPedidos, alcanzadoMonto, alcanzadoConversion, alcanzadoPctClientes] =
     await Promise.all([
       clientesNuevosDelPeriodo(vendedorId, periodoAnio, periodoMes),
       pedidosConfirmadosDelPeriodo(vendedorId, periodoAnio, periodoMes),
       montoCobradoDelPeriodo(vendedorId, periodoAnio, periodoMes),
       conversionLeadsDelPeriodo(vendedorId, periodoAnio, periodoMes),
+      pctClientesConPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes),
     ])
 
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
   const objetivoPedidos = meta.pedidosObjetivo
   const objetivoMonto = parseFloat(meta.montoCobradoObjetivo)
   const objetivoConversion = parseFloat(meta.conversionLeadsObjetivo)
+  const objetivoPctClientes = parseFloat(meta.pctClientesConPedidoObjetivo)
 
   const estadoClientesNuevos = calcularEstadoMeta(
     alcanzadoClientesNuevos,
@@ -233,6 +279,13 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
     periodoAnio,
     periodoMes,
   )
+
+  const pctClientesConPedido = alcanzadoPctClientes === null
+    ? { alcanzado: null, pct: null, proyeccion: null, estado: 'na' as EstadoMeta }
+    : {
+        alcanzado: alcanzadoPctClientes,
+        ...calcularEstadoMeta(alcanzadoPctClientes, objetivoPctClientes, periodoAnio, periodoMes),
+      }
 
   return {
     meta,
@@ -260,6 +313,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       proyeccion: estadoConversion.proyeccion,
       estado: estadoConversion.estado,
     },
+    pctClientesConPedido,
   }
 }
 

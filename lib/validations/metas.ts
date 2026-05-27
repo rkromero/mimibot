@@ -31,6 +31,17 @@ const conversionLeadsObjetivoField = z
     'Debe ser un porcentaje entre 0 y 100',
   )
 
+export const pctClientesConPedidoObjetivoField = z
+  .string()
+  .min(1, 'La cobertura de cartera es requerida')
+  .refine(
+    (val) => {
+      const num = parseFloat(val)
+      return !isNaN(num) && num >= 0 && num <= 100
+    },
+    'Debe ser un porcentaje entre 0 y 100',
+  )
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 export const createMetaSchema = z.object({
@@ -49,6 +60,7 @@ export const createMetaSchema = z.object({
   pedidosObjetivo: pedidosObjetivoField.optional().default(0),
   montoCobradoObjetivo: montoCobradoObjetivoField.optional().default('0'),
   conversionLeadsObjetivo: conversionLeadsObjetivoField.optional().default('0'),
+  pctClientesConPedidoObjetivo: pctClientesConPedidoObjetivoField.optional().default('0'),
 })
 
 export const updateMetaSchema = z.object({
@@ -56,6 +68,7 @@ export const updateMetaSchema = z.object({
   pedidosObjetivo: pedidosObjetivoField.optional(),
   montoCobradoObjetivo: montoCobradoObjetivoField.optional(),
   conversionLeadsObjetivo: conversionLeadsObjetivoField.optional(),
+  pctClientesConPedidoObjetivo: pctClientesConPedidoObjetivoField.optional(),
 })
 
 export const corregirMetaSchema = updateMetaSchema.extend({
