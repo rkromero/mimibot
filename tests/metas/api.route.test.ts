@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ─── Hoisted mocks (must come before vi.mock calls) ───────────────────────────
