@@ -4,12 +4,20 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+type EstadoCobertura = EstadoMeta | 'na'
 
 interface MetricaAvance {
   alcanzado: number
   pct: number
   proyeccion: number
   estado: EstadoMeta
+}
+
+interface MetricaCobertura {
+  alcanzado: number | null
+  pct: number | null
+  proyeccion: number | null
+  estado: EstadoCobertura
 }
 
 interface MetaAvance {
@@ -22,11 +30,13 @@ interface MetaAvance {
     pedidosObjetivo: number
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
+    pctClientesConPedidoObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 
 interface VendedorModalProps {
@@ -258,6 +268,24 @@ export default function VendedorModal({
                 proyeccion={`${avance.conversionLeads.proyeccion}%`}
                 estado={avance.conversionLeads.estado}
               />
+              <div className="border-t border-border" />
+              {avance.pctClientesConPedido.estado === 'na' ? (
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Cobertura de Cartera
+                  </span>
+                  <p className="text-sm text-muted-foreground">Sin cartera asignada</p>
+                </div>
+              ) : (
+                <MetricRow
+                  label="Cobertura de Cartera"
+                  alcanzado={`${avance.pctClientesConPedido.alcanzado}%`}
+                  objetivo={`${avance.meta.pctClientesConPedidoObjetivo}%`}
+                  pct={avance.pctClientesConPedido.pct ?? 0}
+                  proyeccion={`${avance.pctClientesConPedido.proyeccion}%`}
+                  estado={avance.pctClientesConPedido.estado as EstadoMeta}
+                />
+              )}
             </div>
           )}
         </div>

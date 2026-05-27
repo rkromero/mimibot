@@ -1,12 +1,20 @@
 'use client'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
+type EstadoCobertura = EstadoMeta | 'na'
 
 interface MetricaAvance {
   alcanzado: number
   pct: number
   proyeccion: number
   estado: EstadoMeta
+}
+
+interface MetricaCobertura {
+  alcanzado: number | null
+  pct: number | null
+  proyeccion: number | null
+  estado: EstadoCobertura
 }
 
 interface MetaAvance {
@@ -19,11 +27,13 @@ interface MetaAvance {
     pedidosObjetivo: number
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
+    pctClientesConPedidoObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
+  pctClientesConPedido: MetricaCobertura
 }
 
 interface User {
@@ -107,12 +117,18 @@ export default function VendedoresGrid({
   const vendedoresSinMeta = agents.filter((u) => !avanceMap.has(u.id))
 
   const proyeccionGeneral = (a: MetaAvance): number => {
-    const values = [
+    const values: { v: number; obj: number }[] = [
       { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
       { v: a.pedidos.proyeccion, obj: a.meta.pedidosObjetivo },
       { v: a.montoCobrado.proyeccion, obj: parseFloat(a.meta.montoCobradoObjetivo) },
       { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
     ]
+    if (a.pctClientesConPedido.estado !== 'na') {
+      values.push({
+        v: a.pctClientesConPedido.proyeccion ?? 0,
+        obj: parseFloat(a.meta.pctClientesConPedidoObjetivo),
+      })
+    }
     const pcts = values.map(({ v, obj }) =>
       obj > 0 ? Math.min(Math.round((v / obj) * 100), 999) : 100,
     )
@@ -138,6 +154,9 @@ export default function VendedoresGrid({
             </th>
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Conv. Leads
+            </th>
+            <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+              Cobertura
             </th>
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Proyección General
@@ -194,6 +213,18 @@ export default function VendedoresGrid({
                   />
                 </td>
                 <td className="px-4 py-3">
+                  {avance.pctClientesConPedido.estado === 'na' ? (
+                    <span className="text-sm text-muted-foreground">Sin cartera</span>
+                  ) : (
+                    <MetricCell
+                      alcanzado={`${avance.pctClientesConPedido.alcanzado}%`}
+                      objetivo={`${avance.meta.pctClientesConPedidoObjetivo}%`}
+                      pct={avance.pctClientesConPedido.pct ?? 0}
+                      estado={avance.pctClientesConPedido.estado as EstadoMeta}
+                    />
+                  )}
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-0.5 min-w-[80px]">
                     <span
                       className={`text-sm font-semibold tabular-nums ${
@@ -230,7 +261,7 @@ export default function VendedoresGrid({
                 {user.name ?? user.email}
               </td>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="px-4 py-3 text-amber-600 text-xs font-medium"
               >
                 Sin meta para este período
