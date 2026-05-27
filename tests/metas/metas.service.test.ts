@@ -103,6 +103,7 @@ const BASE_META_INPUT = {
   pedidosObjetivo: 20,
   montoCobradoObjetivo: '100000.00',
   conversionLeadsObjetivo: '30.00',
+  pctClientesConPedidoObjetivo: '75.00',
 }
 
 function makeFakeMeta(overrides: Partial<{
@@ -114,6 +115,7 @@ function makeFakeMeta(overrides: Partial<{
   pedidosObjetivo: number
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
+  pctClientesConPedidoObjetivo: string
   creadoPor: string
   fechaCreacion: Date
   fechaActualizacion: Date
@@ -127,6 +129,7 @@ function makeFakeMeta(overrides: Partial<{
     pedidosObjetivo: 20,
     montoCobradoObjetivo: '100000.00',
     conversionLeadsObjetivo: '30.00',
+    pctClientesConPedidoObjetivo: '75.00',
     creadoPor: ADMIN_ID,
     fechaCreacion: new Date('2026-05-01'),
     fechaActualizacion: new Date('2026-05-01'),
@@ -482,6 +485,7 @@ describe('duplicarMetasMesAnterior', () => {
       pedidosObjetivo: 30,
       montoCobradoObjetivo: '200000.00',
       conversionLeadsObjetivo: '45.00',
+      pctClientesConPedidoObjetivo: '80.00',
     })
 
     mockTxQueryMetasFindMany
@@ -508,5 +512,204 @@ describe('duplicarMetasMesAnterior', () => {
     expect(insertedValues[0]?.pedidosObjetivo).toBe(30)
     expect(insertedValues[0]?.montoCobradoObjetivo).toBe('200000.00')
     expect(insertedValues[0]?.conversionLeadsObjetivo).toBe('45.00')
+    expect(insertedValues[0]?.pctClientesConPedidoObjetivo).toBe('80.00')
+  })
+})
+
+// ─── Tests: pctClientesConPedidoObjetivo — Fase 2 integration ─────────────────
+
+describe('createMeta — pctClientesConPedidoObjetivo (a–b)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // (a) createMeta persists pctClientesConPedidoObjetivo in insert payload
+  it('(a) persiste pctClientesConPedidoObjetivo en el payload del insert', async () => {
+    const newMeta = makeFakeMeta({ periodoAnio: 2026, periodoMes: 6, pctClientesConPedidoObjetivo: '65.50' })
+
+    const returningMeta = vi.fn().mockResolvedValue([newMeta])
+    const valuesMeta = vi.fn().mockReturnValue({ returning: returningMeta })
+    const returningAudit = vi.fn().mockResolvedValue([{ id: 'audit-1' }])
+    const valuesAudit = vi.fn().mockReturnValue({ returning: returningAudit })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesMeta })
+      .mockReturnValueOnce({ values: valuesAudit })
+
+    await createMeta({ ...BASE_META_INPUT, periodoMes: 6, pctClientesConPedidoObjetivo: '65.50' }, ADMIN_ID)
+
+    const insertArg = valuesMeta.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(insertArg.pctClientesConPedidoObjetivo).toBe('65.50')
+  })
+
+  // (b) createMeta includes pctClientesConPedidoObjetivo in audit newValues
+  it('(b) incluye pctClientesConPedidoObjetivo en newValues del log de auditoría', async () => {
+    const newMeta = makeFakeMeta({ periodoAnio: 2026, periodoMes: 6, pctClientesConPedidoObjetivo: '65.50' })
+
+    const returningMeta = vi.fn().mockResolvedValue([newMeta])
+    const valuesMeta = vi.fn().mockReturnValue({ returning: returningMeta })
+    const returningAudit = vi.fn().mockResolvedValue([{ id: 'audit-1' }])
+    const valuesAudit = vi.fn().mockReturnValue({ returning: returningAudit })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesMeta })
+      .mockReturnValueOnce({ values: valuesAudit })
+
+    await createMeta({ ...BASE_META_INPUT, periodoMes: 6, pctClientesConPedidoObjetivo: '65.50' }, ADMIN_ID)
+
+    const auditArg = valuesAudit.mock.calls[0]?.[0] as Record<string, unknown>
+    const newValues = auditArg.newValues as Record<string, unknown>
+    expect(newValues.pctClientesConPedidoObjetivo).toBe('65.50')
+  })
+})
+
+describe('updateMetaVigente — pctClientesConPedidoObjetivo (c–d)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // (c) updateMetaVigente applies pctClientesConPedidoObjetivo to updatePayload
+  it('(c) aplica pctClientesConPedidoObjetivo al payload del update', async () => {
+    const existingMeta = makeFakeMeta({ periodoAnio: 2026, periodoMes: 5, pctClientesConPedidoObjetivo: '70.00' })
+    const updatedMeta = { ...existingMeta, pctClientesConPedidoObjetivo: '85.00' }
+
+    mockTxQueryMetasFindFirst.mockResolvedValue(existingMeta)
+
+    const returningUpdate = vi.fn().mockResolvedValue([updatedMeta])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const returningAudit = vi.fn().mockResolvedValue([{ id: 'audit-c' }])
+    const valuesAudit = vi.fn().mockReturnValue({ returning: returningAudit })
+    mockTxInsert.mockReturnValue({ values: valuesAudit })
+
+    await updateMetaVigente('meta-1', { pctClientesConPedidoObjetivo: '85.00' }, 'Ajuste cobertura Q2', ADMIN_ID)
+
+    const setArg = setUpdate.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(setArg.pctClientesConPedidoObjetivo).toBe('85.00')
+  })
+
+  // (d) updateMetaVigente audit log captures pctClientesConPedidoObjetivo in oldValues and newValues
+  it('(d) registra pctClientesConPedidoObjetivo en oldValues y newValues del log de auditoría', async () => {
+    const existingMeta = makeFakeMeta({ periodoAnio: 2026, periodoMes: 5, pctClientesConPedidoObjetivo: '70.00' })
+    const updatedMeta = { ...existingMeta, pctClientesConPedidoObjetivo: '85.00' }
+
+    mockTxQueryMetasFindFirst.mockResolvedValue(existingMeta)
+
+    const returningUpdate = vi.fn().mockResolvedValue([updatedMeta])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const returningAudit = vi.fn().mockResolvedValue([{ id: 'audit-d' }])
+    const valuesAudit = vi.fn().mockReturnValue({ returning: returningAudit })
+    mockTxInsert.mockReturnValue({ values: valuesAudit })
+
+    await updateMetaVigente('meta-1', { pctClientesConPedidoObjetivo: '85.00' }, 'Ajuste cobertura', ADMIN_ID)
+
+    const auditArg = valuesAudit.mock.calls[0]?.[0] as Record<string, unknown>
+    const oldValues = auditArg.oldValues as Record<string, unknown>
+    const newValues = auditArg.newValues as Record<string, unknown>
+
+    expect(oldValues.pctClientesConPedidoObjetivo).toBe('70.00')
+    expect(newValues.pctClientesConPedidoObjetivo).toBe('85.00')
+  })
+})
+
+describe('duplicarMetasMesAnterior — pctClientesConPedidoObjetivo (e–f)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // (e) duplicarMetasMesAnterior copies pctClientesConPedidoObjetivo from source meta
+  it('(e) copia pctClientesConPedidoObjetivo del mes fuente al mes destino', async () => {
+    const sourceMeta = makeFakeMeta({
+      id: 'meta-src',
+      vendedorId: 'vendedor-1',
+      periodoAnio: 2026,
+      periodoMes: 4,
+      pctClientesConPedidoObjetivo: '88.00',
+    })
+
+    mockTxQueryMetasFindMany
+      .mockResolvedValueOnce([sourceMeta])
+      .mockResolvedValueOnce([])
+
+    const returningInsertMetas = vi.fn().mockResolvedValue([{
+      ...sourceMeta,
+      id: 'meta-new',
+      periodoMes: 5,
+    }])
+    const valuesInsertMetas = vi.fn().mockReturnValue({ returning: returningInsertMetas })
+    const returningInsertAudit = vi.fn().mockResolvedValue([])
+    const valuesInsertAudit = vi.fn().mockReturnValue({ returning: returningInsertAudit })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesInsertMetas })
+      .mockReturnValueOnce({ values: valuesInsertAudit })
+
+    await duplicarMetasMesAnterior(2026, 5, ADMIN_ID)
+
+    const insertedValues = valuesInsertMetas.mock.calls[0]?.[0] as Array<Record<string, unknown>>
+    expect(insertedValues[0]?.pctClientesConPedidoObjetivo).toBe('88.00')
+  })
+
+  // (f) duplicarMetasMesAnterior includes pctClientesConPedidoObjetivo in audit newValues
+  it('(f) incluye pctClientesConPedidoObjetivo en newValues del log de auditoría al duplicar', async () => {
+    const sourceMeta = makeFakeMeta({
+      id: 'meta-src',
+      vendedorId: 'vendedor-1',
+      periodoAnio: 2026,
+      periodoMes: 4,
+      pctClientesConPedidoObjetivo: '88.00',
+    })
+
+    mockTxQueryMetasFindMany
+      .mockResolvedValueOnce([sourceMeta])
+      .mockResolvedValueOnce([])
+
+    const duplicatedMeta = { ...sourceMeta, id: 'meta-new', periodoMes: 5 }
+    const returningInsertMetas = vi.fn().mockResolvedValue([duplicatedMeta])
+    const valuesInsertMetas = vi.fn().mockReturnValue({ returning: returningInsertMetas })
+    const returningInsertAudit = vi.fn().mockResolvedValue([])
+    const valuesInsertAudit = vi.fn().mockReturnValue({ returning: returningInsertAudit })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesInsertMetas })
+      .mockReturnValueOnce({ values: valuesInsertAudit })
+
+    await duplicarMetasMesAnterior(2026, 5, ADMIN_ID)
+
+    const auditArg = valuesInsertAudit.mock.calls[0]?.[0] as Array<Record<string, unknown>>
+    const newValues = auditArg[0]?.newValues as Record<string, unknown>
+    expect(newValues.pctClientesConPedidoObjetivo).toBe('88.00')
   })
 })

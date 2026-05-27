@@ -160,16 +160,30 @@ export default function MetasAdminView() {
     setSavingMap((prev) => new Map(prev).set(vendedorId, true))
     setError(null)
     try {
-      const res = await fetch('/api/metas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendedorId,
-          periodoAnio: selectedAnio,
-          periodoMes: selectedMes,
-          ...values,
-        }),
-      })
+      const existingMeta = metasMap.get(vendedorId)
+      let res: Response
+
+      if (existingMeta) {
+        // PATCH to update the existing meta (fields are optional — partial update)
+        res = await fetch(`/api/metas/${existingMeta.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        })
+      } else {
+        // POST to create a new meta for this vendor + period
+        res = await fetch('/api/metas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendedorId,
+            periodoAnio: selectedAnio,
+            periodoMes: selectedMes,
+            ...values,
+          }),
+        })
+      }
+
       if (!res.ok) {
         const data = await res.json() as { error?: string }
         throw new Error(data.error ?? 'Error al guardar meta')
@@ -319,6 +333,9 @@ export default function MetasAdminView() {
                   </th>
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border whitespace-nowrap">
                     Conversión Leads (%)
+                  </th>
+                  <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border whitespace-nowrap">
+                    % Cobertura cartera
                   </th>
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border whitespace-nowrap">
                     Estado

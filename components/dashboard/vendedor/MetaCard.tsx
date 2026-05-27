@@ -11,6 +11,7 @@ interface MetaCardProps {
   estado: EstadoMeta
   formatValue?: (v: number) => string
   pctMesTranscurrido: number
+  naMessage?: string
 }
 
 function getBarColor(
@@ -18,6 +19,7 @@ function getBarColor(
   estado: EstadoMeta,
   pctMesTranscurrido: number,
 ): string {
+  if (estado === 'na') return 'bg-gray-300'
   if (estado === 'cumplida') return 'bg-green-500'
   if (estado === 'no_cumplida') return 'bg-gray-400'
   if (pct >= pctMesTranscurrido) return 'bg-green-500'
@@ -30,6 +32,7 @@ function getBorderColor(
   estado: EstadoMeta,
   pctMesTranscurrido: number,
 ): string {
+  if (estado === 'na') return 'border-l-gray-300'
   if (estado === 'cumplida') return 'border-l-green-500'
   if (estado === 'no_cumplida') return 'border-l-gray-400'
   if (pct >= pctMesTranscurrido) return 'border-l-green-500'
@@ -38,6 +41,7 @@ function getBorderColor(
 }
 
 function EstadoBadge({ estado }: { estado: EstadoMeta }) {
+  if (estado === 'na') return null
   if (estado === 'cumplida') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -68,11 +72,30 @@ export default function MetaCard({
   estado,
   formatValue,
   pctMesTranscurrido,
+  naMessage,
 }: MetaCardProps) {
   const fmt = formatValue ?? ((v: number) => String(v))
+  const borderColor = getBorderColor(pct, estado, pctMesTranscurrido)
+
+  if (estado === 'na') {
+    return (
+      <div
+        className={`rounded-xl border border-border bg-card shadow-sm p-4 space-y-2 border-l-4 ${borderColor} w-full`}
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {title}
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {naMessage ?? 'Sin datos'}
+        </p>
+      </div>
+    )
+  }
+
   const barWidth = Math.min(pct, 100)
   const barColor = getBarColor(pct, estado, pctMesTranscurrido)
-  const borderColor = getBorderColor(pct, estado, pctMesTranscurrido)
 
   return (
     <div

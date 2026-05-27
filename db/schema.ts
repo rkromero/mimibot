@@ -554,6 +554,7 @@ export const metas = pgTable('metas', {
   pedidosObjetivo: integer('pedidos_objetivo').notNull().default(0),
   montoCobradoObjetivo: decimal('monto_cobrado_objetivo', { precision: 12, scale: 2 }).notNull().default('0'),
   conversionLeadsObjetivo: decimal('conversion_leads_objetivo', { precision: 5, scale: 2 }).notNull().default('0'),
+  pctClientesConPedidoObjetivo: decimal('pct_clientes_con_pedido_objetivo', { precision: 5, scale: 2 }).notNull().default('0'),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   fechaCreacion: timestamp('fecha_creacion', { mode: 'date' }).notNull().defaultNow(),
   fechaActualizacion: timestamp('fecha_actualizacion', { mode: 'date' }).notNull().defaultNow(),
