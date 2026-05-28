@@ -9,11 +9,21 @@ type TeamUser = Pick<User, 'id' | 'name' | 'email' | 'role' | 'avatarColor' | 'i
 
 type Props = { initialUsers: TeamUser[] }
 
+type EditForm = {
+  id: string
+  name: string
+  email: string
+  role: 'admin' | 'agent' | 'gerente'
+  password: string
+}
+
 export default function TeamManager({ initialUsers }: Props) {
   const [members, setMembers] = useState(initialUsers)
   const [showForm, setShowForm] = useState(false)
+  const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' as 'admin' | 'agent' | 'gerente' })
 
@@ -54,6 +64,53 @@ export default function TeamManager({ initialUsers }: Props) {
     })
   }
 
+  function openEdit(member: TeamUser) {
+    setEditError(null)
+    setEditForm({
+      id: member.id,
+      name: member.name ?? '',
+      email: member.email,
+      role: (member.role ?? 'agent') as 'admin' | 'agent' | 'gerente',
+      password: '',
+    })
+    setShowForm(false)
+  }
+
+  function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editForm) return
+    setEditError(null)
+
+    startTransition(async () => {
+      const payload: Record<string, unknown> = {
+        name: editForm.name,
+        email: editForm.email,
+        role: editForm.role,
+      }
+      if (editForm.password.length > 0) {
+        payload.password = editForm.password
+      }
+
+      const res = await fetch(`/api/users/${editForm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json() as { data?: TeamUser; error?: string }
+
+      if (!res.ok) {
+        setEditError(typeof data.error === 'string' ? data.error : 'Error al guardar cambios')
+        return
+      }
+
+      if (data.data) {
+        setMembers((prev) => prev.map((u) => u.id === editForm.id ? { ...u, ...data.data } : u))
+      }
+      setEditForm(null)
+    })
+  }
+
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-4">
@@ -62,7 +119,7 @@ export default function TeamManager({ initialUsers }: Props) {
           <p className="text-sm text-muted-foreground">{members.length} usuarios</p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => { setShowForm((v) => !v); setEditForm(null) }}
           className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-100"
         >
           {showForm ? 'Cancelar' : 'Crear usuario'}
@@ -142,6 +199,81 @@ export default function TeamManager({ initialUsers }: Props) {
         </form>
       )}
 
+      {/* Formulario de edición */}
+      {editForm && (
+        <form
+          onSubmit={handleUpdate}
+          className="mb-4 p-4 rounded-md border border-border space-y-3"
+        >
+          <h3 className="text-sm font-medium">Editar usuario</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Nombre</label>
+              <input
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm((p) => p ? { ...p, name: e.target.value } : p)}
+                className={inputClass}
+                placeholder="Juan García"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Email</label>
+              <input
+                required
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm((p) => p ? { ...p, email: e.target.value } : p)}
+                className={inputClass}
+                placeholder="juan@empresa.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                Contraseña{' '}
+                <span className="text-muted-foreground/70 font-normal">(dejar en blanco para mantener la actual)</span>
+              </label>
+              <input
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm((p) => p ? { ...p, password: e.target.value } : p)}
+                className={inputClass}
+                placeholder="Nueva contraseña (mínimo 8 caracteres)"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Rol</label>
+              <select
+                value={editForm.role}
+                onChange={(e) => setEditForm((p) => p ? { ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' } : p)}
+                className={inputClass}
+              >
+                <option value="agent">Agente</option>
+                <option value="gerente">Gerente</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          {editError && <p className="text-xs text-destructive">{editError}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isPending ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditForm(null)}
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Lista de usuarios */}
       <div className="divide-y divide-border rounded-md border border-border">
         {members.map((member) => (
@@ -186,6 +318,12 @@ export default function TeamManager({ initialUsers }: Props) {
               {member.lastSeenAt && (
                 <span>{relativeTime(member.lastSeenAt)}</span>
               )}
+              <button
+                onClick={() => openEdit(member)}
+                className="text-xs underline hover:text-foreground transition-colors"
+              >
+                Editar
+              </button>
               <button
                 onClick={() => toggleActive(member.id, member.isActive)}
                 className="text-xs underline hover:text-foreground transition-colors"
