@@ -15,7 +15,7 @@ export async function GET() {
     const now = new Date()
 
     // Non-agents get a zeroed response (they have their own dashboards)
-    if (session.user.role !== 'agent') {
+    if (session.user.role !== 'agent' && session.user.role !== 'vendedor') {
       return NextResponse.json({
         data: {
           nombre: session.user.name?.split(' ')[0] ?? 'usuario',

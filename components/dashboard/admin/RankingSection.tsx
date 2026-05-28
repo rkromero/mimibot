@@ -40,7 +40,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
   avatarColor: string
   isActive: boolean
 }

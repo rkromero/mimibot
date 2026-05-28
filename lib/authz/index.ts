@@ -33,7 +33,7 @@ export function requireAdminOrGerente(user: SessionUser): void {
 }
 
 export function requireNotAgent(user: SessionUser): void {
-  if (user.role === 'agent') {
+  if (user.role === 'agent' || user.role === 'vendedor') {
     throw new AuthzError('Acción no permitida para agentes')
   }
 }

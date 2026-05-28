@@ -24,7 +24,7 @@ async function canAccessPedido(
   if (ctx.role === 'admin') return pedido
 
   // Agente: solo accede al pedido si el cliente sigue asignado a él HOY.
-  if (ctx.role === 'agent') {
+  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
     const cliente = await db.query.clientes.findFirst({
       where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
       columns: { id: true },
@@ -123,7 +123,7 @@ export async function PATCH(
     // ── Guardas de permiso por rol ────────────────────────────────────────────
 
     // Agente no puede editar un pedido ya confirmado
-    if (ctx.role === 'agent' && !estado && current.estado === 'confirmado') {
+    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && !estado && current.estado === 'confirmado') {
       throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
     }
 
@@ -137,7 +137,7 @@ export async function PATCH(
 
       // ── Aprobar: pendiente_aprobacion → confirmado ──────────────────────────
       if (estado === 'confirmado' && current.estado === 'pendiente_aprobacion') {
-        if (ctx.role === 'agent') {
+        if (ctx.role === 'agent' || ctx.role === 'vendedor') {
           throw new AuthzError('Los agentes no pueden aprobar pedidos')
         }
         if (ctx.role === 'gerente') {
@@ -167,7 +167,7 @@ export async function PATCH(
 
       // ── Revertir: confirmado → pendiente_aprobacion ─────────────────────────
       if (estado === 'pendiente_aprobacion' && current.estado === 'confirmado') {
-        if (ctx.role === 'agent') {
+        if (ctx.role === 'agent' || ctx.role === 'vendedor') {
           throw new AuthzError('Los agentes no pueden revertir pedidos')
         }
         if (ctx.role === 'gerente') {
@@ -184,7 +184,7 @@ export async function PATCH(
     //    u observaciones) ─────────────────────────────────────────────────────
 
     // Agente no puede modificar pedidos confirmados
-    if (ctx.role === 'agent' && current.estado === 'confirmado') {
+    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && current.estado === 'confirmado') {
       throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
     }
 

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       sql`${pedidos.fecha} < NOW() - (${morosoDias}::text || ' days')::interval`,
     ]
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       whereConditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {

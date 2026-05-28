@@ -27,7 +27,7 @@ export async function canAccessCliente(
 ): Promise<void> {
   if (user.role === 'admin') return
 
-  if (user.role === 'agent') {
+  if (user.role === 'agent' || user.role === 'vendedor') {
     const cliente = await db.query.clientes.findFirst({
       where: and(
         eq(clientes.id, clienteId),

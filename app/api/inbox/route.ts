@@ -28,9 +28,9 @@ export async function GET(req: NextRequest) {
       // Gerente ve los leads asignados a los agentes de sus territorios, con
       // selector opcional para filtrar a un agente específico.
       // Admin ve todos, con selector opcional también.
-      if (session.user.role === 'agent') {
+      if (session.user.role === 'agent' || session.user.role === 'vendedor') {
         conditions.push(eq(leads.assignedTo, session.user.id))
-      } else if (session.user.role === 'gerente') {
+      } else if (session.user.role === 'gerente') {  // keep gerente branch unchanged
         const ctx = await getSessionContext(session.user)
         if (ctx.agentesVisibles.length === 0) {
           return NextResponse.json({ data: [], page: 1, limit, total: 0, totalPages: 1 })

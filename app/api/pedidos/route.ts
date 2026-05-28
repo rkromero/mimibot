@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
     ]
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     let vendedorId: string = session.user.id
     let creadoPor: string | null = null
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       const cliente = await db.query.clientes.findFirst({
         where: and(
           eq(clientes.id, input.clienteId),
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
-    const crearComoPendienteAprobacion = ctx.role === 'agent'
+    const crearComoPendienteAprobacion = ctx.role === 'agent' || ctx.role === 'vendedor'
 
     const pedido = await crearPedidoConItems(
       input.clienteId,

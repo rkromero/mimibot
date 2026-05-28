@@ -104,7 +104,7 @@ describe('getTerritorio', () => {
 
   it('lanza NotFoundError si el territorio no existe o fue dado de baja', async () => {
     mockDbQueryTerritoriosFindFirst.mockResolvedValue(null)
-    await expect(getTerritorio('t-nope', makeCtx())).rejects.toMatchObject({ name: 'NotFoundError' })
+    await expect(getTerritorio('t-nope', makeCtx({}))).rejects.toMatchObject({ name: 'NotFoundError' })
   })
 })
 

@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: RouteCtx) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    if (session.user.role === 'agent') {
+    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 

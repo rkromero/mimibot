@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Props = { role: 'admin' | 'gerente' | 'agent' }
+type Props = { role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
 
 export default function HomeRedirect({ role }: Props) {
   const router = useRouter()

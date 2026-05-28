@@ -107,7 +107,7 @@ function FieldNav({ user, onNewPedido, onSearchOpen }: Props) {
   const [masOpen, setMasOpen] = useState(false)
   // Activamos el polling de inbox para ambos roles porque ambos pueden tener
   // mensajes sin leer asignados a ellos.
-  const unreadCount = useUnreadCount(user.role === 'agent' || user.role === 'gerente')
+  const unreadCount = useUnreadCount(user.role === 'agent' || user.role === 'gerente' || user.role === 'vendedor')
 
   const inicioActive = pathname === '/' || pathname.startsWith('/agent/home') || pathname.startsWith('/dashboard')
   const inboxActive = pathname.startsWith('/inbox')

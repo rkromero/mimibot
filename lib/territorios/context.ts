@@ -5,7 +5,7 @@ import type { Session } from 'next-auth'
 
 export type SessionContext = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
   /** Territorios que gestiona este gerente */
   territoriosGestionados: string[]
   /** Agentes en los territorios del gerente (para scoping de queries) */
@@ -25,7 +25,7 @@ export async function getSessionContext(user: Session['user']): Promise<SessionC
 
   if (user.role === 'admin') return base
 
-  if (user.role === 'agent') {
+  if (user.role === 'agent' || user.role === 'vendedor') {
     const activos = await db.query.territorioAgente.findMany({
       where: and(
         eq(territorioAgente.agenteId, user.id),

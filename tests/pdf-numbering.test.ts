@@ -47,7 +47,7 @@ describe('numeración de documentos PDF', () => {
 
   it('remito y proforma tienen contadores independientes', () => {
     // Simula dos contadores separados
-    const counters: Record<string, number> = { remito: 0, proforma: 0 }
+    const counters: Record<'remito' | 'proforma', number> = { remito: 0, proforma: 0 }
 
     const emitir = (tipo: 'remito' | 'proforma') => ++counters[tipo]
 

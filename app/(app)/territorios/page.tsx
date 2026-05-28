@@ -7,7 +7,7 @@ export const metadata = { title: 'Territorios' }
 export default async function TerritoriosPage() {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user.role === 'agent') redirect('/dashboard')
+  if (session.user.role === 'agent' || session.user.role === 'vendedor') redirect('/dashboard')
 
   return <TerritoriosListView role={session.user.role} />
 }

@@ -66,7 +66,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
         : []
 
       setAvances(avancesJson.data ?? [])
-      setAgentes(usersJson.data?.filter((u) => u.role === 'agent') ?? [])
+      setAgentes(usersJson.data?.filter((u) => u.role === 'agent' || u.role === 'vendedor') ?? [])
       setTerritorios(territoriosJson)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar datos')

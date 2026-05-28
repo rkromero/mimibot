@@ -6,7 +6,7 @@ export async function assignNextAgent(): Promise<string | null> {
   const result = await db.execute(sql`
     SELECT u.id
     FROM users u
-    WHERE u.role = 'agent' AND u.is_active = true
+    WHERE u.role IN ('agent', 'vendedor') AND u.is_active = true
     ORDER BY (
       SELECT COUNT(*) FROM leads l
       WHERE l.assigned_to = u.id AND l.is_open = true

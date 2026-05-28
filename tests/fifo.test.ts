@@ -39,11 +39,11 @@ describe('calcularDistribucionFIFO', () => {
       { id: 'p1', fecha: d('2024-01-01'), saldoPendiente: '500.00' },
     ])
 
-    expect(result.aplicaciones[0].pedidoId).toBe('p1')
-    expect(result.aplicaciones[1].pedidoId).toBe('p2')
-    expect(result.aplicaciones[0].montoAplicado).toBe('500.00')
-    expect(result.aplicaciones[1].montoAplicado).toBe('200.00')
-    expect(result.aplicaciones[1].saldoRestante).toBe('200.00')
+    expect(result.aplicaciones[0]!.pedidoId).toBe('p1')
+    expect(result.aplicaciones[1]!.pedidoId).toBe('p2')
+    expect(result.aplicaciones[0]!.montoAplicado).toBe('500.00')
+    expect(result.aplicaciones[1]!.montoAplicado).toBe('200.00')
+    expect(result.aplicaciones[1]!.saldoRestante).toBe('200.00')
     expect(result.sobrante).toBe('0.00')
   })
 
@@ -54,8 +54,8 @@ describe('calcularDistribucionFIFO', () => {
     ])
 
     expect(result.aplicaciones).toHaveLength(2)
-    expect(result.aplicaciones[0].estadoPago).toBe('pagado')
-    expect(result.aplicaciones[1].estadoPago).toBe('pagado')
+    expect(result.aplicaciones[0]!.estadoPago).toBe('pagado')
+    expect(result.aplicaciones[1]!.estadoPago).toBe('pagado')
     expect(result.sobrante).toBe('800.00')
   })
 

@@ -10,7 +10,7 @@ import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
 
 type Territorio = { id: string; nombre: string }
-type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' }
+type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
@@ -52,7 +52,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
   avatarColor: string
   isActive: boolean
 }

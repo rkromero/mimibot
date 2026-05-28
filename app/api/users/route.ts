@@ -15,7 +15,7 @@ const createUserSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8).max(100),
-  role: z.enum(['admin', 'agent', 'gerente']).default('agent'),
+  role: z.enum(['admin', 'agent', 'gerente', 'vendedor']).default('agent'),
 })
 
 export async function GET(req: NextRequest) {
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     if (role === 'agent') conditions.push(eq(users.role, 'agent'))
     if (role === 'admin') conditions.push(eq(users.role, 'admin'))
     if (role === 'gerente') conditions.push(eq(users.role, 'gerente'))
+    if (role === 'vendedor') conditions.push(eq(users.role, 'vendedor'))
 
     const data = await db
       .select({

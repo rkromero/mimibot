@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       const avance = await calcularAvanceVendedor(ctx.userId, anio, mes)
       return NextResponse.json({ data: avance })
     }

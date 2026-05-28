@@ -11,7 +11,7 @@ export default async function TerritorioDetailPage({
 }) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user.role === 'agent') redirect('/dashboard')
+  if (session.user.role === 'agent' || session.user.role === 'vendedor') redirect('/dashboard')
 
   const { id } = await params
   return <TerritorioDetailView id={id} role={session.user.role} />

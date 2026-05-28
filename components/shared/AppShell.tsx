@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor'
 
 type Props = {
   user: User

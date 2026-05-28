@@ -43,7 +43,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
   avatarColor: string
   isActive: boolean
 }
@@ -68,7 +68,7 @@ function buildAlertas(
   mes: number,
 ): Alerta[] {
   const alertas: Alerta[] = []
-  const agents = users.filter((u) => u.role === 'agent' && u.isActive)
+  const agents = users.filter((u) => (u.role === 'agent' || u.role === 'vendedor') && u.isActive)
   const avanceMap = new Map(avances.map((a) => [a.meta.vendedorId, a]))
 
   // Vendors without a meta

@@ -30,7 +30,7 @@ export async function listarTerritorios(ctx: SessionContext) {
   if (ctx.role === 'gerente') {
     if (ctx.territoriosGestionados.length === 0) return []
     territorioIds = ctx.territoriosGestionados
-  } else if (ctx.role === 'agent') {
+  } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
     if (ctx.territoriosActivos.length === 0) return []
     territorioIds = ctx.territoriosActivos
   }
@@ -95,7 +95,7 @@ export async function getTerritorio(id: string, ctx: SessionContext) {
   if (ctx.role === 'gerente' && !ctx.territoriosGestionados.includes(id)) {
     throw new AuthzError('No tenés acceso a este territorio')
   }
-  if (ctx.role === 'agent' && !ctx.territoriosActivos.includes(id)) {
+  if ((ctx.role === 'agent' || ctx.role === 'vendedor') && !ctx.territoriosActivos.includes(id)) {
     throw new AuthzError('No tenés acceso a este territorio')
   }
 
@@ -171,8 +171,8 @@ export async function asignarAgente(territorioId: string, agenteId: string) {
     columns: { id: true, role: true },
   })
   if (!agente) throw new NotFoundError('Usuario')
-  if (agente.role !== 'agent') {
-    throw new ValidationError('Solo se puede asignar un agente (role=agent) a un territorio')
+  if (agente.role !== 'agent' && agente.role !== 'vendedor') {
+    throw new ValidationError('Solo se puede asignar un agente o vendedor a un territorio')
   }
 
   // Desasignar el agente activo anterior si existe

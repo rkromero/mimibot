@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
     ]
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
     )
 
     let asignadoA: string | null = null
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       asignadoA = ctx.userId
     } else if (ctx.role === 'admin' && input.asignadoA) {
       asignadoA = input.asignadoA

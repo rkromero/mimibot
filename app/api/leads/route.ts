@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     let effectiveAgentId: string | undefined = agentId
     let gerenteAgenteIds: string[] | undefined
 
-    if (session.user.role === 'agent') {
+    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
       effectiveAgentId = session.user.id
     } else if (session.user.role === 'gerente') {
       const { getSessionContext } = await import('@/lib/territorios/context')

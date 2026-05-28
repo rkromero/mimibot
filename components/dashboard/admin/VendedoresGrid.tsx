@@ -40,7 +40,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
   avatarColor: string
   isActive: boolean
 }
@@ -106,7 +106,7 @@ export default function VendedoresGrid({
   users,
   onSelectVendedor,
 }: VendedoresGridProps) {
-  const agents = users.filter((u) => u.role === 'agent')
+  const agents = users.filter((u) => u.role === 'agent' || u.role === 'vendedor')
   const avanceMap = new Map(avances.map((a) => [a.meta.vendedorId, a]))
 
   const vendedoresConMeta = avances.map((a) => {

@@ -12,7 +12,7 @@ import Avatar from '@/components/shared/Avatar'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor'
 
 type NavItem = {
   href: string
@@ -26,7 +26,7 @@ type NavGroup = {
   items: NavItem[]
 }
 
-const ALL_ROLES: Role[] = ['admin', 'gerente', 'agent']
+const ALL_ROLES: Role[] = ['admin', 'gerente', 'agent', 'vendedor']
 
 // Reglas de visibilidad por rol acordadas con el usuario:
 //   - Agente: Pipeline, Inbox, Pedidos, Clientes, Dashboard, Morosos.
@@ -60,7 +60,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Análisis',
     items: [
-      { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'gerente'] },
+      { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'gerente', 'vendedor'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },

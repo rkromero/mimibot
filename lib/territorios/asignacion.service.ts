@@ -16,7 +16,7 @@ export async function resolverTerritorioPorRol(
   territorioIdSolicitado?: string | null,
 ): Promise<{ territorioId: string | null; agenteId: string | null }> {
 
-  if (ctx.role === 'agent') {
+  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
     let territorioId: string | null = null
 
     if (territorioIdSolicitado) {
@@ -179,7 +179,7 @@ export async function sincronizarAgenteEnTerritorioClientes(
 export async function getClienteIdsVisibles(ctx: SessionContext): Promise<string[] | 'all'> {
   if (ctx.role === 'admin') return 'all'
 
-  if (ctx.role === 'agent') {
+  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
     const rows = await db.query.clientes.findMany({
       where: and(
         eq(clientes.asignadoA, ctx.userId),

@@ -5,12 +5,8 @@ import { sql } from 'drizzle-orm'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 
-// Admin-only POST endpoint that idempotently applies the migrations 0008-0011
-// to the deployed database. These migrations were declared in the Drizzle
-// journal but never actually ran in production (only 6 of 12 entries are
-// present in __drizzle_migrations), which left the `productos` table missing
-// 8 columns, the `stock_movements` and `whatsapp_config` tables missing
-// entirely, and the `users` table missing the 2FA TOTP columns.
+// Admin-only POST endpoint that idempotently applies missing migrations
+// to the deployed database.
 //
 // All DDL statements use IF NOT EXISTS / EXCEPTION WHEN duplicate_object so
 // this endpoint can be re-run safely without side effects.
@@ -82,6 +78,13 @@ const MIGRATION_0010_STATEMENTS: string[] = [
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "totp_enabled" boolean NOT NULL DEFAULT false`,
 ]
 
+const MIGRATION_0015_STATEMENTS: string[] = [
+  // Migration 0015: Add 'vendedor' role — decoupled copy of 'agent'.
+  // ALTER TYPE ADD VALUE cannot run inside a transaction; the IF NOT EXISTS
+  // makes this idempotent so re-runs are safe.
+  `ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'vendedor'`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -139,6 +142,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0009_stock_movements', MIGRATION_0009_STATEMENTS))
     results.push(...await runStatements('0010_2fa_totp', MIGRATION_0010_STATEMENTS))
     results.push(...await runStatements('0011_whatsapp_config', MIGRATION_0011_STATEMENTS))
+    results.push(...await runStatements('0015_add_vendedor_role', MIGRATION_0015_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`

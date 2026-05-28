@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     const conditions: ReturnType<typeof eq>[] = []
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       conditions.push(eq(metas.vendedorId, ctx.userId))
     } else if (ctx.role === 'gerente') {
       const agentes = ctx.agentesVisibles
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role === 'agent') {
+    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       throw new AuthzError('Los agentes no pueden crear metas')
     }
 
