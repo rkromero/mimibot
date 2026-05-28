@@ -23,6 +23,12 @@ export type PedidoData = {
     telefono?: string
     email?: string
   }
+  /** Método de entrega — solo en pedidos del rol Agente */
+  metodoEntrega?: 'retiro_fabrica' | 'expreso' | null
+  /** Nombre del expreso donde se despacha la mercadería */
+  expresoNombre?: string
+  /** Dirección del expreso donde se despacha la mercadería */
+  expresoDireccion?: string
 }
 
 const styles = StyleSheet.create({
@@ -219,6 +225,31 @@ export function RemitoDocument({ data, numero }: Props) {
             </View>
           )}
         </View>
+
+        {/* Método de entrega — solo si está cargado */}
+        {data.metodoEntrega && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Método de entrega</Text>
+            <View style={styles.clienteRow}>
+              <Text style={styles.clienteLabel}>Entrega:</Text>
+              <Text style={styles.clienteValue}>
+                {data.metodoEntrega === 'retiro_fabrica' ? 'Retiro en fábrica' : 'Envío por expreso'}
+              </Text>
+            </View>
+            {data.metodoEntrega === 'expreso' && data.expresoNombre && (
+              <View style={styles.clienteRow}>
+                <Text style={styles.clienteLabel}>Expreso:</Text>
+                <Text style={styles.clienteValue}>{data.expresoNombre}</Text>
+              </View>
+            )}
+            {data.metodoEntrega === 'expreso' && data.expresoDireccion && (
+              <View style={styles.clienteRow}>
+                <Text style={styles.clienteLabel}>Dir. despacho:</Text>
+                <Text style={styles.clienteValue}>{data.expresoDireccion}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Items table */}
         <View style={styles.section}>

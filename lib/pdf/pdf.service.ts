@@ -106,6 +106,10 @@ export async function emitirDocumento(
     total: pedido.total,
     vendedorNombre: pedido.vendedor?.name ?? 'Vendedor',
     empresa,
+    // Método de entrega (solo pedidos del rol Agente)
+    metodoEntrega: (pedido.metodoEntrega as 'retiro_fabrica' | 'expreso' | null | undefined) ?? null,
+    expresoNombre: pedido.expresoNombre ?? undefined,
+    expresoDireccion: pedido.expresoDireccion ?? undefined,
   }
 
   // 5. Render PDF

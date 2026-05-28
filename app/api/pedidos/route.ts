@@ -127,6 +127,11 @@ export async function POST(req: NextRequest) {
 
     let vendedorId: string = session.user.id
     let creadoPor: string | null = null
+    let territorioIdImputado: string | null = null
+    // Delivery method — only processed for role 'agent'; vendedor is frozen and ignores these
+    let metodoEntregaFinal: 'retiro_fabrica' | 'expreso' | null = null
+    let expresoNombreFinal: string | null = null
+    let expresoDireccionFinal: string | null = null
 
     if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       const cliente = await db.query.clientes.findFirst({
@@ -135,10 +140,33 @@ export async function POST(req: NextRequest) {
           eq(clientes.asignadoA, session.user.id),
           isNull(clientes.deletedAt),
         ),
-        columns: { id: true, territorioId: true },
+        columns: { id: true, territorioId: true, expresoNombre: true, expresoDireccion: true },
       })
       if (!cliente) throw new AuthzError('Solo podés crear pedidos para tus propios clientes')
-      var territorioIdImputado = cliente.territorioId ?? null
+      territorioIdImputado = cliente.territorioId ?? null
+
+      // Método de entrega — vendedor queda congelado, NO se activa para ese rol
+      if (ctx.role === 'agent' && input.metodoEntrega) {
+        metodoEntregaFinal = input.metodoEntrega
+        if (input.metodoEntrega === 'expreso') {
+          if (input.expresoNombre && input.expresoDireccion) {
+            // Nuevo expreso: pisar el guardado en la ficha del cliente
+            await db.update(clientes)
+              .set({
+                expresoNombre: input.expresoNombre,
+                expresoDireccion: input.expresoDireccion,
+                updatedAt: new Date(),
+              })
+              .where(eq(clientes.id, input.clienteId))
+            expresoNombreFinal = input.expresoNombre
+            expresoDireccionFinal = input.expresoDireccion
+          } else {
+            // Usar el expreso guardado en la ficha
+            expresoNombreFinal = cliente.expresoNombre ?? null
+            expresoDireccionFinal = cliente.expresoDireccion ?? null
+          }
+        }
+      }
 
     } else if (ctx.role === 'gerente') {
       if (!input.vendedorId) {
@@ -160,7 +188,7 @@ export async function POST(req: NextRequest) {
 
       vendedorId = input.vendedorId
       creadoPor = session.user.id
-      var territorioIdImputado = cliente.territorioId ?? null
+      territorioIdImputado = cliente.territorioId ?? null
 
     } else {
       const cliente = await db.query.clientes.findFirst({
@@ -170,7 +198,7 @@ export async function POST(req: NextRequest) {
       if (!cliente) throw new NotFoundError('Cliente')
 
       if (input.vendedorId) vendedorId = input.vendedorId
-      var territorioIdImputado = cliente.territorioId ?? null
+      territorioIdImputado = cliente.territorioId ?? null
     }
 
     // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
@@ -188,6 +216,9 @@ export async function POST(req: NextRequest) {
         territorioIdImputado,
         registradoPor: session.user.id,
         crearComoPendienteAprobacion,
+        metodoEntrega: metodoEntregaFinal,
+        expresoNombre: expresoNombreFinal,
+        expresoDireccion: expresoDireccionFinal,
       },
     )
 

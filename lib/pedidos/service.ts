@@ -38,6 +38,12 @@ export async function crearPedidoConItems(
     territorioIdImputado?: string | null
     registradoPor?: string | null
     crearComoPendienteAprobacion?: boolean
+    /** Solo para rol Agente: método de entrega del pedido */
+    metodoEntrega?: 'retiro_fabrica' | 'expreso' | null
+    /** Nombre del expreso (dónde despachar) — solo si metodoEntrega = 'expreso' */
+    expresoNombre?: string | null
+    /** Dirección del expreso (dónde despachar) — solo si metodoEntrega = 'expreso' */
+    expresoDireccion?: string | null
   },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
   const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
@@ -93,6 +99,9 @@ export async function crearPedidoConItems(
         saldoPendiente: totalCalculado,
         estadoPago: 'impago',
         observaciones: observaciones ?? null,
+        metodoEntrega: extra?.metodoEntrega ?? null,
+        expresoNombre: extra?.expresoNombre ?? null,
+        expresoDireccion: extra?.expresoDireccion ?? null,
       })
       .returning()
 

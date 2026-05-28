@@ -58,11 +58,17 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Step 3 fields
+  // Confirm step fields
   const [descuento, setDescuento] = useState(0)
   const [condicionPago, setCondicionPago] = useState<'contado' | '7dias' | '14dias' | '30dias'>('contado')
   const [fechaEntrega, setFechaEntrega] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
   const [observaciones, setObservaciones] = useState('')
+
+  // Delivery method — only for agent role
+  const [metodoEntrega, setMetodoEntrega] = useState<'retiro_fabrica' | 'expreso' | null>(null)
+  const [usarExpresoGuardado, setUsarExpresoGuardado] = useState<boolean | null>(null)
+  const [nuevoExpresoNombre, setNuevoExpresoNombre] = useState('')
+  const [nuevoExpresoDireccion, setNuevoExpresoDireccion] = useState('')
 
   // Debounce the client search input (250 ms) for server-side search
   const [debouncedQuery, setDebouncedQuery] = useState(clienteQuery)
@@ -91,6 +97,12 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   // Nombre del vendedor logueado para firmar el mensaje de WhatsApp.
   const { data: session } = useSession()
   const vendedorName = session?.user?.name ?? null
+  // Solo el rol 'agent' tiene el flujo de método de entrega; 'vendedor' queda congelado
+  const isAgent = session?.user?.role === 'agent'
+  const confirmStep = isAgent ? 3 : 2
+  const stepLabels = isAgent
+    ? ['Cliente', 'Productos', 'Entrega', 'Confirmar']
+    : ['Cliente', 'Productos', 'Confirmar']
 
   // Get selected cliente details + productos habituales (top compras del cliente)
   type ProductoHabitual = { id: string; nombre: string; precio: string; sku: string | null; totalCantidad: number }
@@ -106,6 +118,9 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           telefono?: string | null
           saldo?: number
           productosHabituales?: ProductoHabitual[]
+          /** Expreso default guardado en la ficha del cliente */
+          expresoNombre?: string | null
+          expresoDireccion?: string | null
         }
       }
       return json.data
@@ -142,6 +157,21 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     setIsPending(true)
     setError(null)
     try {
+      // Build delivery payload — only for agent role
+      const deliveryPayload: Record<string, unknown> = {}
+      if (isAgent && metodoEntrega) {
+        deliveryPayload.metodoEntrega = metodoEntrega
+        if (metodoEntrega === 'expreso') {
+          // Only send new expreso data if the agent chose to enter one
+          const ingresarNuevo = usarExpresoGuardado === false || !clienteData?.expresoNombre
+          if (ingresarNuevo) {
+            deliveryPayload.expresoNombre = nuevoExpresoNombre.trim()
+            deliveryPayload.expresoDireccion = nuevoExpresoDireccion.trim()
+          }
+          // If usarExpresoGuardado === true: server uses the stored expreso; no extra fields needed
+        }
+      }
+
       const res = await fetch('/api/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,6 +186,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
             cantidad: i.cantidad,
             precioUnitario: parseFloat(i.precioUnitario),
           })),
+          ...deliveryPayload,
         }),
       })
       if (!res.ok) {
@@ -231,6 +262,10 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                   setDescuento(0)
                   setObservaciones('')
                   setCondicionPago('contado')
+                  setMetodoEntrega(null)
+                  setUsarExpresoGuardado(null)
+                  setNuevoExpresoNombre('')
+                  setNuevoExpresoDireccion('')
                 }}
                 className="w-full py-2 text-sm text-muted-foreground"
               >
@@ -270,7 +305,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
 
           {/* Stepper header */}
           <Stepper
-            steps={['Cliente', 'Productos', 'Confirmar']}
+            steps={stepLabels}
             currentStep={step}
             onBack={() => step > 0 ? setStep(s => s - 1) : onClose()}
             onClose={onClose}
@@ -324,6 +359,11 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                         key={c.id}
                         onClick={() => {
                           setSelectedClienteId(c.id)
+                          // Reset delivery state when selecting a new client
+                          setMetodoEntrega(null)
+                          setUsarExpresoGuardado(null)
+                          setNuevoExpresoNombre('')
+                          setNuevoExpresoDireccion('')
                           setStep(1)
                         }}
                         className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent transition-colors min-h-[56px] text-left"
@@ -462,8 +502,142 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
             </>
           )}
 
-          {/* ---- STEP 2: Confirmar ---- */}
-          {step === 2 && (
+          {/* ---- STEP 2 (agent only): Entrega ---- */}
+          {isAgent && step === 2 && (
+            <>
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                <p className="text-sm font-medium text-foreground">¿Cómo recibe el cliente la mercadería?</p>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setMetodoEntrega('retiro_fabrica')}
+                    className={cn(
+                      'w-full p-4 rounded-xl border-2 text-left transition-colors',
+                      metodoEntrega === 'retiro_fabrica'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card',
+                    )}
+                  >
+                    <span className="font-semibold text-foreground">🏭 Retiro en fábrica</span>
+                    <p className="text-sm text-muted-foreground mt-0.5">El cliente retira el pedido</p>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setMetodoEntrega('expreso')
+                      setUsarExpresoGuardado(null)
+                    }}
+                    className={cn(
+                      'w-full p-4 rounded-xl border-2 text-left transition-colors',
+                      metodoEntrega === 'expreso'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card',
+                    )}
+                  >
+                    <span className="font-semibold text-foreground">📦 Envío por expreso</span>
+                    <p className="text-sm text-muted-foreground mt-0.5">Se despacha por un transporte al cliente</p>
+                  </button>
+                </div>
+
+                {metodoEntrega === 'expreso' && (
+                  <div className="space-y-4">
+                    {/* Cliente con expreso guardado */}
+                    {clienteData?.expresoNombre ? (
+                      <div className="space-y-3">
+                        <p className="text-sm text-foreground">
+                          Este cliente ya recibió envíos por{' '}
+                          <span className="font-semibold">{clienteData.expresoNombre}</span>.{' '}
+                          ¿Despachar por el mismo?
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setUsarExpresoGuardado(true)}
+                            className={cn(
+                              'flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors',
+                              usarExpresoGuardado === true
+                                ? 'border-primary bg-primary/5 text-foreground'
+                                : 'border-border bg-card text-foreground',
+                            )}
+                          >
+                            Sí, mismo expreso
+                          </button>
+                          <button
+                            onClick={() => setUsarExpresoGuardado(false)}
+                            className={cn(
+                              'flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors',
+                              usarExpresoGuardado === false
+                                ? 'border-primary bg-primary/5 text-foreground'
+                                : 'border-border bg-card text-foreground',
+                            )}
+                          >
+                            No, cargar uno nuevo
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Formulario de nuevo expreso */}
+                    {(!clienteData?.expresoNombre || usarExpresoGuardado === false) && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1 block">
+                            Nombre del expreso
+                          </label>
+                          <input
+                            type="text"
+                            value={nuevoExpresoNombre}
+                            onChange={e => setNuevoExpresoNombre(e.target.value)}
+                            placeholder="Ej: Andreani, OCA, Correo Argentino..."
+                            className="w-full px-3 py-2.5 text-[16px] rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1 block">
+                            Dirección del expreso (dónde despachar)
+                          </label>
+                          <input
+                            type="text"
+                            value={nuevoExpresoDireccion}
+                            onChange={e => setNuevoExpresoDireccion(e.target.value)}
+                            placeholder="Dirección del transporte para despacho"
+                            className="w-full px-3 py-2.5 text-[16px] rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer step 2 (entrega) */}
+              <div className="p-4 border-t border-border bg-card shrink-0">
+                {(() => {
+                  let canAdvance = false
+                  if (metodoEntrega === 'retiro_fabrica') {
+                    canAdvance = true
+                  } else if (metodoEntrega === 'expreso') {
+                    if (clienteData?.expresoNombre && usarExpresoGuardado === true) {
+                      canAdvance = true
+                    } else if (!clienteData?.expresoNombre || usarExpresoGuardado === false) {
+                      canAdvance = nuevoExpresoNombre.trim().length > 0 && nuevoExpresoDireccion.trim().length > 0
+                    }
+                  }
+                  return (
+                    <button
+                      onClick={() => setStep(3)}
+                      disabled={!canAdvance}
+                      className="w-full py-4 bg-primary text-primary-foreground rounded-xl text-base font-semibold disabled:opacity-50"
+                    >
+                      Siguiente
+                    </button>
+                  )
+                })()}
+              </div>
+            </>
+          )}
+
+          {/* ---- CONFIRM STEP: step 2 for non-agent, step 3 for agent ---- */}
+          {step === confirmStep && (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
 

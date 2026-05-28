@@ -259,6 +259,7 @@ export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma']
 export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
 export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
 export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
+export const metodoEntregaEnum = pgEnum('metodo_entrega', ['retiro_fabrica', 'expreso'])
 
 // ─── Territorios ──────────────────────────────────────────────────────────────
 
@@ -326,6 +327,8 @@ export const clientes = pgTable('clientes', {
   fechaConversionANuevo: timestamp('fecha_conversion_a_nuevo', { mode: 'date' }),
   estadoActividad: estadoActividadEnum('estado_actividad'),
   vendedorConversionId: uuid('vendedor_conversion_id').references(() => users.id),
+  expresoNombre: text('expreso_nombre'),
+  expresoDireccion: text('expreso_direccion'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -379,6 +382,9 @@ export const pedidos = pgTable('pedidos', {
   saldoPendiente: decimal('saldo_pendiente', { precision: 12, scale: 2 }).notNull().default('0'),
   estadoPago: estadoPagoPedidoEnum('estado_pago').notNull().default('impago'),
   observaciones: text('observaciones'),
+  metodoEntrega: metodoEntregaEnum('metodo_entrega'),
+  expresoNombre: text('expreso_nombre'),
+  expresoDireccion: text('expreso_direccion'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
