@@ -1,6 +1,8 @@
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray, sql, and, isNull } from 'drizzle-orm'
 import { db } from '@/db'
-import { pedidos, pedidoItems, productos, movimientosCC, stockMovements } from '@/db/schema'
+import {
+  pedidos, pedidoItems, productos, movimientosCC, stockMovements, aplicacionesPago,
+} from '@/db/schema'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { aplicarSaldoAFavorAPedido } from '@/lib/cuenta-corriente/pago.service'
 import type { Db } from '@/db'
@@ -15,23 +17,14 @@ function addDecimals(a: string, b: string): string {
 // ─── Crear pedido con items ────────────────────────────────────────────────────
 
 /**
- * Crea un pedido + items en una sola transacción y lo deja directamente en
- * estado `confirmado`. Esto incluye:
+ * Crea un pedido + items en una sola transacción.
  *
- *   - validar productos activos
- *   - calcular total
- *   - insertar el pedido (estado='confirmado', saldoPendiente=total)
- *   - insertar los items con snapshot de precio
- *   - insertar movimiento de cuenta corriente (débito por el total)
- *   - generar movimientos de stock (salida por cada item)
+ * Cuando `extra.crearComoPendienteAprobacion === true` (pedidos de agentes):
+ *   - Estado = `pendiente_aprobacion`; NO se crean movimientos de CC ni stock.
+ *   - Los movimientos se crearán cuando el gerente/admin apruebe el pedido.
  *
- * Después del commit, aplica saldo a favor del cliente si tiene crédito,
- * y re-fetchea el pedido para reflejar el estado de pago final.
- *
- * Se eliminó el paso intermedio `pendiente` porque agregaba fricción al
- * vendedor en campo (un toque más sin valor de negocio). La función
- * `confirmarPedido` queda como compatibilidad para pedidos viejos que
- * estuvieran en pendiente, pero ya no se usa para flujos nuevos.
+ * En el flujo normal (confirmado directo):
+ *   - Estado = `confirmado`; se crean CC débito, stock salidas y se aplica saldo a favor.
  */
 export async function crearPedidoConItems(
   clienteId: string,
@@ -40,11 +33,15 @@ export async function crearPedidoConItems(
   observaciones: string | null | undefined,
   items: Array<{ productoId: string; cantidad: number }>,
   drizzleDb: Db = db,
-  extra?: { creadoPor?: string | null; territorioIdImputado?: string | null; registradoPor?: string | null },
+  extra?: {
+    creadoPor?: string | null
+    territorioIdImputado?: string | null
+    registradoPor?: string | null
+    crearComoPendienteAprobacion?: boolean
+  },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
-  // `registradoPor` es quien deja la huella en CC y stock_movements.
-  // Si no se pasa explícitamente, cae al vendedor (caso agent crea su pedido).
   const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
+  const esPendienteAprobacion = extra?.crearComoPendienteAprobacion ?? false
 
   const { pedidoCreado, insertedItems, totalCalculado } = await drizzleDb.transaction(async (tx) => {
     // 1. Fetch productos by IDs to get current prices
@@ -71,8 +68,6 @@ export async function crearPedidoConItems(
 
     const fechaDate = fecha ? new Date(fecha) : new Date()
 
-    // Pre-calculate item rows and total before inserting the pedido, so we can
-    // store the right total + saldoPendiente from the start.
     const itemsBase = items.map((item) => {
       const producto = productosMap.get(item.productoId)!
       const precioUnitario = producto.precio
@@ -83,7 +78,7 @@ export async function crearPedidoConItems(
       .reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
       .toFixed(2)
 
-    // 2. Insert pedido directly as confirmed
+    // 2. Insert pedido
     const [pedido] = await tx
       .insert(pedidos)
       .values({
@@ -92,7 +87,7 @@ export async function crearPedidoConItems(
         creadoPor: extra?.creadoPor ?? null,
         territorioIdImputado: extra?.territorioIdImputado ?? null,
         fecha: fechaDate,
-        estado: 'confirmado',
+        estado: esPendienteAprobacion ? 'pendiente_aprobacion' : 'confirmado',
         total: totalCalculado,
         montoPagado: '0',
         saldoPendiente: totalCalculado,
@@ -101,63 +96,65 @@ export async function crearPedidoConItems(
       })
       .returning()
 
-    // 3. Insert pedido_items with the pedidoId we now have
+    // 3. Insert pedido_items
     const insertedItems = await tx
       .insert(pedidoItems)
       .values(itemsBase.map(i => ({ ...i, pedidoId: pedido!.id })))
       .returning()
 
-    // 4. Insert débito en cuenta corriente por el total del pedido
-    await tx.insert(movimientosCC).values({
-      clienteId,
-      tipo: 'debito',
-      monto: totalCalculado,
-      pedidoId: pedido!.id,
-      fecha: new Date(),
-      descripcion: `Pedido confirmado #${pedido!.id.slice(0, 8)}`,
-      registradoPor,
-    })
-
-    // 5. Insertar salidas de stock por cada item (saldo resultante = saldo anterior - cantidad)
-    for (const item of insertedItems) {
-      const [latest] = await tx
-        .select({ saldo: stockMovements.saldoResultante })
-        .from(stockMovements)
-        .where(eq(stockMovements.productoId, item.productoId))
-        .orderBy(sql`${stockMovements.createdAt} DESC`)
-        .limit(1)
-
-      const saldoActual = latest?.saldo ?? 0
-      await tx.insert(stockMovements).values({
-        productoId: item.productoId,
-        tipo: 'salida',
-        cantidad: item.cantidad,
-        saldoResultante: saldoActual - item.cantidad,
+    // 4. Only for confirmed orders: CC debit + stock salidas
+    if (!esPendienteAprobacion) {
+      await tx.insert(movimientosCC).values({
+        clienteId,
+        tipo: 'debito',
+        monto: totalCalculado,
         pedidoId: pedido!.id,
-        referencia: `Pedido #${pedido!.id.slice(0, 8)}`,
+        fecha: new Date(),
+        descripcion: `Pedido confirmado #${pedido!.id.slice(0, 8)}`,
         registradoPor,
       })
+
+      for (const item of insertedItems) {
+        const [latest] = await tx
+          .select({ saldo: stockMovements.saldoResultante })
+          .from(stockMovements)
+          .where(eq(stockMovements.productoId, item.productoId))
+          .orderBy(sql`${stockMovements.createdAt} DESC`)
+          .limit(1)
+
+        const saldoActual = latest?.saldo ?? 0
+        await tx.insert(stockMovements).values({
+          productoId: item.productoId,
+          tipo: 'salida',
+          cantidad: item.cantidad,
+          saldoResultante: saldoActual - item.cantidad,
+          pedidoId: pedido!.id,
+          referencia: `Pedido #${pedido!.id.slice(0, 8)}`,
+          registradoPor,
+        })
+      }
     }
 
     return { pedidoCreado: pedido!, insertedItems, totalCalculado }
   })
 
-  // 6. Aplicar saldo a favor del cliente fuera de la transacción principal
-  //    (mismo patrón que confirmarPedido). Si falla, no rompe la creación.
-  try {
-    await aplicarSaldoAFavorAPedido(
-      clienteId,
-      pedidoCreado.id,
-      drizzleDb,
-      registradoPor,
-    )
-  } catch {
-    console.warn(
-      `[crearPedidoConItems] No se pudo aplicar saldo a favor al pedido ${pedidoCreado.id}`,
-    )
+  // 5. Aplicar saldo a favor sólo para pedidos confirmados directamente
+  if (!esPendienteAprobacion) {
+    try {
+      await aplicarSaldoAFavorAPedido(
+        clienteId,
+        pedidoCreado.id,
+        drizzleDb,
+        registradoPor,
+      )
+    } catch {
+      console.warn(
+        `[crearPedidoConItems] No se pudo aplicar saldo a favor al pedido ${pedidoCreado.id}`,
+      )
+    }
   }
 
-  // 7. Re-fetch pedido para reflejar cualquier aplicación de saldo a favor
+  // 6. Re-fetch para reflejar estado final
   const finalPedido = await drizzleDb.query.pedidos.findFirst({
     where: eq(pedidos.id, pedidoCreado.id),
   })
@@ -169,15 +166,19 @@ export async function crearPedidoConItems(
   }
 }
 
-// ─── Confirmar pedido ─────────────────────────────────────────────────────────
+// ─── Confirmar pedido (legacy: pendiente → confirmado) ────────────────────────
 
+/**
+ * Transición legacy `pendiente` → `confirmado`.
+ * Queda como compatibilidad para pedidos viejos. Para el flujo de aprobación
+ * de agentes usar `aprobarPedido`.
+ */
 export async function confirmarPedido(
   pedidoId: string,
   userId: string,
   drizzleDb: Db = db,
 ): Promise<typeof pedidos.$inferSelect> {
   const resultado = await drizzleDb.transaction(async (tx) => {
-    // 1. Fetch pedido with items
     const pedido = await tx.query.pedidos.findFirst({
       where: eq(pedidos.id, pedidoId),
       with: {
@@ -193,13 +194,11 @@ export async function confirmarPedido(
       )
     }
 
-    // 2. Calculate total from items (sum of subtotals)
     const total = pedido.items.reduce(
       (sum, item) => addDecimals(sum, item.subtotal),
       '0.00',
     )
 
-    // 3. Update pedido: estado='confirmado', total, saldoPendiente=total
     const [updated] = await tx
       .update(pedidos)
       .set({
@@ -213,7 +212,6 @@ export async function confirmarPedido(
       .where(eq(pedidos.id, pedidoId))
       .returning()
 
-    // 4. Insert movimientosCC: tipo='debito'
     await tx.insert(movimientosCC).values({
       clienteId: pedido.clienteId,
       tipo: 'debito',
@@ -224,7 +222,6 @@ export async function confirmarPedido(
       registradoPor: userId,
     })
 
-    // 5. Create stock salida movements for each item
     for (const item of pedido.items) {
       const [latest] = await tx
         .select({ saldo: stockMovements.saldoResultante })
@@ -250,7 +247,6 @@ export async function confirmarPedido(
     return updated!
   })
 
-  // 5. Apply saldo a favor after main transaction commits
   try {
     await aplicarSaldoAFavorAPedido(
       resultado.clienteId,
@@ -259,16 +255,206 @@ export async function confirmarPedido(
       userId,
     )
   } catch {
-    // Non-fatal: log but don't fail the confirmation
     console.warn(
       `[confirmarPedido] No se pudo aplicar saldo a favor al pedido ${pedidoId}`,
     )
   }
 
-  // Re-fetch to return the updated version after potential payment application
   const final = await drizzleDb.query.pedidos.findFirst({
     where: eq(pedidos.id, pedidoId),
   })
 
   return final ?? resultado
+}
+
+// ─── Aprobar pedido (pendiente_aprobacion → confirmado) ───────────────────────
+
+/**
+ * Aprueba un pedido creado por un agente.
+ * Valida que el pedido esté en `pendiente_aprobacion`, luego:
+ *   - Crea el movimiento de CC (débito)
+ *   - Crea los movimientos de stock (salidas)
+ *   - Aplica saldo a favor del cliente si existe
+ *   - Transiciona a `confirmado`
+ *
+ * La autorización (gerente sólo puede aprobar sus agentes) se valida en la ruta.
+ */
+export async function aprobarPedido(
+  pedidoId: string,
+  userId: string,
+  drizzleDb: Db = db,
+): Promise<typeof pedidos.$inferSelect> {
+  const resultado = await drizzleDb.transaction(async (tx) => {
+    const pedido = await tx.query.pedidos.findFirst({
+      where: eq(pedidos.id, pedidoId),
+      with: { items: true },
+    })
+
+    if (!pedido) throw new NotFoundError('Pedido')
+
+    if (pedido.estado !== 'pendiente_aprobacion') {
+      throw new ValidationError(
+        `Solo se pueden aprobar pedidos en estado pendiente de aprobación (estado actual: ${pedido.estado})`,
+      )
+    }
+
+    const total = pedido.items.reduce(
+      (sum, item) => addDecimals(sum, item.subtotal),
+      '0.00',
+    )
+
+    const [updated] = await tx
+      .update(pedidos)
+      .set({
+        estado: 'confirmado',
+        total,
+        saldoPendiente: total,
+        montoPagado: '0',
+        estadoPago: 'impago',
+        updatedAt: new Date(),
+      })
+      .where(eq(pedidos.id, pedidoId))
+      .returning()
+
+    await tx.insert(movimientosCC).values({
+      clienteId: pedido.clienteId,
+      tipo: 'debito',
+      monto: total,
+      pedidoId,
+      fecha: new Date(),
+      descripcion: `Pedido aprobado #${pedidoId.slice(0, 8)}`,
+      registradoPor: userId,
+    })
+
+    for (const item of pedido.items) {
+      const [latest] = await tx
+        .select({ saldo: stockMovements.saldoResultante })
+        .from(stockMovements)
+        .where(eq(stockMovements.productoId, item.productoId))
+        .orderBy(sql`${stockMovements.createdAt} DESC`)
+        .limit(1)
+
+      const saldoActual = latest?.saldo ?? 0
+
+      await tx.insert(stockMovements).values({
+        productoId: item.productoId,
+        tipo: 'salida',
+        cantidad: item.cantidad,
+        saldoResultante: saldoActual - item.cantidad,
+        pedidoId,
+        referencia: `Pedido #${pedidoId.slice(0, 8)}`,
+        registradoPor: userId,
+      })
+    }
+
+    return updated!
+  })
+
+  try {
+    await aplicarSaldoAFavorAPedido(resultado.clienteId, resultado.id, drizzleDb, userId)
+  } catch {
+    console.warn(`[aprobarPedido] No se pudo aplicar saldo a favor al pedido ${pedidoId}`)
+  }
+
+  const final = await drizzleDb.query.pedidos.findFirst({
+    where: eq(pedidos.id, pedidoId),
+  })
+
+  return final ?? resultado
+}
+
+// ─── Revertir pedido (confirmado → pendiente_aprobacion) ─────────────────────
+
+/**
+ * Revierte un pedido confirmado a `pendiente_aprobacion` para permitir
+ * que el agente vuelva a editarlo.
+ *
+ * Efectos:
+ *   - Soft-delete del movimiento CC débito asociado al pedido
+ *   - Soft-delete de aplicaciones de pago vinculadas
+ *   - Movimientos de stock compensatorios (entradas por cada salida)
+ *   - Resetea montoPagado=0, saldoPendiente=total, estadoPago='impago'
+ *
+ * La autorización (gerente sólo puede revertir sus agentes) se valida en la ruta.
+ */
+export async function revertirPedidoAAprobacion(
+  pedidoId: string,
+  userId: string,
+  drizzleDb: Db = db,
+): Promise<typeof pedidos.$inferSelect> {
+  return drizzleDb.transaction(async (tx) => {
+    const pedido = await tx.query.pedidos.findFirst({
+      where: eq(pedidos.id, pedidoId),
+      with: { items: true },
+    })
+
+    if (!pedido) throw new NotFoundError('Pedido')
+
+    if (pedido.estado !== 'confirmado') {
+      throw new ValidationError(
+        `Solo se pueden revertir pedidos en estado confirmado (estado actual: ${pedido.estado})`,
+      )
+    }
+
+    // 1. Soft-delete CC débito asociado al pedido
+    await tx
+      .update(movimientosCC)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(movimientosCC.pedidoId, pedidoId),
+          eq(movimientosCC.tipo, 'debito'),
+          isNull(movimientosCC.deletedAt),
+        ),
+      )
+
+    // 2. Soft-delete aplicaciones de pago vinculadas al pedido
+    await tx
+      .update(aplicacionesPago)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(aplicacionesPago.pedidoId, pedidoId),
+          isNull(aplicacionesPago.deletedAt),
+        ),
+      )
+
+    // 3. Entradas de stock para compensar las salidas previas
+    for (const item of pedido.items) {
+      const [latest] = await tx
+        .select({ saldo: stockMovements.saldoResultante })
+        .from(stockMovements)
+        .where(eq(stockMovements.productoId, item.productoId))
+        .orderBy(sql`${stockMovements.createdAt} DESC`)
+        .limit(1)
+
+      const saldoActual = latest?.saldo ?? 0
+
+      await tx.insert(stockMovements).values({
+        productoId: item.productoId,
+        tipo: 'entrada',
+        cantidad: item.cantidad,
+        saldoResultante: saldoActual + item.cantidad,
+        pedidoId,
+        referencia: `Revert #${pedidoId.slice(0, 8)}`,
+        notas: 'Revertido a pendiente de aprobación',
+        registradoPor: userId,
+      })
+    }
+
+    // 4. Actualizar estado del pedido
+    const [updated] = await tx
+      .update(pedidos)
+      .set({
+        estado: 'pendiente_aprobacion',
+        montoPagado: '0',
+        saldoPendiente: pedido.total,
+        estadoPago: 'impago',
+        updatedAt: new Date(),
+      })
+      .where(eq(pedidos.id, pedidoId))
+      .returning()
+
+    return updated!
+  })
 }

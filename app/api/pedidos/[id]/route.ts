@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { pedidos, clientes } from '@/db/schema'
 import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { updatePedidoSchema } from '@/lib/validations/pedidos'
-import { confirmarPedido } from '@/lib/pedidos/service'
+import { confirmarPedido, aprobarPedido, revertirPedidoAAprobacion } from '@/lib/pedidos/service'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
@@ -23,10 +23,7 @@ async function canAccessPedido(
 
   if (ctx.role === 'admin') return pedido
 
-  // Regla acordada con el usuario: el agente solo accede al pedido si el
-  // cliente sigue asignado a él HOY. Si reasignan al cliente, el agente
-  // original pierde acceso al pedido (aunque siga siendo el vendedorId
-  // original a efectos históricos de metas).
+  // Agente: solo accede al pedido si el cliente sigue asignado a él HOY.
   if (ctx.role === 'agent') {
     const cliente = await db.query.clientes.findFirst({
       where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
@@ -80,9 +77,6 @@ export async function GET(
 
     if (!pedido) throw new NotFoundError('Pedido')
 
-    // Flatten cliente + vendedor a campos planos (clienteNombre, vendedorNombre,
-    // etc.) para que coincida con el contrato que espera el frontend
-    // (PedidoDetail.tsx) y con el formato que ya devuelve GET /api/pedidos.
     const cliente = pedido.cliente as { nombre: string; apellido: string; telefono: string | null; cuit: string | null } | null
     const vendedor = pedido.vendedor as { id: string; name: string | null; avatarColor: string } | null
 
@@ -126,23 +120,72 @@ export async function PATCH(
 
     const { estado, observaciones } = parsed.data
 
-    // Validate state transitions
-    if (estado === 'cancelado') {
-      if (current.estado === 'confirmado' || current.estado === 'entregado') {
-        throw new ValidationError('No se puede cancelar un pedido confirmado o entregado')
+    // ── Guardas de permiso por rol ────────────────────────────────────────────
+
+    // Agente no puede editar un pedido ya confirmado
+    if (ctx.role === 'agent' && !estado && current.estado === 'confirmado') {
+      throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
+    }
+
+    if (estado) {
+      // ── Cancelar: no se permite desde confirmado/entregado ─────────────────
+      if (estado === 'cancelado') {
+        if (current.estado === 'confirmado' || current.estado === 'entregado') {
+          throw new ValidationError('No se puede cancelar un pedido confirmado o entregado')
+        }
+      }
+
+      // ── Aprobar: pendiente_aprobacion → confirmado ──────────────────────────
+      if (estado === 'confirmado' && current.estado === 'pendiente_aprobacion') {
+        if (ctx.role === 'agent') {
+          throw new AuthzError('Los agentes no pueden aprobar pedidos')
+        }
+        if (ctx.role === 'gerente') {
+          if (!ctx.agentesVisibles.includes(current.vendedorId)) {
+            throw new AuthzError('No podés aprobar pedidos de vendedores que no son de tu territorio')
+          }
+        }
+        const updated = await aprobarPedido(id, session.user.id)
+
+        void evaluarClienteNuevo(updated.clienteId).catch((err) => {
+          console.warn('[pedidos] evaluarClienteNuevo failed:', err)
+        })
+
+        return NextResponse.json({ data: updated })
+      }
+
+      // ── Confirmar legacy: pendiente → confirmado ────────────────────────────
+      if (estado === 'confirmado' && current.estado === 'pendiente') {
+        const updated = await confirmarPedido(id, session.user.id)
+
+        void evaluarClienteNuevo(updated.clienteId).catch((err) => {
+          console.warn('[pedidos] evaluarClienteNuevo failed:', err)
+        })
+
+        return NextResponse.json({ data: updated })
+      }
+
+      // ── Revertir: confirmado → pendiente_aprobacion ─────────────────────────
+      if (estado === 'pendiente_aprobacion' && current.estado === 'confirmado') {
+        if (ctx.role === 'agent') {
+          throw new AuthzError('Los agentes no pueden revertir pedidos')
+        }
+        if (ctx.role === 'gerente') {
+          if (!ctx.agentesVisibles.includes(current.vendedorId)) {
+            throw new AuthzError('No podés revertir pedidos de vendedores que no son de tu territorio')
+          }
+        }
+        const updated = await revertirPedidoAAprobacion(id, session.user.id)
+        return NextResponse.json({ data: updated })
       }
     }
 
-    // If changing to 'confirmado', delegate to service
-    if (estado === 'confirmado' && current.estado !== 'confirmado') {
-      const updated = await confirmarPedido(id, session.user.id)
+    // ── Actualización simple de campos (estado distinto a los manejados arriba
+    //    u observaciones) ─────────────────────────────────────────────────────
 
-      // Fire and forget — don't block the response
-      void evaluarClienteNuevo(updated.clienteId).catch((err) => {
-        console.warn('[pedidos] evaluarClienteNuevo failed:', err)
-      })
-
-      return NextResponse.json({ data: updated })
+    // Agente no puede modificar pedidos confirmados
+    if (ctx.role === 'agent' && current.estado === 'confirmado') {
+      throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
     }
 
     const updates: Partial<typeof pedidos.$inferInsert> = {

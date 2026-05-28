@@ -19,13 +19,14 @@ type Pedido = {
   clienteNombre: string
   clienteApellido: string
   vendedorNombre: string | null
-  estado: 'pendiente' | 'confirmado' | 'entregado' | 'cancelado'
+  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'entregado' | 'cancelado'
   total: string
   estadoPago: 'impago' | 'parcial' | 'pagado'
 }
 
 const estadoColors: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  pendiente_aprobacion: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   confirmado: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   entregado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   cancelado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -39,6 +40,7 @@ const estadoPagoColors: Record<string, string> = {
 
 const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
+  pendiente_aprobacion: 'Pte. Aprobación',
   confirmado: 'Confirmado',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
@@ -57,7 +59,10 @@ function formatMoney(value: string | number) {
 export default function PedidosListView() {
   const router = useRouter()
   const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'admin'
+  const role = session?.user?.role
+  const isAdmin = role === 'admin'
+  const isGerente = role === 'gerente'
+  const canApproveOrRevert = isAdmin || isGerente
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -81,6 +86,7 @@ export default function PedidosListView() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openMenuId])
 
+  // Confirmar pedido legacy (pendiente → confirmado)
   const confirmMutation = useMutation({
     mutationFn: async (pedidoId: string) => {
       const res = await fetch(`/api/pedidos/${pedidoId}`, {
@@ -88,14 +94,39 @@ export default function PedidosListView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: 'confirmado' }),
       })
-      if (!res.ok) throw new Error('Error al confirmar')
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        throw new Error(data.error ?? 'Error al confirmar')
+      }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['/api/pedidos'] })
       toast.success('Pedido confirmado')
     },
-    onError: () => {
-      toast.error('No se pudo confirmar el pedido')
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
+  // Aprobar pedido (pendiente_aprobacion → confirmado)
+  const approveMutation = useMutation({
+    mutationFn: async (pedidoId: string) => {
+      const res = await fetch(`/api/pedidos/${pedidoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'confirmado' }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        throw new Error(data.error ?? 'Error al aprobar')
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['/api/pedidos'] })
+      toast.success('Pedido aprobado')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
     },
   })
 
@@ -220,7 +251,7 @@ export default function PedidosListView() {
             <MoreVertical size={14} />
           </button>
           {openMenuId === row.id && (
-            <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-border bg-card shadow-lg py-1">
+            <div className="absolute right-0 top-8 z-20 w-44 rounded-md border border-border bg-card shadow-lg py-1">
               <button
                 onClick={() => { setOpenMenuId(null); router.push(`/crm/pedidos/${row.id}`) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
@@ -228,6 +259,19 @@ export default function PedidosListView() {
                 <Eye size={13} className="text-muted-foreground" />
                 Ver pedido
               </button>
+              {/* Aprobar: disponible para gerente/admin en pedidos pendiente_aprobacion */}
+              {canApproveOrRevert && row.estado === 'pendiente_aprobacion' && (
+                <>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => { setOpenMenuId(null); approveMutation.mutate(row.id) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                  >
+                    <CheckCircle size={13} className="text-green-600" />
+                    Aprobar pedido
+                  </button>
+                </>
+              )}
               {isAdmin && (
                 <>
                   <div className="border-t border-border my-1" />
@@ -274,6 +318,7 @@ export default function PedidosListView() {
         <div className="flex items-center gap-3 mb-4">
           <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className={selectClass}>
             <option value="">Todos los estados</option>
+            <option value="pendiente_aprobacion">Pte. Aprobación</option>
             <option value="pendiente">Pendiente</option>
             <option value="confirmado">Confirmado</option>
             <option value="entregado">Entregado</option>
@@ -304,6 +349,13 @@ export default function PedidosListView() {
                       icon: <CheckCircle size={20} />,
                       className: 'bg-green-500 text-white',
                       onClick: () => confirmMutation.mutate(p.id),
+                    }
+                  : (p.estado === 'pendiente_aprobacion' && canApproveOrRevert)
+                  ? {
+                      label: 'Aprobar',
+                      icon: <CheckCircle size={20} />,
+                      className: 'bg-green-500 text-white',
+                      onClick: () => approveMutation.mutate(p.id),
                     }
                   : undefined
               }

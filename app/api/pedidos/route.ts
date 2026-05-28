@@ -173,6 +173,9 @@ export async function POST(req: NextRequest) {
       var territorioIdImputado = cliente.territorioId ?? null
     }
 
+    // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
+    const crearComoPendienteAprobacion = ctx.role === 'agent'
+
     const pedido = await crearPedidoConItems(
       input.clienteId,
       vendedorId,
@@ -184,6 +187,7 @@ export async function POST(req: NextRequest) {
         creadoPor,
         territorioIdImputado,
         registradoPor: session.user.id,
+        crearComoPendienteAprobacion,
       },
     )
 

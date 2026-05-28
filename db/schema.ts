@@ -250,7 +250,7 @@ export const botConfig = pgTable('bot_config', {
 // ─── CRM: Enums ───────────────────────────────────────────────────────────────
 
 export const origenClienteEnum = pgEnum('origen_cliente', ['manual', 'convertido_de_lead'])
-export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'confirmado', 'entregado', 'cancelado'])
+export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'pendiente_aprobacion', 'confirmado', 'entregado', 'cancelado'])
 export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'parcial', 'pagado'])
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])

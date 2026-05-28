@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -33,8 +34,9 @@ type Pedido = {
   clienteNombre: string
   clienteApellido: string
   vendedorNombre: string | null
+  vendedorId: string
   fecha: string
-  estado: 'pendiente' | 'confirmado' | 'entregado' | 'cancelado'
+  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'entregado' | 'cancelado'
   observaciones: string | null
   total: string
   montoPagado: string
@@ -46,6 +48,7 @@ type Pedido = {
 
 const estadoColors: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  pendiente_aprobacion: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   confirmado: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   entregado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   cancelado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -59,6 +62,7 @@ const estadoPagoColors: Record<string, string> = {
 
 const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
+  pendiente_aprobacion: 'Pte. Aprobación',
   confirmado: 'Confirmado',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
@@ -77,6 +81,12 @@ function formatMoney(value: string | number) {
 export default function PedidoDetail({ id }: Props) {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { data: session } = useSession()
+  const role = session?.user?.role
+  const isAdmin = role === 'admin'
+  const isGerente = role === 'gerente'
+  const canApproveOrRevert = isAdmin || isGerente
+
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [showProof, setShowProof] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -147,7 +157,10 @@ export default function PedidoDetail({ id }: Props) {
       }
       if (estado === 'confirmado') {
         void queryClient.invalidateQueries({ queryKey: ['stock-saldos'] })
-        toast.success('Pedido confirmado')
+        toast.success('Pedido aprobado')
+      } else if (estado === 'pendiente_aprobacion') {
+        void queryClient.invalidateQueries({ queryKey: ['stock-saldos'] })
+        toast.success('Pedido revertido a pendiente de aprobación')
       } else if (estado === 'entregado') {
         toast.success('Entrega registrada')
       } else if (estado === 'cancelado') {
@@ -176,7 +189,7 @@ export default function PedidoDetail({ id }: Props) {
     )
   }
 
-  const displayTotal = pedido.estado === 'pendiente'
+  const displayTotal = (pedido.estado === 'pendiente' || pedido.estado === 'pendiente_aprobacion')
     ? pedido.items.reduce((sum, item) => sum + parseFloat(item.subtotal), 0).toFixed(2)
     : pedido.total
 
@@ -206,6 +219,8 @@ export default function PedidoDetail({ id }: Props) {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+
+          {/* ── Estado: pendiente (legacy) ── */}
           {pedido.estado === 'pendiente' && (
             <>
               <button
@@ -244,16 +259,78 @@ export default function PedidoDetail({ id }: Props) {
               )}
             </>
           )}
-          {pedido.estado === 'confirmado' && (
-            <button
-              onClick={() => setShowProof(true)}
-              disabled={isUpdating}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <Truck size={14} />
-              Marcar Entregado
-            </button>
+
+          {/* ── Estado: pendiente_aprobacion ── */}
+          {pedido.estado === 'pendiente_aprobacion' && (
+            <>
+              {/* Sólo gerente/admin pueden aprobar */}
+              {canApproveOrRevert && (
+                <button
+                  onClick={() => updateEstado('confirmado')}
+                  disabled={isUpdating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle size={14} />
+                  Aprobar pedido
+                </button>
+              )}
+              {/* Cualquiera con acceso puede cancelar */}
+              {!confirmCancel ? (
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
+                >
+                  <XCircle size={14} />
+                  Cancelar
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">¿Confirmar cancelación?</span>
+                  <button
+                    onClick={() => updateEstado('cancelado')}
+                    disabled={isUpdating}
+                    className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                  >
+                    Sí, cancelar
+                  </button>
+                  <button
+                    onClick={() => setConfirmCancel(false)}
+                    className="px-2 py-1 text-xs border border-border rounded hover:bg-accent transition-colors"
+                  >
+                    No
+                  </button>
+                </div>
+              )}
+            </>
           )}
+
+          {/* ── Estado: confirmado ── */}
+          {pedido.estado === 'confirmado' && (
+            <>
+              {/* Gerente/admin pueden revertir */}
+              {canApproveOrRevert && (
+                <button
+                  onClick={() => updateEstado('pendiente_aprobacion')}
+                  disabled={isUpdating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                  title="Revertir a pendiente de aprobación para permitir edición"
+                >
+                  <RotateCcw size={14} />
+                  Revertir
+                </button>
+              )}
+              <button
+                onClick={() => setShowProof(true)}
+                disabled={isUpdating}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                <Truck size={14} />
+                Marcar Entregado
+              </button>
+            </>
+          )}
+
+          {/* Documentos: disponibles cuando confirmado o entregado */}
           {(pedido.estado === 'confirmado' || pedido.estado === 'entregado') && (
             <>
               <button
@@ -281,6 +358,13 @@ export default function PedidoDetail({ id }: Props) {
 
       {actionError && (
         <div className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">{actionError}</div>
+      )}
+
+      {/* Aviso informativo para agentes cuando el pedido está pendiente de aprobación */}
+      {pedido.estado === 'pendiente_aprobacion' && role === 'agent' && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300">
+          Este pedido está pendiente de aprobación por tu gerente. Podés editarlo hasta que sea aprobado.
+        </div>
       )}
 
       {/* Info */}

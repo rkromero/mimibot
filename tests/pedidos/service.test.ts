@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
-// vi.mock factories are hoisted to the top of the file by Vitest, so any
-// variables they reference must also be hoisted via vi.hoisted.
 
 const {
   mockTransaction,
@@ -48,14 +46,12 @@ vi.mock('@/lib/errors', () => ({
   },
 }))
 
-// aplicarSaldoAFavorAPedido is invoked inside confirmarPedido after the main
-// transaction commits. Mock it to a no-op so tests focus on core logic.
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({
   aplicarSaldoAFavorAPedido: vi.fn().mockResolvedValue(undefined),
   calcularDistribucionFIFO: vi.fn(),
 }))
 
-import { crearPedidoConItems, confirmarPedido } from '@/lib/pedidos/service'
+import { crearPedidoConItems, confirmarPedido, aprobarPedido, revertirPedidoAAprobacion } from '@/lib/pedidos/service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +67,6 @@ function makeTx() {
   }
 }
 
-/** Crea una cadena mock para tx.select({}).from(...).where(...).orderBy(...).limit(n) */
 function makeSelectChain(resolvedValue: unknown[] = []) {
   const chain = {
     from: vi.fn(),
@@ -111,11 +106,8 @@ describe('crearPedidoConItems', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default select chain: sin movimientos de stock previos
     mockTxSelect.mockReturnValue(makeSelectChain([]))
-    // Fallback para inserts de CC y stock movements (llamadas 3+)
     mockTxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
-    // Set up chainable tx.update().set().where() for the total-recalc step
     mockTxUpdate.mockReturnValue({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([]),
@@ -133,22 +125,8 @@ describe('crearPedidoConItems', () => {
     const valuesPedido = vi.fn().mockReturnValue({ returning: returningPedido })
 
     const fakeItems = [
-      {
-        id: 'item-1',
-        pedidoId: 'pedido-new',
-        productoId: 'prod-a',
-        cantidad: 3,
-        precioUnitario: '100.00',
-        subtotal: '300.00',
-      },
-      {
-        id: 'item-2',
-        pedidoId: 'pedido-new',
-        productoId: 'prod-b',
-        cantidad: 2,
-        precioUnitario: '50.00',
-        subtotal: '100.00',
-      },
+      { id: 'item-1', pedidoId: 'pedido-new', productoId: 'prod-a', cantidad: 3, precioUnitario: '100.00', subtotal: '300.00' },
+      { id: 'item-2', pedidoId: 'pedido-new', productoId: 'prod-b', cantidad: 2, precioUnitario: '50.00', subtotal: '100.00' },
     ]
     const returningItems = vi.fn().mockResolvedValue(fakeItems)
     const valuesItems = vi.fn().mockReturnValue({ returning: returningItems })
@@ -177,13 +155,12 @@ describe('crearPedidoConItems', () => {
     const itemA = insertedItemsArg.find((i) => i.precioUnitario === '100.00')
     const itemB = insertedItemsArg.find((i) => i.precioUnitario === '50.00')
 
-    expect(itemA?.subtotal).toBe('300.00') // 100 × 3
-    expect(itemB?.subtotal).toBe('100.00') // 50 × 2
+    expect(itemA?.subtotal).toBe('300.00')
+    expect(itemB?.subtotal).toBe('100.00')
     expect(result.items).toHaveLength(2)
   })
 
   it('lanza NotFoundError si un producto no existe', async () => {
-    // Only product A returned — product B is missing
     mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA])
 
     await expect(
@@ -206,40 +183,75 @@ describe('crearPedidoConItems', () => {
     ).rejects.toThrow('no está activo')
   })
 
-  it('inserta el pedido con estado confirmado y el total calculado', async () => {
-    // El service crea pedidos directamente como 'confirmado' con el total real
+  it('inserta el pedido con estado confirmado y el total calculado (flujo normal)', async () => {
     mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA])
 
     const returningPedido = vi.fn().mockResolvedValue([{ ...fakePedido, estado: 'confirmado', total: '100.00' }])
     const valuesPedido = vi.fn().mockReturnValue({ returning: returningPedido })
 
     const returningItems = vi.fn().mockResolvedValue([
-      {
-        id: 'item-1',
-        pedidoId: 'pedido-new',
-        productoId: 'prod-a',
-        cantidad: 1,
-        precioUnitario: '100.00',
-        subtotal: '100.00',
-      },
+      { id: 'item-1', pedidoId: 'pedido-new', productoId: 'prod-a', cantidad: 1, precioUnitario: '100.00', subtotal: '100.00' },
     ])
     const valuesItems = vi.fn().mockReturnValue({ returning: returningItems })
 
     mockTxInsert
       .mockReturnValueOnce({ values: valuesPedido })
       .mockReturnValueOnce({ values: valuesItems })
-    // Las llamadas 3+ (CC + stock) las maneja el fallback del beforeEach
 
     await crearPedidoConItems(CLIENTE_ID, VENDEDOR_ID, null, null, [
       { productoId: 'prod-a', cantidad: 1 },
     ])
 
-    const pedidoInsertArg = valuesPedido.mock.calls[0]?.[0] as {
-      estado: string
-      total: string
-    }
+    const pedidoInsertArg = valuesPedido.mock.calls[0]?.[0] as { estado: string; total: string }
     expect(pedidoInsertArg.estado).toBe('confirmado')
     expect(pedidoInsertArg.total).toBe('100.00')
+  })
+
+  it('crea el pedido en estado pendiente_aprobacion cuando crearComoPendienteAprobacion=true', async () => {
+    mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA])
+
+    const returningPedido = vi.fn().mockResolvedValue([{ ...fakePedido, estado: 'pendiente_aprobacion', total: '100.00' }])
+    const valuesPedido = vi.fn().mockReturnValue({ returning: returningPedido })
+
+    const returningItems = vi.fn().mockResolvedValue([
+      { id: 'item-1', pedidoId: 'pedido-new', productoId: 'prod-a', cantidad: 1, precioUnitario: '100.00', subtotal: '100.00' },
+    ])
+    const valuesItems = vi.fn().mockReturnValue({ returning: returningItems })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesPedido })
+      .mockReturnValueOnce({ values: valuesItems })
+
+    await crearPedidoConItems(CLIENTE_ID, VENDEDOR_ID, null, null, [
+      { productoId: 'prod-a', cantidad: 1 },
+    ], undefined, { crearComoPendienteAprobacion: true })
+
+    const pedidoInsertArg = valuesPedido.mock.calls[0]?.[0] as { estado: string; total: string }
+    expect(pedidoInsertArg.estado).toBe('pendiente_aprobacion')
+    expect(pedidoInsertArg.total).toBe('100.00')
+  })
+
+  it('NO inserta movimiento CC ni stock cuando crearComoPendienteAprobacion=true', async () => {
+    mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA])
+
+    const returningPedido = vi.fn().mockResolvedValue([{ ...fakePedido, estado: 'pendiente_aprobacion', total: '100.00' }])
+    const valuesPedido = vi.fn().mockReturnValue({ returning: returningPedido })
+
+    const returningItems = vi.fn().mockResolvedValue([
+      { id: 'item-1', pedidoId: 'pedido-new', productoId: 'prod-a', cantidad: 1, precioUnitario: '100.00', subtotal: '100.00' },
+    ])
+    const valuesItems = vi.fn().mockReturnValue({ returning: returningItems })
+
+    mockTxInsert
+      .mockReturnValueOnce({ values: valuesPedido })
+      .mockReturnValueOnce({ values: valuesItems })
+
+    await crearPedidoConItems(CLIENTE_ID, VENDEDOR_ID, null, null, [
+      { productoId: 'prod-a', cantidad: 1 },
+    ], undefined, { crearComoPendienteAprobacion: true })
+
+    // Solo se llamó insert para pedido + items (2 veces), NO para CC ni stock
+    expect(mockTxInsert).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -250,22 +262,8 @@ describe('confirmarPedido', () => {
   const USER_ID = 'user-xyz'
 
   const fakeItems = [
-    {
-      id: 'item-1',
-      pedidoId: PEDIDO_ID,
-      productoId: 'prod-a',
-      cantidad: 2,
-      precioUnitario: '100.00',
-      subtotal: '200.00',
-    },
-    {
-      id: 'item-2',
-      pedidoId: PEDIDO_ID,
-      productoId: 'prod-b',
-      cantidad: 3,
-      precioUnitario: '50.00',
-      subtotal: '150.00',
-    },
+    { id: 'item-1', pedidoId: PEDIDO_ID, productoId: 'prod-a', cantidad: 2, precioUnitario: '100.00', subtotal: '200.00' },
+    { id: 'item-2', pedidoId: PEDIDO_ID, productoId: 'prod-b', cantidad: 3, precioUnitario: '50.00', subtotal: '150.00' },
   ]
 
   const fakePendingPedido = {
@@ -294,7 +292,6 @@ describe('confirmarPedido', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default select chain: sin movimientos de stock previos
     mockTxSelect.mockReturnValue(makeSelectChain([]))
     mockTransaction.mockImplementation(
       (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
@@ -309,18 +306,14 @@ describe('confirmarPedido', () => {
     const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
     mockTxUpdate.mockReturnValue({ set: setUpdate })
 
-    const valuesInsertCC = vi.fn().mockReturnValue({
-      returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]),
-    })
+    const valuesInsertCC = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]) })
     mockTxInsert.mockReturnValue({ values: valuesInsertCC })
-
-    // confirmarPedido re-fetches the pedido after aplicarSaldoAFavor
     mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
 
     await confirmarPedido(PEDIDO_ID, USER_ID)
 
     const setArg = setUpdate.mock.calls[0]?.[0] as { total: string; estado: string }
-    expect(setArg.total).toBe('350.00') // 200 + 150
+    expect(setArg.total).toBe('350.00')
   })
 
   it('pone estado=confirmado al pedido', async () => {
@@ -331,11 +324,8 @@ describe('confirmarPedido', () => {
     const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
     mockTxUpdate.mockReturnValue({ set: setUpdate })
 
-    const valuesInsertCC = vi.fn().mockReturnValue({
-      returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]),
-    })
+    const valuesInsertCC = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]) })
     mockTxInsert.mockReturnValue({ values: valuesInsertCC })
-
     mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
 
     await confirmarPedido(PEDIDO_ID, USER_ID)
@@ -352,20 +342,13 @@ describe('confirmarPedido', () => {
     const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
     mockTxUpdate.mockReturnValue({ set: setUpdate })
 
-    const valuesInsertCC = vi.fn().mockReturnValue({
-      returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]),
-    })
+    const valuesInsertCC = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]) })
     mockTxInsert.mockReturnValue({ values: valuesInsertCC })
-
     mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
 
     await confirmarPedido(PEDIDO_ID, USER_ID)
 
-    const insertArg = valuesInsertCC.mock.calls[0]?.[0] as {
-      tipo: string
-      monto: string
-      pedidoId: string
-    }
+    const insertArg = valuesInsertCC.mock.calls[0]?.[0] as { tipo: string; monto: string; pedidoId: string }
     expect(insertArg.tipo).toBe('debito')
     expect(insertArg.monto).toBe('350.00')
     expect(insertArg.pedidoId).toBe(PEDIDO_ID)
@@ -373,16 +356,182 @@ describe('confirmarPedido', () => {
 
   it('lanza NotFoundError si el pedido no existe', async () => {
     mockTxQueryPedidosFindFirst.mockResolvedValue(undefined)
-
     await expect(confirmarPedido(PEDIDO_ID, USER_ID)).rejects.toThrow('Pedido')
   })
 
   it('lanza ValidationError si el pedido no está en estado pendiente', async () => {
-    mockTxQueryPedidosFindFirst.mockResolvedValue({
-      ...fakePendingPedido,
-      estado: 'confirmado',
-    })
-
+    mockTxQueryPedidosFindFirst.mockResolvedValue({ ...fakePendingPedido, estado: 'confirmado' })
     await expect(confirmarPedido(PEDIDO_ID, USER_ID)).rejects.toThrow('pendiente')
+  })
+})
+
+// ─── Tests: aprobarPedido ─────────────────────────────────────────────────────
+
+describe('aprobarPedido', () => {
+  const PEDIDO_ID = 'pedido-aprobacion'
+  const USER_ID = 'gerente-001'
+
+  const fakeItems = [
+    { id: 'item-1', pedidoId: PEDIDO_ID, productoId: 'prod-a', cantidad: 2, precioUnitario: '100.00', subtotal: '200.00' },
+  ]
+
+  const fakePendienteAprobacion = {
+    id: PEDIDO_ID,
+    clienteId: 'cliente-1',
+    vendedorId: 'agente-1',
+    estado: 'pendiente_aprobacion' as const,
+    total: '200.00',
+    montoPagado: '0',
+    saldoPendiente: '200.00',
+    estadoPago: 'impago' as const,
+    fecha: new Date('2024-01-15'),
+    observaciones: null,
+    updatedAt: new Date(),
+    createdAt: new Date(),
+    items: fakeItems,
+  }
+
+  const fakeConfirmedPedido = { ...fakePendienteAprobacion, estado: 'confirmado' as const }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTxSelect.mockReturnValue(makeSelectChain([]))
+    mockTransaction.mockImplementation(
+      (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
+    )
+  })
+
+  it('transiciona de pendiente_aprobacion a confirmado', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(fakePendienteAprobacion)
+
+    const returningUpdate = vi.fn().mockResolvedValue([fakeConfirmedPedido])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const valuesInsert = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]) })
+    mockTxInsert.mockReturnValue({ values: valuesInsert })
+    mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
+
+    await aprobarPedido(PEDIDO_ID, USER_ID)
+
+    const setArg = setUpdate.mock.calls[0]?.[0] as { estado: string; total: string }
+    expect(setArg.estado).toBe('confirmado')
+    expect(setArg.total).toBe('200.00')
+  })
+
+  it('crea movimiento CC de débito al aprobar', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(fakePendienteAprobacion)
+
+    const returningUpdate = vi.fn().mockResolvedValue([fakeConfirmedPedido])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const valuesInsert = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'mov-1' }]) })
+    mockTxInsert.mockReturnValue({ values: valuesInsert })
+    mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
+
+    await aprobarPedido(PEDIDO_ID, USER_ID)
+
+    const ccInsertArg = valuesInsert.mock.calls[0]?.[0] as { tipo: string; monto: string }
+    expect(ccInsertArg.tipo).toBe('debito')
+    expect(ccInsertArg.monto).toBe('200.00')
+  })
+
+  it('lanza ValidationError si el pedido no está en pendiente_aprobacion', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue({ ...fakePendienteAprobacion, estado: 'confirmado' })
+    await expect(aprobarPedido(PEDIDO_ID, USER_ID)).rejects.toThrow('pendiente de aprobación')
+  })
+
+  it('lanza NotFoundError si el pedido no existe', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(undefined)
+    await expect(aprobarPedido(PEDIDO_ID, USER_ID)).rejects.toThrow('Pedido')
+  })
+})
+
+// ─── Tests: revertirPedidoAAprobacion ─────────────────────────────────────────
+
+describe('revertirPedidoAAprobacion', () => {
+  const PEDIDO_ID = 'pedido-revert'
+  const USER_ID = 'gerente-001'
+
+  const fakeItems = [
+    { id: 'item-1', pedidoId: PEDIDO_ID, productoId: 'prod-a', cantidad: 2, precioUnitario: '100.00', subtotal: '200.00' },
+  ]
+
+  const fakeConfirmedPedido = {
+    id: PEDIDO_ID,
+    clienteId: 'cliente-1',
+    vendedorId: 'agente-1',
+    estado: 'confirmado' as const,
+    total: '200.00',
+    montoPagado: '0',
+    saldoPendiente: '200.00',
+    estadoPago: 'impago' as const,
+    fecha: new Date('2024-01-15'),
+    observaciones: null,
+    updatedAt: new Date(),
+    createdAt: new Date(),
+    items: fakeItems,
+  }
+
+  const fakeRevertedPedido = { ...fakeConfirmedPedido, estado: 'pendiente_aprobacion' as const }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTxSelect.mockReturnValue(makeSelectChain([]))
+    mockTransaction.mockImplementation(
+      (fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()),
+    )
+  })
+
+  it('transiciona de confirmado a pendiente_aprobacion', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
+
+    const returningUpdate = vi.fn().mockResolvedValue([fakeRevertedPedido])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    // tx.update es llamado múltiples veces (CC, aplicaciones, pedido)
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const valuesInsert = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) })
+    mockTxInsert.mockReturnValue({ values: valuesInsert })
+
+    const result = await revertirPedidoAAprobacion(PEDIDO_ID, USER_ID)
+
+    // El último set del pedido debe tener estado=pendiente_aprobacion
+    const lastSetCall = setUpdate.mock.calls[setUpdate.mock.calls.length - 1]?.[0] as { estado: string }
+    expect(lastSetCall.estado).toBe('pendiente_aprobacion')
+    expect(result.estado).toBe('pendiente_aprobacion')
+  })
+
+  it('lanza ValidationError si el pedido no está en estado confirmado', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue({ ...fakeConfirmedPedido, estado: 'pendiente_aprobacion' })
+    await expect(revertirPedidoAAprobacion(PEDIDO_ID, USER_ID)).rejects.toThrow('confirmado')
+  })
+
+  it('lanza NotFoundError si el pedido no existe', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(undefined)
+    await expect(revertirPedidoAAprobacion(PEDIDO_ID, USER_ID)).rejects.toThrow('Pedido')
+  })
+
+  it('crea movimientos de stock de tipo entrada para compensar las salidas', async () => {
+    mockTxQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
+
+    const returningUpdate = vi.fn().mockResolvedValue([fakeRevertedPedido])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+
+    const valuesInsert = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) })
+    mockTxInsert.mockReturnValue({ values: valuesInsert })
+
+    await revertirPedidoAAprobacion(PEDIDO_ID, USER_ID)
+
+    // El insert de stock debe ser de tipo 'entrada'
+    const stockInsertArg = valuesInsert.mock.calls[0]?.[0] as { tipo: string; cantidad: number }
+    expect(stockInsertArg.tipo).toBe('entrada')
+    expect(stockInsertArg.cantidad).toBe(2)
   })
 })
