@@ -5,10 +5,11 @@ import {
   pedidos,
   movimientosCC,
   aplicacionesPago,
+  stockMovements,
   productos,
   leads,
 } from '@/db/schema'
-import { ValidationError, NotFoundError } from '@/lib/errors'
+import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors'
 import { calcularDistribucionFIFO, type PedidoPendiente } from '@/lib/cuenta-corriente/pago.service'
 
 // ─── deleteCliente ─────────────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ export async function deleteCliente(clienteId: string, _deletedBy: string): Prom
 
 // ─── deletePedido ──────────────────────────────────────────────────────────────
 
-export async function deletePedido(pedidoId: string, _deletedBy: string): Promise<void> {
+export async function deletePedido(pedidoId: string, deletedBy: string): Promise<void> {
   await db.transaction(async (tx) => {
     // 1. Fetch pedido
     const pedido = await tx.query.pedidos.findFirst({
@@ -66,7 +67,23 @@ export async function deletePedido(pedidoId: string, _deletedBy: string): Promis
     })
     if (!pedido) throw new NotFoundError('Pedido')
 
-    // 2. Find the débito movimiento linked to this pedido
+    // 2. Guard: block deletion if the pedido has active applied payments.
+    //    Deleting without this check leaves crédito movimientosCC alive (orphaned)
+    //    and generates a false saldo a favor on the client's cuenta corriente.
+    const pagoAplicado = await tx.query.aplicacionesPago.findFirst({
+      where: and(
+        eq(aplicacionesPago.pedidoId, pedidoId),
+        isNull(aplicacionesPago.deletedAt),
+      ),
+      columns: { id: true },
+    })
+    if (pagoAplicado) {
+      throw new ConflictError(
+        'No se puede eliminar un pedido con pagos aplicados. Usá Anular.',
+      )
+    }
+
+    // 3. Find the débito movimiento linked to this pedido
     const debitoMovimiento = await tx.query.movimientosCC.findFirst({
       where: and(
         eq(movimientosCC.pedidoId, pedidoId),
@@ -76,13 +93,13 @@ export async function deletePedido(pedidoId: string, _deletedBy: string): Promis
       columns: { id: true },
     })
 
-    // 3. Soft-delete all aplicaciones_pago linked to this pedido
+    // 4. Soft-delete all aplicaciones_pago linked to this pedido
     await tx
       .update(aplicacionesPago)
       .set({ deletedAt: new Date() })
       .where(and(eq(aplicacionesPago.pedidoId, pedidoId), isNull(aplicacionesPago.deletedAt)))
 
-    // 4. Soft-delete the débito movimiento (if it exists)
+    // 5. Soft-delete the débito movimiento (if it exists)
     if (debitoMovimiento) {
       await tx
         .update(movimientosCC)
@@ -90,13 +107,63 @@ export async function deletePedido(pedidoId: string, _deletedBy: string): Promis
         .where(eq(movimientosCC.id, debitoMovimiento.id))
     }
 
-    // 5. Soft-delete the pedido itself
+    // 6. Revert stock: create compensating 'entrada' movements for any net-deducted stock.
+    //    Algorithm: sum(salidas) - sum(entradas) per product for this pedidoId.
+    //    If netDeducted > 0, create one 'entrada' to balance it.
+    //    This is idempotent: if a prior revert already restored stock (e.g. via
+    //    revertirPedidoAAprobacion), netDeducted will be 0 and no movement is created.
+    const existingStockMovs = await tx
+      .select({
+        productoId: stockMovements.productoId,
+        tipo: stockMovements.tipo,
+        cantidad: stockMovements.cantidad,
+      })
+      .from(stockMovements)
+      .where(eq(stockMovements.pedidoId, pedidoId))
+
+    // Build net map: positive = net deducted (salidas > entradas)
+    const netByProducto = new Map<string, number>()
+    for (const mov of existingStockMovs) {
+      if (mov.tipo !== 'salida' && mov.tipo !== 'entrada') continue
+      const prev = netByProducto.get(mov.productoId) ?? 0
+      netByProducto.set(
+        mov.productoId,
+        mov.tipo === 'salida' ? prev + mov.cantidad : prev - mov.cantidad,
+      )
+    }
+
+    for (const [productoId, netDeducted] of netByProducto.entries()) {
+      if (netDeducted <= 0) continue // already balanced — skip
+
+      // Latest saldoResultante for this product (across ALL movements, not just this pedido)
+      const [latest] = await tx
+        .select({ saldo: stockMovements.saldoResultante })
+        .from(stockMovements)
+        .where(eq(stockMovements.productoId, productoId))
+        .orderBy(sql`${stockMovements.createdAt} DESC`)
+        .limit(1)
+
+      const saldoActual = latest?.saldo ?? 0
+
+      await tx.insert(stockMovements).values({
+        productoId,
+        tipo: 'entrada',
+        cantidad: netDeducted,
+        saldoResultante: saldoActual + netDeducted,
+        pedidoId,
+        referencia: `Reverso por eliminación pedido #${pedidoId.slice(0, 8)}`,
+        notas: 'Reversión automática de stock al eliminar el pedido',
+        registradoPor: deletedBy,
+      })
+    }
+
+    // 7. Soft-delete the pedido itself
     await tx
       .update(pedidos)
       .set({ deletedAt: new Date() })
       .where(eq(pedidos.id, pedidoId))
 
-    // 6. Recalculate FIFO for remaining active pedidos of this client
+    // 8. Recalculate FIFO for remaining active pedidos of this client
     const clienteId = pedido.clienteId
 
     // Fetch all active créditos for this client ordered by fecha ASC

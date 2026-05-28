@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
+import { formatFechaAR } from '@/lib/dates'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
@@ -152,7 +152,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                 {data.movimientos.map(m => (
                   <div key={m.id} className="flex items-start justify-between p-3 border-b border-border last:border-0">
                     <div>
-                      <p className="text-sm text-muted-foreground">{format(new Date(m.fecha), 'dd/MM/yy')}</p>
+                      <p className="text-sm text-muted-foreground">{formatFechaAR(m.fecha, true)}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{m.descripcion ?? (m.tipo === 'credito' ? 'Pago recibido' : 'Pedido')}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -189,7 +189,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                   <tbody>
                     {data.movimientos.map((m) => (
                       <tr key={m.id} className="border-b border-border last:border-0">
-                        <td className="py-2.5 px-3 text-muted-foreground">{format(new Date(m.fecha), 'dd/MM/yyyy')}</td>
+                        <td className="py-2.5 px-3 text-muted-foreground">{formatFechaAR(m.fecha)}</td>
                         <td className="py-2.5 px-3">
                           <span className={cn(
                             'px-2 py-0.5 rounded-full text-xs font-medium',
@@ -274,7 +274,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                   <Link key={p.id} href={`/crm/pedidos/${p.id}`}
                     className="flex items-center justify-between p-3 border-b border-border last:border-0 active:bg-accent/50">
                     <div>
-                      <p className="text-sm text-foreground">{format(new Date(p.fecha), 'dd/MM/yy')}</p>
+                      <p className="text-sm text-foreground">{formatFechaAR(p.fecha, true)}</p>
                       <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', estadoPagoColors[p.estadoPago])}>
                         {estadoPagoLabels[p.estadoPago]}
                       </span>
@@ -305,7 +305,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                       <tr key={p.id} className="border-b border-border last:border-0">
                         <td className="py-2.5 px-3">
                           <Link href={`/crm/pedidos/${p.id}`} className="text-primary hover:underline">
-                            {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                            {formatFechaAR(p.fecha)}
                           </Link>
                         </td>
                         <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>

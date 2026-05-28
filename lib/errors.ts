@@ -30,6 +30,13 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message: string) {
+    super(message, 409, 'CONFLICT_ERROR')
+    this.name = 'ConflictError'
+  }
+}
+
 export function toApiError(err: unknown): { message: string; code?: string; status: number } {
   if (err instanceof AppError) {
     return { message: err.message, code: err.code, status: err.statusCode }

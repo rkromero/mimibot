@@ -46,7 +46,7 @@ export function relativeTime(date: Date | string): string {
   if (hours < 24) return `hace ${hours}h`
   const days = Math.floor(hours / 24)
   if (days < 7) return `hace ${days}d`
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
 // Formatea un número de teléfono para mostrar

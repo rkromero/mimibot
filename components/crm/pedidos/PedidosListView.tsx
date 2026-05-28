@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
+import { formatFechaAR } from '@/lib/dates'
 import CreatePedidoModal from './CreatePedidoModal'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import SwipeableListItem from '@/components/shared/SwipeableListItem'
@@ -184,7 +184,7 @@ export default function PedidosListView() {
       sortable: true,
       render: (row: Pedido) => (
         <span className="text-muted-foreground">
-          {format(new Date(row.fecha), 'dd/MM/yyyy')}
+          {formatFechaAR(row.fecha)}
         </span>
       ),
     },
@@ -380,7 +380,7 @@ export default function PedidosListView() {
                       {p.clienteNombre} {p.clienteApellido}
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      {format(new Date(p.fecha), 'dd/MM/yyyy')}
+                      {formatFechaAR(p.fecha)}
                     </p>
                   </div>
                   <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
@@ -413,7 +413,7 @@ export default function PedidosListView() {
       {deletingPedido && (
         <ConfirmDeleteModal
           title="Eliminar pedido"
-          description={`¿Eliminar el pedido de ${deletingPedido.clienteNombre} ${deletingPedido.clienteApellido} del ${format(new Date(deletingPedido.fecha), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`}
+          description={`¿Eliminar el pedido de ${deletingPedido.clienteNombre} ${deletingPedido.clienteApellido} del ${formatFechaAR(deletingPedido.fecha)}? Esta acción no se puede deshacer.`}
           warning={deleteError ?? undefined}
           onConfirm={handleDeletePedido}
           onClose={() => setDeletingPedido(null)}

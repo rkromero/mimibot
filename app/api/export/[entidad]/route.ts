@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { clientes, pedidos, productos, leads, contacts, movimientosCC, businessConfig, stockMovements, users } from '@/db/schema'
 import { and, eq, isNull, lt, sql, desc } from 'drizzle-orm'
 import { toApiError } from '@/lib/errors'
-import { format } from 'date-fns'
+import { todayStrAR } from '@/lib/dates'
 
 function escapeCsv(value: string | number | null | undefined | boolean): string {
   if (value === null || value === undefined) return ''
@@ -33,7 +33,7 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { entidad } = await params
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const today = todayStrAR()
     let csvContent = ''
     let filename = `${entidad}_${today}.csv`
 

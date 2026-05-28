@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw }
 import EntregaProofModal from './EntregaProofModal'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
+import { formatFechaAR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
@@ -213,7 +213,7 @@ export default function PedidoDetail({ id }: Props) {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {format(new Date(pedido.fecha), 'dd/MM/yyyy')} — Vendedor: {pedido.vendedorNombre ?? '—'}
+            {formatFechaAR(pedido.fecha)} — Vendedor: {pedido.vendedorNombre ?? '—'}
           </p>
         </div>
 
@@ -379,7 +379,7 @@ export default function PedidoDetail({ id }: Props) {
           </div>
           <div className="flex gap-2 text-sm">
             <span className="text-muted-foreground w-24 shrink-0">Fecha:</span>
-            <span>{format(new Date(pedido.fecha), 'dd/MM/yyyy')}</span>
+            <span>{formatFechaAR(pedido.fecha)}</span>
           </div>
           {pedido.observaciones && (
             <div className="flex gap-2 text-sm">
@@ -477,7 +477,7 @@ export default function PedidoDetail({ id }: Props) {
                 {pedido.aplicaciones.filter(ap => !ap.deletedAt).map((ap) => (
                   <tr key={ap.id} className="border-b border-border last:border-0">
                     <td className="py-2.5 px-3 text-muted-foreground">
-                      {format(new Date(ap.createdAt), 'dd/MM/yyyy')}
+                      {formatFechaAR(ap.createdAt)}
                     </td>
                     <td className="py-2.5 px-3 text-right font-medium text-green-600">
                       {formatMoney(ap.montoAplicado)}

@@ -9,6 +9,7 @@ import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 import { parsePagination } from '@/lib/api/pagination'
+import { parseFechaAR } from '@/lib/dates'
 
 export async function GET(
   req: NextRequest,
@@ -130,7 +131,7 @@ export async function POST(
         clienteId: id,
         monto: parsed.data.monto,
         descripcion: parsed.data.descripcion ?? null,
-        fecha: parsed.data.fecha ? new Date(parsed.data.fecha) : new Date(),
+        fecha: parsed.data.fecha ? parseFechaAR(parsed.data.fecha) : new Date(),
         registradoPor: session.user.id,
       },
       db,

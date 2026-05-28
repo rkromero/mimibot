@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { format, addDays } from 'date-fns'
+import { todayStrAR, addDaysStrAR } from '@/lib/dates'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 import Stepper from '@/components/shared/Stepper'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
@@ -45,7 +45,7 @@ function formatMoney(value: number) {
 export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const queryClient = useQueryClient()
   const router = useRouter()
-  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const todayStr = todayStrAR()
 
   const [step, setStep] = useState(clienteId ? 1 : 0)
   const [selectedClienteId, setSelectedClienteId] = useState(clienteId ?? '')
@@ -61,7 +61,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   // Confirm step fields
   const [descuento, setDescuento] = useState(0)
   const [condicionPago, setCondicionPago] = useState<'contado' | '7dias' | '14dias' | '30dias'>('contado')
-  const [fechaEntrega, setFechaEntrega] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
+  const [fechaEntrega, setFechaEntrega] = useState(addDaysStrAR(2))
   const [observaciones, setObservaciones] = useState('')
 
   // Delivery method — only for agent role
@@ -708,10 +708,10 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                     ].map(opt => (
                       <button
                         key={opt.days}
-                        onClick={() => setFechaEntrega(format(addDays(new Date(), opt.days), 'yyyy-MM-dd'))}
+                        onClick={() => setFechaEntrega(addDaysStrAR(opt.days))}
                         className={cn(
                           'px-4 py-2.5 rounded-xl text-sm font-medium border min-h-[44px] transition-colors',
-                          fechaEntrega === format(addDays(new Date(), opt.days), 'yyyy-MM-dd')
+                          fechaEntrega === addDaysStrAR(opt.days)
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-card border-border text-foreground',
                         )}
