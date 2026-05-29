@@ -7,6 +7,7 @@ import { createClienteSchema, clienteFiltersSchema } from '@/lib/validations/cli
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { resolverTerritorioPorRol } from '@/lib/territorios/asignacion.service'
+import { getTerritorioActivoDeAgente } from '@/lib/territorios/territorios.service'
 import { parsePagination } from '@/lib/api/pagination'
 import type { Paginated } from '@/lib/types/pagination'
 
@@ -138,10 +139,16 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
-    const { territorioId, agenteId } = await resolverTerritorioPorRol(
-      ctx,
-      input.territorioId,
-    )
+    const resolved = await resolverTerritorioPorRol(ctx, input.territorioId)
+    let territorioId = resolved.territorioId
+    const agenteId = resolved.agenteId
+
+    // C: si el admin asigna un agente pero no especifica territorio,
+    // heredar el territorio activo del agente automáticamente.
+    if (ctx.role === 'admin' && input.asignadoA && !input.territorioId && !territorioId) {
+      const agenteTerr = await getTerritorioActivoDeAgente(input.asignadoA)
+      if (agenteTerr) territorioId = agenteTerr.territorioId
+    }
 
     let asignadoA: string | null = null
     if (ctx.role === 'agent' || ctx.role === 'vendedor') {

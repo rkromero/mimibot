@@ -7,6 +7,7 @@ import { registrarPagoSchema } from '@/lib/validations/pedidos'
 import { registrarPago } from '@/lib/cuenta-corriente/pago.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 import { parsePagination } from '@/lib/api/pagination'
 import { parseFechaAR } from '@/lib/dates'
@@ -20,6 +21,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const cliente = await db.query.clientes.findFirst({
@@ -112,6 +115,8 @@ export async function POST(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const cliente = await db.query.clientes.findFirst({

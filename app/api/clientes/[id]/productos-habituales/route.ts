@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, pedidoItems, productos } from '@/db/schema'
 import { eq, and, isNull, desc, sql } from 'drizzle-orm'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function GET(
   _req: NextRequest,
@@ -13,6 +14,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id: clienteId } = await params
+    const invalid = validateUuidParam(clienteId)
+    if (invalid) return invalid
 
     const rows = await db
       .select({

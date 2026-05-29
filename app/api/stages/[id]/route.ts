@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { withAdminAuth } from '@/lib/authz'
 import { toApiError, NotFoundError, ValidationError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const updateStageSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -27,6 +28,8 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalidId = validateUuidParam(id)
+    if (invalidId) return invalidId
 
     return withAdminAuth(async () => {
       const body: unknown = await req.json()
@@ -67,6 +70,8 @@ export async function DELETE(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalidId = validateUuidParam(id)
+    if (invalidId) return invalidId
 
     return withAdminAuth(async () => {
       const stage = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.id, id) })

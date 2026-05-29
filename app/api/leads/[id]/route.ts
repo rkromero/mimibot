@@ -8,6 +8,7 @@ import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
 import { deleteLead } from '@/lib/delete/delete.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import { emitLeadEvent } from '@/lib/realtime/broker'
 import { convertirLeadACliente } from '@/lib/clientes/conversion'
 
@@ -20,6 +21,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessLead(session.user, id)
 
     const lead = await db.query.leads.findFirst({
@@ -51,6 +54,8 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessLead(session.user, id)
 
     const body: unknown = await req.json()
@@ -151,6 +156,8 @@ export async function DELETE(
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await deleteLead(id, session.user.id)
 
     return NextResponse.json({ success: true })

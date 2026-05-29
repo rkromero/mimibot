@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { followUpTemplates } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -28,6 +29,8 @@ export async function PATCH(
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
+  const invalid = validateUuidParam(id)
+  if (invalid) return invalid
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
@@ -58,6 +61,8 @@ export async function DELETE(
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
+  const invalid = validateUuidParam(id)
+  if (invalid) return invalid
   await db.delete(followUpTemplates).where(eq(followUpTemplates.id, id))
   return NextResponse.json({ ok: true })
 }

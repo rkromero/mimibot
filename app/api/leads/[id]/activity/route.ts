@@ -5,6 +5,7 @@ import { activityLog } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function GET(
   _req: NextRequest,
@@ -15,6 +16,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessLead(session.user, id)
 
     const data = await db.query.activityLog.findMany({

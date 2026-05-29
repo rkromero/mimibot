@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { getTerritorio } from '@/lib/territorios/territorios.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import { db } from '@/db'
 import { historialTeritorioCliente, clientes, territorios, users } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -20,6 +21,8 @@ export async function GET(_req: NextRequest, { params }: RouteCtx) {
 
     const ctx = await getSessionContext(session.user)
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     // Validates access for gerente
     await getTerritorio(id, ctx)

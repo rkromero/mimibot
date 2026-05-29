@@ -6,6 +6,7 @@ import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { canAccessLead } from '@/lib/authz'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const addNoteSchema = z.object({
   body: z.string().min(1).max(4000),
@@ -22,6 +23,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const conv = await db.query.conversations.findFirst({
       where: eq(conversations.id, id),
@@ -55,6 +58,8 @@ export async function POST(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const conv = await db.query.conversations.findFirst({
       where: eq(conversations.id, id),

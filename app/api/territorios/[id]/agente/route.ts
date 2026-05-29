@@ -5,6 +5,7 @@ import { toApiError } from '@/lib/errors'
 import { asignarAgenteSchema } from '@/lib/validations/territorios'
 import { asignarAgente, desasignarAgente } from '@/lib/territorios/territorios.service'
 import { sincronizarAgenteEnTerritorioClientes } from '@/lib/territorios/asignacion.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -16,6 +17,8 @@ export async function POST(req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id: territorioId } = await params
+    const invalid = validateUuidParam(territorioId)
+    if (invalid) return invalid
     const body: unknown = await req.json()
     const parsed = asignarAgenteSchema.safeParse(body)
     if (!parsed.success) {
@@ -42,6 +45,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id: territorioId } = await params
+    const invalid = validateUuidParam(territorioId)
+    if (invalid) return invalid
     await desasignarAgente(territorioId)
 
     // Clients stay in territory but agent becomes null

@@ -8,6 +8,7 @@ import { requireAdmin } from '@/lib/authz'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteCliente } from '@/lib/delete/delete.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function GET(
   _req: NextRequest,
@@ -18,6 +19,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const cliente = await db.query.clientes.findFirst({
@@ -150,6 +153,8 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const body: unknown = await req.json()
@@ -203,6 +208,8 @@ export async function DELETE(
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await deleteCliente(id, session.user.id)
 
     return NextResponse.json({ success: true })

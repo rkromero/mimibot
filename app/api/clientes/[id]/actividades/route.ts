@@ -6,6 +6,7 @@ import { eq, desc, asc, sql } from 'drizzle-orm'
 import { createActividadSchema } from '@/lib/validations/actividades'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(
@@ -17,6 +18,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const { page, limit, sortBy, sortDir } = parsePagination(req.nextUrl.searchParams, {
@@ -71,6 +74,8 @@ export async function POST(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessCliente(session.user, id)
 
     const body: unknown = await req.json()

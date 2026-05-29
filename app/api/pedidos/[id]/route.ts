@@ -10,6 +10,7 @@ import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/er
 import { requireAdmin } from '@/lib/authz'
 import { deletePedido } from '@/lib/delete/delete.service'
 import { getSessionContext } from '@/lib/territorios/context'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 async function canAccessPedido(
   pedidoId: string,
@@ -59,6 +60,8 @@ export async function GET(
 
     const ctx = await getSessionContext(session.user)
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessPedido(id, ctx)
 
     const pedido = await db.query.pedidos.findFirst({
@@ -107,6 +110,8 @@ export async function PATCH(
 
     const ctx = await getSessionContext(session.user)
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await canAccessPedido(id, ctx)
 
     const body: unknown = await req.json()
@@ -219,6 +224,8 @@ export async function DELETE(
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await deletePedido(id, session.user.id)
 
     return NextResponse.json({ success: true })

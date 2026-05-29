@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { updateTerritorioSchema } from '@/lib/validations/territorios'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import {
   getTerritorio,
   editarTerritorio,
@@ -27,6 +28,8 @@ export async function GET(_req: NextRequest, { params }: RouteCtx) {
 
     const ctx = await getSessionContext(session.user)
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     const t = await getTerritorio(id, ctx)
 
     // Enrich with agente activo
@@ -82,6 +85,8 @@ export async function PUT(req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     const body: unknown = await req.json()
     const parsed = updateTerritorioSchema.safeParse(body)
     if (!parsed.success) {
@@ -104,6 +109,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await darDeBajaTerritorio(id)
     return NextResponse.json({ data: { ok: true } })
   } catch (err) {

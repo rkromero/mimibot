@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { z } from 'zod'
 import { moverClienteATerritorio } from '@/lib/territorios/asignacion.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const bodySchema = z.object({
   territorioId: z.string().uuid('ID de territorio inválido'),
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id: clienteId } = await params
+    const invalid = validateUuidParam(clienteId)
+    if (invalid) return invalid
     const body: unknown = await req.json()
     const parsed = bodySchema.safeParse(body)
     if (!parsed.success) {

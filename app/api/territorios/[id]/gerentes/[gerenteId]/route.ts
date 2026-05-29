@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { quitarGerente } from '@/lib/territorios/territorios.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 type RouteCtx = { params: Promise<{ id: string; gerenteId: string }> }
 
@@ -14,6 +15,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id: territorioId, gerenteId } = await params
+    const invalidId = validateUuidParam(territorioId)
+    if (invalidId) return invalidId
+    const invalidGerente = validateUuidParam(gerenteId)
+    if (invalidGerente) return invalidGerente
     await quitarGerente(territorioId, gerenteId)
     return NextResponse.json({ data: { ok: true } })
   } catch (err) {

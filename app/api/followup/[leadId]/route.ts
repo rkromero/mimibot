@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { scheduleFollowUp, cancelFollowUp } from '@/lib/followup/engine'
 import { z } from 'zod'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const scheduleSchema = z.object({
   reason: z.enum(['no_response', 'stalling', 'manual']).default('manual'),
@@ -16,6 +17,8 @@ export async function POST(
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { leadId } = await params
+  const invalid = validateUuidParam(leadId)
+  if (invalid) return invalid
   const body = await req.json()
   const parsed = scheduleSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
@@ -32,6 +35,8 @@ export async function DELETE(
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { leadId } = await params
+  const invalid = validateUuidParam(leadId)
+  if (invalid) return invalid
   await cancelFollowUp(leadId)
   return NextResponse.json({ ok: true })
 }

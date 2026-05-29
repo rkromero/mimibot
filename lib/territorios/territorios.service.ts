@@ -280,3 +280,17 @@ export async function darDeBajaTerritorio(id: string) {
 // ─── Obtener agente activo de un territorio ───────────────────────────────────
 
 export { getAgenteActivo }
+
+// ─── Obtener territorio activo de un agente (lookup inverso) ─────────────────
+// Usado al crear un cliente: si el admin asigna agente pero omite territorioId,
+// el territorio se hereda automáticamente del territorio activo del agente.
+
+export async function getTerritorioActivoDeAgente(agenteId: string) {
+  return db.query.territorioAgente.findFirst({
+    where: and(
+      eq(territorioAgente.agenteId, agenteId),
+      isNull(territorioAgente.fechaDesasignacion),
+    ),
+    columns: { territorioId: true },
+  })
+}

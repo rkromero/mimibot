@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { asignarGerenteSchema } from '@/lib/validations/territorios'
 import { asignarGerente } from '@/lib/territorios/territorios.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -15,6 +16,8 @@ export async function POST(req: NextRequest, { params }: RouteCtx) {
     requireAdmin(session.user)
 
     const { id: territorioId } = await params
+    const invalid = validateUuidParam(territorioId)
+    if (invalid) return invalid
     const body: unknown = await req.json()
     const parsed = asignarGerenteSchema.safeParse(body)
     if (!parsed.success) {

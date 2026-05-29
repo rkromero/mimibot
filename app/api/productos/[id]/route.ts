@@ -7,6 +7,7 @@ import { updateProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteProducto } from '@/lib/delete/delete.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function GET(
   _req: NextRequest,
@@ -17,6 +18,8 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const producto = await db.query.productos.findFirst({
       where: and(eq(productos.id, id), isNull(productos.deletedAt)),
@@ -42,6 +45,8 @@ export async function PATCH(
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const existing = await db.query.productos.findFirst({
       where: and(eq(productos.id, id), isNull(productos.deletedAt)),
@@ -98,6 +103,8 @@ export async function DELETE(
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     await deleteProducto(id, session.user.id)
 
     return NextResponse.json({ success: true })

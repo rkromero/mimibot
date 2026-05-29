@@ -7,6 +7,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { withAdminAuth } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).optional(),
@@ -26,6 +27,8 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     return withAdminAuth(async () => {
       const body: unknown = await req.json()

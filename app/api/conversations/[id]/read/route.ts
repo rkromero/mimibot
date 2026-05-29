@@ -5,6 +5,7 @@ import { conversations, messages } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { canAccessLead } from '@/lib/authz'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function POST(
   _req: NextRequest,
@@ -15,6 +16,8 @@ export async function POST(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const conv = await db.query.conversations.findFirst({
       where: eq(conversations.id, id),

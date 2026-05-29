@@ -9,6 +9,7 @@ import {
   isMesBloqueable,
   updateMetaFutura,
 } from '@/lib/metas/metas.service'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -18,6 +19,8 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     const meta = await getMetaWithVendedor(id)
     if (!meta) throw new NotFoundError('Meta')
 
@@ -47,6 +50,8 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     requireAdmin(session.user)
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
     const meta = await getMetaWithVendedor(id)
     if (!meta) throw new NotFoundError('Meta')
 

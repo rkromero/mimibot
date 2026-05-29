@@ -5,6 +5,7 @@ import { actividadesCliente } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { updateActividadSchema } from '@/lib/validations/actividades'
 import { toApiError, NotFoundError, AuthzError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function PATCH(
   req: NextRequest,
@@ -15,6 +16,8 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const existing = await db.query.actividadesCliente.findFirst({
       where: eq(actividadesCliente.id, id),

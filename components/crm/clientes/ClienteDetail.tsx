@@ -438,9 +438,14 @@ export default function ClienteDetail({ id }: Props) {
             autoFocus
           >
             <option value="">Sin asignar</option>
-            {territorios.map((t) => (
-              <option key={t.id} value={t.id}>{t.nombre}</option>
-            ))}
+            {territorios
+              // Hide any territory whose name duplicates the blank "Sin asignar" option.
+              // The legacy territory "Sin asignar" (id ed801f0e-…) is kept in the DB for
+              // historical reasons but should not appear as a selectable option here.
+              .filter((t) => t.nombre !== 'Sin asignar')
+              .map((t) => (
+                <option key={t.id} value={t.id}>{t.nombre}</option>
+              ))}
           </select>
           {territorioError && <p className="text-xs text-destructive">{territorioError}</p>}
           <div className="flex items-center gap-2">
@@ -730,16 +735,42 @@ export default function ClienteDetail({ id }: Props) {
         />
       )}
 
-      {showDeleteModal && (
-        <ConfirmDeleteModal
-          title="Eliminar cliente"
-          description={`¿Eliminar a ${cliente.nombre} ${cliente.apellido}? Esta acción no se puede deshacer.`}
-          warning={deleteError ?? undefined}
-          onConfirm={handleDelete}
-          onClose={() => setShowDeleteModal(false)}
-          isPending={isDeleting}
-        />
-      )}
+      {showDeleteModal && (() => {
+        const pedidosCount = cliente.pedidosSummary?.count ?? 0
+        const saldoPendiente = parseFloat(cliente.pedidosSummary?.saldoPendiente ?? '0')
+        const hasPedidos = pedidosCount > 0
+
+        return (
+          <ConfirmDeleteModal
+            title="Eliminar cliente"
+            description={`¿Eliminar a ${cliente.nombre} ${cliente.apellido}? Esta acción no se puede deshacer.`}
+            details={
+              pedidosCount > 0 || saldoPendiente > 0 ? (
+                <div className="space-y-1">
+                  {pedidosCount > 0 && (
+                    <p className="text-sm">
+                      <span className="font-medium">{pedidosCount}</span>{' '}
+                      {pedidosCount === 1 ? 'pedido registrado' : 'pedidos registrados'}
+                    </p>
+                  )}
+                  {saldoPendiente > 0 && (
+                    <p className="text-sm">
+                      Saldo pendiente:{' '}
+                      <span className="font-medium text-destructive">{formatMoney(saldoPendiente)}</span>
+                    </p>
+                  )}
+                </div>
+              ) : undefined
+            }
+            confirmDisabled={hasPedidos}
+            confirmDisabledReason={hasPedidos ? 'Eliminá o anulá sus pedidos primero' : undefined}
+            warning={deleteError ?? undefined}
+            onConfirm={handleDelete}
+            onClose={() => setShowDeleteModal(false)}
+            isPending={isDeleting}
+          />
+        )
+      })()}
     </div>
   )
 }

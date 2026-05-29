@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { canAccessCliente } from '@/lib/authz/clientes'
+import { validateUuidParam } from '@/lib/api/validate-params'
 import { db } from '@/db'
 import { historialTeritorioCliente, territorios, users } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -16,6 +17,8 @@ export async function GET(_req: NextRequest, { params }: RouteCtx) {
 
     const ctx = await getSessionContext(session.user)
     const { id: clienteId } = await params
+    const invalid = validateUuidParam(clienteId)
+    if (invalid) return invalid
 
     await canAccessCliente(session.user, clienteId, ctx)
 

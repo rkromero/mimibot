@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/authz'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { deleteMovimientoCC } from '@/lib/delete/delete.service'
 import { toApiError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function DELETE(
   _req: NextRequest,
@@ -16,6 +17,10 @@ export async function DELETE(
     requireAdmin(session.user)
 
     const { id, movimientoId } = await params
+    const invalidId = validateUuidParam(id)
+    if (invalidId) return invalidId
+    const invalidMov = validateUuidParam(movimientoId)
+    if (invalidMov) return invalidMov
     await canAccessCliente(session.user, id)
 
     await deleteMovimientoCC(movimientoId, session.user.id)

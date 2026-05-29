@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { emitirDocumento } from '@/lib/pdf/pdf.service'
 import { toApiError, ValidationError } from '@/lib/errors'
+import { validateUuidParam } from '@/lib/api/validate-params'
 
 const TIPOS_VALIDOS = ['remito', 'proforma'] as const
 type TipoDocumento = (typeof TIPOS_VALIDOS)[number]
@@ -17,6 +18,8 @@ export async function POST(
     }
 
     const { id } = await params
+    const invalid = validateUuidParam(id)
+    if (invalid) return invalid
 
     const body: unknown = await req.json()
     const tipo = (body as Record<string, unknown>)?.tipo
