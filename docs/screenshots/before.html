@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard Vendedor — ANTES</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f9fafb; color: #111827; }
+    .badge { display:inline-flex; align-items:center; border-radius:9999px; padding:2px 8px; font-size:12px; font-weight:500; }
+  </style>
+</head>
+<body class="bg-zinc-50 min-h-screen p-4">
+  <!-- ANTES del rediseño: grid-cols-2, chips que wrappean, 3 cartera cards, tabla con sin-meta -->
+
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-gray-900">Hola, Nicolás!</h1>
+        <p class="text-sm text-gray-500">Mayo 2025</p>
+      </div>
+    </div>
+
+    <!-- ❌ KPI Cards: grid-cols-2 → cards angostas, chips cortan en 2 líneas en 375px -->
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+
+      <!-- Card 1: chips "En curso" se corta aquí en mobile -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-2 border-l-4 border-l-amber-500 w-full">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Clientes Nuevos</p>
+          <!-- ❌ Sin whitespace-nowrap: "En\ncurso" en mobile -->
+          <span class="badge bg-blue-100 text-blue-700">En curso</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xl font-bold text-gray-900 tabular-nums">6</span>
+          <span class="text-sm text-gray-500">/ 10</span>
+        </div>
+        <div class="space-y-1">
+          <div class="h-2 w-full rounded-full bg-gray-100">
+            <div class="h-2 rounded-full bg-amber-500" style="width:60%"></div>
+          </div>
+          <p class="text-xs text-gray-500">60% completado</p>
+        </div>
+        <p class="text-xs text-gray-500">Proyección fin de mes: <span class="font-medium text-gray-900">8</span></p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-2 border-l-4 border-l-green-500 w-full">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Pedidos</p>
+          <span class="badge bg-green-100 text-green-700">Cumplida ✓</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xl font-bold text-gray-900 tabular-nums">22</span>
+          <span class="text-sm text-gray-500">/ 20</span>
+        </div>
+        <div class="space-y-1">
+          <div class="h-2 w-full rounded-full bg-gray-100">
+            <div class="h-2 rounded-full bg-green-500" style="width:100%"></div>
+          </div>
+          <p class="text-xs text-gray-500">110% completado</p>
+        </div>
+        <p class="text-xs text-gray-500">Proyección fin de mes: <span class="font-medium text-gray-900">25</span></p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-2 border-l-4 border-l-red-500 w-full">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Monto Cobrado</p>
+          <span class="badge bg-blue-100 text-blue-700">En curso</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xl font-bold text-gray-900 tabular-nums">$200.000</span>
+          <span class="text-sm text-gray-500">/ $500.000</span>
+        </div>
+        <div class="space-y-1">
+          <div class="h-2 w-full rounded-full bg-gray-100">
+            <div class="h-2 rounded-full bg-red-500" style="width:40%"></div>
+          </div>
+          <p class="text-xs text-gray-500">40% completado</p>
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-2 border-l-4 border-l-amber-500 w-full">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Conversión Leads</p>
+          <span class="badge bg-blue-100 text-blue-700">En curso</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xl font-bold text-gray-900 tabular-nums">28%</span>
+          <span class="text-sm text-gray-500">/ 30%</span>
+        </div>
+        <div class="space-y-1">
+          <div class="h-2 w-full rounded-full bg-gray-100">
+            <div class="h-2 rounded-full bg-amber-500" style="width:93%"></div>
+          </div>
+          <p class="text-xs text-gray-500">93% completado</p>
+        </div>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-2 border-l-4 border-l-green-500 w-full">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Cobertura de Cartera</p>
+          <span class="badge bg-green-100 text-green-700">Cumplida ✓</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xl font-bold text-gray-900 tabular-nums">70%</span>
+          <span class="text-sm text-gray-500">/ 60%</span>
+        </div>
+        <div class="space-y-1">
+          <div class="h-2 w-full rounded-full bg-gray-100">
+            <div class="h-2 rounded-full bg-green-500" style="width:100%"></div>
+          </div>
+          <p class="text-xs text-gray-500">117% completado</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ❌ Mi Cartera: 3 cards separadas casi vacías -->
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-gray-900">Mi Cartera</h2>
+      </div>
+      <!-- ❌ 3 cards separadas, casi vacías, no aprovechan espacio -->
+      <div class="grid grid-cols-3 gap-2">
+        <a href="#" class="rounded-lg border border-gray-200 bg-white p-3 text-center hover:bg-gray-50">
+          <p class="text-2xl font-bold text-green-600 tabular-nums">42</p>
+          <p class="text-xs text-gray-500 mt-0.5">Activos</p>
+        </a>
+        <a href="#" class="rounded-lg border border-gray-200 bg-white p-3 text-center hover:bg-gray-50">
+          <p class="text-2xl font-bold text-amber-600 tabular-nums">12</p>
+          <p class="text-xs text-gray-500 mt-0.5">Inactivos</p>
+        </a>
+        <a href="#" class="rounded-lg border border-gray-200 bg-white p-3 text-center hover:bg-gray-50">
+          <p class="text-2xl font-bold text-red-600 tabular-nums">3</p>
+          <p class="text-xs text-gray-500 mt-0.5">Perdidos</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- ❌ Historial: tabla con overflow-x, repite "Sin meta" 5 veces, sin toggle -->
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <h2 class="text-sm font-semibold text-gray-900">Historial (6 meses)</h2>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-gray-200 bg-gray-50">
+                <th class="px-3 py-2 text-left font-semibold text-gray-500">Mes</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">C.Nuevos</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">Pedidos</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">Monto</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">Conversión</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">Cobertura</th>
+                <th class="px-2 py-2 text-center font-semibold text-gray-500">Resultado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-gray-200 hover:bg-gray-50">
+                <td class="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">May 25</td>
+                <td class="px-2 py-2 text-center text-amber-600 tabular-nums">6/10 <span class="text-gray-400">(60%)</span></td>
+                <td class="px-2 py-2 text-center text-green-700 tabular-nums">22/20 <span class="text-gray-400">(110%)</span></td>
+                <td class="px-2 py-2 text-center text-red-600 tabular-nums whitespace-nowrap">$200.000</td>
+                <td class="px-2 py-2 text-center text-amber-600 tabular-nums">28%/30%</td>
+                <td class="px-2 py-2 text-center text-green-700 tabular-nums">70%/60%</td>
+                <td class="px-2 py-2 text-center"><span class="inline-block rounded-full px-1.5 py-0.5 font-semibold bg-amber-100 text-amber-700">3/5</span></td>
+              </tr>
+              <!-- ❌ Sin meta repetido 5 veces — ruido visual sin toggle -->
+              <tr class="border-b border-gray-200"><td class="px-3 py-2 font-medium text-gray-900">Abr 25</td><td colspan="6" class="px-2 py-2 text-center text-gray-400 italic">Sin meta</td></tr>
+              <tr class="border-b border-gray-200"><td class="px-3 py-2 font-medium text-gray-900">Mar 25</td><td colspan="6" class="px-2 py-2 text-center text-gray-400 italic">Sin meta</td></tr>
+              <tr class="border-b border-gray-200"><td class="px-3 py-2 font-medium text-gray-900">Feb 25</td><td colspan="6" class="px-2 py-2 text-center text-gray-400 italic">Sin meta</td></tr>
+              <tr class="border-b border-gray-200"><td class="px-3 py-2 font-medium text-gray-900">Ene 25</td><td colspan="6" class="px-2 py-2 text-center text-gray-400 italic">Sin meta</td></tr>
+              <tr class="border-b border-gray-200 last:border-0"><td class="px-3 py-2 font-medium text-gray-900">Dic 24</td><td colspan="6" class="px-2 py-2 text-center text-gray-400 italic">Sin meta</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

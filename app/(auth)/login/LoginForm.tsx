@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils'
 export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/pipeline'
+  // Default to '/' so the middleware redirects the user to their role-based home
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/'
 
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)

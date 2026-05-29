@@ -14,12 +14,8 @@ interface MetaCardProps {
   naMessage?: string
 }
 
-function getBarColor(
-  pct: number,
-  estado: EstadoMeta,
-  pctMesTranscurrido: number,
-): string {
-  if (estado === 'na') return 'bg-gray-300'
+function getBarColor(pct: number, estado: EstadoMeta, pctMesTranscurrido: number): string {
+  if (estado === 'na') return 'bg-muted'
   if (estado === 'cumplida') return 'bg-green-500'
   if (estado === 'no_cumplida') return 'bg-gray-400'
   if (pct >= pctMesTranscurrido) return 'bg-green-500'
@@ -27,12 +23,8 @@ function getBarColor(
   return 'bg-red-500'
 }
 
-function getBorderColor(
-  pct: number,
-  estado: EstadoMeta,
-  pctMesTranscurrido: number,
-): string {
-  if (estado === 'na') return 'border-l-gray-300'
+function getBorderColor(pct: number, estado: EstadoMeta, pctMesTranscurrido: number): string {
+  if (estado === 'na') return 'border-l-gray-300 dark:border-l-gray-600'
   if (estado === 'cumplida') return 'border-l-green-500'
   if (estado === 'no_cumplida') return 'border-l-gray-400'
   if (pct >= pctMesTranscurrido) return 'border-l-green-500'
@@ -40,24 +32,26 @@ function getBorderColor(
   return 'border-l-red-500'
 }
 
+/** Badge — always one line, never wraps */
 function EstadoBadge({ estado }: { estado: EstadoMeta }) {
   if (estado === 'na') return null
   if (estado === 'cumplida') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 whitespace-nowrap shrink-0">
         Cumplida ✓
       </span>
     )
   }
   if (estado === 'no_cumplida') {
     return (
-      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+      <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/30 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-400 whitespace-nowrap shrink-0">
         No cumplida
       </span>
     )
   }
+  // en_curso
   return (
-    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+    <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400 whitespace-nowrap shrink-0">
       En curso
     </span>
   )
@@ -76,59 +70,87 @@ export default function MetaCard({
 }: MetaCardProps) {
   const fmt = formatValue ?? ((v: number) => String(v))
   const borderColor = getBorderColor(pct, estado, pctMesTranscurrido)
+  const barWidth = Math.min(pct, 100)
+  const barColor = getBarColor(pct, estado, pctMesTranscurrido)
+  const base = `rounded-xl border border-border bg-card shadow-sm border-l-4 ${borderColor} w-full p-4`
 
+  /* ── N/A card ── */
   if (estado === 'na') {
     return (
-      <div
-        className={`rounded-xl border border-border bg-card shadow-sm p-4 space-y-2 border-l-4 ${borderColor} w-full`}
-      >
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {title}
-          </p>
+      <div className={base}>
+        {/* Mobile */}
+        <div className="flex items-center gap-3 sm:hidden">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+              {title}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">{naMessage ?? 'Sin datos'}</p>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {naMessage ?? 'Sin datos'}
-        </p>
+        {/* Tablet+ */}
+        <div className="hidden sm:block space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+          <p className="text-sm text-muted-foreground">{naMessage ?? 'Sin datos'}</p>
+        </div>
       </div>
     )
   }
 
-  const barWidth = Math.min(pct, 100)
-  const barColor = getBarColor(pct, estado, pctMesTranscurrido)
-
   return (
-    <div
-      className={`rounded-xl border border-border bg-card shadow-sm p-4 space-y-2 border-l-4 ${borderColor} w-full`}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </p>
-        <EstadoBadge estado={estado} />
-      </div>
-
-      <div className="flex items-baseline gap-1">
-        <span className="text-xl font-bold text-foreground tabular-nums">
-          {fmt(alcanzado)}
-        </span>
-        <span className="text-sm text-muted-foreground">/ {fmt(objetivo)}</span>
-      </div>
-
-      <div className="space-y-1">
-        <div className="h-2 w-full rounded-full bg-gray-100">
-          <div
-            className={`h-2 rounded-full transition-all duration-500 ${barColor}`}
-            style={{ width: `${barWidth}%` }}
-          />
+    <div className={base}>
+      {/* ── MOBILE (< sm): horizontal — label+value LEFT | chip+bar RIGHT ── */}
+      <div className="flex items-center gap-4 sm:hidden">
+        {/* Left: label + big number */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-tight truncate">
+            {title}
+          </p>
+          <p className="text-3xl font-bold text-foreground tabular-nums leading-tight mt-1">
+            {fmt(alcanzado)}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">de {fmt(objetivo)}</p>
         </div>
-        <p className="text-xs text-muted-foreground">{pct}% completado</p>
+        {/* Right: chip + progress bar */}
+        <div className="shrink-0 flex flex-col items-end gap-2">
+          <EstadoBadge estado={estado} />
+          <div className="w-24">
+            <div className="h-2 w-full rounded-full bg-muted">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ${barColor}`}
+                style={{ width: `${barWidth}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground text-right mt-0.5">{pct}%</p>
+          </div>
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Proyección fin de mes:{' '}
-        <span className="font-medium text-foreground">{fmt(proyeccion)}</span>
-      </p>
+      {/* ── TABLET / DESKTOP (≥ sm): vertical ── */}
+      <div className="hidden sm:flex sm:flex-col sm:gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-tight">
+            {title}
+          </p>
+          <EstadoBadge estado={estado} />
+        </div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-2xl font-bold text-foreground tabular-nums">{fmt(alcanzado)}</span>
+          <span className="text-sm text-muted-foreground">/ {fmt(objetivo)}</span>
+        </div>
+        <div className="space-y-1">
+          <div className="h-2 w-full rounded-full bg-muted">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${barColor}`}
+              style={{ width: `${barWidth}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">{pct}% completado</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Proyección:{' '}
+          <span className="font-medium text-foreground">{fmt(proyeccion)}</span>
+        </p>
+      </div>
     </div>
   )
 }

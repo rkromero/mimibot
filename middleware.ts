@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { getHomeRouteByRole } from '@/lib/auth-utils'
 
-// Rutas públicas — no requieren sesión
+// Purely public routes — bypassed without any auth checks
 const PUBLIC_PREFIXES = [
-  '/login',
   '/verify-2fa',
   '/api/auth',
   '/api/leads/intake',
@@ -11,56 +11,68 @@ const PUBLIC_PREFIXES = [
   '/api/health',
 ]
 
+// Routes that require admin or gerente role
+const ADMIN_PREFIXES = ['/admin', '/api/admin']
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
+  // Always allow purely public API/utility routes
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
   if (isPublic) return NextResponse.next()
 
-  // Verificar existencia de cookie de sesión (sin consultar la DB)
+  // Check session cookie existence (cheap — no JWT decode yet)
   const sessionToken =
     req.cookies.get('authjs.session-token')?.value ??
     req.cookies.get('__Secure-authjs.session-token')?.value
 
+  // No session → only /login is allowed; redirect everything else with callbackUrl
   if (!sessionToken) {
+    if (pathname.startsWith('/login')) return NextResponse.next()
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Decodificar JWT para TOTP y redirect en raíz
+  // Session exists → decode JWT once to read role and TOTP state
   let token: { totpPending?: boolean; role?: string } | null = null
   try {
-    token = await getToken({ req, secret: process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'] })
+    token = await getToken({
+      req,
+      secret: process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'],
+    })
   } catch {
-    // No bloquear si falla el decode
+    // JWT decode failed — don't block; downstream API guards handle authorization
   }
 
+  // TOTP still pending → redirect to verification page
   if (token?.totpPending) {
     return NextResponse.redirect(new URL('/verify-2fa', req.url))
   }
 
-  // Proteger rutas exclusivas de admin — solo si el token se decodificó bien
-  // Si token es null (getToken falló), dejar pasar: la API ya tiene requireAdmin como guardia real
-  if (
-    token !== null &&
-    (pathname.startsWith('/admin') ||
-      (pathname.startsWith('/api/admin') && !pathname.startsWith('/api/auth')))
-  ) {
-    if (token.role !== 'admin') {
-      return NextResponse.redirect(new URL('/pipeline', req.url))
+  const role = token?.role
+  const homeRoute = getHomeRouteByRole(role)
+
+  // Logged-in user at "/" or "/login" → send to their home
+  if (pathname === '/' || pathname.startsWith('/login')) {
+    if (token !== null) {
+      // Token decoded successfully: redirect based on role
+      return NextResponse.redirect(new URL(homeRoute, req.url))
     }
+    // Token decode failed but cookie exists: let the server component resolve via auth() + DB
+    return NextResponse.next()
   }
 
-  // Redirect en raíz basado en rol — evita que la (app)/page renderice sin manifest
-  if (pathname === '/') {
-    const role = token?.role
-    if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', req.url))
-    if (role === 'gerente') return NextResponse.redirect(new URL('/dashboard', req.url))
-    if (role === 'agent') return NextResponse.redirect(new URL('/agent/home', req.url))
-    if (role === 'vendedor') return NextResponse.redirect(new URL('/agent/home', req.url))
-    // role desconocido (JWT viejo sin role): dejar que app/(app)/page.tsx resuelva con auth() desde DB
-    return NextResponse.next()
+  // Admin-gated routes: allow admin and gerente; redirect anyone else to their home
+  if (
+    token !== null &&
+    ADMIN_PREFIXES.some(
+      (p) => pathname.startsWith(p) && !pathname.startsWith('/api/auth'),
+    )
+  ) {
+    if (role !== 'admin' && role !== 'gerente') {
+      return NextResponse.redirect(new URL(homeRoute, req.url))
+    }
   }
 
   return NextResponse.next()

@@ -68,13 +68,13 @@ export default function VendedorDashboard({ user }: Props) {
         </div>
       </div>
 
-      {/* Loading skeleton */}
+      {/* Loading skeleton — matches mobile horizontal card height */}
       {isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="rounded-xl border border-border bg-card p-4 h-32 animate-pulse"
+              className="rounded-xl border border-border bg-card p-4 h-[88px] sm:h-32 animate-pulse"
             />
           ))}
         </div>
@@ -89,7 +89,7 @@ export default function VendedorDashboard({ user }: Props) {
 
       {/* Meta cards */}
       {!isLoading && avance && (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <MetaCard
             title="Clientes Nuevos"
             objetivo={avance.meta.clientesNuevosObjetivo}

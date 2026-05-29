@@ -17,7 +17,7 @@ interface CountResponse {
 async function fetchEstadoCount(estado: string): Promise<number> {
   const res = await fetch(`/api/clientes?estadoActividad=${estado}&limit=1`)
   if (!res.ok) return 0
-  const json = await res.json() as { total?: number }
+  const json = (await res.json()) as { total?: number }
   return json.total ?? 0
 }
 
@@ -46,46 +46,58 @@ export default function CarteraSection({ vendedorId: _ }: Props) {
         <h2 className="text-sm font-semibold text-foreground">Mi Cartera</h2>
       </div>
 
+      {/* Loading — matches card height */}
       {isLoading && (
-        <div className="grid grid-cols-3 gap-2">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-border bg-card p-3 animate-pulse h-16"
-            />
-          ))}
-        </div>
+        <div className="rounded-xl border border-border bg-card animate-pulse h-[88px]" />
       )}
 
       {isError && (
-        <p className="text-xs text-red-600 bg-red-50 rounded-lg p-3">Error al cargar cartera</p>
+        <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-xl p-4">
+          Error al cargar cartera
+        </p>
       )}
 
       {!isLoading && !isError && (
-        <div className="grid grid-cols-3 gap-2">
-          <Link
-            href="/crm/clientes?estadoActividad=activo"
-            className="rounded-lg border border-border bg-card p-3 text-center hover:bg-accent transition-colors"
-          >
-            <p className="text-2xl font-bold text-green-600 tabular-nums">{activos}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Activos</p>
-          </Link>
+        /* Single horizontal card — 3 equal segments with vertical dividers.
+           Works identically at 375px, 768px and 1440px. */
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex divide-x divide-border">
+            <Link
+              href="/crm/clientes?estadoActividad=activo"
+              className="flex-1 flex flex-col items-center justify-center py-5 hover:bg-accent transition-colors min-h-[88px]"
+            >
+              <p className="text-3xl font-bold text-green-600 dark:text-green-500 tabular-nums leading-none">
+                {activos}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2 uppercase tracking-wider font-medium">
+                Activos
+              </p>
+            </Link>
 
-          <Link
-            href="/crm/clientes?estadoActividad=inactivo"
-            className="rounded-lg border border-border bg-card p-3 text-center hover:bg-accent transition-colors"
-          >
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">{inactivos}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Inactivos</p>
-          </Link>
+            <Link
+              href="/crm/clientes?estadoActividad=inactivo"
+              className="flex-1 flex flex-col items-center justify-center py-5 hover:bg-accent transition-colors min-h-[88px]"
+            >
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-500 tabular-nums leading-none">
+                {inactivos}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2 uppercase tracking-wider font-medium">
+                Inactivos
+              </p>
+            </Link>
 
-          <Link
-            href="/crm/clientes?estadoActividad=perdido"
-            className="rounded-lg border border-border bg-card p-3 text-center hover:bg-accent transition-colors"
-          >
-            <p className="text-2xl font-bold text-red-600 tabular-nums">{perdidos}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Perdidos</p>
-          </Link>
+            <Link
+              href="/crm/clientes?estadoActividad=perdido"
+              className="flex-1 flex flex-col items-center justify-center py-5 hover:bg-accent transition-colors min-h-[88px]"
+            >
+              <p className="text-3xl font-bold text-red-600 dark:text-red-500 tabular-nums leading-none">
+                {perdidos}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2 uppercase tracking-wider font-medium">
+                Perdidos
+              </p>
+            </Link>
+          </div>
         </div>
       )}
     </section>

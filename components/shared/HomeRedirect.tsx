@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { getHomeRouteByRole } from '@/lib/auth-utils'
 
 type Props = { role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
 
@@ -9,9 +10,7 @@ export default function HomeRedirect({ role }: Props) {
   const router = useRouter()
 
   useEffect(() => {
-    if (role === 'admin') router.replace('/admin/dashboard')
-    else if (role === 'gerente') router.replace('/dashboard')
-    else router.replace('/agent/home')
+    router.replace(getHomeRouteByRole(role))
   }, [role, router])
 
   return (
