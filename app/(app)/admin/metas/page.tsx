@@ -6,7 +6,7 @@ export const metadata = { title: 'Metas Mensuales' }
 
 export default async function MetasAdminPage() {
   const session = await auth()
-  if (!session || session.user.role !== 'admin') redirect('/pipeline')
+  if (!session || !['admin', 'gerente'].includes(session.user.role)) redirect('/pipeline')
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 space-y-4">

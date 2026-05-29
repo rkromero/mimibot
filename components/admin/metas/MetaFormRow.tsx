@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export type MetaRow = {
   id: string
   vendedorId: string
@@ -27,13 +29,59 @@ export type User = {
   isActive?: boolean
 }
 
-export type MetaFormValues = {
+export type MetaFormValuesAgent = {
   clientesNuevosObjetivo: number
   pedidosObjetivo: number
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
 }
+
+export type MetaFormValuesVendedor = {
+  clientesNuevosObjetivo: number
+  pctClientesConPedidoObjetivo: string
+  montoCobradoObjetivo: string
+}
+
+export type MetaFormValues = MetaFormValuesAgent | MetaFormValuesVendedor
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function initAgentValues(meta: MetaRow | null): MetaFormValuesAgent {
+  return {
+    clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
+    pedidosObjetivo: meta?.pedidosObjetivo ?? 0,
+    montoCobradoObjetivo: meta?.montoCobradoObjetivo ?? '0',
+    conversionLeadsObjetivo: meta?.conversionLeadsObjetivo ?? '0',
+    pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
+  }
+}
+
+export function initVendedorValues(meta: MetaRow | null): MetaFormValuesVendedor {
+  return {
+    clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
+    pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
+    montoCobradoObjetivo: meta?.montoCobradoObjetivo ?? '0',
+  }
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Cell showing "—" for columns not applicable to this row's role */
+function DisabledCell({ agentCol = true }: { agentCol?: boolean }) {
+  return (
+    <td className={cn(
+      'py-2.5 px-3',
+      agentCol
+        ? 'bg-blue-50/30 dark:bg-blue-950/20'
+        : 'bg-purple-50/30 dark:bg-purple-950/20',
+    )}>
+      <span className="text-sm text-muted-foreground/40 select-none">—</span>
+    </td>
+  )
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
   vendedor: User
@@ -45,80 +93,85 @@ type Props = {
   isLocked: boolean
 }
 
-function initValues(meta: MetaRow | null): MetaFormValues {
-  if (!meta) {
-    return {
-      clientesNuevosObjetivo: 0,
-      pedidosObjetivo: 0,
-      montoCobradoObjetivo: '0',
-      conversionLeadsObjetivo: '0',
-      pctClientesConPedidoObjetivo: '0',
-    }
-  }
-  return {
-    clientesNuevosObjetivo: meta.clientesNuevosObjetivo,
-    pedidosObjetivo: meta.pedidosObjetivo,
-    montoCobradoObjetivo: meta.montoCobradoObjetivo,
-    conversionLeadsObjetivo: meta.conversionLeadsObjetivo,
-    pctClientesConPedidoObjetivo: meta.pctClientesConPedidoObjetivo,
-  }
-}
+// ─── Component ────────────────────────────────────────────────────────────────
 
-function valuesEqual(a: MetaFormValues, b: MetaFormValues): boolean {
-  return (
-    a.clientesNuevosObjetivo === b.clientesNuevosObjetivo &&
-    a.pedidosObjetivo === b.pedidosObjetivo &&
-    a.montoCobradoObjetivo === b.montoCobradoObjetivo &&
-    a.conversionLeadsObjetivo === b.conversionLeadsObjetivo &&
-    a.pctClientesConPedidoObjetivo === b.pctClientesConPedidoObjetivo
-  )
-}
+export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked }: Props) {
+  const isVendedor = vendedor.role === 'vendedor'
 
-export default function MetaFormRow({
-  vendedor,
-  meta,
-  onSave,
-  isSaving,
-  isLocked,
-}: Props) {
-  const [values, setValues] = useState<MetaFormValues>(() => initValues(meta))
-  const [savedValues, setSavedValues] = useState<MetaFormValues>(() => initValues(meta))
+  const [agentValues, setAgentValues] = useState<MetaFormValuesAgent>(() => initAgentValues(meta))
+  const [agentSaved, setAgentSaved] = useState<MetaFormValuesAgent>(() => initAgentValues(meta))
 
-  // Sync when meta prop changes (e.g. after period change or save)
+  const [vendedorValues, setVendedorValues] = useState<MetaFormValuesVendedor>(() => initVendedorValues(meta))
+  const [vendedorSaved, setVendedorSaved] = useState<MetaFormValuesVendedor>(() => initVendedorValues(meta))
+
   useEffect(() => {
-    const fresh = initValues(meta)
-    setValues(fresh)
-    setSavedValues(fresh)
-  }, [meta])
+    if (isVendedor) {
+      const fresh = initVendedorValues(meta)
+      setVendedorValues(fresh)
+      setVendedorSaved(fresh)
+    } else {
+      const fresh = initAgentValues(meta)
+      setAgentValues(fresh)
+      setAgentSaved(fresh)
+    }
+  }, [meta, isVendedor])
 
-  const isDirty = !valuesEqual(values, savedValues)
+  const isDirty = isVendedor
+    ? (
+        vendedorValues.clientesNuevosObjetivo !== vendedorSaved.clientesNuevosObjetivo ||
+        vendedorValues.pctClientesConPedidoObjetivo !== vendedorSaved.pctClientesConPedidoObjetivo ||
+        vendedorValues.montoCobradoObjetivo !== vendedorSaved.montoCobradoObjetivo
+      )
+    : (
+        agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
+        agentValues.pedidosObjetivo !== agentSaved.pedidosObjetivo ||
+        agentValues.montoCobradoObjetivo !== agentSaved.montoCobradoObjetivo ||
+        agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
+        agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo
+      )
 
-  function handleChange(field: keyof MetaFormValues, raw: string) {
+  function handleAgent(field: keyof MetaFormValuesAgent, raw: string) {
     if (field === 'clientesNuevosObjetivo' || field === 'pedidosObjetivo') {
       const n = parseInt(raw, 10)
-      setValues((prev) => ({ ...prev, [field]: isNaN(n) ? 0 : n }))
+      setAgentValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
     } else {
-      setValues((prev) => ({ ...prev, [field]: raw }))
+      setAgentValues((p) => ({ ...p, [field]: raw }))
+    }
+  }
+
+  function handleVendedor(field: keyof MetaFormValuesVendedor, raw: string) {
+    if (field === 'clientesNuevosObjetivo') {
+      const n = parseInt(raw, 10)
+      setVendedorValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
+    } else {
+      setVendedorValues((p) => ({ ...p, [field]: raw }))
     }
   }
 
   async function handleSave() {
-    await onSave(values)
-    setSavedValues(values)
+    if (isVendedor) {
+      await onSave(vendedorValues)
+      setVendedorSaved(vendedorValues)
+    } else {
+      await onSave(agentValues)
+      setAgentSaved(agentValues)
+    }
   }
 
+  const hasMeta = meta !== null
   const avatarColor = vendedor.avatarColor ?? '#6b7280'
   const initial = (vendedor.name[0] ?? '?').toUpperCase()
 
-  const inputClass = 'w-full border border-border rounded px-2 py-2.5 md:py-1 text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring'
-  const readonlyClass = 'text-sm text-muted-foreground'
-
-  const hasMeta = meta !== null
+  const inp = 'w-full border border-border rounded px-2 py-3 md:py-1.5 text-[16px] md:text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring'
+  const ro = 'text-sm text-muted-foreground'
+  const fmt = (v: string) =>
+    `$${parseFloat(v).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
+  const fmtPct = (v: string) => `${parseFloat(v).toFixed(1)}%`
 
   return (
-    <tr className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors">
-      {/* Vendedor */}
-      <td className="py-2.5 px-3">
+    <tr className="border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
+      {/* ── Name + role chip ── */}
+      <td className="py-2.5 px-3 sticky left-0 bg-card z-10">
         <div className="flex items-center gap-2 min-w-0">
           <span
             className="w-7 h-7 rounded-full inline-flex items-center justify-center text-white text-xs font-semibold shrink-0"
@@ -126,112 +179,125 @@ export default function MetaFormRow({
           >
             {initial}
           </span>
-          <span className="text-sm font-medium text-foreground truncate">{vendedor.name}</span>
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-foreground truncate block max-w-[110px]">
+              {vendedor.name}
+            </span>
+            <span className={cn(
+              'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+              isVendedor
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+            )}>
+              {isVendedor ? 'Vendedor' : 'Agente'}
+            </span>
+          </div>
         </div>
       </td>
 
-      {/* Clientes Nuevos */}
-      <td className="py-2.5 px-3">
-        {isLocked ? (
-          <span className={readonlyClass}>{meta?.clientesNuevosObjetivo ?? '—'}</span>
-        ) : (
-          <input
-            type="number"
-            min={0}
-            value={values.clientesNuevosObjetivo}
-            onChange={(e) => handleChange('clientesNuevosObjetivo', e.target.value)}
-            className={inputClass}
-          />
-        )}
-      </td>
+      {/* ══ AGENT COLUMNS (cols 2-6) ══ */}
 
-      {/* Pedidos */}
-      <td className="py-2.5 px-3">
-        {isLocked ? (
-          <span className={readonlyClass}>{meta?.pedidosObjetivo ?? '—'}</span>
-        ) : (
-          <input
-            type="number"
-            min={0}
-            value={values.pedidosObjetivo}
-            onChange={(e) => handleChange('pedidosObjetivo', e.target.value)}
-            className={inputClass}
-          />
-        )}
-      </td>
+      {/* Agent: Clientes Nuevos */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta?.clientesNuevosObjetivo ?? '—'}</span>
+            : <input type="number" min={0} value={agentValues.clientesNuevosObjetivo}
+                onChange={(e) => handleAgent('clientesNuevosObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
 
-      {/* Monto Cobrado */}
-      <td className="py-2.5 px-3">
-        {isLocked ? (
-          <span className={readonlyClass}>
-            {meta
-              ? `$${parseFloat(meta.montoCobradoObjetivo).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
-              : '—'}
-          </span>
-        ) : (
-          <input
-            type="number"
-            min={0}
-            step="100"
-            value={values.montoCobradoObjetivo}
-            onChange={(e) => handleChange('montoCobradoObjetivo', e.target.value)}
-            className={inputClass}
-          />
-        )}
-      </td>
+      {/* Agent: Pedidos */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta?.pedidosObjetivo ?? '—'}</span>
+            : <input type="number" min={0} value={agentValues.pedidosObjetivo}
+                onChange={(e) => handleAgent('pedidosObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
 
-      {/* Conversión Leads */}
-      <td className="py-2.5 px-3">
-        {isLocked ? (
-          <span className={readonlyClass}>
-            {meta ? `${parseFloat(meta.conversionLeadsObjetivo).toFixed(1)}%` : '—'}
-          </span>
-        ) : (
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.5"
-            value={values.conversionLeadsObjetivo}
-            onChange={(e) => handleChange('conversionLeadsObjetivo', e.target.value)}
-            className={inputClass}
-          />
-        )}
-      </td>
+      {/* Agent: Monto Cobrado */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmt(meta.montoCobradoObjetivo) : '—'}</span>
+            : <input type="number" min={0} step="1000" value={agentValues.montoCobradoObjetivo}
+                onChange={(e) => handleAgent('montoCobradoObjetivo', e.target.value)}
+                className={cn(inp, 'min-w-[90px]')} />}
+        </td>
+      )}
 
-      {/* % Cobertura Cartera */}
-      <td className="py-2.5 px-3">
-        {isLocked ? (
-          <span className={readonlyClass}>
-            {meta ? `${parseFloat(meta.pctClientesConPedidoObjetivo).toFixed(1)}%` : '—'}
-          </span>
-        ) : (
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.5"
-            value={values.pctClientesConPedidoObjetivo}
-            onChange={(e) => handleChange('pctClientesConPedidoObjetivo', e.target.value)}
-            className={cn(inputClass, 'min-w-[90px]')}
-          />
-        )}
-      </td>
+      {/* Agent: Conversión Leads */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmtPct(meta.conversionLeadsObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={agentValues.conversionLeadsObjetivo}
+                onChange={(e) => handleAgent('conversionLeadsObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
 
-      {/* Estado + Guardar */}
+      {/* Agent: % Cobertura Cartera */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmtPct(meta.pctClientesConPedidoObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctClientesConPedidoObjetivo}
+                onChange={(e) => handleAgent('pctClientesConPedidoObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
+      {/* ══ VENDEDOR COLUMNS (cols 7-9) ══ */}
+
+      {/* Vendedor: Clientes Nuevos c/PP */}
+      {!isVendedor ? <DisabledCell agentCol={false} /> : (
+        <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
+          {isLocked
+            ? <span className={ro}>{meta?.clientesNuevosObjetivo ?? '—'}</span>
+            : <input type="number" min={0} value={vendedorValues.clientesNuevosObjetivo}
+                onChange={(e) => handleVendedor('clientesNuevosObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
+      {/* Vendedor: % Cobertura Cartera */}
+      {!isVendedor ? <DisabledCell agentCol={false} /> : (
+        <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmtPct(meta.pctClientesConPedidoObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={vendedorValues.pctClientesConPedidoObjetivo}
+                onChange={(e) => handleVendedor('pctClientesConPedidoObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
+      {/* Vendedor: Cobranza ARS */}
+      {!isVendedor ? <DisabledCell agentCol={false} /> : (
+        <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmt(meta.montoCobradoObjetivo) : '—'}</span>
+            : <input type="number" min={0} step="1000" value={vendedorValues.montoCobradoObjetivo}
+                onChange={(e) => handleVendedor('montoCobradoObjetivo', e.target.value)}
+                className={cn(inp, 'min-w-[90px]')} />}
+        </td>
+      )}
+
+      {/* ── Estado + Guardar ── */}
       <td className="py-2.5 px-3">
         <div className="flex items-center gap-2 justify-between">
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap',
-              hasMeta
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-            )}
-          >
+          <span className={cn(
+            'px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap',
+            hasMeta
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+          )}>
             {hasMeta ? 'Cargada' : 'Pendiente'}
           </span>
-
           {!isLocked && isDirty && (
             <button
               onClick={() => void handleSave()}
