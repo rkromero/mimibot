@@ -231,6 +231,7 @@ export default function AdminDashboard({
           anio={anio}
           mes={mes}
           onClose={() => setSelectedVendedorId(null)}
+          vendedorRole={users?.find((u) => u.id === selectedVendedorId)?.role}
         />
       )}
     </div>

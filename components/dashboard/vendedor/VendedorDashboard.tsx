@@ -86,7 +86,7 @@ export default function VendedorDashboard({ user }: Props) {
     )
   }
 
-  // ── Agent role: 5 KPI cards (unchanged) ─────────────────────────────────────
+  // ── Agent role: 4 KPI cards ──────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -101,8 +101,8 @@ export default function VendedorDashboard({ user }: Props) {
 
       {/* Loading skeleton — matches mobile horizontal card height */}
       {isLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {[0, 1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
               className="rounded-xl border border-border bg-card p-4 h-[88px] sm:h-32 animate-pulse"
@@ -118,9 +118,9 @@ export default function VendedorDashboard({ user }: Props) {
         </div>
       )}
 
-      {/* 5 agent meta cards */}
+      {/* 4 agent meta cards */}
       {!isLoading && avance && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <MetaCard
             title="Clientes Nuevos"
             objetivo={avance.meta.clientesNuevosObjetivo}
@@ -128,25 +128,6 @@ export default function VendedorDashboard({ user }: Props) {
             pct={avance.clientesNuevos.pct}
             proyeccion={avance.clientesNuevos.proyeccion}
             estado={avance.clientesNuevos.estado}
-            pctMesTranscurrido={pctMesTranscurrido}
-          />
-          <MetaCard
-            title="Pedidos"
-            objetivo={avance.meta.pedidosObjetivo}
-            alcanzado={avance.pedidos.alcanzado}
-            pct={avance.pedidos.pct}
-            proyeccion={avance.pedidos.proyeccion}
-            estado={avance.pedidos.estado}
-            pctMesTranscurrido={pctMesTranscurrido}
-          />
-          <MetaCard
-            title="Monto Cobrado"
-            objetivo={Number(avance.meta.montoCobradoObjetivo)}
-            alcanzado={avance.montoCobrado.alcanzado}
-            pct={avance.montoCobrado.pct}
-            proyeccion={avance.montoCobrado.proyeccion}
-            estado={avance.montoCobrado.estado}
-            formatValue={fmtARS}
             pctMesTranscurrido={pctMesTranscurrido}
           />
           <MetaCard
@@ -168,6 +149,17 @@ export default function VendedorDashboard({ user }: Props) {
             estado={avance.pctClientesConPedido.estado}
             formatValue={fmtPct}
             naMessage="Sin cartera asignada"
+            pctMesTranscurrido={pctMesTranscurrido}
+          />
+          <MetaCard
+            title="% Pedidos Pagados"
+            objetivo={Number(avance.meta.pctPedidosPagadosObjetivo)}
+            alcanzado={avance.pctPedidosPagados.alcanzado ?? 0}
+            pct={avance.pctPedidosPagados.pct ?? 0}
+            proyeccion={avance.pctPedidosPagados.proyeccion ?? 0}
+            estado={avance.pctPedidosPagados.estado}
+            formatValue={fmtPct}
+            naMessage="Sin pedidos confirmados"
             pctMesTranscurrido={pctMesTranscurrido}
           />
         </div>

@@ -41,6 +41,7 @@ vi.mock('@/db/schema', () => ({
     clienteId: 'pedidos.clienteId',
     vendedorId: 'pedidos.vendedorId',
     estado: 'pedidos.estado',
+    estadoPago: 'pedidos.estadoPago',
     fecha: 'pedidos.fecha',
     deletedAt: 'pedidos.deletedAt',
     $inferSelect: {},
@@ -70,7 +71,7 @@ vi.mock('@/db/schema', () => ({
   },
 }))
 
-import { calcularAvanceMeta, pctClientesConPedidoDelPeriodo } from '@/lib/metas/avance.service'
+import { calcularAvanceMeta, pctClientesConPedidoDelPeriodo, pctPedidosPagadosDelPeriodo } from '@/lib/metas/avance.service'
 
 // ─── Chainable select mock helpers ───────────────────────────────────────────
 //
@@ -95,6 +96,7 @@ function makeMeta(overrides: Partial<{
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
+  pctPedidosPagadosObjetivo: string
   creadoPor: string
   fechaCreacion: Date
   fechaActualizacion: Date
@@ -109,6 +111,7 @@ function makeMeta(overrides: Partial<{
     montoCobradoObjetivo: '50000.00',
     conversionLeadsObjetivo: '25.00',
     pctClientesConPedidoObjetivo: '80.00',
+    pctPedidosPagadosObjetivo: '0.00',
     creadoPor: 'admin-1',
     fechaCreacion: new Date('2026-05-01'),
     fechaActualizacion: new Date('2026-05-01'),
@@ -118,7 +121,7 @@ function makeMeta(overrides: Partial<{
 
 // ─── Select call ordering ─────────────────────────────────────────────────────
 //
-// calcularAvanceMeta delegates to 5 sub-functions via Promise.all. All five
+// calcularAvanceMeta delegates to 6 sub-functions via Promise.all. All six
 // start concurrently, so their *first* synchronous db.select() calls fire in
 // declaration order before any await resolves:
 //
@@ -128,10 +131,12 @@ function makeMeta(overrides: Partial<{
 //   Call 3: conversionLeadsDelPeriodo ganados → count()   (inner Promise.all)
 //   Call 4: conversionLeadsDelPeriodo gestionados → count() (inner Promise.all)
 //   Call 5: pctClientesConPedidoDelPeriodo (a) → select clientes IDs
+//   Call 6: pctPedidosPagadosDelPeriodo (a) → denominador count (inner Promise.all)
+//   Call 7: pctPedidosPagadosDelPeriodo (b) → numerador count (inner Promise.all)
 //
 // After the clientes-IDs queries (calls 2 and 5) resolve, the second parts fire:
-//   Call 6: montoCobradoDelPeriodo (b) → select sum(monto)  (after #2 resolves)
-//   Call 7: pctClientesConPedidoDelPeriodo (b) → select pedidos (after #5 resolves)
+//   Call 8: montoCobradoDelPeriodo (b) → select sum(monto)  (after #2 resolves)
+//   Call 9: pctClientesConPedidoDelPeriodo (b) → select pedidos (after #5 resolves)
 //
 // We build all stubs upfront and feed them via mockSelect in this order.
 
@@ -142,20 +147,24 @@ interface SelectStubs {
   leadsGanados: ReturnType<typeof makeSelectResult>
   leadsGestionados: ReturnType<typeof makeSelectResult>
   pctClienteIds: ReturnType<typeof makeSelectResult>
+  pctPedidosPagadosDen: ReturnType<typeof makeSelectResult>
+  pctPedidosPagadosNum: ReturnType<typeof makeSelectResult>
   montoSum: ReturnType<typeof makeSelectResult>
   pctPedidos: ReturnType<typeof makeSelectResult>
 }
 
 function setupSelectStubs(stubs: SelectStubs) {
   mockSelect
-    .mockReturnValueOnce(stubs.clientesNuevos.stub)   // #0
-    .mockReturnValueOnce(stubs.pedidosCount.stub)      // #1
-    .mockReturnValueOnce(stubs.montoClienteIds.stub)   // #2
-    .mockReturnValueOnce(stubs.leadsGanados.stub)      // #3
-    .mockReturnValueOnce(stubs.leadsGestionados.stub)  // #4
-    .mockReturnValueOnce(stubs.pctClienteIds.stub)     // #5
-    .mockReturnValueOnce(stubs.montoSum.stub)           // #6
-    .mockReturnValueOnce(stubs.pctPedidos.stub)        // #7
+    .mockReturnValueOnce(stubs.clientesNuevos.stub)        // #0
+    .mockReturnValueOnce(stubs.pedidosCount.stub)           // #1
+    .mockReturnValueOnce(stubs.montoClienteIds.stub)        // #2
+    .mockReturnValueOnce(stubs.leadsGanados.stub)           // #3
+    .mockReturnValueOnce(stubs.leadsGestionados.stub)       // #4
+    .mockReturnValueOnce(stubs.pctClienteIds.stub)          // #5
+    .mockReturnValueOnce(stubs.pctPedidosPagadosDen.stub)   // #6
+    .mockReturnValueOnce(stubs.pctPedidosPagadosNum.stub)   // #7
+    .mockReturnValueOnce(stubs.montoSum.stub)               // #8
+    .mockReturnValueOnce(stubs.pctPedidos.stub)             // #9
 }
 
 function defaultStubs(overrides: Partial<{
@@ -167,6 +176,8 @@ function defaultStubs(overrides: Partial<{
   leadsGestionados: number
   pctClienteIds: Array<{ id: string }>
   pctPedidoClienteIds: Array<{ clienteId: string }>
+  pctPedidosPagadosDen: number
+  pctPedidosPagadosNum: number
 }> = {}): SelectStubs {
   const o = {
     clientesNuevosTotal: 0,
@@ -177,6 +188,8 @@ function defaultStubs(overrides: Partial<{
     leadsGestionados: 0,
     pctClienteIds: [],
     pctPedidoClienteIds: [],
+    pctPedidosPagadosDen: 0,
+    pctPedidosPagadosNum: 0,
     ...overrides,
   }
   return {
@@ -186,6 +199,8 @@ function defaultStubs(overrides: Partial<{
     leadsGanados: makeSelectResult([{ total: o.leadsGanados }]),
     leadsGestionados: makeSelectResult([{ total: o.leadsGestionados }]),
     pctClienteIds: makeSelectResult(o.pctClienteIds),
+    pctPedidosPagadosDen: makeSelectResult([{ total: o.pctPedidosPagadosDen }]),
+    pctPedidosPagadosNum: makeSelectResult([{ total: o.pctPedidosPagadosNum }]),
     montoSum: makeSelectResult([{ total: o.montoTotal }]),
     pctPedidos: makeSelectResult(o.pctPedidoClienteIds),
   }
@@ -422,14 +437,16 @@ describe('montoCobradoDelPeriodo', () => {
     const pctClienteIdsStub = makeSelectResult([])  // no clients → pct returns null
 
     mockSelect
-      .mockReturnValueOnce(clientesNuevosStub.stub)   // #0
-      .mockReturnValueOnce(pedidosStub.stub)           // #1
-      .mockReturnValueOnce(montoClienteIdsStub.stub)  // #2 (returns [])
-      .mockReturnValueOnce(leadsGanadosStub.stub)      // #3
-      .mockReturnValueOnce(leadsGestionadosStub.stub) // #4
-      .mockReturnValueOnce(pctClienteIdsStub.stub)    // #5 (returns [])
-      // No montoSum call (#6) when clienteIds is empty
-      // No pctPedidos call (#7) when pctClienteIds is empty
+      .mockReturnValueOnce(clientesNuevosStub.stub)                          // #0
+      .mockReturnValueOnce(pedidosStub.stub)                                  // #1
+      .mockReturnValueOnce(montoClienteIdsStub.stub)                         // #2 (returns [])
+      .mockReturnValueOnce(leadsGanadosStub.stub)                             // #3
+      .mockReturnValueOnce(leadsGestionadosStub.stub)                        // #4
+      .mockReturnValueOnce(pctClienteIdsStub.stub)                           // #5 (returns [])
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)            // #6 pctPedidosPagados den
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)            // #7 pctPedidosPagados num
+      // No montoSum call (#8) when clienteIds is empty
+      // No pctPedidos call (#9) when pctClienteIds is empty
 
     const result = await calcularAvanceMeta('meta-1')
 
@@ -621,5 +638,69 @@ describe('pctClientesConPedidoDelPeriodo', () => {
 
     // 1 cliente con pedido / 1 cliente total = 100%
     expect(result).toBe(100)
+  })
+})
+
+// ─── Tests: pctPedidosPagadosDelPeriodo ──────────────────────────────────────
+
+describe('pctPedidosPagadosDelPeriodo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a. sin pedidos confirmados en el período → null', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)  // denominador
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)  // numerador
+
+    const result = await pctPedidosPagadosDelPeriodo('vendedor-1', 2026, 5)
+
+    expect(result).toBeNull()
+  })
+
+  it('b. 4 pedidos confirmados, 1 pagado → 25.0', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 4 }]).stub)  // denominador
+      .mockReturnValueOnce(makeSelectResult([{ total: 1 }]).stub)  // numerador
+
+    const result = await pctPedidosPagadosDelPeriodo('vendedor-1', 2026, 5)
+
+    expect(result).toBe(25)
+  })
+
+  it('c. 4 pedidos confirmados, 0 pagados → 0', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 4 }]).stub)  // denominador
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)  // numerador
+
+    const result = await pctPedidosPagadosDelPeriodo('vendedor-1', 2026, 5)
+
+    expect(result).toBe(0)
+  })
+
+  it('d. todos los pedidos confirmados están pagados → 100', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 5 }]).stub)  // denominador
+      .mockReturnValueOnce(makeSelectResult([{ total: 5 }]).stub)  // numerador
+
+    const result = await pctPedidosPagadosDelPeriodo('vendedor-1', 2026, 5)
+
+    expect(result).toBe(100)
+  })
+
+  it('e. redondea a 2 decimales: 1 de 3 → 33.33', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)  // denominador
+      .mockReturnValueOnce(makeSelectResult([{ total: 1 }]).stub)  // numerador
+
+    const result = await pctPedidosPagadosDelPeriodo('vendedor-1', 2026, 5)
+
+    expect(result).toBe(33.33)
   })
 })

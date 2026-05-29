@@ -31,12 +31,14 @@ interface MetaAvance {
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
 }
 
 interface VendedorModalProps {
@@ -44,6 +46,7 @@ interface VendedorModalProps {
   anio: number
   mes: number
   onClose: () => void
+  vendedorRole?: string
 }
 
 const MESES = [
@@ -138,6 +141,7 @@ export default function VendedorModal({
   anio,
   mes,
   onClose,
+  vendedorRole,
 }: VendedorModalProps) {
   const [avance, setAvance] = useState<MetaAvance | null>(null)
   const [loading, setLoading] = useState(true)
@@ -241,24 +245,28 @@ export default function VendedorModal({
                 proyeccion={String(avance.clientesNuevos.proyeccion)}
                 estado={avance.clientesNuevos.estado}
               />
-              <div className="border-t border-border" />
-              <MetricRow
-                label="Pedidos"
-                alcanzado={String(avance.pedidos.alcanzado)}
-                objetivo={String(avance.meta.pedidosObjetivo)}
-                pct={avance.pedidos.pct}
-                proyeccion={String(avance.pedidos.proyeccion)}
-                estado={avance.pedidos.estado}
-              />
-              <div className="border-t border-border" />
-              <MetricRow
-                label="Monto Cobrado"
-                alcanzado={formatARS(avance.montoCobrado.alcanzado)}
-                objetivo={formatARS(parseFloat(avance.meta.montoCobradoObjetivo))}
-                pct={avance.montoCobrado.pct}
-                proyeccion={formatARS(avance.montoCobrado.proyeccion)}
-                estado={avance.montoCobrado.estado}
-              />
+              {vendedorRole !== 'agent' && (
+                <>
+                  <div className="border-t border-border" />
+                  <MetricRow
+                    label="Pedidos"
+                    alcanzado={String(avance.pedidos.alcanzado)}
+                    objetivo={String(avance.meta.pedidosObjetivo)}
+                    pct={avance.pedidos.pct}
+                    proyeccion={String(avance.pedidos.proyeccion)}
+                    estado={avance.pedidos.estado}
+                  />
+                  <div className="border-t border-border" />
+                  <MetricRow
+                    label="Monto Cobrado"
+                    alcanzado={formatARS(avance.montoCobrado.alcanzado)}
+                    objetivo={formatARS(parseFloat(avance.meta.montoCobradoObjetivo))}
+                    pct={avance.montoCobrado.pct}
+                    proyeccion={formatARS(avance.montoCobrado.proyeccion)}
+                    estado={avance.montoCobrado.estado}
+                  />
+                </>
+              )}
               <div className="border-t border-border" />
               <MetricRow
                 label="Conversión de Leads"
@@ -285,6 +293,28 @@ export default function VendedorModal({
                   proyeccion={`${avance.pctClientesConPedido.proyeccion}%`}
                   estado={avance.pctClientesConPedido.estado as EstadoMeta}
                 />
+              )}
+              {vendedorRole === 'agent' && (
+                <>
+                  <div className="border-t border-border" />
+                  {avance.pctPedidosPagados.estado === 'na' ? (
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        % Pedidos Pagados
+                      </span>
+                      <p className="text-sm text-muted-foreground">Sin pedidos confirmados</p>
+                    </div>
+                  ) : (
+                    <MetricRow
+                      label="% Pedidos Pagados"
+                      alcanzado={`${avance.pctPedidosPagados.alcanzado}%`}
+                      objetivo={`${avance.meta.pctPedidosPagadosObjetivo}%`}
+                      pct={avance.pctPedidosPagados.pct ?? 0}
+                      proyeccion={`${avance.pctPedidosPagados.proyeccion}%`}
+                      estado={avance.pctPedidosPagados.estado as EstadoMeta}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

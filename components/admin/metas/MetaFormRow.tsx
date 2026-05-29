@@ -16,6 +16,7 @@ export type MetaRow = {
   montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
+  pctPedidosPagadosObjetivo: string
   fechaCreacion: string
   fechaActualizacion: string
 }
@@ -31,10 +32,9 @@ export type User = {
 
 export type MetaFormValuesAgent = {
   clientesNuevosObjetivo: number
-  pedidosObjetivo: number
-  montoCobradoObjetivo: string
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
+  pctPedidosPagadosObjetivo: string
 }
 
 export type MetaFormValuesVendedor = {
@@ -50,10 +50,9 @@ export type MetaFormValues = MetaFormValuesAgent | MetaFormValuesVendedor
 export function initAgentValues(meta: MetaRow | null): MetaFormValuesAgent {
   return {
     clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
-    pedidosObjetivo: meta?.pedidosObjetivo ?? 0,
-    montoCobradoObjetivo: meta?.montoCobradoObjetivo ?? '0',
     conversionLeadsObjetivo: meta?.conversionLeadsObjetivo ?? '0',
     pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
+    pctPedidosPagadosObjetivo: meta?.pctPedidosPagadosObjetivo ?? '0',
   }
 }
 
@@ -124,14 +123,13 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
       )
     : (
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
-        agentValues.pedidosObjetivo !== agentSaved.pedidosObjetivo ||
-        agentValues.montoCobradoObjetivo !== agentSaved.montoCobradoObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
-        agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo
+        agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
+        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo
       )
 
   function handleAgent(field: keyof MetaFormValuesAgent, raw: string) {
-    if (field === 'clientesNuevosObjetivo' || field === 'pedidosObjetivo') {
+    if (field === 'clientesNuevosObjetivo') {
       const n = parseInt(raw, 10)
       setAgentValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
     } else {
@@ -208,28 +206,6 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         </td>
       )}
 
-      {/* Agent: Pedidos */}
-      {isVendedor ? <DisabledCell agentCol /> : (
-        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
-          {isLocked
-            ? <span className={ro}>{meta?.pedidosObjetivo ?? '—'}</span>
-            : <input type="number" min={0} value={agentValues.pedidosObjetivo}
-                onChange={(e) => handleAgent('pedidosObjetivo', e.target.value)}
-                className={inp} />}
-        </td>
-      )}
-
-      {/* Agent: Monto Cobrado */}
-      {isVendedor ? <DisabledCell agentCol /> : (
-        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
-          {isLocked
-            ? <span className={ro}>{meta ? fmt(meta.montoCobradoObjetivo) : '—'}</span>
-            : <input type="number" min={0} step="1000" value={agentValues.montoCobradoObjetivo}
-                onChange={(e) => handleAgent('montoCobradoObjetivo', e.target.value)}
-                className={cn(inp, 'min-w-[90px]')} />}
-        </td>
-      )}
-
       {/* Agent: Conversión Leads */}
       {isVendedor ? <DisabledCell agentCol /> : (
         <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
@@ -252,7 +228,18 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         </td>
       )}
 
-      {/* ══ VENDEDOR COLUMNS (cols 7-9) ══ */}
+      {/* Agent: % Pedidos Pagados */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmtPct(meta.pctPedidosPagadosObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctPedidosPagadosObjetivo}
+                onChange={(e) => handleAgent('pctPedidosPagadosObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
+      {/* ══ VENDEDOR COLUMNS (cols 6-8) ══ */}
 
       {/* Vendedor: Clientes Nuevos c/PP */}
       {!isVendedor ? <DisabledCell agentCol={false} /> : (

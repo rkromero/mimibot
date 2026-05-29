@@ -120,6 +120,13 @@
       "when": 1780185600000,
       "tag": "0016_expreso_entrega",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780060550675,
+      "tag": "0017_normal_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

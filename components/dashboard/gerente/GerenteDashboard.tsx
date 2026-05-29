@@ -209,6 +209,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
           anio={anio}
           mes={mes}
           onClose={() => setSelectedVendedorId(null)}
+          vendedorRole={agentes?.find((u) => u.id === selectedVendedorId)?.role}
         />
       )}
     </div>

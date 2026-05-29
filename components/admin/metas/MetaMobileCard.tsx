@@ -48,14 +48,13 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
       )
     : (
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
-        agentValues.pedidosObjetivo !== agentSaved.pedidosObjetivo ||
-        agentValues.montoCobradoObjetivo !== agentSaved.montoCobradoObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
-        agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo
+        agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
+        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo
       )
 
   function handleAgent(field: keyof MetaFormValuesAgent, raw: string) {
-    if (field === 'clientesNuevosObjetivo' || field === 'pedidosObjetivo') {
+    if (field === 'clientesNuevosObjetivo') {
       const n = parseInt(raw, 10)
       setAgentValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
     } else {
@@ -167,22 +166,6 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
                     onChange={(e) => handleAgent('clientesNuevosObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
-            <Field label="Pedidos">
-              {isLocked
-                ? roVal(meta?.pedidosObjetivo ?? '—')
-                : <input type="number" min={0} value={agentValues.pedidosObjetivo}
-                    onChange={(e) => handleAgent('pedidosObjetivo', e.target.value)}
-                    className={inp} />}
-            </Field>
-            <Field label="Monto Cobrado ($)">
-              {isLocked
-                ? roVal(meta
-                    ? `$${parseFloat(meta.montoCobradoObjetivo).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
-                    : '—')
-                : <input type="number" min={0} step="1000" value={agentValues.montoCobradoObjetivo}
-                    onChange={(e) => handleAgent('montoCobradoObjetivo', e.target.value)}
-                    className={inp} />}
-            </Field>
             <Field label="Conversión Leads (%)">
               {isLocked
                 ? roVal(meta ? `${parseFloat(meta.conversionLeadsObjetivo).toFixed(1)}%` : '—')
@@ -195,6 +178,13 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
                 ? roVal(meta ? `${parseFloat(meta.pctClientesConPedidoObjetivo).toFixed(1)}%` : '—')
                 : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctClientesConPedidoObjetivo}
                     onChange={(e) => handleAgent('pctClientesConPedidoObjetivo', e.target.value)}
+                    className={inp} />}
+            </Field>
+            <Field label="% Pedidos Pagados">
+              {isLocked
+                ? roVal(meta ? `${parseFloat(meta.pctPedidosPagadosObjetivo).toFixed(1)}%` : '—')
+                : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctPedidosPagadosObjetivo}
+                    onChange={(e) => handleAgent('pctPedidosPagadosObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
           </>

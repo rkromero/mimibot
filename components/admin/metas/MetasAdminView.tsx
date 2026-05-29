@@ -300,7 +300,7 @@ export default function MetasAdminView() {
                   <th rowSpan={2} className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground border-b border-border whitespace-nowrap align-bottom">
                     Usuario
                   </th>
-                  <th colSpan={5} className="py-1.5 px-3 text-center text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 whitespace-nowrap">
+                  <th colSpan={4} className="py-1.5 px-3 text-center text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 whitespace-nowrap">
                     Métricas de Agente
                   </th>
                   <th colSpan={3} className="py-1.5 px-3 text-center text-xs font-bold text-purple-700 dark:text-purple-400 bg-purple-50/60 dark:bg-purple-950/30 border-b border-purple-200 dark:border-purple-800 border-l border-l-purple-200 dark:border-l-purple-800 whitespace-nowrap">
@@ -313,10 +313,9 @@ export default function MetasAdminView() {
                 {/* Column header row */}
                 <tr>
                   <Th className="bg-blue-50/40 dark:bg-blue-950/20">Cl. Nuevos</Th>
-                  <Th className="bg-blue-50/40 dark:bg-blue-950/20">Pedidos</Th>
-                  <Th className="bg-blue-50/40 dark:bg-blue-950/20">Monto Cobrado ($)</Th>
                   <Th className="bg-blue-50/40 dark:bg-blue-950/20">Conv. Leads (%)</Th>
                   <Th className="bg-blue-50/40 dark:bg-blue-950/20">% Cobertura</Th>
+                  <Th className="bg-blue-50/40 dark:bg-blue-950/20">% Pedidos Pagados</Th>
                   <Th className="bg-purple-50/40 dark:bg-purple-950/20 border-l border-l-purple-200 dark:border-l-purple-800">Cl. c/PP</Th>
                   <Th className="bg-purple-50/40 dark:bg-purple-950/20">% Cobertura</Th>
                   <Th className="bg-purple-50/40 dark:bg-purple-950/20">Cobranza ($)</Th>
