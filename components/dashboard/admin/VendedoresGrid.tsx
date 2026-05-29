@@ -29,6 +29,7 @@ interface MetaAvance {
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
     pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
@@ -36,6 +37,7 @@ interface MetaAvance {
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
   pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 
 interface User {
@@ -52,13 +54,6 @@ interface VendedoresGridProps {
   users: User[]
   onSelectVendedor: (vendedorId: string) => void
 }
-
-const formatARS = (v: number) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(v)
 
 function metricColorClass(pct: number, estado: EstadoMeta): string {
   if (estado === 'cumplida') return 'text-green-600'
@@ -125,9 +120,9 @@ export default function VendedoresGrid({
     (a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor',
   )
 
-  // Data cols after "Vendedor" name: C.Nuevos + [Pedidos+Monto if vendedores] + Conv.Leads + Cobertura + [%PedPag if agents] + Proyección
+  // Data cols after "Vendedor" name: C.Nuevos + [Pedidos if vendedores] + Conv.Leads + Cobertura + [%PedPag if agents] + %Cobranza + Proyección
   const sinMetaColSpan =
-    1 + (hasVendedores ? 2 : 0) + 1 + 1 + (hasAgents ? 1 : 0) + 1
+    1 + (hasVendedores ? 1 : 0) + 1 + 1 + (hasAgents ? 1 : 0) + 1 + 1
 
   const proyeccionGeneral = (a: MetaAvance, role: string): number => {
     if (role === 'agent') {
@@ -156,13 +151,18 @@ export default function VendedoresGrid({
     const values: { v: number; obj: number }[] = [
       { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
       { v: a.pedidos.proyeccion, obj: a.meta.pedidosObjetivo },
-      { v: a.montoCobrado.proyeccion, obj: parseFloat(a.meta.montoCobradoObjetivo) },
       { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
     ]
     if (a.pctClientesConPedido.estado !== 'na') {
       values.push({
         v: a.pctClientesConPedido.proyeccion ?? 0,
         obj: parseFloat(a.meta.pctClientesConPedidoObjetivo),
+      })
+    }
+    if (a.pctCobranza.estado !== 'na') {
+      values.push({
+        v: a.pctCobranza.proyeccion ?? 0,
+        obj: parseFloat(a.meta.pctCobranzaObjetivo),
       })
     }
     const pcts = values.map(({ v, obj }) =>
@@ -183,14 +183,9 @@ export default function VendedoresGrid({
               Clientes Nuevos
             </th>
             {hasVendedores && (
-              <>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                  Pedidos
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                  Monto Cobrado
-                </th>
-              </>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                Pedidos
+              </th>
             )}
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Conv. Leads
@@ -203,6 +198,9 @@ export default function VendedoresGrid({
                 % Ped. Pagados
               </th>
             )}
+            <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+              % Cobranza
+            </th>
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Proyección General
             </th>
@@ -233,32 +231,18 @@ export default function VendedoresGrid({
                   />
                 </td>
                 {hasVendedores && (
-                  <>
-                    <td className="px-4 py-3">
-                      {isAgent ? (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      ) : (
-                        <MetricCell
-                          alcanzado={String(avance.pedidos.alcanzado)}
-                          objetivo={String(avance.meta.pedidosObjetivo)}
-                          pct={avance.pedidos.pct}
-                          estado={avance.pedidos.estado}
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isAgent ? (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      ) : (
-                        <MetricCell
-                          alcanzado={formatARS(avance.montoCobrado.alcanzado)}
-                          objetivo={formatARS(parseFloat(avance.meta.montoCobradoObjetivo))}
-                          pct={avance.montoCobrado.pct}
-                          estado={avance.montoCobrado.estado}
-                        />
-                      )}
-                    </td>
-                  </>
+                  <td className="px-4 py-3">
+                    {isAgent ? (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    ) : (
+                      <MetricCell
+                        alcanzado={String(avance.pedidos.alcanzado)}
+                        objetivo={String(avance.meta.pedidosObjetivo)}
+                        pct={avance.pedidos.pct}
+                        estado={avance.pedidos.estado}
+                      />
+                    )}
+                  </td>
                 )}
                 <td className="px-4 py-3">
                   <MetricCell
@@ -296,6 +280,18 @@ export default function VendedoresGrid({
                     )}
                   </td>
                 )}
+                <td className="px-4 py-3">
+                  {avance.pctCobranza.estado === 'na' ? (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  ) : (
+                    <MetricCell
+                      alcanzado={`${avance.pctCobranza.alcanzado}%`}
+                      objetivo={`${avance.meta.pctCobranzaObjetivo}%`}
+                      pct={avance.pctCobranza.pct ?? 0}
+                      estado={avance.pctCobranza.estado as EstadoMeta}
+                    />
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-0.5 min-w-[80px]">
                     <span

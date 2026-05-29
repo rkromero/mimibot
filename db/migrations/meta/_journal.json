@@ -127,6 +127,13 @@
       "when": 1780060550675,
       "tag": "0017_normal_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780358400000,
+      "tag": "0018_pct_cobranza_objetivo",
+      "breakpoints": true
     }
   ]
 }

@@ -44,13 +44,14 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
     ? (
         vendedorValues.clientesNuevosObjetivo !== vendedorSaved.clientesNuevosObjetivo ||
         vendedorValues.pctClientesConPedidoObjetivo !== vendedorSaved.pctClientesConPedidoObjetivo ||
-        vendedorValues.montoCobradoObjetivo !== vendedorSaved.montoCobradoObjetivo
+        vendedorValues.pctCobranzaObjetivo !== vendedorSaved.pctCobranzaObjetivo
       )
     : (
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
         agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
-        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo
+        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo ||
+        agentValues.pctCobranzaObjetivo !== agentSaved.pctCobranzaObjetivo
       )
 
   function handleAgent(field: keyof MetaFormValuesAgent, raw: string) {
@@ -147,13 +148,11 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
                     onChange={(e) => handleVendedor('pctClientesConPedidoObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
-            <Field label="Cobranza ($)">
+            <Field label="% Cobranza">
               {isLocked
-                ? roVal(meta
-                    ? `$${parseFloat(meta.montoCobradoObjetivo).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
-                    : '—')
-                : <input type="number" min={0} step="1000" value={vendedorValues.montoCobradoObjetivo}
-                    onChange={(e) => handleVendedor('montoCobradoObjetivo', e.target.value)}
+                ? roVal(meta ? `${parseFloat(meta.pctCobranzaObjetivo).toFixed(1)}%` : '—')
+                : <input type="number" min={0} max={100} step="0.5" value={vendedorValues.pctCobranzaObjetivo}
+                    onChange={(e) => handleVendedor('pctCobranzaObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
           </>
@@ -185,6 +184,13 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
                 ? roVal(meta ? `${parseFloat(meta.pctPedidosPagadosObjetivo).toFixed(1)}%` : '—')
                 : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctPedidosPagadosObjetivo}
                     onChange={(e) => handleAgent('pctPedidosPagadosObjetivo', e.target.value)}
+                    className={inp} />}
+            </Field>
+            <Field label="% Cobranza">
+              {isLocked
+                ? roVal(meta ? `${parseFloat(meta.pctCobranzaObjetivo).toFixed(1)}%` : '—')
+                : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctCobranzaObjetivo}
+                    onChange={(e) => handleAgent('pctCobranzaObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
           </>

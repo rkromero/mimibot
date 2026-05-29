@@ -96,7 +96,7 @@ export default function VendedorKpiCards({ userId, monthLabel }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <SinMetaCard title="Clientes Nuevos" />
           <SinMetaCard title="Cobertura Cartera" />
-          <SinMetaCard title="Cobranza" />
+          <SinMetaCard title="% Cobranza" />
         </div>
         <ImpagoModal
           open={impagoOpen}
@@ -150,13 +150,14 @@ export default function VendedorKpiCards({ userId, monthLabel }: Props) {
         {/* Card 3: % Cobranza — CLICKEABLE → impagos modal */}
         {cobranza ? (
           <MetaCard
-            title="Cobranza"
+            title="% Cobranza"
             objetivo={cobranza.objetivo}
-            alcanzado={cobranza.alcanzado}
-            pct={cobranza.pct}
-            proyeccion={cobranza.proyeccion}
+            alcanzado={cobranza.alcanzado ?? 0}
+            pct={cobranza.pct ?? 0}
+            proyeccion={cobranza.proyeccion ?? 0}
             estado={cobranza.estado}
-            formatValue={fmtARS}
+            formatValue={fmtPct}
+            naMessage="Sin pedidos confirmados"
             pctMesTranscurrido={pctMesTranscurrido}
             colorMode="semantic"
             onClick={() => setImpagoOpen(true)}
@@ -167,7 +168,7 @@ export default function VendedorKpiCards({ userId, monthLabel }: Props) {
             onClick={() => setImpagoOpen(true)}
           >
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Cobranza
+              % Cobranza
             </p>
             <p className="text-sm text-muted-foreground mt-2">Sin meta para este mes</p>
           </div>

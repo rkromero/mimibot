@@ -506,3 +506,131 @@ describe('(task 4) POST /api/metas/[id]/corregir — diff de pctClientesConPedid
     expect(mockUpdateMetaVigente).not.toHaveBeenCalled()
   })
 })
+
+// ─── (pctCobranza-1) POST /api/metas — pctCobranzaObjetivo persiste en el servicio ──
+
+describe('(pctCobranza-1) POST /api/metas — pctCobranzaObjetivo persiste (agente y vendedor)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    mockAuth.mockResolvedValue(ADMIN_SESSION)
+    mockGetSessionContext.mockResolvedValue(ADMIN_CTX)
+    mockRequireAdmin.mockReturnValue(undefined)
+    mockIsMesBloqueable.mockReturnValue('futuro')
+    mockGetMetaByVendedorPeriodo.mockResolvedValue(null)
+  })
+
+  it('POST 201: createMeta recibe pctCobranzaObjetivo="75.00"', async () => {
+    const createdMeta = makeFakeMeta({ pctCobranzaObjetivo: '75.00' } as Record<string, unknown>)
+    mockCreateMeta.mockResolvedValue(createdMeta)
+
+    const req = makePost('/api/metas', {
+      vendedorId: VENDEDOR_ID,
+      periodoAnio: 2027,
+      periodoMes: 3,
+      clientesNuevosObjetivo: 5,
+      pedidosObjetivo: 20,
+      montoCobradoObjetivo: '100000.00',
+      conversionLeadsObjetivo: '30.00',
+      pctClientesConPedidoObjetivo: '75',
+      pctPedidosPagadosObjetivo: '10',
+      pctCobranzaObjetivo: '75.00',
+    })
+
+    const response = await postMetas(req)
+    expect(response.status).toBe(201)
+
+    const serviceArg = mockCreateMeta.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(serviceArg.pctCobranzaObjetivo).toBe('75.00')
+  })
+
+  it('POST 201: sin pctCobranzaObjetivo → default "0" por schema', async () => {
+    const createdMeta = makeFakeMeta({ pctCobranzaObjetivo: '0' } as Record<string, unknown>)
+    mockCreateMeta.mockResolvedValue(createdMeta)
+
+    const req = makePost('/api/metas', {
+      vendedorId: VENDEDOR_ID,
+      periodoAnio: 2027,
+      periodoMes: 3,
+      clientesNuevosObjetivo: 5,
+      pedidosObjetivo: 20,
+      montoCobradoObjetivo: '100000.00',
+      conversionLeadsObjetivo: '30.00',
+      // pctCobranzaObjetivo omitido → default '0'
+    })
+
+    const response = await postMetas(req)
+    expect(response.status).toBe(201)
+
+    const serviceArg = mockCreateMeta.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(serviceArg.pctCobranzaObjetivo).toBe('0')
+  })
+
+  it('POST 400: pctCobranzaObjetivo=150 rechazado por validación (fuera de rango)', async () => {
+    const req = makePost('/api/metas', {
+      vendedorId: VENDEDOR_ID,
+      periodoAnio: 2027,
+      periodoMes: 3,
+      pctCobranzaObjetivo: '150',
+    })
+
+    const response = await postMetas(req)
+    expect(response.status).toBe(400)
+    expect(mockCreateMeta).not.toHaveBeenCalled()
+  })
+})
+
+// ─── (pctCobranza-2) PATCH /api/metas/[id] — pctCobranzaObjetivo actualizado ──
+
+describe('(pctCobranza-2) PATCH /api/metas/[id] — pctCobranzaObjetivo persiste (PUT y PATCH)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    mockAuth.mockResolvedValue(ADMIN_SESSION)
+    mockRequireAdmin.mockReturnValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('PATCH 200: updateMetaFutura recibe pctCobranzaObjetivo="80.00"', async () => {
+    const existingMeta = makeFakeMeta({
+      periodoAnio: 2027, periodoMes: 3,
+      pctCobranzaObjetivo: '50.00',
+      vendedorNombre: 'Vendedor Test',
+    } as Record<string, unknown>)
+    const updatedMeta = { ...existingMeta, pctCobranzaObjetivo: '80.00' }
+
+    mockGetMetaWithVendedor.mockResolvedValue(existingMeta)
+    mockIsMesBloqueable.mockReturnValue('futuro')
+    mockUpdateMetaFutura.mockResolvedValue(updatedMeta)
+
+    const req = new NextRequest(`http://localhost/api/metas/${META_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pctCobranzaObjetivo: '80.00' }),
+    })
+
+    const response = await patchMeta(req, routeCtx(META_ID))
+    expect(response.status).toBe(200)
+
+    const [, inputArg] = mockUpdateMetaFutura.mock.calls[0] as [string, Record<string, unknown>, string]
+    expect(inputArg.pctCobranzaObjetivo).toBe('80.00')
+  })
+
+  it('PATCH 400: pctCobranzaObjetivo="-5" rechazado (fuera de rango)', async () => {
+    mockGetMetaWithVendedor.mockResolvedValue(makeFakeMeta())
+    mockIsMesBloqueable.mockReturnValue('futuro')
+
+    const req = new NextRequest(`http://localhost/api/metas/${META_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pctCobranzaObjetivo: '-5' }),
+    })
+
+    const response = await patchMeta(req, routeCtx(META_ID))
+    expect(response.status).toBe(400)
+    expect(mockUpdateMetaFutura).not.toHaveBeenCalled()
+  })
+})

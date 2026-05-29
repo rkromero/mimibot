@@ -118,9 +118,9 @@ export default function VendedorDashboard({ user }: Props) {
         </div>
       )}
 
-      {/* 4 agent meta cards */}
+      {/* 5 agent meta cards */}
       {!isLoading && avance && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           <MetaCard
             title="Clientes Nuevos"
             objetivo={avance.meta.clientesNuevosObjetivo}
@@ -158,6 +158,17 @@ export default function VendedorDashboard({ user }: Props) {
             pct={avance.pctPedidosPagados.pct ?? 0}
             proyeccion={avance.pctPedidosPagados.proyeccion ?? 0}
             estado={avance.pctPedidosPagados.estado}
+            formatValue={fmtPct}
+            naMessage="Sin pedidos confirmados"
+            pctMesTranscurrido={pctMesTranscurrido}
+          />
+          <MetaCard
+            title="% Cobranza"
+            objetivo={Number(avance.meta.pctCobranzaObjetivo)}
+            alcanzado={avance.pctCobranza.alcanzado ?? 0}
+            pct={avance.pctCobranza.pct ?? 0}
+            proyeccion={avance.pctCobranza.proyeccion ?? 0}
+            estado={avance.pctCobranza.estado}
             formatValue={fmtPct}
             naMessage="Sin pedidos confirmados"
             pctMesTranscurrido={pctMesTranscurrido}

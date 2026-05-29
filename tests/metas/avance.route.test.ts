@@ -46,6 +46,8 @@ vi.mock('@/db/schema', () => ({
     estado: 'pedidos.estado',
     estadoPago: 'pedidos.estadoPago',
     fecha: 'pedidos.fecha',
+    total: 'pedidos.total',
+    montoPagado: 'pedidos.montoPagado',
     deletedAt: 'pedidos.deletedAt',
     $inferSelect: {},
   },
@@ -97,9 +99,9 @@ function makeSelectResult(resolvedValue: unknown) {
 }
 
 /**
- * Feed the 8 stubs for the "no clientes asignados" scenario.
+ * Feed the 10 stubs for the "no clientes asignados" scenario.
  *
- * Call ordering inside calcularAvanceMeta (Promise.all of 6 sub-functions):
+ * Call ordering inside calcularAvanceMeta (Promise.all of 7 sub-functions):
  *   #0  clientesNuevosDelPeriodo        → count from clientes (WHERE vendedorConversionId)
  *   #1  pedidosConfirmadosDelPeriodo    → count from pedidos
  *   #2  montoCobradoDelPeriodo (a)      → select id from clientes (WHERE asignadoA) → []
@@ -108,8 +110,10 @@ function makeSelectResult(resolvedValue: unknown) {
  *   #5  pctClientesConPedidoDelPeriodo (a) → select id from clientes (WHERE asignadoA) → []
  *   #6  pctPedidosPagadosDelPeriodo (a) → denominador count
  *   #7  pctPedidosPagadosDelPeriodo (b) → numerador count
+ *   #8  pctCobranzaDelPeriodo (a)       → denominador sum(total)
+ *   #9  pctCobranzaDelPeriodo (b)       → numerador sum(montoPagado)
  *
- * Calls #8 (montoSum) and #9 (pctPedidos) are NOT made because their
+ * Calls #10 (montoSum) and #11 (pctPedidos) are NOT made because their
  * preceding clientes queries (#2 and #5) returned empty arrays.
  */
 function setupNoClientesStubs() {
@@ -120,8 +124,10 @@ function setupNoClientesStubs() {
     .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // #3 leadsGanados → 3
     .mockReturnValueOnce(makeSelectResult([{ total: 10 }]).stub)   // #4 leadsGestionados → 10
     .mockReturnValueOnce(makeSelectResult([]).stub)                // #5 pctClienteIds → [] (no clients → null)
-    .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)   // #6 pctPedidosPagados den
-    .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)   // #7 pctPedidosPagados num
+    .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #6 pctPedidosPagados den
+    .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #7 pctPedidosPagados num
+    .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #8 pctCobranza den
+    .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #9 pctCobranza num
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -153,6 +159,7 @@ function makeMeta(overrides: Record<string, unknown> = {}) {
     conversionLeadsObjetivo: '25.00',
     pctClientesConPedidoObjetivo: '80.00',
     pctPedidosPagadosObjetivo: '0.00',
+    pctCobranzaObjetivo: '0.00',
     creadoPor: '00000000-0000-0000-0000-000000000001',
     fechaCreacion: new Date('2026-05-01'),
     fechaActualizacion: new Date('2026-05-01'),
@@ -217,9 +224,13 @@ describe('GET /api/metas/avance — end-to-end (real avance.service, mocked db)'
     mockSelect.mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)
     // #7 pctPedidosPagados numerador
     mockSelect.mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)
-    // #8 montoSum (after #2 resolves)
+    // #8 pctCobranza denominador
+    mockSelect.mockReturnValueOnce(makeSelectResult([{ total: null }]).stub)
+    // #9 pctCobranza numerador
+    mockSelect.mockReturnValueOnce(makeSelectResult([{ total: null }]).stub)
+    // #10 montoSum (after #2 resolves)
     mockSelect.mockReturnValueOnce(makeSelectResult([{ total: '45000.00' }]).stub)
-    // #9 pctPedidos → both clients have a pedido
+    // #11 pctPedidos → both clients have a pedido
     mockSelect.mockReturnValueOnce(makeSelectResult([{ clienteId: clienteId1 }, { clienteId: clienteId2 }]).stub)
 
     const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')

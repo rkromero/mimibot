@@ -52,6 +52,7 @@ export async function createMeta(
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
     pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   },
   adminId: string,
 ): Promise<Meta> {
@@ -68,6 +69,7 @@ export async function createMeta(
         conversionLeadsObjetivo: input.conversionLeadsObjetivo,
         pctClientesConPedidoObjetivo: input.pctClientesConPedidoObjetivo,
         pctPedidosPagadosObjetivo: input.pctPedidosPagadosObjetivo,
+        pctCobranzaObjetivo: input.pctCobranzaObjetivo,
         creadoPor: adminId,
       })
       .returning()
@@ -85,6 +87,7 @@ export async function createMeta(
         conversionLeadsObjetivo: input.conversionLeadsObjetivo,
         pctClientesConPedidoObjetivo: input.pctClientesConPedidoObjetivo,
         pctPedidosPagadosObjetivo: input.pctPedidosPagadosObjetivo,
+        pctCobranzaObjetivo: input.pctCobranzaObjetivo,
       },
     })
 
@@ -120,6 +123,7 @@ export async function updateMetaVigente(
       conversionLeadsObjetivo: existing.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: existing.pctClientesConPedidoObjetivo,
       pctPedidosPagadosObjetivo: existing.pctPedidosPagadosObjetivo,
+      pctCobranzaObjetivo: existing.pctCobranzaObjetivo,
     }
 
     const updatePayload: Partial<typeof metas.$inferInsert> = {
@@ -143,6 +147,9 @@ export async function updateMetaVigente(
     if (input.pctPedidosPagadosObjetivo !== undefined) {
       updatePayload.pctPedidosPagadosObjetivo = input.pctPedidosPagadosObjetivo
     }
+    if (input.pctCobranzaObjetivo !== undefined) {
+      updatePayload.pctCobranzaObjetivo = input.pctCobranzaObjetivo
+    }
 
     const [updated] = await tx
       .update(metas)
@@ -157,6 +164,7 @@ export async function updateMetaVigente(
       conversionLeadsObjetivo: updated!.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: updated!.pctClientesConPedidoObjetivo,
       pctPedidosPagadosObjetivo: updated!.pctPedidosPagadosObjetivo,
+      pctCobranzaObjetivo: updated!.pctCobranzaObjetivo,
     }
 
     await tx.insert(auditLogMetas).values({
@@ -204,6 +212,9 @@ export async function updateMetaFutura(
   if (input.pctPedidosPagadosObjetivo !== undefined) {
     updatePayload.pctPedidosPagadosObjetivo = input.pctPedidosPagadosObjetivo
   }
+  if (input.pctCobranzaObjetivo !== undefined) {
+    updatePayload.pctCobranzaObjetivo = input.pctCobranzaObjetivo
+  }
 
   const [updated] = await db
     .update(metas)
@@ -224,6 +235,7 @@ export async function updateMetaFutura(
       conversionLeadsObjetivo: existing.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: existing.pctClientesConPedidoObjetivo,
       pctPedidosPagadosObjetivo: existing.pctPedidosPagadosObjetivo,
+      pctCobranzaObjetivo: existing.pctCobranzaObjetivo,
     },
     newValues: {
       clientesNuevosObjetivo: updated!.clientesNuevosObjetivo,
@@ -232,6 +244,7 @@ export async function updateMetaFutura(
       conversionLeadsObjetivo: updated!.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: updated!.pctClientesConPedidoObjetivo,
       pctPedidosPagadosObjetivo: updated!.pctPedidosPagadosObjetivo,
+      pctCobranzaObjetivo: updated!.pctCobranzaObjetivo,
     },
   })
 
@@ -299,6 +312,7 @@ export async function duplicarMetasMesAnterior(
           conversionLeadsObjetivo: m.conversionLeadsObjetivo,
           pctClientesConPedidoObjetivo: m.pctClientesConPedidoObjetivo,
           pctPedidosPagadosObjetivo: m.pctPedidosPagadosObjetivo,
+          pctCobranzaObjetivo: m.pctCobranzaObjetivo,
           creadoPor: adminId,
         })),
       )
@@ -320,6 +334,7 @@ export async function duplicarMetasMesAnterior(
             conversionLeadsObjetivo: meta.conversionLeadsObjetivo,
             pctClientesConPedidoObjetivo: meta.pctClientesConPedidoObjetivo,
             pctPedidosPagadosObjetivo: meta.pctPedidosPagadosObjetivo,
+            pctCobranzaObjetivo: meta.pctCobranzaObjetivo,
           },
         })),
       )

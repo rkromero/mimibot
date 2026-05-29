@@ -15,13 +15,14 @@ type User = Session['user']
 type MetricaAvance = { alcanzado: number; pct: number; proyeccion: number; estado: 'en_curso' | 'cumplida' | 'no_cumplida' }
 type MetricaCobertura = { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: 'en_curso' | 'cumplida' | 'no_cumplida' | 'na' }
 type MetaAvance = {
-  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string; pctPedidosPagadosObjetivo: string }
+  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string; pctPedidosPagadosObjetivo: string; pctCobranzaObjetivo: string }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
   pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 type AgentUser = { id: string; name: string | null; email: string; role: string; avatarColor: string; isActive: boolean }
 type Territorio = { id: string; nombre: string; sinAgente: boolean; agente: { id: string } | null }
@@ -97,7 +98,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
   const dayOfMonth = now.getDate()
   const bajoProgreso = isCurrentPeriod && dayOfMonth > 15
     ? (avances ?? []).filter((a) =>
-        ['clientesNuevos', 'pedidos', 'montoCobrado', 'conversionLeads'].some(
+        ['clientesNuevos', 'pedidos', 'conversionLeads'].some(
           (k) => (a[k as keyof MetaAvance] as MetricaAvance).pct < 50 &&
                  (a[k as keyof MetaAvance] as MetricaAvance).estado === 'en_curso',
         ),

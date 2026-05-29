@@ -1,7 +1,7 @@
 import { db } from '@/db'
 import { clientes, pedidos, movimientosCC, metas } from '@/db/schema'
 import { eq, and, gte, lt, isNull, sum, count, inArray, or } from 'drizzle-orm'
-import { pctClientesConPedidoDelPeriodo } from './avance.service'
+import { pctClientesConPedidoDelPeriodo, pctCobranzaDelPeriodo } from './avance.service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export type ProgresoVendedor = {
   meta: { id: string; periodoAnio: number; periodoMes: number } | null
   clientesNuevos: MetricaVendedor | null
   coberturaCartera: MetricaCartera | null
-  cobranza: MetricaVendedor | null
+  cobranza: MetricaCartera | null
   pedidosImpagos: PedidoImpagoCliente[]
 }
 
@@ -218,12 +218,12 @@ export async function calcularProgresoVendedor(
   const [
     alcanzadoClientesNuevos,
     alcanzadoCoberturaRaw,
-    alcanzadoCobranza,
+    alcanzadoPctCobranza,
     impagos,
   ] = await Promise.all([
     clientesNuevosConPrimerPedido(vendedorId, anio, mes),
     pctClientesConPedidoDelPeriodo(vendedorId, anio, mes),
-    montoCobradoDelPeriodo(vendedorId, anio, mes),
+    pctCobranzaDelPeriodo(vendedorId, anio, mes),
     pedidosImpagosDeMes(vendedorId, anio, mes),
   ])
 
@@ -239,17 +239,11 @@ export async function calcularProgresoVendedor(
 
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
   const objetivoCobertura = parseFloat(meta.pctClientesConPedidoObjetivo)
-  const objetivoCobranza = parseFloat(meta.montoCobradoObjetivo)
+  const objetivoPctCobranza = parseFloat(meta.pctCobranzaObjetivo)
 
   const { pct: pctCN, estado: estadoCN, proyeccion: proyCN } = calcularEstado(
     alcanzadoClientesNuevos,
     objetivoClientesNuevos,
-    anio,
-    mes,
-  )
-  const { pct: pctCob, estado: estadoCob, proyeccion: proyCob } = calcularEstado(
-    alcanzadoCobranza,
-    objetivoCobranza,
     anio,
     mes,
   )
@@ -263,6 +257,15 @@ export async function calcularProgresoVendedor(
           ...calcularEstado(alcanzadoCoberturaRaw, objetivoCobertura, anio, mes),
         }
 
+  const cobranza: MetricaCartera =
+    alcanzadoPctCobranza === null
+      ? { alcanzado: null, objetivo: objetivoPctCobranza, pct: null, proyeccion: null, estado: 'na' }
+      : {
+          alcanzado: alcanzadoPctCobranza,
+          objetivo: objetivoPctCobranza,
+          ...calcularEstado(alcanzadoPctCobranza, objetivoPctCobranza, anio, mes),
+        }
+
   return {
     meta: { id: meta.id, periodoAnio: meta.periodoAnio, periodoMes: meta.periodoMes },
     clientesNuevos: {
@@ -273,13 +276,7 @@ export async function calcularProgresoVendedor(
       estado: estadoCN,
     },
     coberturaCartera,
-    cobranza: {
-      alcanzado: alcanzadoCobranza,
-      objetivo: objetivoCobranza,
-      pct: pctCob,
-      proyeccion: proyCob,
-      estado: estadoCob,
-    },
+    cobranza,
     pedidosImpagos: impagos,
   }
 }

@@ -62,29 +62,29 @@ function countCumplidas(avance: MetaAvance, role?: string): { cumplidas: number;
       total++
       if (avance.pctPedidosPagados.estado === 'cumplida') cumplidas++
     }
+    if (avance.pctCobranza.estado !== 'na') {
+      total++
+      if (avance.pctCobranza.estado === 'cumplida') cumplidas++
+    }
     return { cumplidas, total }
   }
   const kpis = [
     avance.clientesNuevos.estado,
     avance.pedidos.estado,
-    avance.montoCobrado.estado,
     avance.conversionLeads.estado,
   ]
   let cumplidas = kpis.filter((e) => e === 'cumplida').length
-  let total = 4
+  let total = 3
   if (avance.pctClientesConPedido.estado !== 'na') {
-    total = 5
+    total++
     if (avance.pctClientesConPedido.estado === 'cumplida') cumplidas++
+  }
+  if (avance.pctCobranza.estado !== 'na') {
+    total++
+    if (avance.pctCobranza.estado === 'cumplida') cumplidas++
   }
   return { cumplidas, total }
 }
-
-const fmtARS = (v: number) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(v)
 
 export default function HistoricoTable({ role }: Props) {
   const [entries, setEntries] = useState<MonthEntry[]>([])
@@ -273,9 +273,24 @@ export default function HistoricoTable({ role }: Props) {
                             : `${avance.pctPedidosPagados.alcanzado}%/${meta.pctPedidosPagadosObjetivo}%`}
                         </span>
                       </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">% Cobranza</span>
+                        <span
+                          className={cn(
+                            'tabular-nums font-medium',
+                            avance.pctCobranza.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctCobranza.estado),
+                          )}
+                        >
+                          {avance.pctCobranza.estado === 'na'
+                            ? '—'
+                            : `${avance.pctCobranza.alcanzado}%/${meta.pctCobranzaObjetivo}%`}
+                        </span>
+                      </div>
                     </div>
                   ) : (
-                    /* Vendedor KPIs: C.Nuevos, Pedidos, Conversión, Cobertura + Monto cobrado */
+                    /* Vendedor KPIs: C.Nuevos, Pedidos, Conversión, Cobertura, % Cobranza */
                     <>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
                         <div className="flex justify-between gap-1">
@@ -313,11 +328,20 @@ export default function HistoricoTable({ role }: Props) {
                         </div>
                       </div>
 
-                      {/* Monto cobrado — full width row */}
+                      {/* % Cobranza — full width row */}
                       <div className="flex justify-between text-xs border-t border-border pt-2">
-                        <span className="text-muted-foreground">Monto cobrado</span>
-                        <span className={cn('tabular-nums font-medium', cellClass(avance.montoCobrado.estado))}>
-                          {fmtARS(avance.montoCobrado.alcanzado)}
+                        <span className="text-muted-foreground">% Cobranza</span>
+                        <span
+                          className={cn(
+                            'tabular-nums font-medium',
+                            avance.pctCobranza.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctCobranza.estado),
+                          )}
+                        >
+                          {avance.pctCobranza.estado === 'na'
+                            ? '—'
+                            : `${avance.pctCobranza.alcanzado}%/${meta.pctCobranzaObjetivo}%`}
                         </span>
                       </div>
                     </>
@@ -342,16 +366,14 @@ export default function HistoricoTable({ role }: Props) {
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Mes</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">C.Nuevos</th>
                     {!isAgent && (
-                      <>
-                        <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
-                        <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Monto</th>
-                      </>
+                      <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
                     )}
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Conversión</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Cobertura</th>
                     {isAgent && (
                       <th className="px-2 py-2 text-center font-semibold text-muted-foreground">% Ped.Pagados</th>
                     )}
+                    <th className="px-2 py-2 text-center font-semibold text-muted-foreground">% Cobranza</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Resultado</th>
                   </tr>
                 </thead>
@@ -363,7 +385,7 @@ export default function HistoricoTable({ role }: Props) {
                       isCurrent ? 'bg-primary/5' : 'hover:bg-muted/20 transition-colors',
                     )
                     // Mes col + data cols + Resultado col
-                    const dataColSpan = isAgent ? 5 : 6
+                    const dataColSpan = 6
 
                     if (error) {
                       return (
@@ -405,15 +427,10 @@ export default function HistoricoTable({ role }: Props) {
                           <span className="ml-1 text-[10px] opacity-70">({avance.clientesNuevos.pct}%)</span>
                         </td>
                         {!isAgent && (
-                          <>
-                            <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.pedidos.estado))}>
-                              {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
-                              <span className="ml-1 text-[10px] opacity-70">({avance.pedidos.pct}%)</span>
-                            </td>
-                            <td className={cn('px-2 py-2 text-center tabular-nums whitespace-nowrap', cellClass(avance.montoCobrado.estado))}>
-                              {fmtARS(avance.montoCobrado.alcanzado)}
-                            </td>
-                          </>
+                          <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.pedidos.estado))}>
+                            {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
+                            <span className="ml-1 text-[10px] opacity-70">({avance.pedidos.pct}%)</span>
+                          </td>
                         )}
                         <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.conversionLeads.estado))}>
                           {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
@@ -444,6 +461,18 @@ export default function HistoricoTable({ role }: Props) {
                               : `${avance.pctPedidosPagados.alcanzado}%/${meta.pctPedidosPagadosObjetivo}%`}
                           </td>
                         )}
+                        <td
+                          className={cn(
+                            'px-2 py-2 text-center tabular-nums',
+                            avance.pctCobranza.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctCobranza.estado),
+                          )}
+                        >
+                          {avance.pctCobranza.estado === 'na'
+                            ? '—'
+                            : `${avance.pctCobranza.alcanzado}%/${meta.pctCobranzaObjetivo}%`}
+                        </td>
                         <td className="px-2 py-2 text-center">
                           <span
                             className={cn(

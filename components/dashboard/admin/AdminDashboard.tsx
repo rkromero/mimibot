@@ -41,6 +41,7 @@ interface MetaAvance {
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
     pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
@@ -48,6 +49,7 @@ interface MetaAvance {
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
   pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 
 interface User {

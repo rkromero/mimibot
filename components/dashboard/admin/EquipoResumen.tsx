@@ -29,6 +29,7 @@ interface MetaAvance {
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
     pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
@@ -36,6 +37,7 @@ interface MetaAvance {
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
   pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 
 interface User {
@@ -51,13 +53,6 @@ interface EquipoResumenProps {
   avances: MetaAvance[]
   users: User[]
 }
-
-const formatARS = (v: number) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(v)
 
 interface KpiCardProps {
   label: string
@@ -99,9 +94,13 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
   const totalPedidos = hasVendedores
     ? vendedorAvances.reduce((acc, a) => acc + a.pedidos.alcanzado, 0)
     : 0
-  const totalMontoCobrado = hasVendedores
-    ? vendedorAvances.reduce((acc, a) => acc + a.montoCobrado.alcanzado, 0)
-    : 0
+
+  const cobranzaConDatos = avances.filter((a) => a.pctCobranza.estado !== 'na')
+  const avgPctCobranza =
+    cobranzaConDatos.length > 0
+      ? cobranzaConDatos.reduce((acc, a) => acc + (a.pctCobranza.alcanzado ?? 0), 0) /
+        cobranzaConDatos.length
+      : null
 
   const agentesConPct = agentAvances.filter((a) => a.pctPedidosPagados.estado !== 'na')
   const avgPctPedidosPagados =
@@ -116,15 +115,16 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
         <KpiCard label="Total Clientes Nuevos" value={String(totalClientesNuevos)} />
       </div>
       {hasVendedores && (
-        <>
-          <div className="flex-1 min-w-[140px]">
-            <KpiCard label="Total Pedidos" value={String(totalPedidos)} />
-          </div>
-          <div className="flex-1 min-w-[140px]">
-            <KpiCard label="Total Monto Cobrado" value={formatARS(totalMontoCobrado)} />
-          </div>
-        </>
+        <div className="flex-1 min-w-[140px]">
+          <KpiCard label="Total Pedidos" value={String(totalPedidos)} />
+        </div>
       )}
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard
+          label="% Cobranza promedio"
+          value={avgPctCobranza !== null ? `${Number(avgPctCobranza.toFixed(1))}%` : '—'}
+        />
+      </div>
       <div className="flex-1 min-w-[140px]">
         <KpiCard label="Conversión Promedio" value={`${Number(avgConversion.toFixed(1))}%`} />
       </div>

@@ -32,6 +32,7 @@ interface MetaAvance {
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
     pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
@@ -39,6 +40,7 @@ interface MetaAvance {
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
   pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 
 interface VendedorModalProps {
@@ -53,13 +55,6 @@ const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
-
-const formatARS = (v: number) =>
-  new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(v)
 
 function estadoBadge(estado: EstadoMeta) {
   if (estado === 'cumplida') {
@@ -256,15 +251,6 @@ export default function VendedorModal({
                     proyeccion={String(avance.pedidos.proyeccion)}
                     estado={avance.pedidos.estado}
                   />
-                  <div className="border-t border-border" />
-                  <MetricRow
-                    label="Monto Cobrado"
-                    alcanzado={formatARS(avance.montoCobrado.alcanzado)}
-                    objetivo={formatARS(parseFloat(avance.meta.montoCobradoObjetivo))}
-                    pct={avance.montoCobrado.pct}
-                    proyeccion={formatARS(avance.montoCobrado.proyeccion)}
-                    estado={avance.montoCobrado.estado}
-                  />
                 </>
               )}
               <div className="border-t border-border" />
@@ -315,6 +301,24 @@ export default function VendedorModal({
                     />
                   )}
                 </>
+              )}
+              <div className="border-t border-border" />
+              {avance.pctCobranza.estado === 'na' ? (
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    % Cobranza
+                  </span>
+                  <p className="text-sm text-muted-foreground">Sin pedidos confirmados</p>
+                </div>
+              ) : (
+                <MetricRow
+                  label="% Cobranza"
+                  alcanzado={`${avance.pctCobranza.alcanzado}%`}
+                  objetivo={`${avance.meta.pctCobranzaObjetivo}%`}
+                  pct={avance.pctCobranza.pct ?? 0}
+                  proyeccion={`${avance.pctCobranza.proyeccion}%`}
+                  estado={avance.pctCobranza.estado as EstadoMeta}
+                />
               )}
             </div>
           )}

@@ -17,6 +17,7 @@ export type MetaRow = {
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
   pctPedidosPagadosObjetivo: string
+  pctCobranzaObjetivo: string
   fechaCreacion: string
   fechaActualizacion: string
 }
@@ -35,12 +36,13 @@ export type MetaFormValuesAgent = {
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
   pctPedidosPagadosObjetivo: string
+  pctCobranzaObjetivo: string
 }
 
 export type MetaFormValuesVendedor = {
   clientesNuevosObjetivo: number
   pctClientesConPedidoObjetivo: string
-  montoCobradoObjetivo: string
+  pctCobranzaObjetivo: string
 }
 
 export type MetaFormValues = MetaFormValuesAgent | MetaFormValuesVendedor
@@ -53,6 +55,7 @@ export function initAgentValues(meta: MetaRow | null): MetaFormValuesAgent {
     conversionLeadsObjetivo: meta?.conversionLeadsObjetivo ?? '0',
     pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
     pctPedidosPagadosObjetivo: meta?.pctPedidosPagadosObjetivo ?? '0',
+    pctCobranzaObjetivo: meta?.pctCobranzaObjetivo ?? '0',
   }
 }
 
@@ -60,7 +63,7 @@ export function initVendedorValues(meta: MetaRow | null): MetaFormValuesVendedor
   return {
     clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
     pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
-    montoCobradoObjetivo: meta?.montoCobradoObjetivo ?? '0',
+    pctCobranzaObjetivo: meta?.pctCobranzaObjetivo ?? '0',
   }
 }
 
@@ -119,13 +122,14 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
     ? (
         vendedorValues.clientesNuevosObjetivo !== vendedorSaved.clientesNuevosObjetivo ||
         vendedorValues.pctClientesConPedidoObjetivo !== vendedorSaved.pctClientesConPedidoObjetivo ||
-        vendedorValues.montoCobradoObjetivo !== vendedorSaved.montoCobradoObjetivo
+        vendedorValues.pctCobranzaObjetivo !== vendedorSaved.pctCobranzaObjetivo
       )
     : (
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
         agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
-        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo
+        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo ||
+        agentValues.pctCobranzaObjetivo !== agentSaved.pctCobranzaObjetivo
       )
 
   function handleAgent(field: keyof MetaFormValuesAgent, raw: string) {
@@ -239,6 +243,17 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         </td>
       )}
 
+      {/* Agent: % Cobranza */}
+      {isVendedor ? <DisabledCell agentCol /> : (
+        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
+          {isLocked
+            ? <span className={ro}>{meta ? fmtPct(meta.pctCobranzaObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctCobranzaObjetivo}
+                onChange={(e) => handleAgent('pctCobranzaObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
       {/* ══ VENDEDOR COLUMNS (cols 6-8) ══ */}
 
       {/* Vendedor: Clientes Nuevos c/PP */}
@@ -263,14 +278,14 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         </td>
       )}
 
-      {/* Vendedor: Cobranza ARS */}
+      {/* Vendedor: % Cobranza */}
       {!isVendedor ? <DisabledCell agentCol={false} /> : (
         <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
           {isLocked
-            ? <span className={ro}>{meta ? fmt(meta.montoCobradoObjetivo) : '—'}</span>
-            : <input type="number" min={0} step="1000" value={vendedorValues.montoCobradoObjetivo}
-                onChange={(e) => handleVendedor('montoCobradoObjetivo', e.target.value)}
-                className={cn(inp, 'min-w-[90px]')} />}
+            ? <span className={ro}>{meta ? fmtPct(meta.pctCobranzaObjetivo) : '—'}</span>
+            : <input type="number" min={0} max={100} step="0.5" value={vendedorValues.pctCobranzaObjetivo}
+                onChange={(e) => handleVendedor('pctCobranzaObjetivo', e.target.value)}
+                className={inp} />}
         </td>
       )}
 

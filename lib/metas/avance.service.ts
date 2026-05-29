@@ -16,6 +16,7 @@ export type MetaAvance = {
   conversionLeads: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   pctClientesConPedido: { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: EstadoMeta }
   pctPedidosPagados: { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: EstadoMeta }
+  pctCobranza: { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: EstadoMeta }
 }
 
 // ─── Period Helpers ───────────────────────────────────────────────────────────
@@ -228,6 +229,47 @@ export async function pctClientesConPedidoDelPeriodo(
   return Math.round((clientesConPedido / denominador) * 100 * 100) / 100
 }
 
+export async function pctCobranzaDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number | null> {
+  const { start, end } = periodoRange(anio, mes)
+
+  const [denominadorResult, numeradorResult] = await Promise.all([
+    db
+      .select({ total: sum(pedidos.total) })
+      .from(pedidos)
+      .where(
+        and(
+          eq(pedidos.vendedorId, vendedorId),
+          eq(pedidos.estado, 'confirmado'),
+          gte(pedidos.fecha, start),
+          lt(pedidos.fecha, end),
+          isNull(pedidos.deletedAt),
+        ),
+      ),
+    db
+      .select({ total: sum(pedidos.montoPagado) })
+      .from(pedidos)
+      .where(
+        and(
+          eq(pedidos.vendedorId, vendedorId),
+          eq(pedidos.estado, 'confirmado'),
+          gte(pedidos.fecha, start),
+          lt(pedidos.fecha, end),
+          isNull(pedidos.deletedAt),
+        ),
+      ),
+  ])
+
+  const den = denominadorResult[0]?.total != null ? parseFloat(denominadorResult[0].total) : 0
+  if (den === 0) return null
+
+  const num = numeradorResult[0]?.total != null ? parseFloat(numeradorResult[0].total) : 0
+  return Math.round((num / den) * 100 * 100) / 100
+}
+
 export async function pctPedidosPagadosDelPeriodo(
   vendedorId: string,
   anio: number,
@@ -283,7 +325,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
 
   const { vendedorId, periodoAnio, periodoMes } = meta
 
-  const [alcanzadoClientesNuevos, alcanzadoPedidos, alcanzadoMonto, alcanzadoConversion, alcanzadoPctClientes, alcanzadoPctPedidosPagados] =
+  const [alcanzadoClientesNuevos, alcanzadoPedidos, alcanzadoMonto, alcanzadoConversion, alcanzadoPctClientes, alcanzadoPctPedidosPagados, alcanzadoPctCobranza] =
     await Promise.all([
       clientesNuevosDelPeriodo(vendedorId, periodoAnio, periodoMes),
       pedidosConfirmadosDelPeriodo(vendedorId, periodoAnio, periodoMes),
@@ -291,6 +333,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       conversionLeadsDelPeriodo(vendedorId, periodoAnio, periodoMes),
       pctClientesConPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes),
       pctPedidosPagadosDelPeriodo(vendedorId, periodoAnio, periodoMes),
+      pctCobranzaDelPeriodo(vendedorId, periodoAnio, periodoMes),
     ])
 
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
@@ -299,6 +342,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
   const objetivoConversion = parseFloat(meta.conversionLeadsObjetivo)
   const objetivoPctClientes = parseFloat(meta.pctClientesConPedidoObjetivo)
   const objetivoPctPedidosPagados = parseFloat(meta.pctPedidosPagadosObjetivo)
+  const objetivoPctCobranza = parseFloat(meta.pctCobranzaObjetivo)
 
   const estadoClientesNuevos = calcularEstadoMeta(
     alcanzadoClientesNuevos,
@@ -339,6 +383,13 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
         ...calcularEstadoMeta(alcanzadoPctPedidosPagados, objetivoPctPedidosPagados, periodoAnio, periodoMes),
       }
 
+  const pctCobranza = alcanzadoPctCobranza === null
+    ? { alcanzado: null, pct: null, proyeccion: null, estado: 'na' as EstadoMeta }
+    : {
+        alcanzado: alcanzadoPctCobranza,
+        ...calcularEstadoMeta(alcanzadoPctCobranza, objetivoPctCobranza, periodoAnio, periodoMes),
+      }
+
   return {
     meta,
     clientesNuevos: {
@@ -367,6 +418,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
     },
     pctClientesConPedido,
     pctPedidosPagados,
+    pctCobranza,
   }
 }
 
