@@ -4,6 +4,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import LeadCard from './LeadCard'
+import ColumnaCerradaStat from './ColumnaCerradaStat'
 import type { PipelineStage, LeadWithContact } from '@/types/db'
 import type { LeadFilters } from '@/lib/validations/lead'
 import { cn } from '@/lib/utils'
@@ -72,9 +73,18 @@ export default function KanbanColumn({ stage, filters, onLeadClick, isTargetColu
         </span>
       </div>
 
-      {/* Cards */}
-      <div className="flex-1 overflow-y-auto py-2 px-2 space-y-1.5 min-h-[4rem]">
-        {query.isLoading ? (
+      {/* Cards — columnas terminales muestran el contador del mes; el resto, los leads */}
+      <div
+        className={cn(
+          'flex-1 min-h-[4rem]',
+          stage.isTerminal
+            ? 'flex items-center justify-center py-4'
+            : 'overflow-y-auto py-2 px-2 space-y-1.5',
+        )}
+      >
+        {stage.isTerminal ? (
+          <ColumnaCerradaStat tipo={stage.isWon ? 'ganado' : 'perdido'} />
+        ) : query.isLoading ? (
           <div className="space-y-1.5">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />

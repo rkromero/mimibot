@@ -86,9 +86,14 @@ export default function KanbanBoard({ stages, user }: Props) {
       })
       if (!res.ok) throw new Error('Error al mover lead')
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
       void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
+      // Si el lead se movió a una columna terminal, refrescar el contador del mes
+      const targetStage = stages.find((s) => s.id === variables.stageId)
+      if (targetStage?.isTerminal) {
+        void queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] })
+      }
     },
     onError: () => {
       // Revert optimistic update on failure
