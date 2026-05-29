@@ -27,16 +27,16 @@ interface MetaAvance {
     periodoAnio: number
     periodoMes: number
     clientesNuevosObjetivo: number
-    pedidosObjetivo: number
-    montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
+    pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
-  pedidos: MetricaAvance
-  montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
+  pctCobranza: MetricaCobertura
 }
 
 interface User {
@@ -89,21 +89,22 @@ function buildAlertas(
 
   if (isCurrentPeriod && dayOfMonth > 15) {
     for (const avance of avances) {
-      const metrics = [
-        { key: 'clientesNuevos', label: 'Clientes Nuevos', data: avance.clientesNuevos },
-        { key: 'pedidos', label: 'Pedidos', data: avance.pedidos },
-        { key: 'montoCobrado', label: 'Monto Cobrado', data: avance.montoCobrado },
-        { key: 'conversionLeads', label: 'Conversión', data: avance.conversionLeads },
-      ] as const
+      const metrics: Array<{ label: string; pct: number | null; estado: string }> = [
+        { label: 'Clientes Nuevos', pct: avance.clientesNuevos.pct, estado: avance.clientesNuevos.estado },
+        { label: 'Conversión', pct: avance.conversionLeads.pct, estado: avance.conversionLeads.estado },
+        { label: '% Pedidos Pagados', pct: avance.pctPedidosPagados.pct, estado: avance.pctPedidosPagados.estado },
+        { label: '% Cobranza', pct: avance.pctCobranza.pct, estado: avance.pctCobranza.estado },
+        { label: '% Cobertura', pct: avance.pctClientesConPedido.pct, estado: avance.pctClientesConPedido.estado },
+      ]
 
       const bajos = metrics.filter(
-        (m) => m.data.pct < 50 && m.data.estado === 'en_curso',
+        (m) => m.pct != null && m.pct < 50 && m.estado === 'en_curso',
       )
 
       if (bajos.length > 0) {
         const user = users.find((u) => u.id === avance.meta.vendedorId)
         const nombre = user?.name ?? user?.email ?? avance.meta.vendedorId
-        const metricasStr = bajos.map((m) => `${m.label} (${m.data.pct}%)`).join(', ')
+        const metricasStr = bajos.map((m) => `${m.label} (${m.pct}%)`).join(', ')
 
         alertas.push({
           id: `bajo-progreso-${avance.meta.vendedorId}`,

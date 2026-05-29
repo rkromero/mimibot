@@ -152,11 +152,11 @@ export default function VendedorModal({
     )
       .then((r) => {
         if (!r.ok) throw new Error('Error al cargar datos del vendedor')
-        return r.json() as Promise<{ data: MetaAvance[] }>
+        return r.json() as Promise<{ data: MetaAvance | null }>
       })
       .then((json) => {
         if (!cancelled) {
-          const entry = json.data?.[0] ?? null
+          const entry = json.data ?? null
           setAvance(entry)
           setLoading(false)
         }
