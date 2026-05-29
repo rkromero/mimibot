@@ -16,7 +16,7 @@ export default function AsignarAgenteModal({ territorioId, onClose, onDone }: Pr
   const { data: usuarios = [] } = useQuery<User[]>({
     queryKey: ['usuarios-agentes'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent')
+      const res = await fetch('/api/users?role=agent,vendedor')
       if (!res.ok) return []
       return (await res.json() as { data: User[] }).data
     },
@@ -52,14 +52,14 @@ export default function AsignarAgenteModal({ territorioId, onClose, onDone }: Pr
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Asignar agente</h3>
+          <h3 className="text-sm font-semibold text-foreground">Asignar agente o vendedor</h3>
           <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X size={16} /></button>
         </div>
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar agente..."
+            placeholder="Buscar agente o vendedor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -67,7 +67,7 @@ export default function AsignarAgenteModal({ territorioId, onClose, onDone }: Pr
         </div>
         <div className="max-h-52 overflow-y-auto space-y-1">
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin agentes disponibles</p>
+            <p className="text-sm text-muted-foreground text-center py-4">Sin agentes o vendedores disponibles</p>
           ) : filtered.map((u) => (
             <button
               key={u.id}

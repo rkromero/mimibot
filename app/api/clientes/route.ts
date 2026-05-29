@@ -154,6 +154,16 @@ export async function POST(req: NextRequest) {
     if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       asignadoA = ctx.userId
     } else if (ctx.role === 'admin' && input.asignadoA) {
+      const assignee = await db.query.users.findFirst({
+        where: eq(users.id, input.asignadoA),
+        columns: { id: true, role: true, isActive: true },
+      })
+      if (!assignee || !assignee.isActive) {
+        return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 400 })
+      }
+      if (assignee.role !== 'agent' && assignee.role !== 'vendedor') {
+        return NextResponse.json({ error: 'Solo se puede asignar a un agente o vendedor' }, { status: 400 })
+      }
       asignadoA = input.asignadoA
     } else if (agenteId) {
       asignadoA = agenteId

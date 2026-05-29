@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { clientes, pedidos, pedidoItems, productos } from '@/db/schema'
+import { clientes, pedidos, pedidoItems, productos, users } from '@/db/schema'
 import { eq, and, count, sum, isNull, desc, max, sql, ne } from 'drizzle-orm'
 import { updateClienteSchema } from '@/lib/validations/clientes'
 import { requireAdmin } from '@/lib/authz'
@@ -181,6 +181,18 @@ export async function PATCH(
     // Only admins can reassign
     if (parsed.data.asignadoA !== undefined) {
       requireAdmin(session.user)
+      if (parsed.data.asignadoA !== null) {
+        const assignee = await db.query.users.findFirst({
+          where: eq(users.id, parsed.data.asignadoA),
+          columns: { id: true, role: true, isActive: true },
+        })
+        if (!assignee || !assignee.isActive) {
+          return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 400 })
+        }
+        if (assignee.role !== 'agent' && assignee.role !== 'vendedor') {
+          return NextResponse.json({ error: 'Solo se puede asignar a un agente o vendedor' }, { status: 400 })
+        }
+      }
       updates.asignadoA = parsed.data.asignadoA
     }
 

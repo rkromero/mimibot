@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { users } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { withAdminAuth } from '@/lib/authz'
@@ -23,13 +23,22 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const role = req.nextUrl.searchParams.get('role')
+    const roleParam = req.nextUrl.searchParams.get('role')
 
+    const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor'] as const
+    type UserRole = typeof VALID_ROLES[number]
     const conditions = [eq(users.isActive, true)]
-    if (role === 'agent') conditions.push(eq(users.role, 'agent'))
-    if (role === 'admin') conditions.push(eq(users.role, 'admin'))
-    if (role === 'gerente') conditions.push(eq(users.role, 'gerente'))
-    if (role === 'vendedor') conditions.push(eq(users.role, 'vendedor'))
+    if (roleParam) {
+      const roles = roleParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter((r): r is UserRole => (VALID_ROLES as readonly string[]).includes(r))
+      if (roles.length === 1) {
+        conditions.push(eq(users.role, roles[0]!))
+      } else if (roles.length > 1) {
+        conditions.push(inArray(users.role, roles))
+      }
+    }
 
     const data = await db
       .select({
