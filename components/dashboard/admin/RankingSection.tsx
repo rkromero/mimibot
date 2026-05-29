@@ -28,12 +28,14 @@ interface MetaAvance {
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
 }
 
 interface User {
@@ -146,6 +148,29 @@ function rankingPorVendedor(
     })
 }
 
+function rankingPctPedidosPagadosPorVendedor(
+  avances: MetaAvance[],
+  users: User[],
+): RankingEntry[] {
+  return [...avances]
+    .filter((a) => {
+      const user = users.find((u) => u.id === a.meta.vendedorId)
+      return user?.role === 'agent' && a.pctPedidosPagados.estado !== 'na'
+    })
+    .sort((a, b) => (b.pctPedidosPagados.alcanzado ?? 0) - (a.pctPedidosPagados.alcanzado ?? 0))
+    .map((a) => {
+      const user = users.find((u) => u.id === a.meta.vendedorId)
+      const displayName = user?.name ?? user?.email ?? a.meta.vendedorId
+      const val = a.pctPedidosPagados.alcanzado ?? 0
+      return {
+        id: a.meta.vendedorId,
+        displayName,
+        value: val,
+        displayValue: `${val}%`,
+      }
+    })
+}
+
 function rankingCoberturaPorVendedor(
   avances: MetaAvance[],
   users: User[],
@@ -206,6 +231,39 @@ function rankingPorGerente(
   return entries.sort((a, b) => b.value - a.value)
 }
 
+function rankingPctPedidosPagadosPorGerente(
+  avances: MetaAvance[],
+  equipos: GerenteEquipo[],
+  users: User[],
+): RankingEntry[] {
+  const avanceByVendedor = new Map(avances.map((a) => [a.meta.vendedorId, a]))
+
+  const entries = equipos.map((eq) => {
+    const agentAvances = eq.agenteIds
+      .map((id) => avanceByVendedor.get(id))
+      .filter((a): a is MetaAvance => {
+        if (!a) return false
+        const user = users.find((u) => u.id === a.meta.vendedorId)
+        return user?.role === 'agent' && a.pctPedidosPagados.estado !== 'na'
+      })
+
+    const value =
+      agentAvances.length > 0
+        ? agentAvances.reduce((sum, a) => sum + (a.pctPedidosPagados.alcanzado ?? 0), 0) /
+          agentAvances.length
+        : 0
+
+    return {
+      id: eq.gerenteId,
+      displayName: eq.gerenteName ?? eq.gerenteEmail,
+      value,
+      displayValue: `${Math.round(value * 100) / 100}%`,
+    }
+  })
+
+  return entries.sort((a, b) => b.value - a.value)
+}
+
 function rankingCoberturaPorGerente(
   avances: MetaAvance[],
   equipos: GerenteEquipo[],
@@ -244,20 +302,29 @@ export default function RankingSection({
   const fmtInt = (v: number) => String(Math.round(v))
   const fmtPct = (v: number) => `${Math.round(v * 100) / 100}%`
 
+  const hasAgents = avances.some((a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'agent')
+  const hasVendedores = avances.some((a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor')
+
+  const vendedorAvances = avances.filter(
+    (a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor',
+  )
+
   const ranks = modo === 'gerente'
     ? {
       clientesNuevos: rankingPorGerente(avances, equipos, 'clientesNuevos', fmtInt),
-      pedidos: rankingPorGerente(avances, equipos, 'pedidos', fmtInt),
-      montoCobrado: rankingPorGerente(avances, equipos, 'montoCobrado', formatARS),
+      pedidos: hasVendedores ? rankingPorGerente(vendedorAvances, equipos, 'pedidos', fmtInt) : [],
+      montoCobrado: hasVendedores ? rankingPorGerente(vendedorAvances, equipos, 'montoCobrado', formatARS) : [],
       conversionLeads: rankingPorGerente(avances, equipos, 'conversionLeads', fmtPct),
       cobertura: rankingCoberturaPorGerente(avances, equipos),
+      pctPedidosPagados: hasAgents ? rankingPctPedidosPagadosPorGerente(avances, equipos, users) : [],
     }
     : {
       clientesNuevos: rankingPorVendedor(avances, users, 'clientesNuevos', fmtInt),
-      pedidos: rankingPorVendedor(avances, users, 'pedidos', fmtInt),
-      montoCobrado: rankingPorVendedor(avances, users, 'montoCobrado', formatARS),
+      pedidos: hasVendedores ? rankingPorVendedor(vendedorAvances, users, 'pedidos', fmtInt) : [],
+      montoCobrado: hasVendedores ? rankingPorVendedor(vendedorAvances, users, 'montoCobrado', formatARS) : [],
       conversionLeads: rankingPorVendedor(avances, users, 'conversionLeads', fmtPct),
       cobertura: rankingCoberturaPorVendedor(avances, users),
+      pctPedidosPagados: hasAgents ? rankingPctPedidosPagadosPorVendedor(avances, users) : [],
     }
 
   return (
@@ -290,12 +357,13 @@ export default function RankingSection({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
         <RankingCard title="Clientes Nuevos" entries={ranks.clientesNuevos} />
-        <RankingCard title="Pedidos" entries={ranks.pedidos} />
-        <RankingCard title="Monto Cobrado" entries={ranks.montoCobrado} />
+        {hasVendedores && <RankingCard title="Pedidos" entries={ranks.pedidos} />}
+        {hasVendedores && <RankingCard title="Monto Cobrado" entries={ranks.montoCobrado} />}
         <RankingCard title="Conversión" entries={ranks.conversionLeads} />
         <RankingCard title="Cobertura" entries={ranks.cobertura} />
+        {hasAgents && <RankingCard title="% Pedidos Pagados" entries={ranks.pctPedidosPagados} />}
       </div>
     </div>
   )

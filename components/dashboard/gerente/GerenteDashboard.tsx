@@ -15,12 +15,13 @@ type User = Session['user']
 type MetricaAvance = { alcanzado: number; pct: number; proyeccion: number; estado: 'en_curso' | 'cumplida' | 'no_cumplida' }
 type MetricaCobertura = { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: 'en_curso' | 'cumplida' | 'no_cumplida' | 'na' }
 type MetaAvance = {
-  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string }
+  meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string; pctPedidosPagadosObjetivo: string }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
 }
 type AgentUser = { id: string; name: string | null; email: string; role: string; avatarColor: string; isActive: boolean }
 type Territorio = { id: string; nombre: string; sinAgente: boolean; agente: { id: string } | null }
@@ -191,7 +192,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
             </div>
           ) : (
             <>
-              <EquipoResumen avances={avances} />
+              <EquipoResumen avances={avances} users={visibleAgentes as Parameters<typeof EquipoResumen>[0]['users']} />
               <RankingSection avances={avances} users={visibleAgentes as Parameters<typeof RankingSection>[0]['users']} />
               <VendedoresGrid
                 avances={avances}

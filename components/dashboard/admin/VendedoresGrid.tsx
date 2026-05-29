@@ -28,12 +28,14 @@ interface MetaAvance {
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
 }
 
 interface User {
@@ -106,7 +108,7 @@ export default function VendedoresGrid({
   users,
   onSelectVendedor,
 }: VendedoresGridProps) {
-  const agents = users.filter((u) => u.role === 'agent' || u.role === 'vendedor')
+  const allSellers = users.filter((u) => u.role === 'agent' || u.role === 'vendedor')
   const avanceMap = new Map(avances.map((a) => [a.meta.vendedorId, a]))
 
   const vendedoresConMeta = avances.map((a) => {
@@ -114,9 +116,43 @@ export default function VendedoresGrid({
     return { avance: a, user }
   })
 
-  const vendedoresSinMeta = agents.filter((u) => !avanceMap.has(u.id))
+  const vendedoresSinMeta = allSellers.filter((u) => !avanceMap.has(u.id))
 
-  const proyeccionGeneral = (a: MetaAvance): number => {
+  const hasAgents = avances.some(
+    (a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'agent',
+  )
+  const hasVendedores = avances.some(
+    (a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor',
+  )
+
+  // Data cols after "Vendedor" name: C.Nuevos + [Pedidos+Monto if vendedores] + Conv.Leads + Cobertura + [%PedPag if agents] + Proyección
+  const sinMetaColSpan =
+    1 + (hasVendedores ? 2 : 0) + 1 + 1 + (hasAgents ? 1 : 0) + 1
+
+  const proyeccionGeneral = (a: MetaAvance, role: string): number => {
+    if (role === 'agent') {
+      const values: { v: number; obj: number }[] = [
+        { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
+        { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
+      ]
+      if (a.pctClientesConPedido.estado !== 'na') {
+        values.push({
+          v: a.pctClientesConPedido.proyeccion ?? 0,
+          obj: parseFloat(a.meta.pctClientesConPedidoObjetivo),
+        })
+      }
+      if (a.pctPedidosPagados.estado !== 'na') {
+        values.push({
+          v: a.pctPedidosPagados.proyeccion ?? 0,
+          obj: parseFloat(a.meta.pctPedidosPagadosObjetivo),
+        })
+      }
+      const pcts = values.map(({ v, obj }) =>
+        obj > 0 ? Math.min(Math.round((v / obj) * 100), 999) : 100,
+      )
+      return Math.min(Math.round(pcts.reduce((s, p) => s + p, 0) / pcts.length), 999)
+    }
+    // Vendedor
     const values: { v: number; obj: number }[] = [
       { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
       { v: a.pedidos.proyeccion, obj: a.meta.pedidosObjetivo },
@@ -146,18 +182,27 @@ export default function VendedoresGrid({
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Clientes Nuevos
             </th>
-            <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-              Pedidos
-            </th>
-            <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-              Monto Cobrado
-            </th>
+            {hasVendedores && (
+              <>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                  Pedidos
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                  Monto Cobrado
+                </th>
+              </>
+            )}
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Conv. Leads
             </th>
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Cobertura
             </th>
+            {hasAgents && (
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                % Ped. Pagados
+              </th>
+            )}
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Proyección General
             </th>
@@ -165,9 +210,10 @@ export default function VendedoresGrid({
         </thead>
         <tbody className="divide-y divide-border">
           {vendedoresConMeta.map(({ avance, user }) => {
-            const nombre =
-              user?.name ?? user?.email ?? avance.meta.vendedorId
-            const proy = proyeccionGeneral(avance)
+            const nombre = user?.name ?? user?.email ?? avance.meta.vendedorId
+            const role = user?.role ?? 'vendedor'
+            const isAgent = role === 'agent'
+            const proy = proyeccionGeneral(avance, role)
 
             return (
               <tr
@@ -186,24 +232,34 @@ export default function VendedoresGrid({
                     estado={avance.clientesNuevos.estado}
                   />
                 </td>
-                <td className="px-4 py-3">
-                  <MetricCell
-                    alcanzado={String(avance.pedidos.alcanzado)}
-                    objetivo={String(avance.meta.pedidosObjetivo)}
-                    pct={avance.pedidos.pct}
-                    estado={avance.pedidos.estado}
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <MetricCell
-                    alcanzado={formatARS(avance.montoCobrado.alcanzado)}
-                    objetivo={formatARS(
-                      parseFloat(avance.meta.montoCobradoObjetivo),
-                    )}
-                    pct={avance.montoCobrado.pct}
-                    estado={avance.montoCobrado.estado}
-                  />
-                </td>
+                {hasVendedores && (
+                  <>
+                    <td className="px-4 py-3">
+                      {isAgent ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <MetricCell
+                          alcanzado={String(avance.pedidos.alcanzado)}
+                          objetivo={String(avance.meta.pedidosObjetivo)}
+                          pct={avance.pedidos.pct}
+                          estado={avance.pedidos.estado}
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isAgent ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <MetricCell
+                          alcanzado={formatARS(avance.montoCobrado.alcanzado)}
+                          objetivo={formatARS(parseFloat(avance.meta.montoCobradoObjetivo))}
+                          pct={avance.montoCobrado.pct}
+                          estado={avance.montoCobrado.estado}
+                        />
+                      )}
+                    </td>
+                  </>
+                )}
                 <td className="px-4 py-3">
                   <MetricCell
                     alcanzado={`${avance.conversionLeads.alcanzado}%`}
@@ -224,6 +280,22 @@ export default function VendedoresGrid({
                     />
                   )}
                 </td>
+                {hasAgents && (
+                  <td className="px-4 py-3">
+                    {!isAgent ? (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    ) : avance.pctPedidosPagados.estado === 'na' ? (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    ) : (
+                      <MetricCell
+                        alcanzado={`${avance.pctPedidosPagados.alcanzado}%`}
+                        objetivo={`${avance.meta.pctPedidosPagadosObjetivo}%`}
+                        pct={avance.pctPedidosPagados.pct ?? 0}
+                        estado={avance.pctPedidosPagados.estado as EstadoMeta}
+                      />
+                    )}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-0.5 min-w-[80px]">
                     <span
@@ -261,7 +333,7 @@ export default function VendedoresGrid({
                 {user.name ?? user.email}
               </td>
               <td
-                colSpan={6}
+                colSpan={sinMetaColSpan}
                 className="px-4 py-3 text-amber-600 text-xs font-medium"
               >
                 Sin meta para este período

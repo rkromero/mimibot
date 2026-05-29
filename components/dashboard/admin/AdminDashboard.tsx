@@ -40,12 +40,14 @@ interface MetaAvance {
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
 }
 
 interface User {
@@ -208,7 +210,7 @@ export default function AdminDashboard({
             anio={anio}
             mes={mes}
           />
-          <EquipoResumen avances={avances} />
+          <EquipoResumen avances={avances} users={users} />
           <RankingSection
             avances={avances}
             users={users}

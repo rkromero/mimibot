@@ -28,16 +28,28 @@ interface MetaAvance {
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   }
   clientesNuevos: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
+  pctPedidosPagados: MetricaCobertura
+}
+
+interface User {
+  id: string
+  name: string | null
+  email: string
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  avatarColor: string
+  isActive: boolean
 }
 
 interface EquipoResumenProps {
   avances: MetaAvance[]
+  users: User[]
 }
 
 const formatARS = (v: number) =>
@@ -61,55 +73,75 @@ function KpiCard({ label, value }: KpiCardProps) {
   )
 }
 
-export default function EquipoResumen({ avances }: EquipoResumenProps) {
-  const totalClientesNuevos = avances.reduce(
-    (acc, a) => acc + a.clientesNuevos.alcanzado,
-    0,
-  )
-  const totalPedidos = avances.reduce((acc, a) => acc + a.pedidos.alcanzado, 0)
-  const totalMontoCobrado = avances.reduce(
-    (acc, a) => acc + a.montoCobrado.alcanzado,
-    0,
-  )
+export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
+  const getRole = (vendedorId: string) =>
+    users.find((u) => u.id === vendedorId)?.role
+
+  const agentAvances = avances.filter((a) => getRole(a.meta.vendedorId) === 'agent')
+  const vendedorAvances = avances.filter((a) => getRole(a.meta.vendedorId) === 'vendedor')
+  const hasAgents = agentAvances.length > 0
+  const hasVendedores = vendedorAvances.length > 0
+
+  const totalClientesNuevos = avances.reduce((acc, a) => acc + a.clientesNuevos.alcanzado, 0)
+
   const avgConversion =
     avances.length > 0
-      ? avances.reduce((acc, a) => acc + a.conversionLeads.alcanzado, 0) /
-        avances.length
+      ? avances.reduce((acc, a) => acc + a.conversionLeads.alcanzado, 0) / avances.length
       : 0
 
-  const coberturaVendedores = avances.filter(
-    (a) => a.pctClientesConPedido.estado !== 'na',
-  )
+  const coberturaConDatos = avances.filter((a) => a.pctClientesConPedido.estado !== 'na')
   const avgCobertura =
-    coberturaVendedores.length > 0
-      ? coberturaVendedores.reduce(
-          (acc, a) => acc + (a.pctClientesConPedido.alcanzado ?? 0),
-          0,
-        ) / coberturaVendedores.length
+    coberturaConDatos.length > 0
+      ? coberturaConDatos.reduce((acc, a) => acc + (a.pctClientesConPedido.alcanzado ?? 0), 0) /
+        coberturaConDatos.length
+      : null
+
+  const totalPedidos = hasVendedores
+    ? vendedorAvances.reduce((acc, a) => acc + a.pedidos.alcanzado, 0)
+    : 0
+  const totalMontoCobrado = hasVendedores
+    ? vendedorAvances.reduce((acc, a) => acc + a.montoCobrado.alcanzado, 0)
+    : 0
+
+  const agentesConPct = agentAvances.filter((a) => a.pctPedidosPagados.estado !== 'na')
+  const avgPctPedidosPagados =
+    agentesConPct.length > 0
+      ? agentesConPct.reduce((acc, a) => acc + (a.pctPedidosPagados.alcanzado ?? 0), 0) /
+        agentesConPct.length
       : null
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-      <KpiCard
-        label="Total Clientes Nuevos"
-        value={String(totalClientesNuevos)}
-      />
-      <KpiCard
-        label="Total Pedidos"
-        value={String(totalPedidos)}
-      />
-      <KpiCard
-        label="Total Monto Cobrado"
-        value={formatARS(totalMontoCobrado)}
-      />
-      <KpiCard
-        label="Conversión Promedio"
-        value={`${Number(avgConversion.toFixed(1))}%`}
-      />
-      <KpiCard
-        label="Cobertura promedio"
-        value={avgCobertura !== null ? `${Number(avgCobertura.toFixed(1))}%` : '—'}
-      />
+    <div className="flex flex-wrap gap-4">
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard label="Total Clientes Nuevos" value={String(totalClientesNuevos)} />
+      </div>
+      {hasVendedores && (
+        <>
+          <div className="flex-1 min-w-[140px]">
+            <KpiCard label="Total Pedidos" value={String(totalPedidos)} />
+          </div>
+          <div className="flex-1 min-w-[140px]">
+            <KpiCard label="Total Monto Cobrado" value={formatARS(totalMontoCobrado)} />
+          </div>
+        </>
+      )}
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard label="Conversión Promedio" value={`${Number(avgConversion.toFixed(1))}%`} />
+      </div>
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard
+          label="Cobertura promedio"
+          value={avgCobertura !== null ? `${Number(avgCobertura.toFixed(1))}%` : '—'}
+        />
+      </div>
+      {hasAgents && (
+        <div className="flex-1 min-w-[140px]">
+          <KpiCard
+            label="% Pedidos Pagados"
+            value={avgPctPedidosPagados !== null ? `${Number(avgPctPedidosPagados.toFixed(1))}%` : '—'}
+          />
+        </div>
+      )}
     </div>
   )
 }
