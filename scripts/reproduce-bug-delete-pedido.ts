@@ -59,9 +59,9 @@ async function queryCuentaCorriente(clienteId: string) {
     .from(movimientosCC)
     .where(and(eq(movimientosCC.clienteId, clienteId), isNull(movimientosCC.deletedAt)))
 
-  const saldo =
-    parseFloat(saldoRow.totalDebito ?? '0') -
-    parseFloat(saldoRow.totalCredito ?? '0')
+  const totalDebito = saldoRow?.totalDebito ?? '0'
+  const totalCredito = saldoRow?.totalCredito ?? '0'
+  const saldo = parseFloat(totalDebito) - parseFloat(totalCredito)
 
   const movimientos = await db.query.movimientosCC.findMany({
     where: and(eq(movimientosCC.clienteId, clienteId), isNull(movimientosCC.deletedAt)),
@@ -69,7 +69,7 @@ async function queryCuentaCorriente(clienteId: string) {
     orderBy: (m, { asc }) => [asc(m.tipo)],
   })
 
-  return { totalDebito: saldoRow.totalDebito, totalCredito: saldoRow.totalCredito, saldo, movimientos }
+  return { totalDebito, totalCredito, saldo, movimientos }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
