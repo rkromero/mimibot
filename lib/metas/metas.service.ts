@@ -51,6 +51,7 @@ export async function createMeta(
     montoCobradoObjetivo: string
     conversionLeadsObjetivo: string
     pctClientesConPedidoObjetivo: string
+    pctPedidosPagadosObjetivo: string
   },
   adminId: string,
 ): Promise<Meta> {
@@ -66,6 +67,7 @@ export async function createMeta(
         montoCobradoObjetivo: input.montoCobradoObjetivo,
         conversionLeadsObjetivo: input.conversionLeadsObjetivo,
         pctClientesConPedidoObjetivo: input.pctClientesConPedidoObjetivo,
+        pctPedidosPagadosObjetivo: input.pctPedidosPagadosObjetivo,
         creadoPor: adminId,
       })
       .returning()
@@ -82,6 +84,7 @@ export async function createMeta(
         montoCobradoObjetivo: input.montoCobradoObjetivo,
         conversionLeadsObjetivo: input.conversionLeadsObjetivo,
         pctClientesConPedidoObjetivo: input.pctClientesConPedidoObjetivo,
+        pctPedidosPagadosObjetivo: input.pctPedidosPagadosObjetivo,
       },
     })
 
@@ -116,6 +119,7 @@ export async function updateMetaVigente(
       montoCobradoObjetivo: existing.montoCobradoObjetivo,
       conversionLeadsObjetivo: existing.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: existing.pctClientesConPedidoObjetivo,
+      pctPedidosPagadosObjetivo: existing.pctPedidosPagadosObjetivo,
     }
 
     const updatePayload: Partial<typeof metas.$inferInsert> = {
@@ -136,6 +140,9 @@ export async function updateMetaVigente(
     if (input.pctClientesConPedidoObjetivo !== undefined) {
       updatePayload.pctClientesConPedidoObjetivo = input.pctClientesConPedidoObjetivo
     }
+    if (input.pctPedidosPagadosObjetivo !== undefined) {
+      updatePayload.pctPedidosPagadosObjetivo = input.pctPedidosPagadosObjetivo
+    }
 
     const [updated] = await tx
       .update(metas)
@@ -149,6 +156,7 @@ export async function updateMetaVigente(
       montoCobradoObjetivo: updated!.montoCobradoObjetivo,
       conversionLeadsObjetivo: updated!.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: updated!.pctClientesConPedidoObjetivo,
+      pctPedidosPagadosObjetivo: updated!.pctPedidosPagadosObjetivo,
     }
 
     await tx.insert(auditLogMetas).values({
@@ -193,6 +201,9 @@ export async function updateMetaFutura(
   if (input.pctClientesConPedidoObjetivo !== undefined) {
     updatePayload.pctClientesConPedidoObjetivo = input.pctClientesConPedidoObjetivo
   }
+  if (input.pctPedidosPagadosObjetivo !== undefined) {
+    updatePayload.pctPedidosPagadosObjetivo = input.pctPedidosPagadosObjetivo
+  }
 
   const [updated] = await db
     .update(metas)
@@ -212,6 +223,7 @@ export async function updateMetaFutura(
       montoCobradoObjetivo: existing.montoCobradoObjetivo,
       conversionLeadsObjetivo: existing.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: existing.pctClientesConPedidoObjetivo,
+      pctPedidosPagadosObjetivo: existing.pctPedidosPagadosObjetivo,
     },
     newValues: {
       clientesNuevosObjetivo: updated!.clientesNuevosObjetivo,
@@ -219,6 +231,7 @@ export async function updateMetaFutura(
       montoCobradoObjetivo: updated!.montoCobradoObjetivo,
       conversionLeadsObjetivo: updated!.conversionLeadsObjetivo,
       pctClientesConPedidoObjetivo: updated!.pctClientesConPedidoObjetivo,
+      pctPedidosPagadosObjetivo: updated!.pctPedidosPagadosObjetivo,
     },
   })
 
@@ -285,6 +298,7 @@ export async function duplicarMetasMesAnterior(
           montoCobradoObjetivo: m.montoCobradoObjetivo,
           conversionLeadsObjetivo: m.conversionLeadsObjetivo,
           pctClientesConPedidoObjetivo: m.pctClientesConPedidoObjetivo,
+          pctPedidosPagadosObjetivo: m.pctPedidosPagadosObjetivo,
           creadoPor: adminId,
         })),
       )
@@ -305,6 +319,7 @@ export async function duplicarMetasMesAnterior(
             montoCobradoObjetivo: meta.montoCobradoObjetivo,
             conversionLeadsObjetivo: meta.conversionLeadsObjetivo,
             pctClientesConPedidoObjetivo: meta.pctClientesConPedidoObjetivo,
+            pctPedidosPagadosObjetivo: meta.pctPedidosPagadosObjetivo,
           },
         })),
       )
