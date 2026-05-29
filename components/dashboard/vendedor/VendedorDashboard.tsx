@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import MetaCard from './MetaCard'
+import VendedorKpiCards from './VendedorKpiCards'
 import CarteraSection from './CarteraSection'
 import HistoricoTable from './HistoricoTable'
 import type { MetaAvance } from '@/lib/metas/avance.service'
@@ -43,6 +44,8 @@ export default function VendedorDashboard({ user }: Props) {
   const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${currentYear}`
   const firstName = user.name?.split(' ')[0] ?? 'agente'
 
+  const isAgent = user.role === 'agent'
+
   const { data: avance, isLoading, isError } = useQuery<MetaAvance | null>({
     queryKey: ['meta-avance', currentYear, currentMonth],
     queryFn: async () => {
@@ -52,10 +55,38 @@ export default function VendedorDashboard({ user }: Props) {
       return json.data ?? null
     },
     staleTime: 60_000,
+    enabled: isAgent, // skip fetch for vendedor role
   })
 
   const noMeta = !isLoading && (isError || avance === null)
 
+  // ── Vendedor role: 3 KPI cards (Fase 3) ────────────────────────────────────
+  if (user.role === 'vendedor') {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              Hola, {firstName}!
+            </h1>
+            <p className="text-sm text-muted-foreground">{monthLabel}</p>
+          </div>
+        </div>
+
+        {/* 3 vendedor KPI cards (role-specific) */}
+        <VendedorKpiCards userId={user.id} monthLabel={monthLabel} />
+
+        {/* Cartera */}
+        <CarteraSection vendedorId={user.id} />
+
+        {/* Historico */}
+        <HistoricoTable />
+      </div>
+    )
+  }
+
+  // ── Agent role: 5 KPI cards (unchanged) ─────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -87,7 +118,7 @@ export default function VendedorDashboard({ user }: Props) {
         </div>
       )}
 
-      {/* Meta cards */}
+      {/* 5 agent meta cards */}
       {!isLoading && avance && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <MetaCard

@@ -12,21 +12,47 @@ interface MetaCardProps {
   formatValue?: (v: number) => string
   pctMesTranscurrido: number
   naMessage?: string
+  /** When 'semantic': rojo <50, ámbar 50–99, verde ≥100. Default: time-based. */
+  colorMode?: 'semantic' | 'time-based'
+  /** Makes the card clickable (cursor pointer + hover ring). */
+  onClick?: () => void
 }
 
-function getBarColor(pct: number, estado: EstadoMeta, pctMesTranscurrido: number): string {
+function getBarColor(
+  pct: number,
+  estado: EstadoMeta,
+  pctMesTranscurrido: number,
+  colorMode: 'semantic' | 'time-based',
+): string {
   if (estado === 'na') return 'bg-muted'
   if (estado === 'cumplida') return 'bg-green-500'
   if (estado === 'no_cumplida') return 'bg-gray-400'
+  if (colorMode === 'semantic') {
+    if (pct >= 100) return 'bg-green-500'
+    if (pct >= 50) return 'bg-amber-500'
+    return 'bg-red-500'
+  }
+  // time-based (default)
   if (pct >= pctMesTranscurrido) return 'bg-green-500'
   if (pct >= pctMesTranscurrido - 20) return 'bg-amber-500'
   return 'bg-red-500'
 }
 
-function getBorderColor(pct: number, estado: EstadoMeta, pctMesTranscurrido: number): string {
+function getBorderColor(
+  pct: number,
+  estado: EstadoMeta,
+  pctMesTranscurrido: number,
+  colorMode: 'semantic' | 'time-based',
+): string {
   if (estado === 'na') return 'border-l-gray-300 dark:border-l-gray-600'
   if (estado === 'cumplida') return 'border-l-green-500'
   if (estado === 'no_cumplida') return 'border-l-gray-400'
+  if (colorMode === 'semantic') {
+    if (pct >= 100) return 'border-l-green-500'
+    if (pct >= 50) return 'border-l-amber-500'
+    return 'border-l-red-500'
+  }
+  // time-based (default)
   if (pct >= pctMesTranscurrido) return 'border-l-green-500'
   if (pct >= pctMesTranscurrido - 20) return 'border-l-amber-500'
   return 'border-l-red-500'
@@ -67,12 +93,20 @@ export default function MetaCard({
   formatValue,
   pctMesTranscurrido,
   naMessage,
+  colorMode = 'time-based',
+  onClick,
 }: MetaCardProps) {
   const fmt = formatValue ?? ((v: number) => String(v))
-  const borderColor = getBorderColor(pct, estado, pctMesTranscurrido)
+  const borderColor = getBorderColor(pct, estado, pctMesTranscurrido, colorMode)
   const barWidth = Math.min(pct, 100)
-  const barColor = getBarColor(pct, estado, pctMesTranscurrido)
-  const base = `rounded-xl border border-border bg-card shadow-sm border-l-4 ${borderColor} w-full p-4`
+  const barColor = getBarColor(pct, estado, pctMesTranscurrido, colorMode)
+  const clickable = !!onClick
+  const base = [
+    'rounded-xl border border-border bg-card shadow-sm border-l-4',
+    borderColor,
+    'w-full p-4',
+    clickable ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : '',
+  ].join(' ')
 
   /* ── N/A card ── */
   if (estado === 'na') {
@@ -97,7 +131,7 @@ export default function MetaCard({
   }
 
   return (
-    <div className={base}>
+    <div className={base} onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.() } : undefined}>
       {/* ── MOBILE (< sm): horizontal — label+value LEFT | chip+bar RIGHT ── */}
       <div className="flex items-center gap-4 sm:hidden">
         {/* Left: label + big number */}
