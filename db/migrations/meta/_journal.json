@@ -106,6 +106,20 @@
       "when": 1780012800000,
       "tag": "0014_pedido_aprobacion",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1780099200000,
+      "tag": "0015_add_vendedor_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780185600000,
+      "tag": "0016_expreso_entrega",
+      "breakpoints": true
     }
   ]
 }
