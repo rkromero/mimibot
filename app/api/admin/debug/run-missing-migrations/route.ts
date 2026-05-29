@@ -105,6 +105,12 @@ const MIGRATION_0016_STATEMENTS: string[] = [
     ADD COLUMN IF NOT EXISTS "expreso_direccion" text`,
 ]
 
+const MIGRATION_0017_STATEMENTS: string[] = [
+  // Migration 0017: % pedidos pagados objective for agents.
+  `ALTER TABLE "metas"
+    ADD COLUMN IF NOT EXISTS "pct_pedidos_pagados_objetivo" numeric(5, 2) NOT NULL DEFAULT '0'`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -164,6 +170,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0011_whatsapp_config', MIGRATION_0011_STATEMENTS))
     results.push(...await runStatements('0015_add_vendedor_role', MIGRATION_0015_STATEMENTS))
     results.push(...await runStatements('0016_expreso_entrega', MIGRATION_0016_STATEMENTS))
+    results.push(...await runStatements('0017_pct_pedidos_pagados', MIGRATION_0017_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`
@@ -191,6 +198,11 @@ export async function POST(_req: NextRequest) {
       WHERE table_schema = 'public' AND table_name = 'pedidos'
         AND column_name IN ('metodo_entrega','expreso_nombre','expreso_direccion')
     `)
+    const metasPctPedidosCols = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'metas'
+        AND column_name = 'pct_pedidos_pagados_objetivo'
+    `)
 
     const okCount = results.filter((r) => r.status === 'ok').length
     const errCount = results.filter((r) => r.status === 'error').length
@@ -207,6 +219,7 @@ export async function POST(_req: NextRequest) {
       usersTotpColumns: unwrap(userTotpCols),
       clientesExpresoColumns: unwrap(clientesExpresoCols),
       pedidosExpresoColumns: unwrap(pedidosExpresoCols),
+      metasPctPedidosColumn: unwrap(metasPctPedidosCols),
     })
   } catch (err) {
     const { message, status } = toApiError(err)
@@ -217,7 +230,7 @@ export async function POST(_req: NextRequest) {
 // GET returns 405 to nudge users to use POST so this isn't triggered by a prefetch
 export async function GET(_req: NextRequest) {
   return NextResponse.json(
-    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0016.' },
+    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0017.' },
     { status: 405 },
   )
 }
