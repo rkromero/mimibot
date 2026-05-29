@@ -5,6 +5,10 @@ import { History, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MetaAvance, EstadoMeta } from '@/lib/metas/avance.service'
 
+interface Props {
+  role?: string
+}
+
 interface MonthEntry {
   label: string
   anio: number
@@ -45,7 +49,21 @@ function resultBadgeClass(cumplidas: number, total: number): string {
   return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
 }
 
-function countCumplidas(avance: MetaAvance): { cumplidas: number; total: number } {
+function countCumplidas(avance: MetaAvance, role?: string): { cumplidas: number; total: number } {
+  if (role === 'agent') {
+    const kpis = [avance.clientesNuevos.estado, avance.conversionLeads.estado]
+    let cumplidas = kpis.filter((e) => e === 'cumplida').length
+    let total = 2
+    if (avance.pctClientesConPedido.estado !== 'na') {
+      total++
+      if (avance.pctClientesConPedido.estado === 'cumplida') cumplidas++
+    }
+    if (avance.pctPedidosPagados.estado !== 'na') {
+      total++
+      if (avance.pctPedidosPagados.estado === 'cumplida') cumplidas++
+    }
+    return { cumplidas, total }
+  }
   const kpis = [
     avance.clientesNuevos.estado,
     avance.pedidos.estado,
@@ -68,10 +86,12 @@ const fmtARS = (v: number) =>
     maximumFractionDigits: 0,
   }).format(v)
 
-export default function HistoricoTable() {
+export default function HistoricoTable({ role }: Props) {
   const [entries, setEntries] = useState<MonthEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [showSinMeta, setShowSinMeta] = useState(false)
+
+  const isAgent = role === 'agent'
 
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -177,7 +197,7 @@ export default function HistoricoTable() {
                 )
               }
 
-              const { cumplidas, total } = countCumplidas(avance)
+              const { cumplidas, total } = countCumplidas(avance, role)
               const { meta } = avance
 
               return (
@@ -208,50 +228,100 @@ export default function HistoricoTable() {
                     </span>
                   </div>
 
-                  {/* KPIs: 2-column grid */}
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                    <div className="flex justify-between gap-1">
-                      <span className="text-muted-foreground shrink-0">C.Nuevos</span>
-                      <span className={cn('tabular-nums font-medium', cellClass(avance.clientesNuevos.estado))}>
-                        {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
-                      </span>
+                  {isAgent ? (
+                    /* Agent KPIs: C.Nuevos, Conversión, Cobertura, % Ped.Pagados */
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">C.Nuevos</span>
+                        <span className={cn('tabular-nums font-medium', cellClass(avance.clientesNuevos.estado))}>
+                          {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">Conversión</span>
+                        <span className={cn('tabular-nums font-medium', cellClass(avance.conversionLeads.estado))}>
+                          {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">Cobertura</span>
+                        <span
+                          className={cn(
+                            'tabular-nums font-medium',
+                            avance.pctClientesConPedido.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctClientesConPedido.estado),
+                          )}
+                        >
+                          {avance.pctClientesConPedido.estado === 'na'
+                            ? '—'
+                            : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">Ped.Pagados</span>
+                        <span
+                          className={cn(
+                            'tabular-nums font-medium',
+                            avance.pctPedidosPagados.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctPedidosPagados.estado),
+                          )}
+                        >
+                          {avance.pctPedidosPagados.estado === 'na'
+                            ? '—'
+                            : `${avance.pctPedidosPagados.alcanzado}%/${meta.pctPedidosPagadosObjetivo}%`}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between gap-1">
-                      <span className="text-muted-foreground shrink-0">Pedidos</span>
-                      <span className={cn('tabular-nums font-medium', cellClass(avance.pedidos.estado))}>
-                        {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-1">
-                      <span className="text-muted-foreground shrink-0">Conversión</span>
-                      <span className={cn('tabular-nums font-medium', cellClass(avance.conversionLeads.estado))}>
-                        {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-1">
-                      <span className="text-muted-foreground shrink-0">Cobertura</span>
-                      <span
-                        className={cn(
-                          'tabular-nums font-medium',
-                          avance.pctClientesConPedido.estado === 'na'
-                            ? 'text-muted-foreground'
-                            : cellClass(avance.pctClientesConPedido.estado),
-                        )}
-                      >
-                        {avance.pctClientesConPedido.estado === 'na'
-                          ? '—'
-                          : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
-                      </span>
-                    </div>
-                  </div>
+                  ) : (
+                    /* Vendedor KPIs: C.Nuevos, Pedidos, Conversión, Cobertura + Monto cobrado */
+                    <>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                        <div className="flex justify-between gap-1">
+                          <span className="text-muted-foreground shrink-0">C.Nuevos</span>
+                          <span className={cn('tabular-nums font-medium', cellClass(avance.clientesNuevos.estado))}>
+                            {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-1">
+                          <span className="text-muted-foreground shrink-0">Pedidos</span>
+                          <span className={cn('tabular-nums font-medium', cellClass(avance.pedidos.estado))}>
+                            {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-1">
+                          <span className="text-muted-foreground shrink-0">Conversión</span>
+                          <span className={cn('tabular-nums font-medium', cellClass(avance.conversionLeads.estado))}>
+                            {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-1">
+                          <span className="text-muted-foreground shrink-0">Cobertura</span>
+                          <span
+                            className={cn(
+                              'tabular-nums font-medium',
+                              avance.pctClientesConPedido.estado === 'na'
+                                ? 'text-muted-foreground'
+                                : cellClass(avance.pctClientesConPedido.estado),
+                            )}
+                          >
+                            {avance.pctClientesConPedido.estado === 'na'
+                              ? '—'
+                              : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Monto cobrado — full width row */}
-                  <div className="flex justify-between text-xs border-t border-border pt-2">
-                    <span className="text-muted-foreground">Monto cobrado</span>
-                    <span className={cn('tabular-nums font-medium', cellClass(avance.montoCobrado.estado))}>
-                      {fmtARS(avance.montoCobrado.alcanzado)}
-                    </span>
-                  </div>
+                      {/* Monto cobrado — full width row */}
+                      <div className="flex justify-between text-xs border-t border-border pt-2">
+                        <span className="text-muted-foreground">Monto cobrado</span>
+                        <span className={cn('tabular-nums font-medium', cellClass(avance.montoCobrado.estado))}>
+                          {fmtARS(avance.montoCobrado.alcanzado)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}
@@ -271,10 +341,17 @@ export default function HistoricoTable() {
                   <tr className="border-b border-border bg-muted/40">
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Mes</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">C.Nuevos</th>
-                    <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
-                    <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Monto</th>
+                    {!isAgent && (
+                      <>
+                        <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
+                        <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Monto</th>
+                      </>
+                    )}
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Conversión</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Cobertura</th>
+                    {isAgent && (
+                      <th className="px-2 py-2 text-center font-semibold text-muted-foreground">% Ped.Pagados</th>
+                    )}
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Resultado</th>
                   </tr>
                 </thead>
@@ -285,12 +362,14 @@ export default function HistoricoTable() {
                       'border-b border-border last:border-0',
                       isCurrent ? 'bg-primary/5' : 'hover:bg-muted/20 transition-colors',
                     )
+                    // Mes col + data cols + Resultado col
+                    const dataColSpan = isAgent ? 5 : 6
 
                     if (error) {
                       return (
                         <tr key={`${anio}-${mes}`} className={rowBase}>
                           <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">{label}</td>
-                          <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground italic">
+                          <td colSpan={dataColSpan} className="px-2 py-2 text-center text-muted-foreground italic">
                             Error al cargar
                           </td>
                         </tr>
@@ -301,14 +380,14 @@ export default function HistoricoTable() {
                       return (
                         <tr key={`${anio}-${mes}`} className={rowBase}>
                           <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">{label}</td>
-                          <td colSpan={6} className="px-2 py-2 text-center text-muted-foreground italic">
+                          <td colSpan={dataColSpan} className="px-2 py-2 text-center text-muted-foreground italic">
                             Sin meta
                           </td>
                         </tr>
                       )
                     }
 
-                    const { cumplidas, total } = countCumplidas(avance)
+                    const { cumplidas, total } = countCumplidas(avance, role)
                     const { meta } = avance
 
                     return (
@@ -325,13 +404,17 @@ export default function HistoricoTable() {
                           {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
                           <span className="ml-1 text-[10px] opacity-70">({avance.clientesNuevos.pct}%)</span>
                         </td>
-                        <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.pedidos.estado))}>
-                          {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
-                          <span className="ml-1 text-[10px] opacity-70">({avance.pedidos.pct}%)</span>
-                        </td>
-                        <td className={cn('px-2 py-2 text-center tabular-nums whitespace-nowrap', cellClass(avance.montoCobrado.estado))}>
-                          {fmtARS(avance.montoCobrado.alcanzado)}
-                        </td>
+                        {!isAgent && (
+                          <>
+                            <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.pedidos.estado))}>
+                              {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
+                              <span className="ml-1 text-[10px] opacity-70">({avance.pedidos.pct}%)</span>
+                            </td>
+                            <td className={cn('px-2 py-2 text-center tabular-nums whitespace-nowrap', cellClass(avance.montoCobrado.estado))}>
+                              {fmtARS(avance.montoCobrado.alcanzado)}
+                            </td>
+                          </>
+                        )}
                         <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.conversionLeads.estado))}>
                           {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
                         </td>
@@ -347,6 +430,20 @@ export default function HistoricoTable() {
                             ? '—'
                             : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
                         </td>
+                        {isAgent && (
+                          <td
+                            className={cn(
+                              'px-2 py-2 text-center tabular-nums',
+                              avance.pctPedidosPagados.estado === 'na'
+                                ? 'text-muted-foreground'
+                                : cellClass(avance.pctPedidosPagados.estado),
+                            )}
+                          >
+                            {avance.pctPedidosPagados.estado === 'na'
+                              ? '—'
+                              : `${avance.pctPedidosPagados.alcanzado}%/${meta.pctPedidosPagadosObjetivo}%`}
+                          </td>
+                        )}
                         <td className="px-2 py-2 text-center">
                           <span
                             className={cn(

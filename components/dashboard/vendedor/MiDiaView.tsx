@@ -98,7 +98,9 @@ function Skeleton() {
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export default function MiDiaView({ user: _user }: Props) {
+export default function MiDiaView({ user }: Props) {
+  const isAgent = user.role === 'agent'
+
   const { data, isLoading } = useQuery<HoyData | null>({
     queryKey: ['dashboard-hoy'],
     queryFn: async () => {
@@ -124,7 +126,7 @@ export default function MiDiaView({ user: _user }: Props) {
                 <h1 className="text-xl font-bold text-foreground">
                   Hola, {data?.nombre ?? 'vendedor'}!
                 </h1>
-                {data?.meta ? (
+                {!isAgent && data?.meta ? (
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-muted-foreground">
                       Pedidos: {data.meta.pedidosAlcanzados}/{data.meta.pedidosObjetivo}
@@ -143,9 +145,9 @@ export default function MiDiaView({ user: _user }: Props) {
                       />
                     </div>
                   </div>
-                ) : (
+                ) : !isAgent ? (
                   <p className="text-sm text-muted-foreground mt-1">Sin meta para este mes</p>
-                )}
+                ) : null}
               </div>
             </div>
 

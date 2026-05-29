@@ -81,7 +81,7 @@ export default function VendedorDashboard({ user }: Props) {
         <CarteraSection vendedorId={user.id} />
 
         {/* Historico */}
-        <HistoricoTable />
+        <HistoricoTable role={user.role} />
       </div>
     )
   }
@@ -169,7 +169,7 @@ export default function VendedorDashboard({ user }: Props) {
       <CarteraSection vendedorId={user.id} />
 
       {/* Historico */}
-      <HistoricoTable />
+      <HistoricoTable role={user.role} />
     </div>
   )
 }
