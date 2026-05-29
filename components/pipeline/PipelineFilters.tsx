@@ -17,7 +17,7 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
   const agentsQuery = useQuery({
     queryKey: ['agents'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent')
+      const res = await fetch('/api/users?role=agent,vendedor')
       if (!res.ok) return []
       const json = await res.json() as { data: User[] }
       return json.data
@@ -60,7 +60,7 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
             'focus:outline-none focus:ring-1 focus:ring-ring',
           )}
         >
-          <option value="">Todos los agentes</option>
+          <option value="">Todos los responsables</option>
           {agentsQuery.data?.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name ?? a.email}
