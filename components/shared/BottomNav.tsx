@@ -222,7 +222,7 @@ function FieldNav({ user, onNewPedido }: Props) {
 
           <button
             type="button"
-            onClick={() => signOut()}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             className="flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent min-h-[56px] w-full text-left"
           >
             <LogOut size={20} className="text-red-500 shrink-0" />

@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { loginSchema } from '@/lib/validations/auth'
 import { cn } from '@/lib/utils'
 
 export default function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   // Default to '/' so the middleware redirects the user to their role-based home
   const callbackUrl = searchParams.get('callbackUrl') ?? '/'
@@ -42,7 +41,7 @@ export default function LoginForm() {
         return
       }
 
-      router.replace(callbackUrl)
+      window.location.assign(callbackUrl)
     })
   }
 
