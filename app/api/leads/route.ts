@@ -291,6 +291,11 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
+    const assignedTo =
+      session.user.role === 'agent' || session.user.role === 'vendedor'
+        ? session.user.id
+        : (input.assignedTo ?? null)
+
     let contactId: string
 
     const existingContact = input.contactPhone
@@ -324,7 +329,7 @@ export async function POST(req: NextRequest) {
       .values({
         contactId,
         stageId: input.stageId,
-        assignedTo: input.assignedTo ?? null,
+        assignedTo,
         source: input.source,
         budget: input.budget ?? null,
         productInterest: input.productInterest ?? null,

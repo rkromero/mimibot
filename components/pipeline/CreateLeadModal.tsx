@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSession } from 'next-auth/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PipelineStage, User } from '@/types/db'
 
@@ -15,6 +16,8 @@ type AgentOption = Pick<User, 'id' | 'name' | 'avatarColor'>
 
 export default function CreateLeadModal({ stages, onClose }: Props) {
   const queryClient = useQueryClient()
+  const { data: session } = useSession()
+  const canAssign = session?.user?.role === 'admin' || session?.user?.role === 'gerente'
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -39,6 +42,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
       return json.data
     },
     staleTime: 60_000,
+    enabled: canAssign,
   })
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -141,7 +145,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={canAssign ? 'grid grid-cols-2 gap-3' : ''}>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Etapa *</label>
               <select
@@ -154,19 +158,21 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Asignar a</label>
-              <select
-                value={form.assignedTo}
-                onChange={(e) => set('assignedTo', e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Sin asignar</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
-                ))}
-              </select>
-            </div>
+            {canAssign && (
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Asignar a</label>
+                <select
+                  value={form.assignedTo}
+                  onChange={(e) => set('assignedTo', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Sin asignar</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name ?? a.id}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
