@@ -111,6 +111,7 @@ function FieldNav({ user, onNewPedido }: Props) {
 
   const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
   const inboxActive = pathname.startsWith('/inbox')
+  const dashboardHref = user.role === 'gerente' ? '/admin/dashboard' : '/dashboard'
 
   return (
     <>
@@ -119,10 +120,10 @@ function FieldNav({ user, onNewPedido }: Props) {
 
       {/* Tab: Dashboard */}
       <NavTab
-        href="/dashboard"
+        href={dashboardHref}
         label="Dashboard"
         icon={BarChart3}
-        active={pathname.startsWith('/dashboard')}
+        active={pathname.startsWith(dashboardHref)}
       />
 
       {/* Tab: Inbox (with badge) */}

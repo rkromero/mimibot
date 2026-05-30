@@ -60,8 +60,8 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Análisis',
     items: [
-      { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'gerente', 'vendedor'] },
-      { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin'] },
+      { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'vendedor'] },
+      { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
