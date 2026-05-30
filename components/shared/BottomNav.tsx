@@ -102,7 +102,7 @@ function NavTab({
 // datos ven (filtros aplicados en el backend). Gerente además tendrá selector
 // "Ver por agente" dentro de las listas.
 
-function FieldNav({ user, onNewPedido, onSearchOpen }: Props) {
+function FieldNav({ user, onNewPedido }: Props) {
   const pathname = usePathname()
   const [masOpen, setMasOpen] = useState(false)
   // Activamos el polling de inbox para ambos roles porque ambos pueden tener
@@ -139,16 +139,21 @@ function FieldNav({ user, onNewPedido, onSearchOpen }: Props) {
         <span className="font-medium">Pedido</span>
       </button>
 
-      {/* Tab: Buscar */}
-      <button
-        type="button"
-        onClick={onSearchOpen}
-        aria-label="Buscar"
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] text-muted-foreground min-h-[56px] transition-colors"
-      >
-        <Search size={22} strokeWidth={1.75} />
-        <span className="font-medium">Buscar</span>
-      </button>
+      {/* Tab: Clientes */}
+      <NavTab
+        href="/crm/clientes"
+        label="Clientes"
+        icon={Users}
+        active={pathname.startsWith('/crm/clientes')}
+      />
+
+      {/* Tab: Pipeline */}
+      <NavTab
+        href="/pipeline"
+        label="Pipeline"
+        icon={LayoutGrid}
+        active={pathname.startsWith('/pipeline')}
+      />
 
       {/* Tab: Más */}
       <button

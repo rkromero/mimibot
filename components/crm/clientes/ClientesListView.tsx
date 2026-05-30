@@ -280,7 +280,7 @@ export default function ClientesListView() {
 
       <button
         onClick={() => setShowCreate(true)}
-        className="fixed bottom-[76px] right-4 z-30 flex items-center gap-2 h-14 rounded-full bg-primary text-primary-foreground shadow-lg px-5 md:hidden active:scale-95 transition-transform"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex items-center gap-2 h-14 rounded-full bg-primary text-primary-foreground shadow-lg px-5 md:hidden active:scale-95 transition-transform"
         aria-label="Agregar cliente"
       >
         <Plus size={20} strokeWidth={2} />
