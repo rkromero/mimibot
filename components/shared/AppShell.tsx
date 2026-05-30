@@ -8,6 +8,7 @@ import { signOut } from 'next-auth/react'
 import Sidebar, { filterGroups } from '@/components/shared/Sidebar'
 import BottomNav from '@/components/shared/BottomNav'
 import GlobalSearch from '@/components/shared/GlobalSearch'
+import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import Avatar from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
@@ -23,6 +24,7 @@ type Props = {
 export default function AppShell({ user, children }: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [newPedidoOpen, setNewPedidoOpen] = useState(false)
   const pathname = usePathname()
 
   // Close drawer on route change
@@ -73,7 +75,7 @@ export default function AppShell({ user, children }: Props) {
           </main>
         </div>
 
-        <BottomNav user={user} onSearchOpen={() => setSearchOpen(true)} />
+        <BottomNav user={user} onSearchOpen={() => setSearchOpen(true)} onNewPedido={() => setNewPedidoOpen(true)} />
       </div>
 
       {/* Mobile left drawer */}
@@ -160,6 +162,7 @@ export default function AppShell({ user, children }: Props) {
       )}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {newPedidoOpen && <CreatePedidoModal onClose={() => setNewPedidoOpen(false)} />}
     </>
   )
 }
