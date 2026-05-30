@@ -109,13 +109,21 @@ function FieldNav({ user, onNewPedido }: Props) {
   // mensajes sin leer asignados a ellos.
   const unreadCount = useUnreadCount(user.role === 'agent' || user.role === 'gerente' || user.role === 'vendedor')
 
-  const inicioActive = pathname === '/' || pathname.startsWith('/agent/home') || pathname.startsWith('/dashboard')
+  const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
   const inboxActive = pathname.startsWith('/inbox')
 
   return (
     <>
       {/* Tab: Inicio */}
       <NavTab href="/agent/home" label="Inicio" icon={Home} active={inicioActive} />
+
+      {/* Tab: Dashboard */}
+      <NavTab
+        href="/dashboard"
+        label="Dashboard"
+        icon={BarChart3}
+        active={pathname.startsWith('/dashboard')}
+      />
 
       {/* Tab: Inbox (with badge) */}
       <NavTab href="/inbox" label="Inbox" icon={MessageSquare} active={inboxActive}>
@@ -133,7 +141,7 @@ function FieldNav({ user, onNewPedido }: Props) {
         aria-label="Nuevo pedido"
         className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] text-muted-foreground min-h-[56px]"
       >
-        <span className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg -mt-4">
+        <span className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg -mt-4 ring-4 ring-card">
           <Plus size={24} strokeWidth={2} />
         </span>
         <span className="font-medium">Pedido</span>
