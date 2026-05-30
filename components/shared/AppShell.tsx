@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, LogOut } from 'lucide-react'
+import { signOut } from 'next-auth/react'
 import Sidebar, { filterGroups } from '@/components/shared/Sidebar'
 import BottomNav from '@/components/shared/BottomNav'
 import GlobalSearch from '@/components/shared/GlobalSearch'
+import Avatar from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
@@ -133,6 +135,26 @@ export default function AppShell({ user, children }: Props) {
                 </div>
               ))}
             </nav>
+
+            <div className="border-t border-border p-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Avatar name={user.name ?? user.email} color={user.avatarColor} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user.name ?? 'Sin nombre'}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                </div>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="p-1 text-muted-foreground hover:text-foreground transition-colors duration-100"
+                  title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            </div>
           </aside>
         </>
       )}
