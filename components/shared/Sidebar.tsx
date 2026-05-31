@@ -33,7 +33,7 @@ const ALL_ROLES: Role[] = ['admin', 'gerente', 'agent', 'vendedor']
 //   - Gerente: mismo menú que el agente. Las restricciones de qué datos ve
 //     dentro de cada sección se aplican en el backend (filtros por territorio
 //     y por agente). Sin items de admin (Productos / Stock / Territorios /
-//     Metas / Config / Empresa / Sistema).
+//     Config / Empresa / Sistema). Metas si es visible para gerente.
 //   - Admin: todo.
 //
 // Productos no aparece para agente/gerente porque su único caso de uso es
@@ -62,7 +62,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'vendedor'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
-      { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin'] },
+      { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
   },
