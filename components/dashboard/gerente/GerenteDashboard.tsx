@@ -89,7 +89,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
 
   // Compute gerente-scoped users: only agents visible in avances
   const avanceVendedorIds = new Set(avances?.map((a) => a.meta.vendedorId) ?? [])
-  const visibleAgentes = agentes?.filter((u) => avanceVendedorIds.has(u.id) || true) ?? []
+  const visibleAgentes = agentes ?? []
 
   // Alerts
   const territoriosSinAgente = territorios.filter((t) => t.sinAgente)

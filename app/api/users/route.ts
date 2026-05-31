@@ -10,6 +10,7 @@ import { toApiError } from '@/lib/errors'
 import { sql } from 'drizzle-orm'
 import { stringToColor } from '@/lib/utils'
 import { cachedJson } from '@/lib/api/cache'
+import { getSessionContext } from '@/lib/territorios/context'
 
 const createUserSchema = z.object({
   name: z.string().min(2).max(100),
@@ -23,11 +24,21 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const ctx = await getSessionContext(session.user)
+
     const roleParam = req.nextUrl.searchParams.get('role')
 
     const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor'] as const
     type UserRole = typeof VALID_ROLES[number]
     const conditions = [eq(users.isActive, true)]
+
+    if (ctx.role === 'gerente') {
+      if (ctx.agentesVisibles.length === 0) return NextResponse.json({ data: [] })
+      conditions.push(inArray(users.id, ctx.agentesVisibles))
+    } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+      conditions.push(inArray(users.id, [session.user.id]))
+    }
+
     if (roleParam) {
       const roles = roleParam
         .split(',')
