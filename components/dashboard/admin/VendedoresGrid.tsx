@@ -32,6 +32,7 @@ interface MetaAvance {
     pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
+  clientesPrimerPedido: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
@@ -120,9 +121,9 @@ export default function VendedoresGrid({
     (a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor',
   )
 
-  // Data cols after "Vendedor" name: C.Nuevos + [Pedidos if vendedores] + Conv.Leads + Cobertura + [%PedPag if agents] + %Cobranza + Proyección
+  // Data cols after "Vendedor" name: C.Nuevos + Cl.c/PP + [Pedidos if vendedores] + Conv.Leads + Cobertura + [%PedPag if agents] + %Cobranza + Proyección
   const sinMetaColSpan =
-    1 + (hasVendedores ? 1 : 0) + 1 + 1 + (hasAgents ? 1 : 0) + 1 + 1
+    1 + 1 + (hasVendedores ? 1 : 0) + 1 + 1 + (hasAgents ? 1 : 0) + 1 + 1
 
   const proyeccionGeneral = (a: MetaAvance, role: string): number => {
     if (role === 'agent') {
@@ -182,6 +183,9 @@ export default function VendedoresGrid({
             <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
               Clientes Nuevos
             </th>
+            <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+              Cl. c/PP
+            </th>
             {hasVendedores && (
               <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
                 Pedidos
@@ -229,6 +233,18 @@ export default function VendedoresGrid({
                     pct={avance.clientesNuevos.pct}
                     estado={avance.clientesNuevos.estado}
                   />
+                </td>
+                <td className="px-4 py-3">
+                  {isAgent ? (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  ) : (
+                    <MetricCell
+                      alcanzado={String(avance.clientesPrimerPedido.alcanzado)}
+                      objetivo={String(avance.meta.clientesNuevosObjetivo)}
+                      pct={avance.clientesPrimerPedido.pct}
+                      estado={avance.clientesPrimerPedido.estado}
+                    />
+                  )}
                 </td>
                 {hasVendedores && (
                   <td className="px-4 py-3">

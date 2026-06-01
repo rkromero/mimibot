@@ -11,6 +11,7 @@ type MetaRow = typeof metas.$inferSelect
 export type MetaAvance = {
   meta: MetaRow
   clientesNuevos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
+  clientesPrimerPedido: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   pedidos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   montoCobrado: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   conversionLeads: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
@@ -186,6 +187,57 @@ async function conversionLeadsDelPeriodo(
   return Math.round(((ganados / gestionados) * 100) * 100) / 100
 }
 
+/**
+ * Returns count of unique clients with their FIRST EVER paid order in the period,
+ * attributed to this vendedor. Pure — exported for unit testing.
+ */
+export function countPrimerPedidoClientes(
+  clientesEnPeriodo: string[],
+  clientesConHistorial: Set<string>,
+): number {
+  return clientesEnPeriodo.filter((id) => !clientesConHistorial.has(id)).length
+}
+
+async function clientesPrimerPedidoDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number> {
+  const { start, end } = periodoRange(anio, mes)
+
+  const enPeriodo = await db
+    .select({ clienteId: pedidos.clienteId })
+    .from(pedidos)
+    .where(
+      and(
+        eq(pedidos.vendedorId, vendedorId),
+        eq(pedidos.estadoPago, 'pagado'),
+        gte(pedidos.fecha, start),
+        lt(pedidos.fecha, end),
+        isNull(pedidos.deletedAt),
+      ),
+    )
+
+  if (enPeriodo.length === 0) return 0
+
+  const clientesEnPeriodo = [...new Set(enPeriodo.map((p) => p.clienteId))]
+
+  const anteriores = await db
+    .select({ clienteId: pedidos.clienteId })
+    .from(pedidos)
+    .where(
+      and(
+        inArray(pedidos.clienteId, clientesEnPeriodo),
+        eq(pedidos.estadoPago, 'pagado'),
+        lt(pedidos.fecha, start),
+        isNull(pedidos.deletedAt),
+      ),
+    )
+
+  const conHistorial = new Set(anteriores.map((p) => p.clienteId))
+  return countPrimerPedidoClientes(clientesEnPeriodo, conHistorial)
+}
+
 export async function pctClientesConPedidoDelPeriodo(
   vendedorId: string,
   anio: number,
@@ -336,6 +388,9 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       pctCobranzaDelPeriodo(vendedorId, periodoAnio, periodoMes),
     ])
 
+  // Sequential: keeps existing Promise.all call ordering intact for test stability
+  const alcanzadoPrimerPedido = await clientesPrimerPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes)
+
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
   const objetivoPedidos = meta.pedidosObjetivo
   const objetivoMonto = parseFloat(meta.montoCobradoObjetivo)
@@ -346,6 +401,13 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
 
   const estadoClientesNuevos = calcularEstadoMeta(
     alcanzadoClientesNuevos,
+    objetivoClientesNuevos,
+    periodoAnio,
+    periodoMes,
+  )
+
+  const estadoPrimerPedido = calcularEstadoMeta(
+    alcanzadoPrimerPedido,
     objetivoClientesNuevos,
     periodoAnio,
     periodoMes,
@@ -397,6 +459,12 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       pct: estadoClientesNuevos.pct,
       proyeccion: estadoClientesNuevos.proyeccion,
       estado: estadoClientesNuevos.estado,
+    },
+    clientesPrimerPedido: {
+      alcanzado: alcanzadoPrimerPedido,
+      pct: estadoPrimerPedido.pct,
+      proyeccion: estadoPrimerPedido.proyeccion,
+      estado: estadoPrimerPedido.estado,
     },
     pedidos: {
       alcanzado: alcanzadoPedidos,

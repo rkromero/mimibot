@@ -32,6 +32,7 @@ interface MetaAvance {
     pctCobranzaObjetivo: string
   }
   clientesNuevos: MetricaAvance
+  clientesPrimerPedido: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance

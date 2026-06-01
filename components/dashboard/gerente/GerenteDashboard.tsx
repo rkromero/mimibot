@@ -17,6 +17,7 @@ type MetricaCobertura = { alcanzado: number | null; pct: number | null; proyecci
 type MetaAvance = {
   meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string; pctPedidosPagadosObjetivo: string; pctCobranzaObjetivo: string }
   clientesNuevos: MetricaAvance
+  clientesPrimerPedido: MetricaAvance
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance

@@ -128,6 +128,8 @@ function setupNoClientesStubs() {
     .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #7 pctPedidosPagados num
     .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #8 pctCobranza den
     .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #9 pctCobranza num
+    // Calls #10/#11 skipped (no montoSum / no pctPedidos due to empty clientes)
+    .mockReturnValueOnce(makeSelectResult([]).stub)                // #10 primerPedidoEnPeriodo → [] → returns 0 early
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -232,6 +234,8 @@ describe('GET /api/metas/avance — end-to-end (real avance.service, mocked db)'
     mockSelect.mockReturnValueOnce(makeSelectResult([{ total: '45000.00' }]).stub)
     // #11 pctPedidos → both clients have a pedido
     mockSelect.mockReturnValueOnce(makeSelectResult([{ clienteId: clienteId1 }, { clienteId: clienteId2 }]).stub)
+    // #12 primerPedidoEnPeriodo → [] → returns 0 early (no second query needed)
+    mockSelect.mockReturnValueOnce(makeSelectResult([]).stub)
 
     const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
     const response = await getAvance(req)

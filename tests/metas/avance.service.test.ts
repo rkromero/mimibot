@@ -159,22 +159,26 @@ interface SelectStubs {
   pctCobranzaNum: ReturnType<typeof makeSelectResult>
   montoSum: ReturnType<typeof makeSelectResult>
   pctPedidos: ReturnType<typeof makeSelectResult>
+  primerPedidoEnPeriodo: ReturnType<typeof makeSelectResult>
+  primerPedidoAnteriores: ReturnType<typeof makeSelectResult>
 }
 
 function setupSelectStubs(stubs: SelectStubs) {
   mockSelect
-    .mockReturnValueOnce(stubs.clientesNuevos.stub)        // #0
-    .mockReturnValueOnce(stubs.pedidosCount.stub)           // #1
-    .mockReturnValueOnce(stubs.montoClienteIds.stub)        // #2
-    .mockReturnValueOnce(stubs.leadsGanados.stub)           // #3
-    .mockReturnValueOnce(stubs.leadsGestionados.stub)       // #4
-    .mockReturnValueOnce(stubs.pctClienteIds.stub)          // #5
-    .mockReturnValueOnce(stubs.pctPedidosPagadosDen.stub)   // #6
-    .mockReturnValueOnce(stubs.pctPedidosPagadosNum.stub)   // #7
-    .mockReturnValueOnce(stubs.pctCobranzaDen.stub)         // #8
-    .mockReturnValueOnce(stubs.pctCobranzaNum.stub)         // #9
-    .mockReturnValueOnce(stubs.montoSum.stub)               // #10
-    .mockReturnValueOnce(stubs.pctPedidos.stub)             // #11
+    .mockReturnValueOnce(stubs.clientesNuevos.stub)          // #0
+    .mockReturnValueOnce(stubs.pedidosCount.stub)             // #1
+    .mockReturnValueOnce(stubs.montoClienteIds.stub)          // #2
+    .mockReturnValueOnce(stubs.leadsGanados.stub)             // #3
+    .mockReturnValueOnce(stubs.leadsGestionados.stub)         // #4
+    .mockReturnValueOnce(stubs.pctClienteIds.stub)            // #5
+    .mockReturnValueOnce(stubs.pctPedidosPagadosDen.stub)     // #6
+    .mockReturnValueOnce(stubs.pctPedidosPagadosNum.stub)     // #7
+    .mockReturnValueOnce(stubs.pctCobranzaDen.stub)           // #8
+    .mockReturnValueOnce(stubs.pctCobranzaNum.stub)           // #9
+    .mockReturnValueOnce(stubs.montoSum.stub)                 // #10
+    .mockReturnValueOnce(stubs.pctPedidos.stub)               // #11
+    .mockReturnValueOnce(stubs.primerPedidoEnPeriodo.stub)    // #12 (sequential, after main Promise.all)
+    .mockReturnValueOnce(stubs.primerPedidoAnteriores.stub)   // #13 (only fires when #12 returns non-empty)
 }
 
 function defaultStubs(overrides: Partial<{
@@ -219,6 +223,9 @@ function defaultStubs(overrides: Partial<{
     pctCobranzaNum: makeSelectResult([{ total: o.pctCobranzaNum }]),
     montoSum: makeSelectResult([{ total: o.montoTotal }]),
     pctPedidos: makeSelectResult(o.pctPedidoClienteIds),
+    // Default: empty → clientesPrimerPedidoDelPeriodo returns 0 without a second query
+    primerPedidoEnPeriodo: makeSelectResult([]),
+    primerPedidoAnteriores: makeSelectResult([]),
   }
 }
 
@@ -465,6 +472,7 @@ describe('montoCobradoDelPeriodo', () => {
       .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub)         // #9 pctCobranza num
       // No montoSum call (#10) when clienteIds is empty
       // No pctPedidos call (#11) when pctClienteIds is empty
+      .mockReturnValueOnce(makeSelectResult([]).stub)                        // #10 primerPedidoEnPeriodo → [] → returns 0 early
 
     const result = await calcularAvanceMeta('meta-1')
 
