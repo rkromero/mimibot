@@ -8,6 +8,7 @@ import VendedoresGrid from './VendedoresGrid'
 import RankingSection, { type GerenteEquipo } from './RankingSection'
 import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
+import AdminKPISection from './AdminKPISection'
 
 type Territorio = { id: string; nombre: string }
 type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
@@ -202,6 +203,9 @@ export default function AdminDashboard({
           <div className="h-48 rounded-lg border border-border bg-muted/30 animate-pulse" />
         </div>
       )}
+
+      {/* KPI section: products sold, active portfolio, clients bar chart */}
+      <AdminKPISection anio={anio} mes={mes} />
 
       {/* Content */}
       {!loading && !error && avances !== null && users !== null && (
