@@ -181,8 +181,16 @@ function setupSelectStubs(stubs: SelectStubs) {
     .mockReturnValueOnce(stubs.primerPedidoAnteriores.stub)   // #13 (only fires when #12 returns non-empty)
 }
 
+// Helper: generates rows representing `count` distinct clients each with 3 paid orders.
+// Needed because clientesNuevosDelPeriodo now returns {clienteId}[] rows, not {total: N}.
+function makeNuevosRows(count: number): Array<{ clienteId: string }> {
+  return Array.from({ length: count }, (_, i) =>
+    Array.from({ length: 3 }, () => ({ clienteId: `nuevo-cliente-${i}` })),
+  ).flat()
+}
+
 function defaultStubs(overrides: Partial<{
-  clientesNuevosTotal: number
+  clientesNuevosRows: Array<{ clienteId: string }>
   pedidosTotal: number
   clienteIds: Array<{ id: string }>
   montoTotal: string | null
@@ -196,7 +204,7 @@ function defaultStubs(overrides: Partial<{
   pctCobranzaNum: string | null
 }> = {}): SelectStubs {
   const o = {
-    clientesNuevosTotal: 0,
+    clientesNuevosRows: [] as Array<{ clienteId: string }>,
     pedidosTotal: 0,
     clienteIds: [{ id: 'cliente-1' }],
     montoTotal: null,
@@ -211,7 +219,7 @@ function defaultStubs(overrides: Partial<{
     ...overrides,
   }
   return {
-    clientesNuevos: makeSelectResult([{ total: o.clientesNuevosTotal }]),
+    clientesNuevos: makeSelectResult(o.clientesNuevosRows),
     pedidosCount: makeSelectResult([{ total: o.pedidosTotal }]),
     montoClienteIds: makeSelectResult(o.clienteIds),
     leadsGanados: makeSelectResult([{ total: o.leadsGanados }]),
@@ -301,7 +309,7 @@ describe('calcularEstadoMeta — estado logic', () => {
     vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
 
     mockMetasFindFirst.mockResolvedValue(makeMeta({ clientesNuevosObjetivo: 5 }))
-    setupSelectStubs(defaultStubs({ clientesNuevosTotal: 3 }))
+    setupSelectStubs(defaultStubs({ clientesNuevosRows: makeNuevosRows(3) }))
 
     const result = await calcularAvanceMeta('meta-1')
 
@@ -315,7 +323,7 @@ describe('calcularEstadoMeta — estado logic', () => {
     vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
 
     mockMetasFindFirst.mockResolvedValue(makeMeta({ clientesNuevosObjetivo: 0 }))
-    setupSelectStubs(defaultStubs({ clientesNuevosTotal: 0 }))
+    setupSelectStubs(defaultStubs())
 
     const result = await calcularAvanceMeta('meta-1')
 
@@ -372,18 +380,18 @@ describe('clientesNuevosDelPeriodo', () => {
     vi.useRealTimers()
   })
 
-  it('cuenta clientes con vendedorConversionId del vendedor y fecha dentro del período', async () => {
+  it('cuenta clientes con >= 3 pedidos pagados en el período', async () => {
     mockMetasFindFirst.mockResolvedValue(makeMeta())
-    setupSelectStubs(defaultStubs({ clientesNuevosTotal: 3 }))
+    setupSelectStubs(defaultStubs({ clientesNuevosRows: makeNuevosRows(3) }))
 
     const result = await calcularAvanceMeta('meta-1')
 
     expect(result.clientesNuevos.alcanzado).toBe(3)
   })
 
-  it('retorna 0 cuando no hay clientes nuevos en el período', async () => {
+  it('retorna 0 cuando no hay clientes con >= 3 pedidos pagados en el período', async () => {
     mockMetasFindFirst.mockResolvedValue(makeMeta())
-    setupSelectStubs(defaultStubs({ clientesNuevosTotal: 0 }))
+    setupSelectStubs(defaultStubs())
 
     const result = await calcularAvanceMeta('meta-1')
 

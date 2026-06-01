@@ -65,6 +65,21 @@ function calcularEstadoMeta(
 
 // ─── Individual Metric Calculations ──────────────────────────────────────────
 
+/**
+ * Counts unique clients with >= CLIENTE_NUEVO_THRESHOLD paid orders in the period.
+ * Exported as pure function for unit testing.
+ */
+export function countClientesNuevos(
+  rows: { clienteId: string }[],
+  threshold = 3,
+): number {
+  const cntMap = new Map<string, number>()
+  for (const { clienteId } of rows) {
+    cntMap.set(clienteId, (cntMap.get(clienteId) ?? 0) + 1)
+  }
+  return [...cntMap.values()].filter((n) => n >= threshold).length
+}
+
 async function clientesNuevosDelPeriodo(
   vendedorId: string,
   anio: number,
@@ -72,19 +87,20 @@ async function clientesNuevosDelPeriodo(
 ): Promise<number> {
   const { start, end } = periodoRange(anio, mes)
 
-  const result = await db
-    .select({ total: count() })
-    .from(clientes)
+  const rows = await db
+    .select({ clienteId: pedidos.clienteId })
+    .from(pedidos)
     .where(
       and(
-        eq(clientes.vendedorConversionId, vendedorId),
-        gte(clientes.fechaConversionANuevo, start),
-        lt(clientes.fechaConversionANuevo, end),
-        isNull(clientes.deletedAt),
+        eq(pedidos.vendedorId, vendedorId),
+        eq(pedidos.estadoPago, 'pagado'),
+        gte(pedidos.fecha, start),
+        lt(pedidos.fecha, end),
+        isNull(pedidos.deletedAt),
       ),
     )
 
-  return result[0]?.total ?? 0
+  return countClientesNuevos(rows, 3)
 }
 
 async function pedidosConfirmadosDelPeriodo(
@@ -261,14 +277,14 @@ export async function pctClientesConPedidoDelPeriodo(
 
   const clienteIds = clienteRows.map((c) => c.id)
 
-  // Numerador: distinct clientes con al menos 1 pedido confirmado en el período
+  // Numerador: distinct clientes con al menos 1 pedido PAGADO en el período
   const pedidoRows = await db
     .select({ clienteId: pedidos.clienteId })
     .from(pedidos)
     .where(
       and(
         eq(pedidos.vendedorId, vendedorId),
-        eq(pedidos.estado, 'confirmado'),
+        eq(pedidos.estadoPago, 'pagado'),
         isNull(pedidos.deletedAt),
         gte(pedidos.fecha, start),
         lt(pedidos.fecha, end),
