@@ -6,6 +6,9 @@ export const createClienteSchema = z.object({
   email: z.string().email('Email inválido').optional().nullable(),
   telefono: z.string().max(30).optional().nullable(),
   direccion: z.string().max(500).optional().nullable(),
+  localidad: z.string().max(200).optional().nullable(),
+  provincia: z.string().max(100).optional().nullable(),
+  codigoPostal: z.string().max(10).optional().nullable(),
   cuit: z.string().max(20).optional().nullable(),
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().optional().nullable(),
@@ -19,6 +22,9 @@ export const updateClienteSchema = z.object({
   email: z.string().email('Email inválido').nullable().optional(),
   telefono: z.string().max(30).nullable().optional(),
   direccion: z.string().max(500).nullable().optional(),
+  localidad: z.string().max(200).nullable().optional(),
+  provincia: z.string().max(100).nullable().optional(),
+  codigoPostal: z.string().max(10).nullable().optional(),
   cuit: z.string().max(20).nullable().optional(),
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().nullable().optional(),

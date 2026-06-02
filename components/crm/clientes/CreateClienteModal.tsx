@@ -38,6 +38,9 @@ export default function CreateClienteModal({ onClose }: Props) {
     email: '',
     telefono: '',
     direccion: '',
+    localidad: '',
+    provincia: '',
+    codigoPostal: '',
     cuit: '',
     asignadoA: '',
   })
@@ -82,6 +85,9 @@ export default function CreateClienteModal({ onClose }: Props) {
           email: form.email.trim() || undefined,
           telefono: form.telefono.trim() || undefined,
           direccion: form.direccion.trim() || undefined,
+          localidad: form.localidad.trim() || undefined,
+          provincia: form.provincia || undefined,
+          codigoPostal: form.codigoPostal.trim() || undefined,
           cuit: form.cuit.trim() || undefined,
           asignadoA: form.asignadoA || undefined,
         }),
@@ -176,9 +182,66 @@ export default function CreateClienteModal({ onClose }: Props) {
               <input
                 value={form.direccion}
                 onChange={(e) => set('direccion', e.target.value)}
-                placeholder="Calle 123, Ciudad"
+                placeholder="Calle 123"
                 className={inputClass}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Localidad</label>
+              <input
+                value={form.localidad}
+                onChange={(e) => set('localidad', e.target.value)}
+                placeholder="Ciudad / Localidad"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Provincia</label>
+                <select
+                  value={form.provincia}
+                  onChange={(e) => set('provincia', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Seleccionar provincia</option>
+                  <option>Buenos Aires</option>
+                  <option>CABA</option>
+                  <option>Catamarca</option>
+                  <option>Chaco</option>
+                  <option>Chubut</option>
+                  <option>Córdoba</option>
+                  <option>Corrientes</option>
+                  <option>Entre Ríos</option>
+                  <option>Formosa</option>
+                  <option>Jujuy</option>
+                  <option>La Pampa</option>
+                  <option>La Rioja</option>
+                  <option>Mendoza</option>
+                  <option>Misiones</option>
+                  <option>Neuquén</option>
+                  <option>Río Negro</option>
+                  <option>Salta</option>
+                  <option>San Juan</option>
+                  <option>San Luis</option>
+                  <option>Santa Cruz</option>
+                  <option>Santa Fe</option>
+                  <option>Santiago del Estero</option>
+                  <option>Tierra del Fuego</option>
+                  <option>Tucumán</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Código Postal</label>
+                <input
+                  inputMode="numeric"
+                  value={form.codigoPostal}
+                  onChange={(e) => set('codigoPostal', e.target.value)}
+                  placeholder="1234"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
