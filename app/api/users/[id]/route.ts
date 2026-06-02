@@ -12,7 +12,7 @@ import { validateUuidParam } from '@/lib/api/validate-params'
 const updateUserSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   email: z.string().email().optional(),
-  role: z.enum(['admin', 'agent', 'gerente', 'vendedor']).optional(),
+  role: z.enum(['admin', 'agent', 'gerente', 'vendedor', 'fabrica']).optional(),
   isActive: z.boolean().optional(),
   avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   password: z.string().min(8).max(100).optional(),

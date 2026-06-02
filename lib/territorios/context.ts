@@ -5,7 +5,7 @@ import type { Session } from 'next-auth'
 
 export type SessionContext = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica'
   /** Territorios que gestiona este gerente */
   territoriosGestionados: string[]
   /** Agentes en los territorios del gerente (para scoping de queries) */

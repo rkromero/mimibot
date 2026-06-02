@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getHomeRouteByRole } from '@/lib/auth-utils'
 
-type Props = { role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
+type Props = { role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' }
 
 export default function HomeRedirect({ role }: Props) {
   const router = useRouter()

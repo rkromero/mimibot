@@ -25,7 +25,7 @@ export const createPedidoSchema = z.object({
 
 export const updatePedidoSchema = z.object({
   estado: z
-    .enum(['pendiente', 'pendiente_aprobacion', 'confirmado', 'entregado', 'cancelado'])
+    .enum(['pendiente', 'pendiente_aprobacion', 'confirmado', 'en_reparto', 'entregado', 'cancelado'])
     .optional(),
   observaciones: z.string().max(2000).nullable().optional(),
 })

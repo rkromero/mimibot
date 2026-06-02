@@ -14,6 +14,9 @@ const PUBLIC_PREFIXES = [
 // Routes that require admin or gerente role
 const ADMIN_PREFIXES = ['/admin', '/api/admin']
 
+// Routes exclusively for the fabrica role
+const FABRICA_PREFIXES = ['/fabrica']
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -72,6 +75,20 @@ export async function middleware(req: NextRequest) {
   ) {
     if (role !== 'admin' && role !== 'gerente') {
       return NextResponse.redirect(new URL(homeRoute, req.url))
+    }
+  }
+
+  if (token !== null) {
+    const isFabricaPath = FABRICA_PREFIXES.some((p) => pathname.startsWith(p))
+
+    // Non-fabrica roles cannot access /fabrica routes
+    if (isFabricaPath && role !== 'fabrica') {
+      return NextResponse.redirect(new URL(homeRoute, req.url))
+    }
+
+    // Fabrica role can only access /fabrica routes (not dashboard, pipeline, etc.)
+    if (!isFabricaPath && !pathname.startsWith('/api/') && role === 'fabrica') {
+      return NextResponse.redirect(new URL('/fabrica', req.url))
     }
   }
 

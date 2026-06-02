@@ -5,7 +5,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor'])
+export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica'])
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
@@ -250,7 +250,7 @@ export const botConfig = pgTable('bot_config', {
 // ─── CRM: Enums ───────────────────────────────────────────────────────────────
 
 export const origenClienteEnum = pgEnum('origen_cliente', ['manual', 'convertido_de_lead'])
-export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'pendiente_aprobacion', 'confirmado', 'entregado', 'cancelado'])
+export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'pendiente_aprobacion', 'confirmado', 'en_reparto', 'entregado', 'cancelado'])
 export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'parcial', 'pagado'])
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
