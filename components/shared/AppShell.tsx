@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent' | 'vendedor'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica'
 
 type Props = {
   user: User
@@ -44,7 +44,35 @@ export default function AppShell({ user, children }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const groups = filterGroups(user.role as Role)
+  if (user.role === 'fabrica') {
+    return (
+      <div className="flex flex-col h-screen bg-background overflow-hidden">
+        <header className="h-14 flex items-center px-6 border-b border-border bg-card shrink-0">
+          <span className="text-base font-semibold text-foreground flex-1">
+            Mimi Alfajores — Fábrica
+          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground hidden sm:block">
+              {user.name ?? user.email}
+            </span>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-accent transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut size={15} />
+              Salir
+            </button>
+          </div>
+        </header>
+        <main className="flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    )
+  }
+
+  const groups = filterGroups(user.role as 'admin' | 'gerente' | 'agent' | 'vendedor')
 
   return (
     <>
