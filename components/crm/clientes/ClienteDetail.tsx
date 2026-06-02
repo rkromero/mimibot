@@ -86,6 +86,7 @@ const readValueClass = 'text-sm text-foreground'
 export default function ClienteDetail({ id }: Props) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
+  const canRegisterPago = session?.user?.role === 'admin' || session?.user?.role === 'gerente'
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -552,14 +553,16 @@ export default function ClienteDetail({ id }: Props) {
             </button>
           </div>
 
-          {/* Secondary: Registrar pago */}
-          <button
-            onClick={() => setShowRegistrarPago(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-medium text-foreground bg-card active:bg-accent/70 transition-colors"
-          >
-            <CreditCard size={16} />
-            Registrar pago
-          </button>
+          {/* Secondary: Registrar pago — solo admin/gerente */}
+          {canRegisterPago && (
+            <button
+              onClick={() => setShowRegistrarPago(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-medium text-foreground bg-card active:bg-accent/70 transition-colors"
+            >
+              <CreditCard size={16} />
+              Registrar pago
+            </button>
+          )}
 
           {/* Saldo + ultimo pedido — info "de campo" para el vendedor */}
           {(() => {
@@ -570,8 +573,8 @@ export default function ClienteDetail({ id }: Props) {
             return (
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => hasSaldo && setShowRegistrarPago(true)}
-                  disabled={!hasSaldo}
+                  onClick={() => hasSaldo && canRegisterPago && setShowRegistrarPago(true)}
+                  disabled={!hasSaldo || !canRegisterPago}
                   className={cn(
                     'flex flex-col items-start justify-center gap-0.5 rounded-xl p-3 text-left transition-colors',
                     hasSaldo
@@ -648,13 +651,15 @@ export default function ClienteDetail({ id }: Props) {
                 Eliminar
               </button>
             )}
-            <button
-              onClick={() => setShowRegistrarPago(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
-            >
-              <CreditCard size={14} />
-              Registrar Pago
-            </button>
+            {canRegisterPago && (
+              <button
+                onClick={() => setShowRegistrarPago(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+              >
+                <CreditCard size={14} />
+                Registrar Pago
+              </button>
+            )}
             <button
               onClick={() => setShowCreatePedido(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"

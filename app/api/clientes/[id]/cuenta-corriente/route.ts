@@ -125,6 +125,11 @@ export async function POST(
     })
     if (!cliente) throw new NotFoundError('Cliente')
 
+    const role = session.user.role
+    if (role === 'agent' || role === 'vendedor') {
+      return NextResponse.json({ error: 'No autorizado para registrar pagos' }, { status: 403 })
+    }
+
     const body: unknown = await req.json()
     const parsed = registrarPagoSchema.safeParse(body)
     if (!parsed.success) {
