@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
+    if (ctx.role === 'fabrica') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
     const { page, limit, sortBy, sortDir, search } = parsePagination(
       req.nextUrl.searchParams,
       { sortBy: 'createdAt', sortDir: 'desc' },
@@ -130,6 +134,10 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const ctx = await getSessionContext(session.user)
+
+    if (ctx.role === 'fabrica') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
 
     const body: unknown = await req.json()
     const parsed = createClienteSchema.safeParse(body)

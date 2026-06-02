@@ -32,7 +32,9 @@ export async function GET(req: NextRequest) {
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
     ]
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (ctx.role === 'fabrica') {
+      // Global scope: no territory or vendor filtering
+    } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
@@ -116,6 +118,10 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const ctx = await getSessionContext(session.user)
+
+    if (ctx.role === 'fabrica') {
+      throw new AuthzError('El rol fábrica no puede crear pedidos')
+    }
 
     const body: unknown = await req.json()
     const parsed = createPedidoSchema.safeParse(body)

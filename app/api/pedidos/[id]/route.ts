@@ -23,6 +23,7 @@ async function canAccessPedido(
   if (!pedido) throw new NotFoundError('Pedido')
 
   if (ctx.role === 'admin') return pedido
+  if (ctx.role === 'fabrica') return pedido
 
   // Agente: solo accede al pedido si el cliente sigue asignado a él HOY.
   if (ctx.role === 'agent' || ctx.role === 'vendedor') {
@@ -109,6 +110,11 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const ctx = await getSessionContext(session.user)
+
+    if (ctx.role === 'fabrica') {
+      throw new AuthzError('El rol fábrica no puede editar pedidos. Usá el endpoint de en-reparto.')
+    }
+
     const { id } = await params
     const invalid = validateUuidParam(id)
     if (invalid) return invalid
