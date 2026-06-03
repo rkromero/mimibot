@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
+import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { formatFechaAR } from '@/lib/dates'
@@ -45,6 +46,9 @@ type Pedido = {
   estadoPago: 'impago' | 'parcial' | 'pagado'
   items: PedidoItem[]
   aplicaciones: AplicacionPago[]
+  entregaLat: number | null
+  entregaLng: number | null
+  entregaPrecisionM: number | null
 }
 
 const estadoColors: Record<string, string> = {
@@ -470,6 +474,39 @@ export default function PedidoDetail({ id }: Props) {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Ubicación de la entrega */}
+      {pedido.estado === 'entregado' && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Ubicación de la entrega</h3>
+          {pedido.entregaLat != null && pedido.entregaLng != null ? (
+            <div className="space-y-2">
+              <EntregaUbicacionMap
+                lat={pedido.entregaLat}
+                lng={pedido.entregaLng}
+                precisionM={pedido.entregaPrecisionM}
+              />
+              <div className="flex items-center justify-between text-sm">
+                <a
+                  href={`https://www.google.com/maps?q=${pedido.entregaLat},${pedido.entregaLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Abrir en Google Maps
+                </a>
+                {pedido.entregaPrecisionM != null && (
+                  <span className="text-xs text-muted-foreground">
+                    Precisión: ±{Math.round(pedido.entregaPrecisionM)} m
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin ubicación registrada para esta entrega.</p>
+          )}
         </div>
       )}
     </div>
