@@ -229,7 +229,7 @@ export async function registrarPago(
 export interface RegistrarPagoPedidoInput {
   pedidoId: string
   monto: string
-  metodoPago: 'efectivo' | 'transferencia'
+  metodoPago: 'efectivo' | 'transferencia' | 'mercadopago'
   registradoPor: string
 }
 

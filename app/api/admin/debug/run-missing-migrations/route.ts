@@ -171,6 +171,14 @@ const MIGRATION_0025_STATEMENTS: string[] = [
   `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entrega_precision_m" double precision`,
 ]
 
+const MIGRATION_0026_STATEMENTS: string[] = [
+  // Migration 0026: MercadoPago integration — enum value + preference/payment IDs on pedidos.
+  // ADD VALUE cannot run inside a transaction; IF NOT EXISTS makes it idempotent.
+  `ALTER TYPE "public"."metodo_pago" ADD VALUE IF NOT EXISTS 'mercadopago'`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "mp_preference_id" text`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "mp_payment_id" text`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -239,6 +247,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0023_pago_cobrado_fields', MIGRATION_0023_STATEMENTS))
     results.push(...await runStatements('0024_metodo_pago', MIGRATION_0024_STATEMENTS))
     results.push(...await runStatements('0025_entrega_gps', MIGRATION_0025_STATEMENTS))
+    results.push(...await runStatements('0026_mercadopago', MIGRATION_0026_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`

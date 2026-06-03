@@ -8,6 +8,7 @@ const PUBLIC_PREFIXES = [
   '/api/auth',
   '/api/leads/intake',
   '/api/whatsapp/webhook',
+  '/api/webhooks/mercadopago',
   '/api/health',
 ]
 

@@ -260,7 +260,7 @@ export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inacti
 export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
 export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
 export const metodoEntregaEnum = pgEnum('metodo_entrega', ['retiro_fabrica', 'expreso'])
-export const metodoPagoEnum = pgEnum('metodo_pago', ['efectivo', 'transferencia'])
+export const metodoPagoEnum = pgEnum('metodo_pago', ['efectivo', 'transferencia', 'mercadopago'])
 
 // ─── Territorios ──────────────────────────────────────────────────────────────
 
@@ -397,6 +397,8 @@ export const pedidos = pgTable('pedidos', {
   entregaPrecisionM: doublePrecision('entrega_precision_m'),
   pagoCobradoPor: uuid('pago_cobrado_por').references(() => users.id),
   pagoCobradoAt: timestamp('pago_cobrado_at', { mode: 'date', withTimezone: true }),
+  mpPreferenceId: text('mp_preference_id'),
+  mpPaymentId: text('mp_payment_id'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),

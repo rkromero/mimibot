@@ -183,6 +183,13 @@
       "when": 1749081600000,
       "tag": "0025_add_entrega_gps",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1749168000000,
+      "tag": "0026_add_mercadopago",
+      "breakpoints": true
     }
   ]
 }
