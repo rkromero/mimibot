@@ -10,6 +10,7 @@ const {
   mockTxInsert,
   mockTxUpdate,
   mockTxSelect,
+  mockRecalcularPagosPedido,
 } = vi.hoisted(() => {
   return {
     mockTransaction: vi.fn(),
@@ -19,6 +20,7 @@ const {
     mockTxInsert: vi.fn(),
     mockTxUpdate: vi.fn(),
     mockTxSelect: vi.fn(),
+    mockRecalcularPagosPedido: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -49,6 +51,7 @@ vi.mock('@/lib/errors', () => ({
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({
   aplicarSaldoAFavorAPedido: vi.fn().mockResolvedValue(undefined),
   calcularDistribucionFIFO: vi.fn(),
+  recalcularPagosPedido: mockRecalcularPagosPedido,
 }))
 
 import { crearPedidoConItems, confirmarPedido, aprobarPedido, revertirPedidoAAprobacion } from '@/lib/pedidos/service'
@@ -447,6 +450,35 @@ describe('aprobarPedido', () => {
   it('lanza NotFoundError si el pedido no existe', async () => {
     mockTxQueryPedidosFindFirst.mockResolvedValue(undefined)
     await expect(aprobarPedido(PEDIDO_ID, USER_ID)).rejects.toThrow('Pedido')
+  })
+
+  it('invariante: llama recalcularPagosPedido dentro de la transacción — un pago previo no se pierde al re-aprobar', async () => {
+    // Simula un pedido que ya tenía un pago aplicado (montoPagado=$150 de $200)
+    mockTxQueryPedidosFindFirst.mockResolvedValue({
+      ...fakePendienteAprobacion,
+      montoPagado: '150.00',
+      saldoPendiente: '50.00',
+      estadoPago: 'parcial',
+    })
+    const returningUpdate = vi.fn().mockResolvedValue([fakeConfirmedPedido])
+    const whereUpdate = vi.fn().mockReturnValue({ returning: returningUpdate })
+    const setUpdate = vi.fn().mockReturnValue({ where: whereUpdate })
+    mockTxUpdate.mockReturnValue({ set: setUpdate })
+    mockTxInsert.mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }) })
+    mockDbQueryPedidosFindFirst.mockResolvedValue(fakeConfirmedPedido)
+
+    await aprobarPedido(PEDIDO_ID, USER_ID)
+
+    // recalcularPagosPedido debe haber sido invocado con el pedidoId correcto
+    expect(mockRecalcularPagosPedido).toHaveBeenCalledWith(
+      expect.anything(),
+      PEDIDO_ID,
+    )
+    // El SET del pedido NO debe incluir montoPagado hardcodeado a '0'
+    const setArg = setUpdate.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(setArg['montoPagado']).toBeUndefined()
+    expect(setArg['saldoPendiente']).toBeUndefined()
+    expect(setArg['estadoPago']).toBeUndefined()
   })
 })
 

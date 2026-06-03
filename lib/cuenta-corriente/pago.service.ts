@@ -1,4 +1,4 @@
-import { eq, and, gt } from 'drizzle-orm'
+import { eq, and, gt, isNull, sql } from 'drizzle-orm'
 import { db, type Db } from '@/db'
 import { movimientosCC, pedidos, aplicacionesPago } from '@/db/schema'
 
@@ -96,6 +96,44 @@ export function calcularDistribucionFIFO(
     aplicaciones,
     sobrante: parseFloat(montoRestante) > 0 ? montoRestante : '0.00',
   }
+}
+
+// ─── Recalcular campos de pago desde aplicaciones vivas ──────────────────────
+
+/**
+ * Recalcula montoPagado / saldoPendiente / estadoPago para un pedido a partir
+ * de la fuente de verdad: SUM(aplicaciones_pago.monto_aplicado) no borradas.
+ * Debe llamarse dentro de la misma transacción después de cualquier cambio al
+ * total del pedido o a sus aplicaciones.
+ */
+export async function recalcularPagosPedido(tx: Db, pedidoId: string): Promise<void> {
+  const pedido = await tx.query.pedidos.findFirst({
+    where: eq(pedidos.id, pedidoId),
+    columns: { id: true, total: true },
+  })
+  if (!pedido) return
+
+  const [row] = await tx
+    .select({ suma: sql<string>`COALESCE(SUM(${aplicacionesPago.montoAplicado}), 0)` })
+    .from(aplicacionesPago)
+    .where(and(eq(aplicacionesPago.pedidoId, pedidoId), isNull(aplicacionesPago.deletedAt)))
+
+  const pagadoReal = parseFloat(row?.suma ?? '0')
+  const totalNum = parseFloat(pedido.total)
+  const nuevoMontoPagado = Math.min(pagadoReal, totalNum)
+  const nuevoSaldo = Math.max(0, totalNum - nuevoMontoPagado)
+
+  await tx
+    .update(pedidos)
+    .set({
+      montoPagado: nuevoMontoPagado.toFixed(2),
+      saldoPendiente: nuevoSaldo.toFixed(2),
+      estadoPago:
+        nuevoMontoPagado <= 0 ? 'impago'
+        : nuevoSaldo <= 0 ? 'pagado'
+        : 'parcial',
+    })
+    .where(eq(pedidos.id, pedidoId))
 }
 
 // ─── Register payment (DB transaction) ───────────────────────────────────────

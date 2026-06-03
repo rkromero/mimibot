@@ -4,7 +4,7 @@ import {
   pedidos, pedidoItems, productos, movimientosCC, stockMovements, aplicacionesPago,
 } from '@/db/schema'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import { aplicarSaldoAFavorAPedido } from '@/lib/cuenta-corriente/pago.service'
+import { aplicarSaldoAFavorAPedido, recalcularPagosPedido } from '@/lib/cuenta-corriente/pago.service'
 import type { Db } from '@/db'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -213,9 +213,6 @@ export async function confirmarPedido(
       .set({
         estado: 'confirmado',
         total,
-        saldoPendiente: total,
-        montoPagado: '0',
-        estadoPago: 'impago',
         updatedAt: new Date(),
       })
       .where(eq(pedidos.id, pedidoId))
@@ -252,6 +249,9 @@ export async function confirmarPedido(
         registradoPor: userId,
       })
     }
+
+    // Sync payment fields from live aplicaciones_pago (preserves any prior payments)
+    await recalcularPagosPedido(tx as unknown as Db, pedidoId)
 
     return updated!
   })
@@ -317,9 +317,6 @@ export async function aprobarPedido(
       .set({
         estado: 'confirmado',
         total,
-        saldoPendiente: total,
-        montoPagado: '0',
-        estadoPago: 'impago',
         updatedAt: new Date(),
       })
       .where(eq(pedidos.id, pedidoId))
@@ -355,6 +352,9 @@ export async function aprobarPedido(
         registradoPor: userId,
       })
     }
+
+    // Sync payment fields from live aplicaciones_pago (preserves any prior payments)
+    await recalcularPagosPedido(tx as unknown as Db, pedidoId)
 
     return updated!
   })
