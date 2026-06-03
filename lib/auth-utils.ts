@@ -20,6 +20,8 @@ export function getHomeRouteByRole(role: string | null | undefined): string {
       return '/dashboard'
     case 'fabrica':
       return '/fabrica'
+    case 'repartidor':
+      return '/repartidor'
     default:
       return '/pipeline'
   }

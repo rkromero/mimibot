@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import QueryProvider from '@/components/shared/QueryProvider'
 import './globals.css'
@@ -12,6 +12,14 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-geist-mono',
 })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+}
 
 export const metadata: Metadata = {
   title: 'Mimi CRM',
@@ -32,7 +40,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>{children}</QueryProvider>

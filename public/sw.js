@@ -112,6 +112,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  // Repartidor API — always network-only, never cached or queued.
+  // Delivery confirmations and fresh order lists must come from the network.
+  if (url.pathname.startsWith('/api/repartidor/')) {
+    return // SW does not intercept; browser sends directly to server
+  }
+
   // Queue offline POST/PATCH mutations for key API endpoints
   if (
     ['POST', 'PATCH'].includes(request.method) &&

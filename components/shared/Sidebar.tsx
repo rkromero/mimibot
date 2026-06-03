@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
-  Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search,
+  Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -63,6 +63,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'vendedor'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
+      { href: '/admin/entregas', label: 'Entregas', icon: Truck, roles: ['admin', 'gerente'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
   },

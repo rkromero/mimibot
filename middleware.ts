@@ -17,6 +17,9 @@ const ADMIN_PREFIXES = ['/admin', '/api/admin']
 // Routes exclusively for the fabrica role
 const FABRICA_PREFIXES = ['/fabrica']
 
+// Routes exclusively for the repartidor role
+const REPARTIDOR_PREFIXES = ['/repartidor']
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -90,6 +93,18 @@ export async function middleware(req: NextRequest) {
     if (!isFabricaPath && !pathname.startsWith('/api/') && role === 'fabrica') {
       return NextResponse.redirect(new URL('/fabrica', req.url))
     }
+
+    const isRepartidorPath = REPARTIDOR_PREFIXES.some((p) => pathname.startsWith(p))
+
+    // Only repartidor, admin, gerente can access /repartidor routes
+    if (isRepartidorPath && role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
+      return NextResponse.redirect(new URL(homeRoute, req.url))
+    }
+
+    // Repartidor role can only access /repartidor routes (not dashboard, pipeline, etc.)
+    if (!isRepartidorPath && !pathname.startsWith('/api/') && role === 'repartidor') {
+      return NextResponse.redirect(new URL('/repartidor', req.url))
+    }
   }
 
   return NextResponse.next()
@@ -97,6 +112,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|webmanifest)$).*)',
   ],
 }

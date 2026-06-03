@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
 
 type Props = {
   user: User
@@ -68,6 +68,14 @@ export default function AppShell({ user, children }: Props) {
         <main className="flex-1 overflow-hidden">
           {children}
         </main>
+      </div>
+    )
+  }
+
+  if (user.role === 'repartidor') {
+    return (
+      <div className="h-dvh bg-background overflow-hidden">
+        {children}
       </div>
     )
   }

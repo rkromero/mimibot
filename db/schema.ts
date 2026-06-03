@@ -5,7 +5,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica'])
+export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica', 'repartidor'])
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
@@ -388,6 +388,9 @@ export const pedidos = pgTable('pedidos', {
   metodoEntrega: metodoEntregaEnum('metodo_entrega'),
   expresoNombre: text('expreso_nombre'),
   expresoDireccion: text('expreso_direccion'),
+  entregadoAt: timestamp('entregado_at', { mode: 'date', withTimezone: true }),
+  entregadoPor: uuid('entregado_por').references(() => users.id),
+  firmaUrl: text('firma_url'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),

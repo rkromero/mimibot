@@ -4,7 +4,7 @@
 
 type SseClient = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
   write: (data: string) => void
   close: () => void
 }
