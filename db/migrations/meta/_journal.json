@@ -148,6 +148,13 @@
       "when": 1780445281164,
       "tag": "0020_lively_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780449057714,
+      "tag": "0021_outstanding_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

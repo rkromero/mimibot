@@ -12,6 +12,9 @@ const DEFAULT_CONFIG = {
   direccion: null,
   telefono: null,
   email: null,
+  cuit: '30-71751033-6',
+  condicionIva: 'Responsable Inscripto',
+  puntoVenta: '0001',
   updatedBy: null,
   updatedAt: new Date(),
 }
@@ -73,6 +76,15 @@ export async function PATCH(req: NextRequest) {
     if (data.email === null || typeof data.email === 'string') {
       updates.email = data.email as string | null
     }
+    if (data.cuit === null || typeof data.cuit === 'string') {
+      updates.cuit = data.cuit as string | null
+    }
+    if (typeof data.condicionIva === 'string') {
+      updates.condicionIva = data.condicionIva
+    }
+    if (typeof data.puntoVenta === 'string') {
+      updates.puntoVenta = data.puntoVenta
+    }
 
     // Upsert: insert if not exists, update if exists
     const [result] = await db
@@ -83,6 +95,9 @@ export async function PATCH(req: NextRequest) {
         direccion: updates.direccion ?? null,
         telefono: updates.telefono ?? null,
         email: updates.email ?? null,
+        cuit: updates.cuit ?? null,
+        condicionIva: updates.condicionIva ?? 'Responsable Inscripto',
+        puntoVenta: updates.puntoVenta ?? '0001',
         updatedBy: session.user.id,
         updatedAt: new Date(),
       })

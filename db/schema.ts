@@ -504,6 +504,9 @@ export const empresaConfig = pgTable('empresa_config', {
   direccion: text('direccion'),
   telefono: text('telefono'),
   email: text('email'),
+  cuit: text('cuit'),
+  condicionIva: text('condicion_iva').default('Responsable Inscripto'),
+  puntoVenta: text('punto_venta').default('0001'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

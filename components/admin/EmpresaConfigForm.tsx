@@ -9,6 +9,9 @@ type EmpresaConfigData = {
   direccion: string | null
   telefono: string | null
   email: string | null
+  cuit: string | null
+  condicionIva: string | null
+  puntoVenta: string | null
 }
 
 const EMPTY_CONFIG: EmpresaConfigData = {
@@ -17,6 +20,9 @@ const EMPTY_CONFIG: EmpresaConfigData = {
   direccion: null,
   telefono: null,
   email: null,
+  cuit: '30-71751033-6',
+  condicionIva: 'Responsable Inscripto',
+  puntoVenta: '0001',
 }
 
 export default function EmpresaConfigForm() {
@@ -69,6 +75,9 @@ export default function EmpresaConfigForm() {
             direccion: config.direccion?.trim() || null,
             telefono: config.telefono?.trim() || null,
             email: config.email?.trim() || null,
+            cuit: config.cuit?.trim() || null,
+            condicionIva: config.condicionIva?.trim() || null,
+            puntoVenta: config.puntoVenta?.trim() || null,
           }),
         })
 
@@ -167,6 +176,63 @@ export default function EmpresaConfigForm() {
           value={config.email ?? ''}
           onChange={(e) => handleChange('email', e.target.value)}
           placeholder="Ej: contacto@empresa.com"
+          className={cn(
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
+            'placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
+          )}
+        />
+      </div>
+
+      {/* CUIT */}
+      <div className="space-y-1.5">
+        <label htmlFor="cuit" className="block text-sm font-medium text-foreground">
+          CUIT
+        </label>
+        <input
+          id="cuit"
+          type="text"
+          value={config.cuit ?? ''}
+          onChange={(e) => handleChange('cuit', e.target.value)}
+          placeholder="Ej: 30-71751033-6"
+          className={cn(
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
+            'placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
+          )}
+        />
+      </div>
+
+      {/* Condición IVA */}
+      <div className="space-y-1.5">
+        <label htmlFor="condicionIva" className="block text-sm font-medium text-foreground">
+          Condición IVA
+        </label>
+        <input
+          id="condicionIva"
+          type="text"
+          value={config.condicionIva ?? ''}
+          onChange={(e) => handleChange('condicionIva', e.target.value)}
+          placeholder="Ej: Responsable Inscripto"
+          className={cn(
+            'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
+            'placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
+          )}
+        />
+      </div>
+
+      {/* Punto de Venta */}
+      <div className="space-y-1.5">
+        <label htmlFor="puntoVenta" className="block text-sm font-medium text-foreground">
+          Punto de Venta
+        </label>
+        <input
+          id="puntoVenta"
+          type="text"
+          value={config.puntoVenta ?? ''}
+          onChange={(e) => handleChange('puntoVenta', e.target.value)}
+          placeholder="Ej: 0001"
           className={cn(
             'w-full rounded-md border border-input bg-background px-3 py-2.5 md:py-2 text-[16px] md:text-sm',
             'placeholder:text-muted-foreground',
