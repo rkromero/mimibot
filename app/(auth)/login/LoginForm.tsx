@@ -2,15 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
 import { loginSchema } from '@/lib/validations/auth'
 import { cn } from '@/lib/utils'
 
 export default function LoginForm() {
-  const searchParams = useSearchParams()
-  // Default to '/' so the middleware redirects the user to their role-based home
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/'
-
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -41,7 +36,9 @@ export default function LoginForm() {
         return
       }
 
-      window.location.assign(callbackUrl)
+      // Always redirect to '/' so the middleware routes each user to their role-based home.
+      // Never use callbackUrl from a previous session — it may belong to a different role.
+      window.location.assign('/')
     })
   }
 
