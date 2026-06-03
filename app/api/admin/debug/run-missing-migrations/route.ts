@@ -164,6 +164,13 @@ const MIGRATION_0024_STATEMENTS: string[] = [
   `ALTER TABLE "movimientos_cc" ADD COLUMN IF NOT EXISTS "metodo_pago" "metodo_pago"`,
 ]
 
+const MIGRATION_0025_STATEMENTS: string[] = [
+  // Migration 0025: GPS coordinates captured at delivery time.
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entrega_lat" double precision`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entrega_lng" double precision`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entrega_precision_m" double precision`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -231,6 +238,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0022_repartidor_entrega', MIGRATION_0022_STATEMENTS))
     results.push(...await runStatements('0023_pago_cobrado_fields', MIGRATION_0023_STATEMENTS))
     results.push(...await runStatements('0024_metodo_pago', MIGRATION_0024_STATEMENTS))
+    results.push(...await runStatements('0025_entrega_gps', MIGRATION_0025_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`
@@ -316,7 +324,7 @@ export async function POST(_req: NextRequest) {
 // GET returns 405 to nudge users to use POST so this isn't triggered by a prefetch
 export async function GET(_req: NextRequest) {
   return NextResponse.json(
-    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0024.' },
+    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0025.' },
     { status: 405 },
   )
 }

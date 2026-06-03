@@ -38,11 +38,26 @@ async function uploadFirma(dataUrl: string): Promise<string> {
   return r2Key
 }
 
-async function patchEntregar(pedidoId: string, firmaUrl: string): Promise<void> {
+type GpsCoords = { lat: number; lng: number; precisionM: number }
+
+function getGps(): Promise<GpsCoords | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, precisionM: pos.coords.accuracy }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  })
+}
+
+async function patchEntregar(pedidoId: string, firmaUrl: string, gps: GpsCoords | null): Promise<void> {
+  const body: Record<string, unknown> = { firmaUrl }
+  if (gps) { body.lat = gps.lat; body.lng = gps.lng; body.precisionM = gps.precisionM }
   const res = await fetch(`/api/repartidor/pedidos/${pedidoId}/entregar`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ firmaUrl }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const json = await res.json().catch(() => ({})) as { error?: string }
@@ -53,22 +68,31 @@ async function patchEntregar(pedidoId: string, firmaUrl: string): Promise<void> 
 export default function EntregarSheet({ pedidoId, clienteNombre, open, onClose, onDelivered }: Props) {
   const [signature, setSignature] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [gettingGps, setGettingGps] = useState(false)
   const toast = useToast()
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ gpsOk: boolean }> => {
       if (!signature) throw new Error('Capturá la firma primero')
       setErrorMsg(null)
-      const r2Key = await uploadFirma(signature)
-      await patchEntregar(pedidoId, r2Key)
+      setGettingGps(true)
+      const [gps, r2Key] = await Promise.all([getGps(), uploadFirma(signature)])
+      setGettingGps(false)
+      await patchEntregar(pedidoId, r2Key, gps)
+      return { gpsOk: gps !== null }
     },
-    onSuccess: () => {
-      toast.success(`Entrega de ${clienteNombre} confirmada`)
+    onSuccess: ({ gpsOk }) => {
+      if (gpsOk) {
+        toast.success(`Entrega de ${clienteNombre} confirmada`)
+      } else {
+        toast.warning('Entrega guardada sin ubicación (GPS no disponible)')
+      }
       handleReset()
       onClose()
       onDelivered()
     },
     onError: (err) => {
+      setGettingGps(false)
       setErrorMsg(err instanceof Error ? err.message : 'Error inesperado')
     },
   })
@@ -76,6 +100,7 @@ export default function EntregarSheet({ pedidoId, clienteNombre, open, onClose, 
   function handleReset() {
     setSignature(null)
     setErrorMsg(null)
+    setGettingGps(false)
     mutation.reset()
   }
 
@@ -127,7 +152,12 @@ export default function EntregarSheet({ pedidoId, clienteNombre, open, onClose, 
           disabled={!signature || mutation.isPending}
           className="w-full min-h-[52px] bg-primary text-primary-foreground rounded-xl font-semibold flex items-center justify-center gap-2.5 text-base disabled:opacity-50 active:scale-[0.98] transition-all"
         >
-          {mutation.isPending ? (
+          {mutation.isPending && gettingGps ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              Obteniendo ubicación...
+            </>
+          ) : mutation.isPending ? (
             <>
               <Loader2 size={20} className="animate-spin" />
               Confirmando...

@@ -8,6 +8,9 @@ import { z } from 'zod'
 
 const bodySchema = z.object({
   firmaUrl: z.string().min(1),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  precisionM: z.number().nonnegative().optional(),
 })
 
 export async function PATCH(
@@ -29,7 +32,7 @@ export async function PATCH(
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }, { status: 400 })
     }
-    const { firmaUrl } = parsed.data
+    const { firmaUrl, lat, lng, precisionM } = parsed.data
 
     const [pedido] = await db
       .select({ id: pedidos.id, estado: pedidos.estado })
@@ -53,6 +56,9 @@ export async function PATCH(
           entregadoAt: new Date(),
           entregadoPor,
           firmaUrl,
+          entregaLat: lat ?? null,
+          entregaLng: lng ?? null,
+          entregaPrecisionM: precisionM ?? null,
           updatedAt: new Date(),
         })
         .where(eq(pedidos.id, id))

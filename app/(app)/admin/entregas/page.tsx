@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, ImageIcon, Loader2, AlertCircle, DollarSign } from 'lucide-react'
+import { X, ImageIcon, Loader2, AlertCircle, DollarSign, MapPin } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { useToast } from '@/components/shared/ToastProvider'
@@ -21,6 +21,8 @@ type Entrega = {
   firmaUrl: string | null
   estadoPago: EstadoPago
   pagoCobradoAt: string | null
+  entregaLat: number | null
+  entregaLng: number | null
   cobradorNombre: string | null
   clienteNombre: string | null
   clienteApellido: string | null
@@ -379,7 +381,7 @@ export default function AdminEntregasPage() {
   const isHoy = desde === today && hasta === today
   const isAyer = desde === yesterday && hasta === yesterday
 
-  const TABLE_HEADERS = ['Fecha/hora', 'Cliente', 'Localidad', 'Repartidor', 'Total', 'Saldo', 'Estado', 'Cobro', 'Firma']
+  const TABLE_HEADERS = ['Fecha/hora', 'Cliente', 'Localidad', 'Repartidor', 'Total', 'Saldo', 'Estado', 'Cobro', 'Ubic.', 'Firma']
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -474,16 +476,19 @@ export default function AdminEntregasPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {isLoading ? (
-                  [0, 1, 2, 3, 4].map((i) => <SkeletonRow key={i} cols={9} />)
+                  [0, 1, 2, 3, 4].map((i) => <SkeletonRow key={i} cols={10} />)
                 ) : entregas.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">
                       No hay entregas para los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
                   entregas.map((e) => {
                     const saldo = parseFloat(e.saldoPendiente || '0')
+                    const mapsUrl = e.entregaLat != null && e.entregaLng != null
+                      ? `https://www.google.com/maps?q=${e.entregaLat},${e.entregaLng}`
+                      : null
                     return (
                       <tr key={e.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -510,6 +515,21 @@ export default function AdminEntregasPage() {
                               <DollarSign size={11} />
                               Cobrar
                             </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {mapsUrl ? (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition-colors"
+                            >
+                              <MapPin size={11} />
+                              Ver
+                            </a>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}

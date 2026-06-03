@@ -1,6 +1,6 @@
 import {
   pgTable, pgEnum, text, timestamp, boolean, integer,
-  decimal, uuid, jsonb, primaryKey, index, uniqueIndex,
+  decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision,
 } from 'drizzle-orm/pg-core'
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -392,6 +392,9 @@ export const pedidos = pgTable('pedidos', {
   entregadoAt: timestamp('entregado_at', { mode: 'date', withTimezone: true }),
   entregadoPor: uuid('entregado_por').references(() => users.id),
   firmaUrl: text('firma_url'),
+  entregaLat: doublePrecision('entrega_lat'),
+  entregaLng: doublePrecision('entrega_lng'),
+  entregaPrecisionM: doublePrecision('entrega_precision_m'),
   pagoCobradoPor: uuid('pago_cobrado_por').references(() => users.id),
   pagoCobradoAt: timestamp('pago_cobrado_at', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
