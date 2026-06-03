@@ -42,17 +42,40 @@ export async function PATCH(
       throw new ConflictError('El pedido no está en estado en_reparto')
     }
 
-    const [updated] = await db
-      .update(pedidos)
-      .set({
-        estado: 'entregado',
-        entregadoAt: new Date(),
-        entregadoPor: session.user.id,
-        firmaUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(pedidos.id, id))
-      .returning()
+    const entregadoPor = session.user.id ?? null
+
+    let updated: typeof pedidos.$inferSelect | undefined
+    try {
+      const rows = await db
+        .update(pedidos)
+        .set({
+          estado: 'entregado',
+          entregadoAt: new Date(),
+          entregadoPor,
+          firmaUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(pedidos.id, id))
+        .returning()
+      updated = rows[0]
+    } catch (dbErr) {
+      const pgCode = (dbErr as { code?: string }).code
+      const pgMsg = (dbErr as Error).message ?? ''
+
+      // PostgreSQL 42703 = undefined_column — migration 0022 not applied
+      if (pgCode === '42703' || pgMsg.includes('does not exist')) {
+        console.error('[entregar] DB update failed — likely migration 0022 not applied:', pgMsg)
+        return NextResponse.json(
+          {
+            error:
+              'Error de base de datos: columnas de entrega no encontradas. ' +
+              'Aplicar migración ejecutando POST /api/admin/debug/run-missing-migrations',
+          },
+          { status: 503 },
+        )
+      }
+      throw dbErr
+    }
 
     return NextResponse.json({ data: updated })
   } catch (err) {

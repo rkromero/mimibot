@@ -117,6 +117,37 @@ const MIGRATION_0018_STATEMENTS: string[] = [
     ADD COLUMN IF NOT EXISTS "pct_cobranza_objetivo" numeric(5, 2) NOT NULL DEFAULT '0'`,
 ]
 
+const MIGRATION_0019_STATEMENTS: string[] = [
+  // Migration 0019: localidad, provincia, cp for clientes.
+  `ALTER TABLE "clientes"
+    ADD COLUMN IF NOT EXISTS "localidad" text,
+    ADD COLUMN IF NOT EXISTS "provincia" text,
+    ADD COLUMN IF NOT EXISTS "codigo_postal" text`,
+]
+
+const MIGRATION_0020_STATEMENTS: string[] = [
+  // Migration 0020: en_reparto estado and fabrica role.
+  // ADD VALUE cannot run inside a transaction; IF NOT EXISTS makes it idempotent.
+  `ALTER TYPE "public"."estado_pedido" ADD VALUE IF NOT EXISTS 'en_reparto' BEFORE 'entregado'`,
+  `ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'fabrica'`,
+]
+
+const MIGRATION_0021_STATEMENTS: string[] = [
+  // Migration 0021: fiscal fields for empresa_config.
+  `ALTER TABLE "empresa_config"
+    ADD COLUMN IF NOT EXISTS "cuit" text,
+    ADD COLUMN IF NOT EXISTS "condicion_iva" text DEFAULT 'Responsable Inscripto',
+    ADD COLUMN IF NOT EXISTS "punto_venta" text DEFAULT '0001'`,
+]
+
+const MIGRATION_0022_STATEMENTS: string[] = [
+  // Migration 0022: repartidor role + delivery fields on pedidos.
+  `ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'repartidor'`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entregado_at" timestamptz`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "entregado_por" uuid REFERENCES "public"."users"("id")`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "firma_url" text`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -178,6 +209,10 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0016_expreso_entrega', MIGRATION_0016_STATEMENTS))
     results.push(...await runStatements('0017_pct_pedidos_pagados', MIGRATION_0017_STATEMENTS))
     results.push(...await runStatements('0018_pct_cobranza_objetivo', MIGRATION_0018_STATEMENTS))
+    results.push(...await runStatements('0019_localidad_clientes', MIGRATION_0019_STATEMENTS))
+    results.push(...await runStatements('0020_en_reparto_fabrica', MIGRATION_0020_STATEMENTS))
+    results.push(...await runStatements('0021_empresa_fiscal', MIGRATION_0021_STATEMENTS))
+    results.push(...await runStatements('0022_repartidor_entrega', MIGRATION_0022_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`
@@ -215,6 +250,16 @@ export async function POST(_req: NextRequest) {
       WHERE table_schema = 'public' AND table_name = 'metas'
         AND column_name = 'pct_cobranza_objetivo'
     `)
+    const pedidosEntregaCols = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'pedidos'
+        AND column_name IN ('entregado_at', 'entregado_por', 'firma_url')
+    `)
+    const repartidorRole = await db.execute(sql`
+      SELECT enumlabel FROM pg_enum
+      JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
+      WHERE pg_type.typname = 'user_role' AND enumlabel = 'repartidor'
+    `)
 
     const okCount = results.filter((r) => r.status === 'ok').length
     const errCount = results.filter((r) => r.status === 'error').length
@@ -233,6 +278,8 @@ export async function POST(_req: NextRequest) {
       pedidosExpresoColumns: unwrap(pedidosExpresoCols),
       metasPctPedidosColumn: unwrap(metasPctPedidosCols),
       metasPctCobranzaColumn: unwrap(metasPctCobranzaCols),
+      pedidosEntregaColumns: unwrap(pedidosEntregaCols),
+      repartidorRoleExists: unwrap(repartidorRole).length > 0,
     })
   } catch (err) {
     const { message, status } = toApiError(err)
@@ -243,7 +290,7 @@ export async function POST(_req: NextRequest) {
 // GET returns 405 to nudge users to use POST so this isn't triggered by a prefetch
 export async function GET(_req: NextRequest) {
   return NextResponse.json(
-    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0018.' },
+    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0022.' },
     { status: 405 },
   )
 }
