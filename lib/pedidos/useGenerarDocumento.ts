@@ -9,42 +9,49 @@ type Generating = { pedidoId: string; tipo: DocTipo } | null
 
 function printBlob(url: string) {
   const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = 'none'
-  iframe.style.opacity = '0'
-  iframe.style.pointerEvents = 'none'
 
+  // Off-screen with real dimensions — Chrome needs actual size to initialise
+  // its built-in PDF viewer; a 0×0 iframe leaves the viewer uninitialised and
+  // causes contentWindow.print() to delegate to the parent window instead.
+  iframe.style.cssText =
+    'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;border:0;visibility:hidden'
+
+  let cleanedUp = false
   function cleanup() {
+    if (cleanedUp) return
+    cleanedUp = true
     try { document.body.removeChild(iframe) } catch { /* already removed */ }
     URL.revokeObjectURL(url)
   }
 
   iframe.onload = () => {
-    try {
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
-    } catch {
-      // Iframe print blocked — open in new tab as fallback
-      window.open(url, '_blank')
-      cleanup()
-      return
-    }
-    // Clean up after the user closes the print dialog.
-    // afterprint fires in Chrome/Firefox; setTimeout is the fallback.
-    const win = iframe.contentWindow
-    if (win) {
-      win.addEventListener('afterprint', cleanup, { once: true })
-    }
-    // Safety timeout: revoke after 3 minutes even if afterprint never fires
-    setTimeout(cleanup, 3 * 60 * 1000)
+    // 300 ms delay: Chrome's PDF viewer plugin initialises asynchronously after
+    // the iframe's load event fires; calling print() too early hits the blank
+    // HTML wrapper instead of the rendered PDF.
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch {
+        // print() was blocked or failed — open PDF in new tab as real fallback
+        window.open(url, '_blank')
+        cleanup()
+        return
+      }
+
+      // afterprint fires when the user closes the print dialog in Chrome/Firefox
+      const win = iframe.contentWindow
+      if (win) {
+        win.addEventListener('afterprint', cleanup, { once: true })
+      }
+      // Safety net: release resources after 5 min even if afterprint never fires
+      setTimeout(cleanup, 5 * 60 * 1000)
+    }, 300)
   }
 
-  iframe.onerror = () => {
-    window.open(url, '_blank')
-    cleanup()
-  }
+  // No onerror → window.open mapping here. Chrome sometimes dispatches an error
+  // event for the PDF plugin even on a successful load; an unconditional
+  // window.open in onerror was the reason an extra tab always opened.
 
   document.body.appendChild(iframe)
   iframe.src = url
