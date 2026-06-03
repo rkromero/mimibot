@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Phone, MessageCircle, MapPin, CheckCircle, Package } from 'lucide-react'
 import EntregarSheet from './EntregarSheet'
+import CobroQrSheet from './CobroQrSheet'
 
 type Item = {
   id: string
@@ -30,15 +31,26 @@ export type Pedido = {
 
 export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [cobroOpen, setCobroOpen] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const qc = useQueryClient()
 
-  function handleDelivered() {
+  function dismissCard() {
     setIsDismissing(true)
-    // Delay invalidation so the fade-out animation plays first
     setTimeout(() => {
       void qc.invalidateQueries({ queryKey: ['repartidor-pedidos'] })
     }, 350)
+  }
+
+  function handleDelivered() {
+    setSheetOpen(false)
+    // After delivery, offer QR payment
+    setCobroOpen(true)
+  }
+
+  function handleCobroDone() {
+    setCobroOpen(false)
+    dismissCard()
   }
 
   const addressParts = [cliente.direccion, cliente.localidad, cliente.provincia].filter(Boolean)
@@ -156,6 +168,14 @@ export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido)
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         onDelivered={handleDelivered}
+      />
+
+      <CobroQrSheet
+        pedidoId={id}
+        clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+        saldoPendiente={total}
+        open={cobroOpen}
+        onClose={handleCobroDone}
       />
     </>
   )
