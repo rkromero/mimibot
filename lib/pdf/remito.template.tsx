@@ -121,26 +121,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     padding: 5,
   },
-  colProducto: { flex: 4 },
+  colProducto: { flex: 5 },
   colCantidad: { flex: 1, textAlign: 'right' },
-  colPrecio: { flex: 2, textAlign: 'right' },
-  colSubtotal: { flex: 2, textAlign: 'right' },
-  totalBlock: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 4,
-  },
-  totalLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 11,
-    marginRight: 8,
-  },
-  totalValue: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 11,
-    minWidth: 80,
-    textAlign: 'right',
-  },
   footer: {
     position: 'absolute',
     bottom: 30,
@@ -166,11 +148,6 @@ function padNumero(n: number): string {
   return String(n).padStart(6, '0')
 }
 
-function formatCurrency(value: string): string {
-  const num = parseFloat(value)
-  if (isNaN(num)) return value
-  return num.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-}
 
 type Props = { data: PedidoData; numero: number }
 
@@ -258,23 +235,15 @@ export function RemitoDocument({ data, numero }: Props) {
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, styles.colProducto]}>Producto</Text>
               <Text style={[styles.tableHeaderCell, styles.colCantidad]}>Cant.</Text>
-              <Text style={[styles.tableHeaderCell, styles.colPrecio]}>Precio Unit.</Text>
-              <Text style={[styles.tableHeaderCell, styles.colSubtotal]}>Subtotal</Text>
             </View>
             {data.items.map((item, i) => (
               <View key={i} style={styles.tableRow}>
                 <Text style={[styles.tableCell, styles.colProducto]}>{item.productoNombre}</Text>
                 <Text style={[styles.tableCell, styles.colCantidad]}>{item.cantidad}</Text>
-                <Text style={[styles.tableCell, styles.colPrecio]}>{formatCurrency(item.precioUnitario)}</Text>
-                <Text style={[styles.tableCell, styles.colSubtotal]}>{formatCurrency(item.subtotal)}</Text>
               </View>
             ))}
           </View>
 
-          <View style={styles.totalBlock}>
-            <Text style={styles.totalLabel}>TOTAL:</Text>
-            <Text style={styles.totalValue}>{formatCurrency(data.total)}</Text>
-          </View>
         </View>
 
         {/* Footer */}
