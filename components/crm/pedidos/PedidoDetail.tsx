@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { formatFechaAR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
+import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 
 type Props = { id: string }
 
@@ -92,36 +93,7 @@ export default function PedidoDetail({ id }: Props) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [showProof, setShowProof] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [generatingDoc, setGeneratingDoc] = useState<'remito' | 'proforma' | null>(null)
-
-  async function handleGenerarDocumento(tipo: 'remito' | 'proforma') {
-    setGeneratingDoc(tipo)
-    try {
-      const res = await fetch(`/api/pedidos/${id}/documentos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo }),
-      })
-      if (!res.ok) {
-        const data = await res.json() as { error: string }
-        setActionError(data.error ?? 'Error al generar documento')
-        return
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const disposition = res.headers.get('Content-Disposition') ?? ''
-      const match = disposition.match(/filename="([^"]+)"/)
-      a.download = match?.[1] ?? `${tipo}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      setActionError('Error de conexión al generar documento')
-    } finally {
-      setGeneratingDoc(null)
-    }
-  }
+  const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
 
   const { data: pedido, isLoading, isError } = useQuery<Pedido>({
     queryKey: ['pedido', id],
@@ -336,22 +308,22 @@ export default function PedidoDetail({ id }: Props) {
           {(pedido.estado === 'confirmado' || pedido.estado === 'entregado') && (
             <>
               <button
-                onClick={() => void handleGenerarDocumento('remito')}
-                disabled={!!generatingDoc}
+                onClick={() => void generarDocumento(id, 'remito')}
+                disabled={anyGenerating(id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
                 title="Descargar remito PDF"
               >
                 <FileText size={14} />
-                {generatingDoc === 'remito' ? 'Generando...' : 'Remito'}
+                {isGenerating(id, 'remito') ? 'Generando...' : 'Remito'}
               </button>
               <button
-                onClick={() => void handleGenerarDocumento('proforma')}
-                disabled={!!generatingDoc}
+                onClick={() => void generarDocumento(id, 'proforma')}
+                disabled={anyGenerating(id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
                 title="Descargar proforma PDF"
               >
                 <Download size={14} />
-                {generatingDoc === 'proforma' ? 'Generando...' : 'Proforma'}
+                {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
               </button>
             </>
           )}
