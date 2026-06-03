@@ -186,6 +186,100 @@ export async function registrarPago(
   })
 }
 
+// ─── Register payment for a specific pedido ──────────────────────────────────
+
+export interface RegistrarPagoPedidoInput {
+  pedidoId: string
+  monto: string
+  metodoPago: 'efectivo' | 'transferencia'
+  registradoPor: string
+}
+
+export async function registrarPagoPedido(
+  input: RegistrarPagoPedidoInput,
+  drizzleDb: Db = db,
+): Promise<{
+  movimiento: typeof movimientosCC.$inferSelect
+  pedidoActualizado: Pick<typeof pedidos.$inferSelect, 'id' | 'montoPagado' | 'saldoPendiente' | 'estadoPago'>
+  sobrante: string
+}> {
+  const { pedidoId, monto, metodoPago, registradoPor } = input
+
+  return drizzleDb.transaction(async (tx) => {
+    // 1. Fetch the pedido
+    const pedido = await tx.query.pedidos.findFirst({
+      where: eq(pedidos.id, pedidoId),
+      columns: { id: true, clienteId: true, total: true, montoPagado: true, saldoPendiente: true },
+    })
+    if (!pedido) throw new Error('Pedido no encontrado')
+
+    // 2. Insert movimientos_cc tipo='credito' linked to this pedido
+    const [movimiento] = await tx
+      .insert(movimientosCC)
+      .values({
+        clienteId: pedido.clienteId,
+        tipo: 'credito',
+        monto,
+        pedidoId,
+        fecha: new Date(),
+        descripcion: null,
+        metodoPago,
+        registradoPor,
+      })
+      .returning()
+
+    // 3. Compute aplicado = min(monto, saldoPendiente); sobrante stays as credit
+    const montoNum = parseFloat(monto)
+    const saldoNum = parseFloat(pedido.saldoPendiente)
+    const aplicadoNum = Math.min(montoNum, saldoNum)
+    const aplicado = aplicadoNum.toFixed(2)
+    const sobrante = Math.max(0, montoNum - aplicadoNum).toFixed(2)
+
+    // 4. Only insert aplicacion and update pedido when there's something to apply
+    if (aplicadoNum > 0) {
+      await tx.insert(aplicacionesPago).values({
+        movimientoCreditoId: movimiento!.id,
+        pedidoId,
+        montoAplicado: aplicado,
+      })
+
+      const nuevoMontoPagado = addDecimals(pedido.montoPagado, aplicado)
+      const nuevoSaldo = subtractDecimals(pedido.total, nuevoMontoPagado)
+      const nuevoEstadoPago: 'pagado' | 'parcial' =
+        compareDecimals(nuevoSaldo, '0') <= 0 ? 'pagado' : 'parcial'
+
+      const [actualizado] = await tx
+        .update(pedidos)
+        .set({
+          montoPagado: nuevoMontoPagado,
+          saldoPendiente: nuevoSaldo,
+          estadoPago: nuevoEstadoPago,
+          pagoCobradoPor: registradoPor,
+          pagoCobradoAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(pedidos.id, pedidoId))
+        .returning({
+          id: pedidos.id,
+          montoPagado: pedidos.montoPagado,
+          saldoPendiente: pedidos.saldoPendiente,
+          estadoPago: pedidos.estadoPago,
+        })
+
+      return { movimiento: movimiento!, pedidoActualizado: actualizado!, sobrante }
+    }
+
+    // Pedido already fully paid — entire monto is sobrante
+    const noop = {
+      id: pedido.id,
+      montoPagado: pedido.montoPagado,
+      saldoPendiente: pedido.saldoPendiente,
+      estadoPago: 'pagado' as const,
+    }
+    return { movimiento: movimiento!, pedidoActualizado: noop, sobrante }
+  })
+}
+
 // ─── Apply existing saldo a favor to a specific new pedido ───────────────────
 
 export async function aplicarSaldoAFavorAPedido(

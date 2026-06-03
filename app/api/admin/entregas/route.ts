@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { requireAdminOrGerente } from '@/lib/authz'
 import { db } from '@/db'
-import { pedidos, clientes, users } from '@/db/schema'
-import { eq, and, isNull, gte, lte, desc } from 'drizzle-orm'
+import { pedidos, clientes, users, movimientosCC } from '@/db/schema'
+import { eq, and, isNull, gte, lte, desc, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { toApiError } from '@/lib/errors'
 
@@ -30,12 +30,24 @@ export async function GET(req: NextRequest) {
     if (hasta) conditions.push(lte(pedidos.entregadoAt, new Date(`${hasta}T23:59:59.999Z`)))
     if (repartidorId) conditions.push(eq(pedidos.entregadoPor, repartidorId))
 
-    const [data, repartidores] = await Promise.all([
+    const metodosConditions = [
+      eq(pedidos.estado, 'entregado'),
+      isNull(pedidos.deletedAt),
+      eq(movimientosCC.tipo, 'credito'),
+      isNull(movimientosCC.deletedAt),
+    ]
+    if (desde) metodosConditions.push(gte(pedidos.entregadoAt, new Date(`${desde}T00:00:00.000Z`)))
+    if (hasta) metodosConditions.push(lte(pedidos.entregadoAt, new Date(`${hasta}T23:59:59.999Z`)))
+    if (repartidorId) metodosConditions.push(eq(pedidos.entregadoPor, repartidorId))
+
+    const [data, repartidores, metodosPago] = await Promise.all([
       db
         .select({
           id: pedidos.id,
           entregadoAt: pedidos.entregadoAt,
           total: pedidos.total,
+          montoPagado: pedidos.montoPagado,
+          saldoPendiente: pedidos.saldoPendiente,
           firmaUrl: pedidos.firmaUrl,
           estadoPago: pedidos.estadoPago,
           pagoCobradoAt: pedidos.pagoCobradoAt,
@@ -58,9 +70,20 @@ export async function GET(req: NextRequest) {
         .from(users)
         .where(eq(users.role, 'repartidor'))
         .orderBy(users.name),
+
+      db
+        .select({
+          repartidorId: pedidos.entregadoPor,
+          metodoPago: movimientosCC.metodoPago,
+          total: sql<string>`COALESCE(SUM(${movimientosCC.monto}), 0)`,
+        })
+        .from(movimientosCC)
+        .innerJoin(pedidos, eq(movimientosCC.pedidoId, pedidos.id))
+        .where(and(...metodosConditions))
+        .groupBy(pedidos.entregadoPor, movimientosCC.metodoPago),
     ])
 
-    return NextResponse.json({ data, repartidores })
+    return NextResponse.json({ data, repartidores, metodosPago })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

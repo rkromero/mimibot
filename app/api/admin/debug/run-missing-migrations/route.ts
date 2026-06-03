@@ -154,6 +154,16 @@ const MIGRATION_0023_STATEMENTS: string[] = [
   `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "pago_cobrado_at" timestamptz`,
 ]
 
+const MIGRATION_0024_STATEMENTS: string[] = [
+  // Migration 0024: metodo_pago enum + column on movimientos_cc.
+  `DO $$ BEGIN
+    CREATE TYPE "public"."metodo_pago" AS ENUM ('efectivo', 'transferencia');
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+  END $$`,
+  `ALTER TABLE "movimientos_cc" ADD COLUMN IF NOT EXISTS "metodo_pago" "metodo_pago"`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -220,6 +230,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0021_empresa_fiscal', MIGRATION_0021_STATEMENTS))
     results.push(...await runStatements('0022_repartidor_entrega', MIGRATION_0022_STATEMENTS))
     results.push(...await runStatements('0023_pago_cobrado_fields', MIGRATION_0023_STATEMENTS))
+    results.push(...await runStatements('0024_metodo_pago', MIGRATION_0024_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`
@@ -293,6 +304,8 @@ export async function POST(_req: NextRequest) {
       pedidosEntregaColumns: unwrap(pedidosEntregaCols),
       pedidosPagoCobradoColumns: unwrap(pedidosPagoCobradoCols),
       repartidorRoleExists: unwrap(repartidorRole).length > 0,
+      metodoPagoEnum: unwrap(await db.execute(sql`SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_enum.enumtypid = pg_type.oid WHERE pg_type.typname = 'metodo_pago' ORDER BY enumsortorder`)),
+      movimientosCCMetodoPagoColumn: unwrap(await db.execute(sql`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'movimientos_cc' AND column_name = 'metodo_pago'`)),
     })
   } catch (err) {
     const { message, status } = toApiError(err)
@@ -303,7 +316,7 @@ export async function POST(_req: NextRequest) {
 // GET returns 405 to nudge users to use POST so this isn't triggered by a prefetch
 export async function GET(_req: NextRequest) {
   return NextResponse.json(
-    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0023.' },
+    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0024.' },
     { status: 405 },
   )
 }

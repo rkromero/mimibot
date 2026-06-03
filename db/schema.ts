@@ -260,6 +260,7 @@ export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inacti
 export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
 export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
 export const metodoEntregaEnum = pgEnum('metodo_entrega', ['retiro_fabrica', 'expreso'])
+export const metodoPagoEnum = pgEnum('metodo_pago', ['efectivo', 'transferencia'])
 
 // ─── Territorios ──────────────────────────────────────────────────────────────
 
@@ -443,6 +444,7 @@ export const movimientosCC = pgTable('movimientos_cc', {
   pedidoId: uuid('pedido_id').references(() => pedidos.id),
   fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
   descripcion: text('descripcion'),
+  metodoPago: metodoPagoEnum('metodo_pago'),
   registradoPor: uuid('registrado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
