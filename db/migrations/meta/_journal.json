@@ -155,6 +155,13 @@
       "when": 1780449057714,
       "tag": "0021_outstanding_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1780449060000,
+      "tag": "0022_add_repartidor_role",
+      "breakpoints": true
     }
   ]
 }
