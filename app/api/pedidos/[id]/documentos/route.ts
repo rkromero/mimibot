@@ -40,7 +40,7 @@ export async function POST(
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="${filename}"`,
         'Content-Length': String(buffer.length),
       },
     })

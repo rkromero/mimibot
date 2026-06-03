@@ -7,6 +7,49 @@ export type DocTipo = 'remito' | 'proforma' | 'etiqueta'
 
 type Generating = { pedidoId: string; tipo: DocTipo } | null
 
+function printBlob(url: string) {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = 'none'
+  iframe.style.opacity = '0'
+  iframe.style.pointerEvents = 'none'
+
+  function cleanup() {
+    try { document.body.removeChild(iframe) } catch { /* already removed */ }
+    URL.revokeObjectURL(url)
+  }
+
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } catch {
+      // Iframe print blocked — open in new tab as fallback
+      window.open(url, '_blank')
+      cleanup()
+      return
+    }
+    // Clean up after the user closes the print dialog.
+    // afterprint fires in Chrome/Firefox; setTimeout is the fallback.
+    const win = iframe.contentWindow
+    if (win) {
+      win.addEventListener('afterprint', cleanup, { once: true })
+    }
+    // Safety timeout: revoke after 3 minutes even if afterprint never fires
+    setTimeout(cleanup, 3 * 60 * 1000)
+  }
+
+  iframe.onerror = () => {
+    window.open(url, '_blank')
+    cleanup()
+  }
+
+  document.body.appendChild(iframe)
+  iframe.src = url
+}
+
 export function useGenerarDocumento() {
   const [generating, setGenerating] = useState<Generating>(null)
   const toast = useToast()
@@ -39,13 +82,7 @@ export function useGenerarDocumento() {
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const disposition = res.headers.get('Content-Disposition') ?? ''
-      const match = disposition.match(/filename="([^"]+)"/)
-      a.download = match?.[1] ?? `${tipo}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      printBlob(url)
     } catch {
       toast.error('Error de conexión al generar documento')
     } finally {
