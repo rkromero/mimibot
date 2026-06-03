@@ -7,7 +7,7 @@ import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
-import { Truck, Package, RefreshCw, FileText, Download } from 'lucide-react'
+import { Truck, Package, RefreshCw, FileText, Download, Tag } from 'lucide-react'
 
 type PedidoItemFabrica = {
   id: string
@@ -226,6 +226,15 @@ export default function FabricaConfirmadosView() {
                   >
                     <Download size={13} />
                     {isGenerating(pedido.id, 'proforma') ? 'Generando...' : 'Proforma'}
+                  </button>
+                  <button
+                    onClick={() => void generarDocumento(pedido.id, 'etiqueta')}
+                    disabled={anyGenerating(pedido.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                    title="Descargar etiqueta de envío PDF"
+                  >
+                    <Tag size={13} />
+                    {isGenerating(pedido.id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
                   </button>
                 </div>
 

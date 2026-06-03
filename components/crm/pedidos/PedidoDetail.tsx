@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -324,6 +324,15 @@ export default function PedidoDetail({ id }: Props) {
               >
                 <Download size={14} />
                 {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
+              </button>
+              <button
+                onClick={() => void generarDocumento(id, 'etiqueta')}
+                disabled={anyGenerating(id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                title="Descargar etiqueta de envío PDF"
+              >
+                <Tag size={14} />
+                {isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
               </button>
             </>
           )}
