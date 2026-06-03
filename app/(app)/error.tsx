@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 
 export default function AppError({
   error,
@@ -10,8 +9,6 @@ export default function AppError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const router = useRouter()
-
   useEffect(() => {
     console.error('[app error]', error.digest ?? error.message)
   }, [error])
@@ -31,7 +28,7 @@ export default function AppError({
             Reintentar
           </button>
           <button
-            onClick={() => router.push('/pipeline')}
+            onClick={() => window.location.assign('/')}
             className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-accent transition-colors"
           >
             Ir al inicio
