@@ -1,14 +1,19 @@
 import React from 'react'
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 
+// ─── Shared type ─────────────────────────────────────────────────────────────
+
 export type PedidoData = {
   id: string
   fecha: Date
   clienteNombre: string
   clienteApellido: string
   clienteDireccion?: string
+  clienteLocalidad?: string
+  clienteProvincia?: string
   clienteCuit?: string
   clienteTelefono?: string
+  clienteEmail?: string
   items: Array<{
     productoNombre: string
     cantidad: number
@@ -22,234 +27,290 @@ export type PedidoData = {
     direccion?: string
     telefono?: string
     email?: string
+    cuit?: string
+    condicionIva?: string
+    puntoVenta?: string
   }
-  /** Método de entrega — solo en pedidos del rol Agente */
   metodoEntrega?: 'retiro_fabrica' | 'expreso' | null
-  /** Nombre del expreso donde se despacha la mercadería */
   expresoNombre?: string
-  /** Dirección del expreso donde se despacha la mercadería */
   expresoDireccion?: string
 }
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: 'Helvetica',
-    fontSize: 10,
-    padding: 40,
-    color: '#000000',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#000000',
-    paddingBottom: 12,
-  },
-  empresaNombre: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-  },
-  empresaInfo: {
-    fontSize: 9,
-    color: '#444444',
-    marginTop: 2,
-  },
-  docTipoBlock: {
-    alignItems: 'flex-end',
-  },
-  docTipo: {
-    fontSize: 20,
-    fontFamily: 'Helvetica-Bold',
-    textAlign: 'right',
-  },
-  docNumero: {
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: 2,
-  },
-  docFecha: {
-    fontSize: 9,
-    textAlign: 'right',
-    marginTop: 2,
-    color: '#444444',
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase',
-    color: '#666666',
-    marginBottom: 4,
-  },
-  clienteRow: {
-    flexDirection: 'row',
-    marginBottom: 2,
-  },
-  clienteLabel: {
-    width: 70,
-    fontSize: 9,
-    color: '#666666',
-  },
-  clienteValue: {
-    fontSize: 9,
-    flex: 1,
-  },
-  table: {
-    borderWidth: 1,
-    borderColor: '#000000',
-    marginBottom: 8,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#000000',
-  },
-  tableHeaderCell: {
-    color: '#ffffff',
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
-    padding: 5,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#cccccc',
-  },
-  tableCell: {
-    fontSize: 9,
-    padding: 5,
-  },
-  colProducto: { flex: 5 },
-  colCantidad: { flex: 1, textAlign: 'right' },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    borderTopWidth: 1,
-    borderTopColor: '#cccccc',
-    paddingTop: 6,
-    fontSize: 9,
-    color: '#666666',
-  },
-})
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function formatDate(date: Date): string {
-  const d = new Date(date)
-  const day = String(d.getDate()).padStart(2, '0')
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${day}/${month}/${year}`
+const MONTHS_ES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+] as const
+
+export function formatDateLong(date: Date): string {
+  const d = typeof date === 'string' ? new Date(date) : new Date(date)
+  return `${d.getUTCDate()} de ${MONTHS_ES[d.getUTCMonth()]} de ${d.getUTCFullYear()}`
 }
 
-function padNumero(n: number): string {
+export function padNumero(n: number): string {
   return String(n).padStart(6, '0')
 }
 
+export function formatCurrency(value: string): string {
+  const num = parseFloat(value)
+  if (isNaN(num)) return value
+  return num.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+}
+
+// ─── Shared styles (exported for proforma to reuse) ───────────────────────────
+
+export const S = StyleSheet.create({
+  page: {
+    fontFamily: 'Helvetica',
+    fontSize: 9,
+    paddingTop: 36,
+    paddingBottom: 60,
+    paddingLeft: 40,
+    paddingRight: 40,
+    color: '#111111',
+  },
+  // Header: 2-column layout
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  empresaNombre: {
+    fontSize: 16,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 4,
+  },
+  empresaMeta: {
+    fontSize: 8,
+    color: '#555555',
+    marginBottom: 2,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+  },
+  headerRightText: {
+    fontSize: 8,
+    textAlign: 'right',
+    marginBottom: 2,
+    color: '#333333',
+  },
+  // Title block (PROFORMA / REMITO + Nº + thick rule)
+  docTitle: {
+    fontSize: 22,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 2,
+  },
+  docNumero: {
+    fontSize: 10,
+    color: '#444444',
+    marginBottom: 8,
+  },
+  thickRule: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#111111',
+    marginBottom: 14,
+  },
+  // Client box
+  clientBox: {
+    backgroundColor: '#f9fafb',
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: '#e5e7eb',
+    borderRightColor: '#e5e7eb',
+    borderBottomColor: '#e5e7eb',
+    borderLeftWidth: 3,
+    borderLeftColor: '#111111',
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 14,
+  },
+  clientBoxTitle: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  clientRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+  },
+  clientCol: {
+    flex: 1,
+    paddingRight: 4,
+  },
+  clientLabel: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: '#555555',
+    marginBottom: 1,
+  },
+  clientValue: {
+    fontSize: 8,
+    color: '#111111',
+  },
+  // Section title above table
+  sectionTitle: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 4,
+  },
+  // Table
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderTopWidth: 1,
+    borderTopColor: '#d1d5db',
+    borderBottomWidth: 1,
+    borderBottomColor: '#d1d5db',
+  },
+  tableHeaderCell: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 8,
+    padding: 5,
+    color: '#111111',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tableCell: {
+    fontSize: 8,
+    padding: 5,
+    color: '#222222',
+  },
+  tableClosingRule: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#111111',
+    marginBottom: 10,
+  },
+  // Remito column widths (2 columns)
+  colDesc: { flex: 5 },
+  colQty: { flex: 1, textAlign: 'right' },
+  // Footer
+  footer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 40,
+    right: 40,
+    textAlign: 'center',
+    fontSize: 7,
+    color: '#777777',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 5,
+  },
+})
+
+// ─── RemitoDocument ───────────────────────────────────────────────────────────
 
 type Props = { data: PedidoData; numero: number }
 
 export function RemitoDocument({ data, numero }: Props) {
+  const footerText = [
+    data.empresa.nombre,
+    data.empresa.cuit ? `CUIT: ${data.empresa.cuit}` : null,
+    data.empresa.condicionIva,
+  ].filter(Boolean).join(' - ')
+
+  const address = [data.clienteDireccion, data.clienteLocalidad, data.clienteProvincia]
+    .filter(Boolean).join(', ') || 'No especificada'
+
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.empresaNombre}>{data.empresa.nombre || 'Empresa'}</Text>
+      <Page size="A4" style={S.page}>
+
+        {/* ── Encabezado ──────────────────────────────────────────────────── */}
+        <View style={S.header}>
+          <View style={{ flex: 1, marginRight: 20 }}>
+            <Text style={S.empresaNombre}>{data.empresa.nombre || 'Empresa'}</Text>
+            {data.empresa.cuit && (
+              <Text style={S.empresaMeta}>CUIT: {data.empresa.cuit}</Text>
+            )}
             {data.empresa.direccion && (
-              <Text style={styles.empresaInfo}>{data.empresa.direccion}</Text>
+              <Text style={S.empresaMeta}>Dirección: {data.empresa.direccion}</Text>
             )}
-            {data.empresa.telefono && (
-              <Text style={styles.empresaInfo}>Tel: {data.empresa.telefono}</Text>
-            )}
-            {data.empresa.email && (
-              <Text style={styles.empresaInfo}>{data.empresa.email}</Text>
+            {data.empresa.condicionIva && (
+              <Text style={S.empresaMeta}>Condición IVA: {data.empresa.condicionIva}</Text>
             )}
           </View>
-          <View style={styles.docTipoBlock}>
-            <Text style={styles.docTipo}>REMITO</Text>
-            <Text style={styles.docNumero}>N° {padNumero(numero)}</Text>
-            <Text style={styles.docFecha}>Fecha: {formatDate(data.fecha)}</Text>
+          <View style={S.headerRight}>
+            <Text style={S.headerRightText}>Fecha: {formatDateLong(data.fecha)}</Text>
+            {data.empresa.puntoVenta && (
+              <Text style={S.headerRightText}>Punto de Venta: {data.empresa.puntoVenta}</Text>
+            )}
+            <Text style={S.headerRightText}>Comprobante: REMITO</Text>
           </View>
         </View>
 
-        {/* Cliente */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Datos del Cliente</Text>
-          <View style={styles.clienteRow}>
-            <Text style={styles.clienteLabel}>Nombre:</Text>
-            <Text style={styles.clienteValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+        {/* ── Título ──────────────────────────────────────────────────────── */}
+        <Text style={S.docTitle}>REMITO</Text>
+        <Text style={S.docNumero}>Nº {padNumero(numero)}</Text>
+        <View style={S.thickRule} />
+
+        {/* ── Datos del cliente ────────────────────────────────────────────── */}
+        <View style={S.clientBox}>
+          <Text style={S.clientBoxTitle}>Datos del Cliente</Text>
+          <View style={S.clientRow}>
+            <View style={S.clientCol}>
+              <Text style={S.clientLabel}>Razón Social</Text>
+              <Text style={S.clientValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+            </View>
+            <View style={S.clientCol}>
+              <Text style={S.clientLabel}>CUIT / DNI</Text>
+              <Text style={S.clientValue}>{data.clienteCuit ?? 'No especificado'}</Text>
+            </View>
           </View>
-          {data.clienteDireccion && (
-            <View style={styles.clienteRow}>
-              <Text style={styles.clienteLabel}>Dirección:</Text>
-              <Text style={styles.clienteValue}>{data.clienteDireccion}</Text>
+          <View style={S.clientRow}>
+            <View style={S.clientCol}>
+              <Text style={S.clientLabel}>Teléfono</Text>
+              <Text style={S.clientValue}>{data.clienteTelefono ?? '—'}</Text>
             </View>
-          )}
-          {data.clienteCuit && (
-            <View style={styles.clienteRow}>
-              <Text style={styles.clienteLabel}>CUIT:</Text>
-              <Text style={styles.clienteValue}>{data.clienteCuit}</Text>
+            <View style={S.clientCol}>
+              <Text style={S.clientLabel}>Email</Text>
+              <Text style={S.clientValue}>{data.clienteEmail ?? '—'}</Text>
             </View>
-          )}
-          {data.clienteTelefono && (
-            <View style={styles.clienteRow}>
-              <Text style={styles.clienteLabel}>Teléfono:</Text>
-              <Text style={styles.clienteValue}>{data.clienteTelefono}</Text>
+          </View>
+          <View style={S.clientRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={S.clientLabel}>Dirección</Text>
+              <Text style={S.clientValue}>{address}</Text>
             </View>
-          )}
+          </View>
         </View>
 
-        {/* Método de entrega — solo si está cargado */}
+        {/* ── Método de entrega (si aplica) ────────────────────────────────── */}
         {data.metodoEntrega && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Método de entrega</Text>
-            <View style={styles.clienteRow}>
-              <Text style={styles.clienteLabel}>Entrega:</Text>
-              <Text style={styles.clienteValue}>
-                {data.metodoEntrega === 'retiro_fabrica' ? 'Retiro en fábrica' : 'Envío por expreso'}
-              </Text>
-            </View>
-            {data.metodoEntrega === 'expreso' && data.expresoNombre && (
-              <View style={styles.clienteRow}>
-                <Text style={styles.clienteLabel}>Expreso:</Text>
-                <Text style={styles.clienteValue}>{data.expresoNombre}</Text>
-              </View>
-            )}
-            {data.metodoEntrega === 'expreso' && data.expresoDireccion && (
-              <View style={styles.clienteRow}>
-                <Text style={styles.clienteLabel}>Dir. despacho:</Text>
-                <Text style={styles.clienteValue}>{data.expresoDireccion}</Text>
-              </View>
-            )}
+          <View style={{ marginBottom: 12 }}>
+            <Text style={S.sectionTitle}>Método de Entrega</Text>
+            <Text style={{ fontSize: 8, color: '#333333' }}>
+              {data.metodoEntrega === 'retiro_fabrica'
+                ? 'Retiro en fábrica'
+                : `Envío por expreso${data.expresoNombre ? ` — ${data.expresoNombre}` : ''}${data.expresoDireccion ? `, ${data.expresoDireccion}` : ''}`}
+            </Text>
           </View>
         )}
 
-        {/* Items table */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detalle</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, styles.colProducto]}>Producto</Text>
-              <Text style={[styles.tableHeaderCell, styles.colCantidad]}>Cant.</Text>
-            </View>
-            {data.items.map((item, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={[styles.tableCell, styles.colProducto]}>{item.productoNombre}</Text>
-                <Text style={[styles.tableCell, styles.colCantidad]}>{item.cantidad}</Text>
-              </View>
-            ))}
+        {/* ── Detalle de productos ─────────────────────────────────────────── */}
+        <Text style={S.sectionTitle}>Detalle de Productos</Text>
+        <View style={S.tableHeader}>
+          <Text style={[S.tableHeaderCell, S.colDesc]}>Descripción</Text>
+          <Text style={[S.tableHeaderCell, S.colQty]}>Cantidad</Text>
+        </View>
+        {data.items.map((item, i) => (
+          <View key={i} style={S.tableRow}>
+            <Text style={[S.tableCell, S.colDesc]}>{item.productoNombre}</Text>
+            <Text style={[S.tableCell, S.colQty]}>{item.cantidad}</Text>
           </View>
+        ))}
+        <View style={S.tableClosingRule} />
 
-        </View>
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <Text style={S.footer}>{footerText}</Text>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text>Vendedor: {data.vendedorNombre}</Text>
-        </View>
       </Page>
     </Document>
   )

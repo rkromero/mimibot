@@ -50,6 +50,9 @@ export async function emitirDocumento(
     direccion: config?.direccion ?? undefined,
     telefono: config?.telefono ?? undefined,
     email: config?.email ?? undefined,
+    cuit: config?.cuit ?? undefined,
+    condicionIva: config?.condicionIva ?? undefined,
+    puntoVenta: config?.puntoVenta ?? undefined,
   }
 
   // 3. Transaction with locking on document_counters
@@ -95,8 +98,11 @@ export async function emitirDocumento(
     clienteNombre: pedido.cliente.nombre,
     clienteApellido: pedido.cliente.apellido,
     clienteDireccion: pedido.cliente.direccion ?? undefined,
+    clienteLocalidad: pedido.cliente.localidad ?? undefined,
+    clienteProvincia: pedido.cliente.provincia ?? undefined,
     clienteCuit: pedido.cliente.cuit ?? undefined,
     clienteTelefono: pedido.cliente.telefono ?? undefined,
+    clienteEmail: pedido.cliente.email ?? undefined,
     items: pedido.items.map((item) => ({
       productoNombre: item.producto?.nombre ?? 'Producto',
       cantidad: item.cantidad,
