@@ -16,7 +16,7 @@ const createUserSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8).max(100),
-  role: z.enum(['admin', 'agent', 'gerente', 'vendedor', 'fabrica']).default('agent'),
+  role: z.enum(['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor']).default('agent'),
 })
 
 export async function GET(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const roleParam = req.nextUrl.searchParams.get('role')
 
-    const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor', 'fabrica'] as const
+    const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor'] as const
     type UserRole = typeof VALID_ROLES[number]
     const conditions = [eq(users.isActive, true)]
 
