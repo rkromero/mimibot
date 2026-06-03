@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mimi-crm-v2'
-const API_CACHE = 'mimi-api-v2'
+const CACHE_NAME = 'mimi-crm-v3'
+const API_CACHE = 'mimi-api-v3'
 const QUEUE_DB = 'mimi-offline-queue'
 const QUEUE_STORE = 'actions'
 
@@ -8,6 +8,9 @@ const CACHEABLE_APIS = [
   '/api/productos',
   '/api/pipeline/stages',
 ]
+
+// Static asset destinations that are safe to cache (no HTML documents)
+const STATIC_DESTINATIONS = ['script', 'style', 'image', 'font', 'worker', 'manifest']
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
@@ -89,6 +92,7 @@ self.addEventListener('install', () => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
+      // Purge all old caches (including v2 HTML caches)
       caches.keys().then((keys) =>
         Promise.all(
           keys
@@ -97,9 +101,10 @@ self.addEventListener('activate', (event) => {
         ),
       ),
       flushQueue(),
+      // Take immediate control of all open clients
+      self.clients.claim(),
     ]),
   )
-  self.clients.claim()
 })
 
 self.addEventListener('online', () => {
@@ -152,7 +157,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return
 
-  // GET API routes: network-first, stale fallback
+  // GET API routes: network-first, stale fallback for cacheable APIs
   if (url.pathname.startsWith('/api/') && CACHEABLE_APIS.some((a) => url.pathname.startsWith(a))) {
     event.respondWith(
       fetch(request)
@@ -166,8 +171,32 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: stale-while-revalidate
-  if (!url.pathname.startsWith('/api/')) {
+  // NAVIGATIONS: ALWAYS network-first — never serve cached HTML.
+  // Auth middleware must run on every page navigation to enforce session/role checks.
+  // Serving a cached authenticated page for a different user is a privacy violation.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() =>
+        new Response(
+          '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Sin conexión</title></head>' +
+          '<body style="font-family:sans-serif;text-align:center;padding:4rem">' +
+          '<h2>Sin conexión</h2><p>Revisá tu red e intentá de nuevo.</p>' +
+          '<button onclick="location.reload()">Reintentar</button></body></html>',
+          { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+        ),
+      ),
+    )
+    return
+  }
+
+  // STATIC ASSETS ONLY: stale-while-revalidate.
+  // Restricted to scripts, styles, images, fonts — never documents.
+  if (
+    !url.pathname.startsWith('/api/') &&
+    (STATIC_DESTINATIONS.includes(request.destination) ||
+      url.pathname.startsWith('/_next/static/') ||
+      /\.(js|css|woff2?|ttf|otf|eot|png|jpe?g|gif|webp|svg|ico)$/.test(url.pathname))
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const network = fetch(request).then((res) => {
@@ -181,6 +210,7 @@ self.addEventListener('fetch', (event) => {
       }),
     )
   }
+  // All other non-API, non-asset, non-navigation requests: pass through to network (no caching)
 })
 
 // Flush queue when back online via sync event (Background Sync API)
