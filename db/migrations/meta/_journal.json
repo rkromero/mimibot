@@ -162,6 +162,13 @@
       "when": 1780449060000,
       "tag": "0022_add_repartidor_role",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1748908800000,
+      "tag": "0023_add_pago_cobrado_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,11 @@ import { requireAdminOrGerente } from '@/lib/authz'
 import { db } from '@/db'
 import { pedidos, clientes, users } from '@/db/schema'
 import { eq, and, isNull, gte, lte, desc } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { toApiError } from '@/lib/errors'
+
+const repartidoresT = alias(users, 'repartidores')
+const cobradoresT = alias(users, 'cobradores')
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,15 +37,19 @@ export async function GET(req: NextRequest) {
           entregadoAt: pedidos.entregadoAt,
           total: pedidos.total,
           firmaUrl: pedidos.firmaUrl,
+          estadoPago: pedidos.estadoPago,
+          pagoCobradoAt: pedidos.pagoCobradoAt,
+          cobradorNombre: cobradoresT.name,
           clienteNombre: clientes.nombre,
           clienteApellido: clientes.apellido,
           clienteLocalidad: clientes.localidad,
-          repartidorNombre: users.name,
+          repartidorNombre: repartidoresT.name,
           repartidorId: pedidos.entregadoPor,
         })
         .from(pedidos)
         .leftJoin(clientes, eq(pedidos.clienteId, clientes.id))
-        .leftJoin(users, eq(pedidos.entregadoPor, users.id))
+        .leftJoin(repartidoresT, eq(pedidos.entregadoPor, repartidoresT.id))
+        .leftJoin(cobradoresT, eq(pedidos.pagoCobradoPor, cobradoresT.id))
         .where(and(...conditions))
         .orderBy(desc(pedidos.entregadoAt)),
 

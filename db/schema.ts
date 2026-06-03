@@ -391,6 +391,8 @@ export const pedidos = pgTable('pedidos', {
   entregadoAt: timestamp('entregado_at', { mode: 'date', withTimezone: true }),
   entregadoPor: uuid('entregado_por').references(() => users.id),
   firmaUrl: text('firma_url'),
+  pagoCobradoPor: uuid('pago_cobrado_por').references(() => users.id),
+  pagoCobradoAt: timestamp('pago_cobrado_at', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),

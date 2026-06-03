@@ -148,6 +148,12 @@ const MIGRATION_0022_STATEMENTS: string[] = [
   `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "firma_url" text`,
 ]
 
+const MIGRATION_0023_STATEMENTS: string[] = [
+  // Migration 0023: payment collection tracking fields on pedidos.
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "pago_cobrado_por" uuid REFERENCES "public"."users"("id")`,
+  `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "pago_cobrado_at" timestamptz`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -213,6 +219,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0020_en_reparto_fabrica', MIGRATION_0020_STATEMENTS))
     results.push(...await runStatements('0021_empresa_fiscal', MIGRATION_0021_STATEMENTS))
     results.push(...await runStatements('0022_repartidor_entrega', MIGRATION_0022_STATEMENTS))
+    results.push(...await runStatements('0023_pago_cobrado_fields', MIGRATION_0023_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`
@@ -255,6 +262,11 @@ export async function POST(_req: NextRequest) {
       WHERE table_schema = 'public' AND table_name = 'pedidos'
         AND column_name IN ('entregado_at', 'entregado_por', 'firma_url')
     `)
+    const pedidosPagoCobradoCols = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'pedidos'
+        AND column_name IN ('pago_cobrado_por', 'pago_cobrado_at')
+    `)
     const repartidorRole = await db.execute(sql`
       SELECT enumlabel FROM pg_enum
       JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
@@ -279,6 +291,7 @@ export async function POST(_req: NextRequest) {
       metasPctPedidosColumn: unwrap(metasPctPedidosCols),
       metasPctCobranzaColumn: unwrap(metasPctCobranzaCols),
       pedidosEntregaColumns: unwrap(pedidosEntregaCols),
+      pedidosPagoCobradoColumns: unwrap(pedidosPagoCobradoCols),
       repartidorRoleExists: unwrap(repartidorRole).length > 0,
     })
   } catch (err) {
@@ -290,7 +303,7 @@ export async function POST(_req: NextRequest) {
 // GET returns 405 to nudge users to use POST so this isn't triggered by a prefetch
 export async function GET(_req: NextRequest) {
   return NextResponse.json(
-    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0022.' },
+    { error: 'Use POST. This endpoint applies missing migrations 0008-0011, 0015-0023.' },
     { status: 405 },
   )
 }

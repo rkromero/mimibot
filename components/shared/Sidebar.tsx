@@ -46,6 +46,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid, roles: ALL_ROLES },
       { href: '/inbox', label: 'Inbox', icon: Inbox, roles: ALL_ROLES },
       { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ALL_ROLES },
+      { href: '/admin/entregas', label: 'Pedidos entregados', icon: Truck, roles: ['admin', 'gerente'] },
     ],
   },
   {
@@ -63,7 +64,6 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'vendedor'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
-      { href: '/admin/entregas', label: 'Entregas', icon: Truck, roles: ['admin', 'gerente'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
   },
