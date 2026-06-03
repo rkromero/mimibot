@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    return withAdminAuth(async () => {
+    return await withAdminAuth(async () => {
       const body: unknown = await req.json()
       const parsed = createUserSchema.safeParse(body)
       if (!parsed.success) {
@@ -93,20 +93,30 @@ export async function POST(req: NextRequest) {
       const passwordHash = await bcrypt.hash(parsed.data.password, 12)
       const avatarColor = stringToColor(parsed.data.name)
 
-      const [user] = await db
-        .insert(users)
-        .values({
-          name: parsed.data.name,
-          email: parsed.data.email,
-          passwordHash,
-          role: parsed.data.role,
-          avatarColor,
-          isActive: true,
-        })
-        .returning({
-          id: users.id, name: users.name, email: users.email,
-          role: users.role, avatarColor: users.avatarColor, isActive: users.isActive,
-        })
+      let user: { id: string; name: string | null; email: string; role: string; avatarColor: string; isActive: boolean } | undefined
+      try {
+        ;[user] = await db
+          .insert(users)
+          .values({
+            name: parsed.data.name,
+            email: parsed.data.email,
+            passwordHash,
+            role: parsed.data.role,
+            avatarColor,
+            isActive: true,
+          })
+          .returning({
+            id: users.id, name: users.name, email: users.email,
+            role: users.role, avatarColor: users.avatarColor, isActive: users.isActive,
+          })
+      } catch (dbErr) {
+        const raw = dbErr instanceof Error ? dbErr.message : String(dbErr)
+        if (raw.includes('invalid input value for enum') || raw.includes('invalid enum') || raw.includes('violates check')) {
+          return NextResponse.json({ error: 'Rol inválido. Verificá que la base de datos tenga las migraciones aplicadas.' }, { status: 400 })
+        }
+        console.error('[POST /api/users] DB insert error:', raw)
+        return NextResponse.json({ error: 'Error al guardar el usuario en la base de datos' }, { status: 500 })
+      }
 
       return NextResponse.json({ data: user }, { status: 201 })
     }, session.user)

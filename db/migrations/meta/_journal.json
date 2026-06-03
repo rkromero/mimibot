@@ -141,6 +141,13 @@
       "when": 1780426810031,
       "tag": "0019_add_localidad_provincia_cp_to_clientes",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780445281164,
+      "tag": "0020_lively_silk_fever",
+      "breakpoints": true
     }
   ]
 }

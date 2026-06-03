@@ -43,24 +43,29 @@ export default function TeamManager({ initialUsers }: Props) {
     setError(null)
 
     startTransition(async () => {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser),
-      })
+      try {
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser),
+        })
 
-      const data = await res.json() as { data?: TeamUser; error?: string }
+        let data: { data?: TeamUser; error?: string } = {}
+        try { data = await res.json() } catch { /* empty or non-JSON body */ }
 
-      if (!res.ok) {
-        setError(typeof data.error === 'string' ? data.error : 'Error al crear usuario')
-        return
+        if (!res.ok) {
+          setError(data.error ?? 'Error al crear usuario')
+          return
+        }
+
+        if (data.data) {
+          setMembers((prev) => [...prev, data.data!])
+        }
+        setNewUser({ name: '', email: '', password: '', role: 'agent' as const })
+        setShowForm(false)
+      } catch {
+        setError('No se pudo conectar con el servidor. Intentá de nuevo.')
       }
-
-      if (data.data) {
-        setMembers((prev) => [...prev, data.data!])
-      }
-      setNewUser({ name: '', email: '', password: '', role: 'agent' as const })
-      setShowForm(false)
     })
   }
 
@@ -82,32 +87,37 @@ export default function TeamManager({ initialUsers }: Props) {
     setEditError(null)
 
     startTransition(async () => {
-      const payload: Record<string, unknown> = {
-        name: editForm.name,
-        email: editForm.email,
-        role: editForm.role,
-      }
-      if (editForm.password.length > 0) {
-        payload.password = editForm.password
-      }
+      try {
+        const payload: Record<string, unknown> = {
+          name: editForm.name,
+          email: editForm.email,
+          role: editForm.role,
+        }
+        if (editForm.password.length > 0) {
+          payload.password = editForm.password
+        }
 
-      const res = await fetch(`/api/users/${editForm.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+        const res = await fetch(`/api/users/${editForm.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
 
-      const data = await res.json() as { data?: TeamUser; error?: string }
+        let data: { data?: TeamUser; error?: string } = {}
+        try { data = await res.json() } catch { /* empty or non-JSON body */ }
 
-      if (!res.ok) {
-        setEditError(typeof data.error === 'string' ? data.error : 'Error al guardar cambios')
-        return
+        if (!res.ok) {
+          setEditError(data.error ?? 'Error al guardar cambios')
+          return
+        }
+
+        if (data.data) {
+          setMembers((prev) => prev.map((u) => u.id === editForm.id ? { ...u, ...data.data } : u))
+        }
+        setEditForm(null)
+      } catch {
+        setEditError('No se pudo conectar con el servidor. Intentá de nuevo.')
       }
-
-      if (data.data) {
-        setMembers((prev) => prev.map((u) => u.id === editForm.id ? { ...u, ...data.data } : u))
-      }
-      setEditForm(null)
     })
   }
 
