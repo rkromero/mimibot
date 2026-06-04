@@ -179,6 +179,15 @@ const MIGRATION_0026_STATEMENTS: string[] = [
   `ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "mp_payment_id" text`,
 ]
 
+const MIGRATION_0027_STATEMENTS: string[] = [
+  // Migration 0027: performance indexes on pedidos for estado/estado_pago/entregado_at/entregado_por queries.
+  // Partial indexes exclude deleted rows; IF NOT EXISTS makes each statement idempotent.
+  `CREATE INDEX IF NOT EXISTS "pedidos_estado_idx" ON "pedidos" ("estado") WHERE "deleted_at" IS NULL`,
+  `CREATE INDEX IF NOT EXISTS "pedidos_estado_entregado_at_idx" ON "pedidos" ("estado","entregado_at") WHERE "deleted_at" IS NULL`,
+  `CREATE INDEX IF NOT EXISTS "pedidos_entregado_por_idx" ON "pedidos" ("entregado_por")`,
+  `CREATE INDEX IF NOT EXISTS "pedidos_morosos_idx" ON "pedidos" ("fecha") WHERE "estado_pago" IN ('impago','parcial') AND "deleted_at" IS NULL`,
+]
+
 const MIGRATION_0011_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "whatsapp_config" (
     "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
@@ -248,6 +257,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0024_metodo_pago', MIGRATION_0024_STATEMENTS))
     results.push(...await runStatements('0025_entrega_gps', MIGRATION_0025_STATEMENTS))
     results.push(...await runStatements('0026_mercadopago', MIGRATION_0026_STATEMENTS))
+    results.push(...await runStatements('0027_pedidos_perf_indexes', MIGRATION_0027_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`

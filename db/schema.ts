@@ -408,6 +408,9 @@ export const pedidos = pgTable('pedidos', {
   index('pedidos_estado_pago_idx').on(t.clienteId, t.estadoPago),
   index('pedidos_fecha_idx').on(t.fecha),
   index('pedidos_territorio_imputado_idx').on(t.territorioIdImputado),
+  // Performance indexes added in migration 0027
+  index('pedidos_estado_idx').on(t.estado),
+  index('pedidos_entregado_por_idx').on(t.entregadoPor),
 ])
 
 export const pedidoItems = pgTable('pedido_items', {
