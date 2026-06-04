@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Phone, MessageCircle, MapPin, CheckCircle, Package } from 'lucide-react'
 import EntregarSheet from './EntregarSheet'
-import CobroQrSheet from './CobroQrSheet'
 
 type Item = {
   id: string
@@ -25,13 +24,13 @@ export type Pedido = {
   id: string
   fecha: string
   total: string
+  saldoPendiente: string
   cliente: Cliente
   items: Item[]
 }
 
-export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido) {
+export default function PedidoCard({ id, fecha, total, saldoPendiente, cliente, items }: Pedido) {
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [cobroOpen, setCobroOpen] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const qc = useQueryClient()
 
@@ -40,17 +39,6 @@ export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido)
     setTimeout(() => {
       void qc.invalidateQueries({ queryKey: ['repartidor-pedidos'] })
     }, 350)
-  }
-
-  function handleDelivered() {
-    setSheetOpen(false)
-    // After delivery, offer QR payment
-    setCobroOpen(true)
-  }
-
-  function handleCobroDone() {
-    setCobroOpen(false)
-    dismissCard()
   }
 
   const addressParts = [cliente.direccion, cliente.localidad, cliente.provincia].filter(Boolean)
@@ -154,7 +142,7 @@ export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido)
             type="button"
             onClick={() => setSheetOpen(true)}
             className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-primary hover:bg-primary/90 active:bg-primary/80 rounded-xl transition-colors text-primary-foreground"
-            aria-label="Marcar como entregado"
+            aria-label="Entregar y cobrar"
           >
             <CheckCircle size={18} strokeWidth={2} />
             <span className="text-[11px] font-medium">Entregar</span>
@@ -165,17 +153,10 @@ export default function PedidoCard({ id, fecha, total, cliente, items }: Pedido)
       <EntregarSheet
         pedidoId={id}
         clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+        saldoPendiente={saldoPendiente}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onDelivered={handleDelivered}
-      />
-
-      <CobroQrSheet
-        pedidoId={id}
-        clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
-        saldoPendiente={total}
-        open={cobroOpen}
-        onClose={handleCobroDone}
+        onDelivered={dismissCard}
       />
     </>
   )

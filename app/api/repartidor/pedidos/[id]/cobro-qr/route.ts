@@ -5,12 +5,20 @@ import { pedidos } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { createPreference } from '@/lib/mercadopago/client'
+import { z } from 'zod'
 
 const APP_URL = 'https://mimibot-production-1c38.up.railway.app'
 const WEBHOOK_URL = `${APP_URL}/api/webhooks/mercadopago`
 
+const bodySchema = z.object({
+  firmaUrl: z.string().min(1),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  precisionM: z.number().nonnegative().optional(),
+})
+
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -24,6 +32,12 @@ export async function POST(
 
     const { id: pedidoId } = await params
 
+    const parsed = bodySchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }, { status: 400 })
+    }
+    const { firmaUrl, lat, lng, precisionM } = parsed.data
+
     const pedido = await db.query.pedidos.findFirst({
       where: and(eq(pedidos.id, pedidoId), isNull(pedidos.deletedAt)),
       columns: { id: true, estado: true, saldoPendiente: true, total: true },
@@ -32,9 +46,9 @@ export async function POST(
     if (!pedido) {
       return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
     }
-    if (pedido.estado !== 'entregado') {
+    if (pedido.estado !== 'en_reparto') {
       return NextResponse.json(
-        { error: 'El pedido debe estar en estado entregado para generar un cobro QR' },
+        { error: 'El pedido debe estar en estado en_reparto para generar un cobro QR' },
         { status: 409 },
       )
     }
@@ -60,9 +74,19 @@ export async function POST(
       notificationUrl: WEBHOOK_URL,
     })
 
+    // Save preference ID + firma/GPS + entregadoPor so the webhook can mark delivered later.
+    // Do NOT set estado='entregado' or entregadoAt here.
     await db
       .update(pedidos)
-      .set({ mpPreferenceId: preference.id, updatedAt: new Date() })
+      .set({
+        mpPreferenceId: preference.id,
+        firmaUrl,
+        entregaLat: lat ?? null,
+        entregaLng: lng ?? null,
+        entregaPrecisionM: precisionM ?? null,
+        entregadoPor: session.user.id ?? null,
+        updatedAt: new Date(),
+      })
       .where(eq(pedidos.id, pedidoId))
 
     return NextResponse.json({

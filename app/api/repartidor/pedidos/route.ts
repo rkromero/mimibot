@@ -21,6 +21,14 @@ export async function GET() {
         eq(pedidos.estado, 'en_reparto'),
       ),
       orderBy: [desc(pedidos.fecha)],
+      columns: {
+        id: true,
+        fecha: true,
+        total: true,
+        saldoPendiente: true,
+        estado: true,
+        estadoPago: true,
+      },
       with: {
         cliente: {
           columns: {

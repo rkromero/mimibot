@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Idempotency: skip if this payment was already recorded
     const pedido = await db.query.pedidos.findFirst({
       where: eq(pedidos.id, pedidoId),
-      columns: { id: true, mpPaymentId: true, entregadoPor: true, saldoPendiente: true },
+      columns: { id: true, mpPaymentId: true, entregadoPor: true, entregadoAt: true, saldoPendiente: true },
     })
 
     if (!pedido) {
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // Resolve registradoPor: use the repartidor who delivered, or fall back to any admin
+    // Resolve registradoPor: use the repartidor saved at QR generation, or fall back to any admin
     let registradoPor = pedido.entregadoPor
     if (!registradoPor) {
       const admin = await db.query.users.findFirst({
@@ -117,10 +117,15 @@ export async function POST(req: NextRequest) {
       registradoPor,
     })
 
-    // Save mp_payment_id for idempotency
+    // Mark delivered + save mp_payment_id (idempotent: preserve existing entregadoAt if set)
     await db
       .update(pedidos)
-      .set({ mpPaymentId: String(payment.id), updatedAt: new Date() })
+      .set({
+        estado: 'entregado',
+        entregadoAt: pedido.entregadoAt ?? new Date(),
+        mpPaymentId: String(payment.id),
+        updatedAt: new Date(),
+      })
       .where(eq(pedidos.id, pedidoId))
 
     console.info('[mp-webhook] Payment', payment.id, 'applied to pedido', pedidoId, '— monto', monto)
