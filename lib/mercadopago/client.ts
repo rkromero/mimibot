@@ -54,7 +54,9 @@ export async function createPreference(opts: {
       items: opts.items.map((i) => ({ currency_id: 'ARS', ...i })),
       external_reference: opts.externalReference,
       notification_url: opts.notificationUrl,
-      auto_return: 'all',
+      // Sin auto_return / back_urls: el cobro por QR no usa redirección;
+      // la confirmación del pago llega por el webhook. auto_return exigiría
+      // back_urls.success y haría que MP rechace la preferencia (400).
     }),
   })
 }
