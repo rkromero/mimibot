@@ -1,4 +1,4 @@
-import { eq, and, isNull, asc, desc, inArray } from 'drizzle-orm'
+import { eq, and, isNull, asc, desc, inArray, sql } from 'drizzle-orm'
 import { differenceInDays } from 'date-fns'
 import { db } from '@/db'
 import { clientes, pedidos, businessConfig } from '@/db/schema'
@@ -132,69 +132,116 @@ export async function evaluarClienteNuevo(
     .where(eq(clientes.id, clienteId))
 }
 
-// ─── Recalcular Clientes Nuevos (backfill) ────────────────────────────────────
-
-export async function recalcularClientesNuevos(): Promise<{ evaluated: number }> {
-  const cfg = await getBusinessConfig()
-
-  const todosClientes = await db.query.clientes.findMany({
-    where: isNull(clientes.deletedAt),
-    columns: { id: true },
-  })
-
-  const BATCH_SIZE = 50
-  let evaluated = 0
-
-  for (let i = 0; i < todosClientes.length; i += BATCH_SIZE) {
-    const batch = todosClientes.slice(i, i + BATCH_SIZE)
-    await Promise.all(
-      batch.map(async (cliente) => {
-        await evaluarClienteNuevo(cliente.id, cfg)
-        evaluated++
-      }),
-    )
-  }
-
-  return { evaluated }
-}
-
 // ─── Recalcular Estados (batch job) ──────────────────────────────────────────
+// Single UPDATE...FROM (subquery) replaces N+1 pattern (1 query per client).
+// Same business logic as calcularEstadoActividad; (CURRENT_DATE - fecha::date)
+// matches differenceInDays() since both compute floor(diff_ms / ms_per_day).
 
 export async function recalcularEstadosActividad(): Promise<{ updated: number }> {
   const cfg = await getBusinessConfig()
 
-  // Load all non-deleted clientes
-  const todosClientes = await db.query.clientes.findMany({
-    where: isNull(clientes.deletedAt),
-    columns: { id: true },
-  })
-
-  let updated = 0
-
-  // Process in batches of 50 to avoid overwhelming the DB
-  const BATCH_SIZE = 50
-
-  for (let i = 0; i < todosClientes.length; i += BATCH_SIZE) {
-    const batch = todosClientes.slice(i, i + BATCH_SIZE)
-
-    await Promise.all(
-      batch.map(async (cliente) => {
-        const nuevoEstado = await calcularEstadoActividad(cliente.id, cfg)
-
-        if (nuevoEstado === null) return
-
-        await db
-          .update(clientes)
-          .set({
-            estadoActividad: nuevoEstado,
-            updatedAt: new Date(),
-          })
-          .where(eq(clientes.id, cliente.id))
-
-        updated++
-      }),
+  const result = await db.execute<{ id: string }>(sql`
+    WITH ultimo_pedido AS (
+      SELECT cliente_id, MAX(fecha) AS ultima_fecha
+      FROM pedidos
+      WHERE estado = 'confirmado' AND deleted_at IS NULL
+      GROUP BY cliente_id
+    ),
+    calc AS (
+      SELECT
+        c.id AS cliente_id,
+        CASE
+          WHEN (CURRENT_DATE - up.ultima_fecha::date) < ${cfg.clienteActivoDias}  THEN 'activo'
+          WHEN (CURRENT_DATE - up.ultima_fecha::date) < ${cfg.clientePerdidoDias} THEN 'inactivo'
+          ELSE 'perdido'
+        END AS nuevo_estado
+      FROM clientes c
+      INNER JOIN ultimo_pedido up ON up.cliente_id = c.id
+      WHERE c.deleted_at IS NULL
     )
+    UPDATE clientes
+    SET
+      estado_actividad = calc.nuevo_estado::estado_actividad,
+      updated_at       = NOW()
+    FROM calc
+    WHERE clientes.id = calc.cliente_id
+      AND clientes.estado_actividad IS DISTINCT FROM calc.nuevo_estado::estado_actividad
+    RETURNING clientes.id
+  `)
+
+  const rows = Array.isArray(result) ? result : Array.from(result as Iterable<{ id: string }>)
+  return { updated: rows.length }
+}
+
+// ─── Recalcular Clientes Nuevos (backfill) ────────────────────────────────────
+// One SELECT (with ROW_NUMBER) fetches all pedidos for all not-yet-converted
+// clients; JS applies the same window/monto logic as evaluarClienteNuevo.
+
+export async function recalcularClientesNuevos(): Promise<{ evaluated: number }> {
+  const cfg = await getBusinessConfig()
+  const minPedidos = cfg.clienteNuevoMinPedidos
+  const ventana = cfg.clienteNuevoVentanaDias
+  const montoMinimo = cfg.clienteNuevoMontoMinimo !== null ? parseFloat(cfg.clienteNuevoMontoMinimo) : null
+
+  type PedidoRow = { cliente_id: string; asignado_a: string | null; rn: string | number; fecha: Date; total: string }
+
+  const rawRows = await db.execute<PedidoRow>(sql`
+    SELECT
+      p.cliente_id,
+      c.asignado_a,
+      ROW_NUMBER() OVER (PARTITION BY p.cliente_id ORDER BY p.fecha ASC) AS rn,
+      p.fecha,
+      p.total
+    FROM pedidos p
+    INNER JOIN clientes c ON c.id = p.cliente_id
+    WHERE p.estado      = 'confirmado'
+      AND p.estado_pago IN ('pagado', 'parcial')
+      AND p.deleted_at  IS NULL
+      AND c.deleted_at  IS NULL
+      AND c.fecha_conversion_a_nuevo IS NULL
+    ORDER BY p.cliente_id, p.fecha ASC
+  `)
+
+  const rows = Array.from(rawRows as Iterable<PedidoRow>)
+
+  // Group by cliente_id
+  type Entry = { asignadoA: string | null; pedidos: Array<{ rn: number; fecha: Date; total: string }> }
+  const map = new Map<string, Entry>()
+  for (const row of rows) {
+    if (!map.has(row.cliente_id)) map.set(row.cliente_id, { asignadoA: row.asignado_a, pedidos: [] })
+    map.get(row.cliente_id)!.pedidos.push({ rn: Number(row.rn), fecha: new Date(row.fecha), total: row.total })
   }
 
-  return { updated }
+  // Apply same business logic as evaluarClienteNuevo
+  const conversiones: Array<{ clienteId: string; fecha: Date; asignadoA: string | null }> = []
+
+  for (const [clienteId, { asignadoA, pedidos: clientePedidos }] of map) {
+    if (clientePedidos.length < minPedidos) continue
+
+    const firstN = clientePedidos.filter((p) => p.rn <= minPedidos)
+    if (firstN.length < minPedidos) continue
+
+    const firstFecha = firstN[0]!.fecha
+    const nthFecha = firstN[minPedidos - 1]!.fecha
+    const windowDays = differenceInDays(nthFecha, firstFecha)
+    if (windowDays > ventana) continue
+
+    if (montoMinimo !== null) {
+      const totalSum = firstN.reduce((sum, p) => sum + parseFloat(p.total), 0)
+      if (totalSum < montoMinimo) continue
+    }
+
+    conversiones.push({ clienteId, fecha: nthFecha, asignadoA })
+  }
+
+  for (const conv of conversiones) {
+    await db.update(clientes).set({
+      fechaConversionANuevo: conv.fecha,
+      vendedorConversionId: conv.asignadoA,
+      estadoActividad: 'activo',
+      updatedAt: new Date(),
+    }).where(eq(clientes.id, conv.clienteId))
+  }
+
+  return { evaluated: map.size }
 }

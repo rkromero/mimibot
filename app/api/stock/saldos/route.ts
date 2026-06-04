@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { stockMovements, productos } from '@/db/schema'
-import { eq, sql, isNull, and, asc, desc } from 'drizzle-orm'
+import { eq, sql, isNull, and, asc, desc, inArray } from 'drizzle-orm'
 import { parsePagination } from '@/lib/api/pagination'
 
 export async function GET(req: NextRequest) {
@@ -48,27 +48,31 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .offset((page - 1) * limit)
 
-    // TODO: replace N+1 with a single lateral join when the product catalog grows beyond ~200 items
-    const result = await Promise.all(
-      productosActivos.map(async (p) => {
-        const [latest] = await db
-          .select({
+    // Single DISTINCT ON query replaces the N+1 (one per product) pattern
+    const productoIds = productosActivos.map((p) => p.id)
+    const latestMovements = productoIds.length > 0
+      ? await db
+          .selectDistinctOn([stockMovements.productoId], {
+            productoId: stockMovements.productoId,
             saldoResultante: stockMovements.saldoResultante,
-            ultimoMovimiento: stockMovements.createdAt,
+            createdAt: stockMovements.createdAt,
           })
           .from(stockMovements)
-          .where(eq(stockMovements.productoId, p.id))
-          .orderBy(sql`${stockMovements.createdAt} DESC`)
-          .limit(1)
+          .where(inArray(stockMovements.productoId, productoIds))
+          .orderBy(asc(stockMovements.productoId), desc(stockMovements.createdAt))
+      : []
 
-        return {
-          ...p,
-          stockActual: latest?.saldoResultante ?? 0,
-          ultimoMovimiento: latest?.ultimoMovimiento ?? null,
-          bajoCritico: (latest?.saldoResultante ?? 0) < p.stockMinimo,
-        }
-      }),
-    )
+    const movMap = new Map(latestMovements.map((m) => [m.productoId, m]))
+
+    const result = productosActivos.map((p) => {
+      const latest = movMap.get(p.id)
+      return {
+        ...p,
+        stockActual: latest?.saldoResultante ?? 0,
+        ultimoMovimiento: latest?.createdAt ?? null,
+        bajoCritico: (latest?.saldoResultante ?? 0) < p.stockMinimo,
+      }
+    })
 
     return NextResponse.json({ data: result, page, limit, total, totalPages })
   } catch (err) {

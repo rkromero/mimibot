@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { leads, metas, stockMovements, pedidos, clientes, productos, users, businessConfig, pipelineStages, contacts } from '@/db/schema'
-import { and, eq, isNull, lt, sql, inArray } from 'drizzle-orm'
+import { and, eq, isNull, lt, sql, inArray, asc, desc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { format, subHours, subDays } from 'date-fns'
 
@@ -67,24 +67,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Stock bajo (stockActual < stockMinimo)
-    const productosConStockBajo = await db.query.productos.findMany({
+    // 3. Stock bajo — single DISTINCT ON query replaces N+1 per-product pattern
+    const productosConStockMinimo = await db.query.productos.findMany({
       where: and(isNull(productos.deletedAt), eq(productos.activo, true)),
       columns: { id: true, nombre: true, sku: true, stockMinimo: true },
     })
+    const productosConStockBajo = productosConStockMinimo.filter((p) => p.stockMinimo > 0)
 
     const stockBajoItems: string[] = []
-    for (const p of productosConStockBajo) {
-      if (p.stockMinimo === 0) continue
-      const [latest] = await db
-        .select({ saldo: stockMovements.saldoResultante })
+    if (productosConStockBajo.length > 0) {
+      const productoIds = productosConStockBajo.map((p) => p.id)
+      const latestMovements = await db
+        .selectDistinctOn([stockMovements.productoId], {
+          productoId: stockMovements.productoId,
+          saldo: stockMovements.saldoResultante,
+        })
         .from(stockMovements)
-        .where(eq(stockMovements.productoId, p.id))
-        .orderBy(sql`${stockMovements.createdAt} DESC`)
-        .limit(1)
-      const saldo = latest?.saldo ?? 0
-      if (saldo < p.stockMinimo) {
-        stockBajoItems.push(`&nbsp;&nbsp;• ${p.sku ? `[${p.sku}] ` : ''}${p.nombre}: ${saldo} unidades (mín: ${p.stockMinimo})`)
+        .where(inArray(stockMovements.productoId, productoIds))
+        .orderBy(asc(stockMovements.productoId), desc(stockMovements.createdAt))
+
+      const movMap = new Map(latestMovements.map((m) => [m.productoId, m.saldo]))
+
+      for (const p of productosConStockBajo) {
+        const saldo = movMap.get(p.id) ?? 0
+        if (saldo < p.stockMinimo) {
+          stockBajoItems.push(`&nbsp;&nbsp;• ${p.sku ? `[${p.sku}] ` : ''}${p.nombre}: ${saldo} unidades (mín: ${p.stockMinimo})`)
+        }
       }
     }
 
