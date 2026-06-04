@@ -177,7 +177,7 @@ export async function recalcularEstadosActividad(): Promise<{ updated: number }>
 // One SELECT (with ROW_NUMBER) fetches all pedidos for all not-yet-converted
 // clients; JS applies the same window/monto logic as evaluarClienteNuevo.
 
-export async function recalcularClientesNuevos(): Promise<{ evaluated: number }> {
+export async function recalcularClientesNuevos(): Promise<{ updated: number }> {
   const cfg = await getBusinessConfig()
   const minPedidos = cfg.clienteNuevoMinPedidos
   const ventana = cfg.clienteNuevoVentanaDias
@@ -243,5 +243,5 @@ export async function recalcularClientesNuevos(): Promise<{ evaluated: number }>
     }).where(eq(clientes.id, conv.clienteId))
   }
 
-  return { evaluated: map.size }
+  return { updated: conversiones.length }
 }

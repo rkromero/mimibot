@@ -111,9 +111,9 @@ describe('recalcularClientesNuevos — un SELECT agregado + updates solo para lo
       { cliente_id: 'c1', asignado_a: 'v1', rn: '3', fecha: daysAgo(10), total: '1000.00' },
     ])
 
-    const { evaluated } = await recalcularClientesNuevos()
+    const { updated } = await recalcularClientesNuevos()
 
-    expect(evaluated).toBe(1)
+    expect(updated).toBe(1)
     expect(setUpdate).toHaveBeenCalledOnce()
     const arg = setUpdate.mock.calls[0]?.[0] as Record<string, unknown>
     expect(arg.estadoActividad).toBe('activo')
