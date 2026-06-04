@@ -28,112 +28,66 @@ export async function GET() {
 
     const firstName = session.user.name?.split(' ')[0] ?? 'vendedor'
 
-    // ── Meta del mes ────────────────────────────────────────────────────────────
-    const [metaRow] = await db
-      .select({
-        pedidosObjetivo: metas.pedidosObjetivo,
-      })
-      .from(metas)
-      .where(
-        and(
-          eq(metas.vendedorId, userId),
-          eq(metas.periodoAnio, now.getFullYear()),
-          eq(metas.periodoMes, now.getMonth() + 1),
-        ),
-      )
-      .limit(1)
+    // All queries run in parallel — no sequential dependencies
+    const mesStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const mesEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
-    let pedidosAlcanzados = 0
-    if (metaRow) {
-      const mesStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      const mesEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      const [pedidosCount] = await db
-        .select({ total: sql<number>`count(*)::int` })
+    const [
+      metaResult,
+      pedidosMesResult,
+      leadsResult,
+      visitasResult,
+      cobranzasResult,
+      porEntregarResult,
+      ultimosPedidos,
+    ] = await Promise.all([
+      // ── Meta del mes ──────────────────────────────────────────────────────────
+      db.select({ pedidosObjetivo: metas.pedidosObjetivo })
+        .from(metas)
+        .where(and(eq(metas.vendedorId, userId), eq(metas.periodoAnio, now.getFullYear()), eq(metas.periodoMes, now.getMonth() + 1)))
+        .limit(1),
+
+      // ── Conteo pedidos del mes (used only if meta exists) ────────────────────
+      db.select({ total: sql<number>`count(*)::int` })
         .from(pedidos)
-        .where(
-          and(
-            eq(pedidos.vendedorId, userId),
-            isNull(pedidos.deletedAt),
-            gte(pedidos.fecha, mesStart),
-            lt(pedidos.fecha, mesEnd),
-          ),
-        )
-      pedidosAlcanzados = pedidosCount?.total ?? 0
-    }
+        .where(and(eq(pedidos.vendedorId, userId), isNull(pedidos.deletedAt), gte(pedidos.fecha, mesStart), lt(pedidos.fecha, mesEnd))),
 
-    // ── Leads inactivos (non-terminal stage, no contact in 24h) ─────────────────
-    const [leadsInactivosRow] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(leads)
-      .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
-      .where(
-        and(
-          eq(leads.assignedTo, userId),
-          eq(leads.isOpen, true),
-          isNull(leads.deletedAt),
-          eq(pipelineStages.isTerminal, false),
-          sql`(${leads.lastContactedAt} IS NULL OR ${leads.lastContactedAt} < NOW() - INTERVAL '24 hours')`,
-        ),
-      )
+      // ── Leads inactivos (non-terminal stage, no contact in 24h) ──────────────
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(leads)
+        .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
+        .where(and(eq(leads.assignedTo, userId), eq(leads.isOpen, true), isNull(leads.deletedAt), eq(pipelineStages.isTerminal, false), sql`(${leads.lastContactedAt} IS NULL OR ${leads.lastContactedAt} < NOW() - INTERVAL '24 hours')`)),
 
-    // ── Visitas programadas para hoy ─────────────────────────────────────────────
-    const [visitasHoyRow] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(actividadesCliente)
-      .where(
-        and(
-          eq(actividadesCliente.asignadoA, userId),
-          eq(actividadesCliente.tipo, 'visita'),
-          eq(actividadesCliente.estado, 'pendiente'),
-          sql`DATE(${actividadesCliente.fechaProgramada}) = CURRENT_DATE`,
-        ),
-      )
+      // ── Visitas programadas para hoy ──────────────────────────────────────────
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(actividadesCliente)
+        .where(and(eq(actividadesCliente.asignadoA, userId), eq(actividadesCliente.tipo, 'visita'), eq(actividadesCliente.estado, 'pendiente'), sql`DATE(${actividadesCliente.fechaProgramada}) = CURRENT_DATE`)),
 
-    // ── Cobranzas vencidas (impago/parcial hace más de 30 días) ──────────────────
-    const [cobranzasRow] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(pedidos)
-      .where(
-        and(
-          eq(pedidos.vendedorId, userId),
-          isNull(pedidos.deletedAt),
-          sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
-          sql`${pedidos.fecha} < NOW() - INTERVAL '30 days'`,
-        ),
-      )
+      // ── Cobranzas vencidas (impago/parcial hace más de 30 días) ──────────────
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(pedidos)
+        .where(and(eq(pedidos.vendedorId, userId), isNull(pedidos.deletedAt), sql`${pedidos.estadoPago} IN ('impago', 'parcial')`, sql`${pedidos.fecha} < NOW() - INTERVAL '30 days'`)),
 
-    // ── Pedidos confirmados pendientes de entrega ────────────────────────────────
-    const [porEntregarRow] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(pedidos)
-      .where(
-        and(
-          eq(pedidos.vendedorId, userId),
-          eq(pedidos.estado, 'confirmado'),
-          isNull(pedidos.deletedAt),
-        ),
-      )
+      // ── Pedidos confirmados pendientes de entrega ─────────────────────────────
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(pedidos)
+        .where(and(eq(pedidos.vendedorId, userId), eq(pedidos.estado, 'confirmado'), isNull(pedidos.deletedAt))),
 
-    // ── Últimos 5 movimientos (pedidos del vendedor) ─────────────────────────────
-    const ultimosPedidos = await db
-      .select({
-        id: pedidos.id,
-        estado: pedidos.estado,
-        total: pedidos.total,
-        createdAt: pedidos.createdAt,
-        clienteNombre: clientes.nombre,
-        clienteApellido: clientes.apellido,
-      })
-      .from(pedidos)
-      .innerJoin(clientes, eq(pedidos.clienteId, clientes.id))
-      .where(
-        and(
-          eq(pedidos.vendedorId, userId),
-          isNull(pedidos.deletedAt),
-        ),
-      )
-      .orderBy(desc(pedidos.createdAt))
-      .limit(5)
+      // ── Últimos 5 pedidos ─────────────────────────────────────────────────────
+      db.select({ id: pedidos.id, estado: pedidos.estado, total: pedidos.total, createdAt: pedidos.createdAt, clienteNombre: clientes.nombre, clienteApellido: clientes.apellido })
+        .from(pedidos)
+        .innerJoin(clientes, eq(pedidos.clienteId, clientes.id))
+        .where(and(eq(pedidos.vendedorId, userId), isNull(pedidos.deletedAt)))
+        .orderBy(desc(pedidos.createdAt))
+        .limit(5),
+    ])
+
+    const [metaRow] = metaResult
+    const pedidosAlcanzados = metaRow ? (pedidosMesResult[0]?.total ?? 0) : 0
+    const [leadsInactivosRow] = leadsResult
+    const [visitasHoyRow] = visitasResult
+    const [cobranzasRow] = cobranzasResult
+    const [porEntregarRow] = porEntregarResult
 
     const ultimosMovimientos = ultimosPedidos.map((p) => ({
       tipo: 'pedido',

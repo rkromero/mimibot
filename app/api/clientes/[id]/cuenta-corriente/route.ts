@@ -73,9 +73,13 @@ export async function GET(
       offset: (page - 1) * limit,
     })
 
-    // Fetch pedidos (not paginated — typically small)
+    // Fetch only pedidos with pending balance — avoids scanning entire history
     const pedidosPendientes = await db.query.pedidos.findMany({
-      where: and(eq(pedidos.clienteId, id), isNull(pedidos.deletedAt)),
+      where: and(
+        eq(pedidos.clienteId, id),
+        isNull(pedidos.deletedAt),
+        sql`${pedidos.saldoPendiente}::numeric > 0`,
+      ),
       columns: {
         id: true,
         total: true,
