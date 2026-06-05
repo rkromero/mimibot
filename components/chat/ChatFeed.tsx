@@ -20,10 +20,13 @@ export default function ChatFeed({ conversationId }: { conversationId: string })
     staleTime: 10_000,
   })
 
-  // Marcar como leído al abrir
+  // Marcar como leído al abrir y refrescar el inbox para bajar el contador
   useEffect(() => {
-    void fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' })
-  }, [conversationId])
+    void (async () => {
+      await fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' })
+      void queryClient.invalidateQueries({ queryKey: ['inbox'] })
+    })()
+  }, [conversationId, queryClient])
 
   // SSE: invalidar cuando llega un mensaje nuevo a esta conversación
   useEffect(() => {
