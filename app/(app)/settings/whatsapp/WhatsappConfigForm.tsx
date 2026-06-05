@@ -50,6 +50,7 @@ type FormState = {
   accessToken: string
   appSecret: string
   verifyToken: string
+  wabaId: string
 }
 
 export default function WhatsappConfigForm({ initialConfig }: Props) {
@@ -63,6 +64,7 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     accessToken: initialConfig?.accessToken ?? '',
     appSecret: initialConfig?.appSecret ?? '',
     verifyToken: initialConfig?.verifyToken ?? '',
+    wabaId: initialConfig?.wabaId ?? '',
   })
 
   function handleChange(field: keyof FormState) {
@@ -202,6 +204,23 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
           />
           <p className="text-xs text-muted-foreground">
             Cadena personalizada que vos elegís. Ingresá el mismo valor en <span className="font-medium">WhatsApp → Configuración → Webhook → Token de verificación</span>.
+          </p>
+        </div>
+
+        {/* WABA ID */}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium">WhatsApp Business Account ID (WABA ID)</label>
+          <input
+            type="text"
+            placeholder="Ej: 123456789012345"
+            value={form.wabaId}
+            onChange={handleChange('wabaId')}
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">
+            ID de tu cuenta de WhatsApp Business (WABA). Es <span className="font-medium">distinto</span> del Phone Number ID de arriba.
+            Lo encontrás en <span className="font-medium">Meta Business Suite → Configuración → Cuentas de WhatsApp Business</span>.
+            Es necesario para registrar y enviar plantillas a revisión.
           </p>
         </div>
 

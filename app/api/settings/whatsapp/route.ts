@@ -11,6 +11,7 @@ const updateWhatsappSchema = z.object({
   accessToken: z.string().min(1, 'Requerido').max(500),
   appSecret: z.string().min(1, 'Requerido').max(200),
   verifyToken: z.string().min(1, 'Requerido').max(200),
+  wabaId: z.string().max(100).optional().default(''),
 })
 
 export async function GET() {
@@ -77,6 +78,7 @@ export async function PATCH(req: NextRequest) {
         accessToken,
         appSecret,
         verifyToken: parsed.data.verifyToken,
+        wabaId: parsed.data.wabaId ?? '',
         isConfigured: true,
         updatedBy: user.id,
         updatedAt: new Date(),

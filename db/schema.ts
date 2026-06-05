@@ -535,10 +535,33 @@ export const whatsappConfig = pgTable('whatsapp_config', {
   accessToken: text('access_token').notNull().default(''),
   appSecret: text('app_secret').notNull().default(''),
   verifyToken: text('verify_token').notNull().default(''),
+  wabaId: text('waba_id').notNull().default(''),
   isConfigured: boolean('is_configured').notNull().default(false),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+// ─── Plantillas de WhatsApp ───────────────────────────────────────────────────
+
+export const whatsappTemplates = pgTable('whatsapp_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  metaTemplateId: text('meta_template_id'),
+  name: text('name').notNull(),
+  language: text('language').notNull(),
+  category: text('category').notNull(),
+  status: text('status').notNull().default('PENDING'),
+  bodyText: text('body_text').notNull(),
+  headerText: text('header_text'),
+  footerText: text('footer_text'),
+  buttons: jsonb('buttons').notNull().default('[]'),
+  rejectedReason: text('rejected_reason'),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  syncedAt: timestamp('synced_at', { mode: 'date' }),
+}, (t) => [
+  uniqueIndex('whatsapp_templates_name_language_idx').on(t.name, t.language),
+])
 
 // ─── Log de actividad ─────────────────────────────────────────────────────────
 
