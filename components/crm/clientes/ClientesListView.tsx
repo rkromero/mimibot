@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Phone, ChevronRight, Download, Map, List } from 'lucide-react'
+import { Plus, Phone, ChevronRight, Download, Map, List, AlertTriangle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import CreateClienteModal from './CreateClienteModal'
@@ -30,6 +30,7 @@ type Cliente = {
   asignadoA: string | null
   asignadoNombre: string | null
   asignadoColor: string | null
+  geocodeStatus: string | null
   saldoPendiente?: string | null
   createdAt: string
 }
@@ -128,6 +129,17 @@ export default function ClientesListView() {
         ) : (
           <span className="text-muted-foreground">—</span>
         ),
+    },
+    {
+      key: 'geocodeStatus',
+      label: 'Ubicación',
+      render: (row: Cliente) =>
+        row.geocodeStatus === 'failed' ? (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 whitespace-nowrap">
+            <AlertTriangle size={11} />
+            Sin ubicación
+          </span>
+        ) : null,
     },
     ...(isAdmin
       ? [
@@ -261,6 +273,12 @@ export default function ClientesListView() {
                     {c.estadoActividad && (
                       <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[c.estadoActividad])}>
                         {estadoActividadLabels[c.estadoActividad]}
+                      </span>
+                    )}
+                    {c.geocodeStatus === 'failed' && (
+                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        <AlertTriangle size={10} />
+                        Sin ubicación
                       </span>
                     )}
                     {saldo > 0 && (

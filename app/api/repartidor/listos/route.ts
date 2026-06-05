@@ -15,7 +15,7 @@ export async function GET() {
       throw new AuthzError('Solo repartidor, admin o gerente pueden acceder a este endpoint')
     }
 
-    const data = await db.query.pedidos.findMany({
+    const todos = await db.query.pedidos.findMany({
       where: and(
         isNull(pedidos.deletedAt),
         eq(pedidos.estado, 'listo_para_repartir'),
@@ -36,6 +36,9 @@ export async function GET() {
             direccion: true,
             localidad: true,
             provincia: true,
+            lat: true,
+            lng: true,
+            geocodeStatus: true,
           },
         },
         items: {
@@ -48,7 +51,17 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json({ data })
+    // Fase 2 ORS: separar pedidos con/sin coordenadas para el cálculo de ruta.
+    // Los pedidos cuyo cliente no tiene lat/lng o tiene geocodeStatus='failed'
+    // se excluyen del cálculo de ruta y se listan aparte para corrección.
+    const conUbicacion = todos.filter(
+      (p) => p.cliente?.lat != null && p.cliente?.lng != null && p.cliente?.geocodeStatus !== 'failed',
+    )
+    const sinUbicacion = todos.filter(
+      (p) => p.cliente?.lat == null || p.cliente?.lng == null || p.cliente?.geocodeStatus === 'failed',
+    )
+
+    return NextResponse.json({ data: todos, conUbicacion, sinUbicacion })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

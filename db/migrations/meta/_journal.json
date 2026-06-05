@@ -225,6 +225,13 @@
       "when": 1780699695044,
       "tag": "0031_slippery_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1749168006000,
+      "tag": "0032_geo_precision",
+      "breakpoints": true
     }
   ]
 }

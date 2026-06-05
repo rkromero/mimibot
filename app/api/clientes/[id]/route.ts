@@ -177,6 +177,9 @@ export async function PATCH(
     if (parsed.data.email !== undefined) updates.email = parsed.data.email
     if (parsed.data.telefono !== undefined) updates.telefono = parsed.data.telefono
     if (parsed.data.direccion !== undefined) updates.direccion = parsed.data.direccion
+    if (parsed.data.localidad !== undefined) updates.localidad = parsed.data.localidad
+    if (parsed.data.provincia !== undefined) updates.provincia = parsed.data.provincia
+    if (parsed.data.codigoPostal !== undefined) updates.codigoPostal = parsed.data.codigoPostal
     if (parsed.data.cuit !== undefined) updates.cuit = parsed.data.cuit
 
     // Only admins can reassign

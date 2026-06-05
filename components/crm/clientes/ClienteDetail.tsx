@@ -23,7 +23,10 @@ type Cliente = {
   email: string | null
   telefono: string | null
   direccion: string | null
+  localidad: string | null
+  provincia: string | null
   cuit: string | null
+  geocodeStatus: string | null
   origen: 'manual' | 'convertido_de_lead'
   estadoActividad: 'activo' | 'inactivo' | 'perdido' | null
   asignadoA: string | null
@@ -193,6 +196,8 @@ export default function ClienteDetail({ id }: Props) {
           email: getField('email') || null,
           telefono: getField('telefono') || null,
           direccion: getField('direccion') || null,
+          localidad: getField('localidad') || null,
+          provincia: getField('provincia') || null,
           cuit: getField('cuit') || null,
           ...(isAdmin && 'asignadoA' in form ? { asignadoA: form.asignadoA ?? null } : {}),
         }),
@@ -361,6 +366,69 @@ export default function ClienteDetail({ id }: Props) {
           )}
         </div>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Localidad</label>
+          {isEditing ? (
+            <input
+              value={getField('localidad') ?? ''}
+              onChange={(e) => setField('localidad', e.target.value)}
+              placeholder="Ciudad / Localidad"
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('localidad') || '—'}</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Provincia</label>
+          {isEditing ? (
+            <select
+              value={getField('provincia') ?? ''}
+              onChange={(e) => setField('provincia', e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">Seleccionar provincia</option>
+              <option>Buenos Aires</option>
+              <option>CABA</option>
+              <option>Catamarca</option>
+              <option>Chaco</option>
+              <option>Chubut</option>
+              <option>Córdoba</option>
+              <option>Corrientes</option>
+              <option>Entre Ríos</option>
+              <option>Formosa</option>
+              <option>Jujuy</option>
+              <option>La Pampa</option>
+              <option>La Rioja</option>
+              <option>Mendoza</option>
+              <option>Misiones</option>
+              <option>Neuquén</option>
+              <option>Río Negro</option>
+              <option>Salta</option>
+              <option>San Juan</option>
+              <option>San Luis</option>
+              <option>Santa Cruz</option>
+              <option>Santa Fe</option>
+              <option>Santiago del Estero</option>
+              <option>Tierra del Fuego</option>
+              <option>Tucumán</option>
+            </select>
+          ) : (
+            <p className={readValueClass}>{getField('provincia') || '—'}</p>
+          )}
+        </div>
+      </div>
+
+      {!isEditing && getField('geocodeStatus') === 'failed' && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+          <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Sin ubicación — corregí la dirección, localidad y provincia para geocodificar.
+          </p>
+        </div>
+      )}
 
       {isAdmin && (
         <div className="md:max-w-xs">
@@ -626,13 +694,19 @@ export default function ClienteDetail({ id }: Props) {
               <ArrowLeft size={16} />
             </Link>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-semibold text-foreground">
                   {cliente.nombre} {cliente.apellido}
                 </h1>
                 {cliente.estadoActividad && (
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
                     {estadoActividadLabels[cliente.estadoActividad]}
+                  </span>
+                )}
+                {cliente.geocodeStatus === 'failed' && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    <AlertTriangle size={11} />
+                    Sin ubicación
                   </span>
                 )}
               </div>

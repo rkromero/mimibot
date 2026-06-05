@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes } from '@/db/schema'
@@ -13,17 +13,23 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
     const session = await auth()
+    const body = await req.json().catch(() => ({})) as { force?: boolean }
+    const force = body.force === true
 
     return await withAdminAuth(async () => {
+      const where = force
+        ? and(isNull(clientes.deletedAt), isNotNull(clientes.direccion))
+        : and(
+            isNull(clientes.deletedAt),
+            isNotNull(clientes.direccion),
+            or(isNull(clientes.lat), isNull(clientes.lng)),
+          )
+
       const pendientes = await db.query.clientes.findMany({
-        where: and(
-          isNull(clientes.deletedAt),
-          isNotNull(clientes.direccion),
-          or(isNull(clientes.lat), isNull(clientes.lng)),
-        ),
+        where,
         columns: { id: true, direccion: true },
       })
 
@@ -33,7 +39,7 @@ export async function POST() {
 
       for (const cliente of pendientes) {
         try {
-          await geocodeClienteIfNeeded(cliente.id, { force: false })
+          await geocodeClienteIfNeeded(cliente.id, { force })
           exitosos++
         } catch (e) {
           console.error(`[backfill] error cliente ${cliente.id}:`, e instanceof Error ? e.message : e)
@@ -47,7 +53,7 @@ export async function POST() {
         }
       }
 
-      return NextResponse.json({ procesados, exitosos, fallidos })
+      return NextResponse.json({ procesados, exitosos, fallidos, force })
     }, session?.user)
   } catch (err) {
     const { message, status } = toApiError(err)

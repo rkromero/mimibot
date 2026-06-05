@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { clientes, empresaConfig } from '@/db/schema'
-import { geocodeAddress } from './ors'
+import { geocodeStructured } from './ors'
 
 export async function geocodeClienteIfNeeded(
   clienteId: string,
@@ -16,32 +16,49 @@ export async function geocodeClienteIfNeeded(
   // Skip if already geocoded and not forced
   if (!opts.force && cliente.lat !== null && cliente.lng !== null) return
 
-  const parts = [cliente.direccion, cliente.localidad, cliente.provincia].filter(Boolean)
-  if (parts.length === 0) return
+  if (!cliente.direccion) return
 
-  const text = parts.join(', ')
-  const result = await geocodeAddress(text)
+  const result = await geocodeStructured({
+    address: cliente.direccion,
+    locality: cliente.localidad,
+    region: cliente.provincia,
+  })
+
   if (!result) {
-    console.warn(`[geocode] Sin resultado para cliente ${clienteId}: "${text}"`)
+    console.warn(`[geocode] Sin resultado para cliente ${clienteId}: "${cliente.direccion}"`)
+    await db
+      .update(clientes)
+      .set({ lat: null, lng: null, geocodeStatus: 'failed', geocodedAt: new Date() })
+      .where(eq(clientes.id, clienteId))
     return
   }
 
   await db
     .update(clientes)
-    .set({ lat: result.lat, lng: result.lng, geocodedAt: new Date() })
+    .set({ lat: result.lat, lng: result.lng, geocodeStatus: 'ok', geocodedAt: new Date() })
     .where(eq(clientes.id, clienteId))
 }
 
 export async function geocodeDepot(): Promise<void> {
   const [config] = await db
-    .select({ id: empresaConfig.id, direccion: empresaConfig.direccion })
+    .select({
+      id: empresaConfig.id,
+      direccion: empresaConfig.direccion,
+      localidad: empresaConfig.localidad,
+      provincia: empresaConfig.provincia,
+    })
     .from(empresaConfig)
     .where(eq(empresaConfig.id, 1))
     .limit(1)
 
   if (!config?.direccion) return
 
-  const result = await geocodeAddress(config.direccion)
+  const result = await geocodeStructured({
+    address: config.direccion,
+    locality: config.localidad,
+    region: config.provincia,
+  })
+
   if (!result) {
     console.warn(`[geocode] Sin resultado para depósito: "${config.direccion}"`)
     return

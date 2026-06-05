@@ -11,11 +11,15 @@ const DEFAULT_CONFIG = {
   id: 1,
   nombre: '',
   direccion: null,
+  localidad: null,
+  provincia: null,
   telefono: null,
   email: null,
   cuit: '30-71751033-6',
   condicionIva: 'Responsable Inscripto',
   puntoVenta: '0001',
+  depotLat: null,
+  depotLng: null,
   updatedBy: null,
   updatedAt: new Date(),
 }
@@ -71,6 +75,12 @@ export async function PATCH(req: NextRequest) {
     if (data.direccion === null || typeof data.direccion === 'string') {
       updates.direccion = data.direccion as string | null
     }
+    if (data.localidad === null || typeof data.localidad === 'string') {
+      updates.localidad = data.localidad as string | null
+    }
+    if (data.provincia === null || typeof data.provincia === 'string') {
+      updates.provincia = data.provincia as string | null
+    }
     if (data.telefono === null || typeof data.telefono === 'string') {
       updates.telefono = data.telefono as string | null
     }
@@ -86,6 +96,13 @@ export async function PATCH(req: NextRequest) {
     if (typeof data.puntoVenta === 'string') {
       updates.puntoVenta = data.puntoVenta
     }
+    // Allow manual override of depot coordinates
+    if (data.depotLat === null || typeof data.depotLat === 'number') {
+      updates.depotLat = data.depotLat as number | null
+    }
+    if (data.depotLng === null || typeof data.depotLng === 'number') {
+      updates.depotLng = data.depotLng as number | null
+    }
 
     // Upsert: insert if not exists, update if exists
     const [result] = await db
@@ -94,6 +111,8 @@ export async function PATCH(req: NextRequest) {
         id: 1,
         nombre: (updates.nombre as string) ?? '',
         direccion: updates.direccion ?? null,
+        localidad: updates.localidad ?? null,
+        provincia: updates.provincia ?? null,
         telefono: updates.telefono ?? null,
         email: updates.email ?? null,
         cuit: updates.cuit ?? null,
@@ -108,7 +127,10 @@ export async function PATCH(req: NextRequest) {
       })
       .returning()
 
-    if (updates.direccion !== undefined) {
+    // Re-geocode depot when address/locality/province changed and no manual coords were set
+    const addressChanged = updates.direccion !== undefined || updates.localidad !== undefined || updates.provincia !== undefined
+    const manualCoordsSet = updates.depotLat !== undefined || updates.depotLng !== undefined
+    if (addressChanged && !manualCoordsSet) {
       void geocodeDepot().catch((e: unknown) =>
         console.error('[geocode] error depot:', e instanceof Error ? e.message : e),
       )
