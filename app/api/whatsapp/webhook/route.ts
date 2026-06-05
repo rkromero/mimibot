@@ -11,7 +11,7 @@ import { processBotTurn } from '@/lib/claude/bot'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
 import { assignNextAgent } from '@/lib/assignment'
-import { emitLeadEvent } from '@/lib/realtime/broker'
+import { publishCrmEvent } from '@/lib/realtime/broker'
 
 // GET: verificación del webhook por Meta
 export async function GET(req: NextRequest) {
@@ -215,7 +215,7 @@ async function handleInboundMessage(params: {
   }
 
   // Emitir evento SSE para actualizar bandeja y chat en tiempo real
-  emitLeadEvent({
+  await publishCrmEvent({
     type: 'new_message',
     conversationId,
     leadId,

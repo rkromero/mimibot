@@ -6,7 +6,7 @@ import {
 import { anthropic, BOT_MODEL } from './client'
 import { withRetry } from './retry'
 import { sendTextMessage } from '@/lib/whatsapp/client'
-import { emitLeadEvent } from '@/lib/realtime/broker'
+import { publishCrmEvent } from '@/lib/realtime/broker'
 import { detectStalling, scheduleFollowUp } from '@/lib/followup/engine'
 
 // Marcador que Claude incluye cuando quiere hacer handoff
@@ -111,7 +111,7 @@ export async function processBotTurn(params: {
   })
 
   // Emitir SSE para que el chat se actualice con la respuesta del bot
-  emitLeadEvent({
+  await publishCrmEvent({
     type: 'new_message',
     conversationId,
     leadId,

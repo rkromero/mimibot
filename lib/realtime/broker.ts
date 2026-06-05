@@ -2,6 +2,9 @@
 // Se ejecuta en el proceso Node como singleton — no funciona con múltiples instancias.
 // Para escalar horizontalmente, reemplazar con Redis Pub/Sub.
 
+import { db } from '@/db'
+import { sql } from 'drizzle-orm'
+
 type SseClient = {
   userId: string
   role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
@@ -55,5 +58,13 @@ export function broadcastToAll(event: CrmEvent) {
     for (const client of set) {
       client.write(payload)
     }
+  }
+}
+
+export async function publishCrmEvent(event: CrmEvent) {
+  try {
+    await db.execute(sql`SELECT pg_notify('crm_events', ${JSON.stringify(event)})`)
+  } catch (err) {
+    console.error('[realtime] pg_notify falló:', err)
   }
 }

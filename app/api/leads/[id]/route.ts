@@ -9,7 +9,7 @@ import { toApiError, NotFoundError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
 import { deleteLead } from '@/lib/delete/delete.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
-import { emitLeadEvent } from '@/lib/realtime/broker'
+import { publishCrmEvent } from '@/lib/realtime/broker'
 import { convertirLeadACliente } from '@/lib/clientes/conversion'
 
 export async function GET(
@@ -119,7 +119,7 @@ export async function PATCH(
 
     const [updated] = await db.update(leads).set(updates).where(eq(leads.id, id)).returning()
 
-    emitLeadEvent({
+    await publishCrmEvent({
       type: 'lead_updated',
       leadId: id,
       assignedTo: updated!.assignedTo ?? null,

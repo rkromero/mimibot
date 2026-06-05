@@ -4,7 +4,7 @@ import { leads, conversations, messages, activityLog, contacts, followUpTemplate
 import { anthropic, BOT_MODEL } from '@/lib/claude/client'
 import { withRetry } from '@/lib/claude/retry'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/client'
-import { emitLeadEvent } from '@/lib/realtime/broker'
+import { publishCrmEvent } from '@/lib/realtime/broker'
 import type { TemplateParameter } from '@/types/db'
 
 const DEFAULT_STALLING_PHRASES = [
@@ -195,7 +195,7 @@ async function processSingleFollowUp(
     sentAt: new Date(),
   })
 
-  emitLeadEvent({
+  await publishCrmEvent({
     type: 'new_message',
     conversationId: conversation.id,
     leadId: lead.id,
