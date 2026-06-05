@@ -21,7 +21,7 @@ type Props = {
 export default function LeadPanel({ leadId, onClose, user }: Props) {
   const queryClient = useQueryClient()
 
-  const { data: lead, isLoading } = useQuery({
+  const { data: lead, isLoading, isError } = useQuery({
     queryKey: ['lead', leadId],
     queryFn: async () => {
       const res = await fetch(`/api/leads/${leadId}`)
@@ -29,6 +29,7 @@ export default function LeadPanel({ leadId, onClose, user }: Props) {
       const json = await res.json() as { data: LeadWithContact & { conversation?: { id: string } } }
       return json.data
     },
+    retry: false,
   })
 
   async function toggleBot() {
@@ -52,9 +53,22 @@ export default function LeadPanel({ leadId, onClose, user }: Props) {
 
       {/* Panel */}
       <div className="relative flex ml-auto w-[780px] max-w-full h-full bg-background border-l border-border shadow-md animate-slide-in-right">
-        {isLoading || !lead ? (
+        {isLoading ? (
           <div className="flex items-center justify-center w-full text-sm text-muted-foreground">
             Cargando...
+          </div>
+        ) : isError || !lead ? (
+          <div className="flex flex-col items-center justify-center gap-3 w-full text-sm text-muted-foreground">
+            <p>No se pudo cargar el lead (puede haber sido borrado).</p>
+            <button
+              onClick={() => {
+                void queryClient.invalidateQueries({ queryKey: ['inbox'] })
+                onClose()
+              }}
+              className="px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent transition-colors"
+            >
+              Cerrar
+            </button>
           </div>
         ) : (
           <div className="flex w-full h-full overflow-hidden">

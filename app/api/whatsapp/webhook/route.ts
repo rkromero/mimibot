@@ -6,7 +6,7 @@ import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaMessage } from '@/lib/validations/webhook'
 import { db } from '@/db'
 import { leads, contacts, conversations, messages, activityLog, pipelineStages } from '@/db/schema'
-import { eq, asc, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
 import { processBotTurn } from '@/lib/claude/bot'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
@@ -138,20 +138,33 @@ async function handleInboundMessage(params: {
     contact = c!
   }
 
-  // Buscar lead abierto de este contacto, o crear uno nuevo
-  let conversation = await db.query.conversations.findFirst({
-    where: eq(conversations.waContactPhone, contactPhone),
-    with: { lead: true },
-  })
+  // Buscar conversación cuyo lead esté vigente (no borrado y abierto)
+  const [convRow] = await db
+    .select({
+      conversationId: conversations.id,
+      leadId: leads.id,
+      assignedTo: leads.assignedTo,
+    })
+    .from(conversations)
+    .innerJoin(leads, eq(conversations.leadId, leads.id))
+    .where(
+      and(
+        eq(conversations.waContactPhone, contactPhone),
+        isNull(leads.deletedAt),
+        eq(leads.isOpen, true),
+      ),
+    )
+    .orderBy(desc(conversations.lastMessageAt))
+    .limit(1)
 
   let leadId: string
   let conversationId: string
   let assignedTo: string | null = null
 
-  if (conversation && conversation.lead.isOpen) {
-    leadId = conversation.lead.id
-    conversationId = conversation.id
-    assignedTo = conversation.lead.assignedTo ?? null
+  if (convRow) {
+    leadId = convRow.leadId
+    conversationId = convRow.conversationId
+    assignedTo = convRow.assignedTo ?? null
   } else {
     // Nuevo lead — asignar a la primera etapa del pipeline
     const firstStage = await db.query.pipelineStages.findFirst({

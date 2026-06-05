@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
     const filterVendedorId = sp.get('vendedorId') ?? null
     const { page, limit } = parsePagination(sp, { page: 1, limit: 50 })
 
-    const conditions: ReturnType<typeof eq>[] = [eq(leads.isOpen, true) as ReturnType<typeof eq>]
+    const conditions: ReturnType<typeof eq>[] = [
+      eq(leads.isOpen, true) as ReturnType<typeof eq>,
+      isNull(leads.deletedAt) as ReturnType<typeof eq>,
+    ]
 
     if (filter === 'mine') {
       conditions.push(eq(leads.assignedTo, session.user.id))
