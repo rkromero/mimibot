@@ -8,6 +8,7 @@ import { withRetry } from './retry'
 import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { detectStalling, scheduleFollowUp } from '@/lib/followup/engine'
+import { assignLeadByRule } from '@/lib/assignment'
 
 // Marcador que Claude incluye cuando quiere hacer handoff
 const HANDOFF_MARKER = '[HANDOFF]'
@@ -41,7 +42,9 @@ export async function processBotTurn(params: {
   if (!lead || !lead.botEnabled) return
   if (lead.botQualified) return
 
-  // Auto-handoff si se alcanzó el límite de turnos
+  // <<CRITERIO_DE_CALIFICACION>>: definir la condición que marca al lead como calificado.
+  // Actualmente se califica (handoff) cuando: el bot supera maxTurns, el bot incluye
+  // [HANDOFF] en su respuesta, o el usuario escribe una frase de handoff.
   if (lead.botTurnCount >= (config?.maxTurns ?? 6)) {
     await performHandoff(leadId, conversationId, contactPhone, 'Límite de turnos alcanzado.')
     return
@@ -92,6 +95,8 @@ export async function processBotTurn(params: {
     return
   }
 
+  // <<CRITERIO_DE_CALIFICACION>>: condición principal — [HANDOFF] en respuesta del bot
+  // o frase de handoff detectada en el último mensaje del usuario.
   const shouldHandoff =
     claudeResponse.includes(HANDOFF_MARKER) ||
     checkHandoffPhrases(claudeMessages.at(-1)?.content ?? '', config?.handoffPhrases ?? [])
@@ -147,33 +152,45 @@ export async function processBotTurn(params: {
   }
 }
 
-async function performHandoff(
+async function qualifyAndAssign(
   leadId: string,
   conversationId: string,
-  _contactPhone: string,
   lastMessage: string,
 ): Promise<void> {
-  // Encontrar la etapa "contactado" o la siguiente no-terminal después de "nuevo"
   const stages = await db.query.pipelineStages.findMany({
     orderBy: [asc(pipelineStages.position)],
   })
-  const contactedStage = stages.find((s) => s.slug === 'contactado') ?? stages.find((s) => !s.isTerminal && s.position > 0)
+
+  const nuevoStage = stages.find((s) => s.slug === 'nuevo')
+  const calificadoStage =
+    stages.find((s) => s.slug === 'calificado') ??
+    stages.find((s) => !s.isTerminal && s.position > (nuevoStage?.position ?? -1))
+
+  const agentId = await assignLeadByRule()
+  if (agentId === null) {
+    console.warn('[bot] qualifyAndAssign: sin agentes elegibles, lead sin asignar', { leadId })
+  }
 
   await db.update(leads)
     .set({
       botEnabled: false,
       botQualified: true,
-      ...(contactedStage ? { stageId: contactedStage.id } : {}),
+      ...(calificadoStage ? { stageId: calificadoStage.id } : {}),
+      ...(agentId !== null ? { assignedTo: agentId } : {}),
       updatedAt: new Date(),
     })
     .where(eq(leads.id, leadId))
+
+  const noteBody = agentId
+    ? `Lead calificado y asignado al agente ${agentId}. Listo para el equipo de ventas.`
+    : 'Lead calificado. Sin agentes disponibles para asignar.'
 
   await db.insert(messages).values({
     conversationId,
     direction: 'outbound',
     senderType: 'system',
     contentType: 'internal_note',
-    body: 'Lead calificado por el bot. Listo para el equipo de ventas.',
+    body: noteBody,
     isRead: true,
     sentAt: new Date(),
   })
@@ -181,8 +198,26 @@ async function performHandoff(
   await db.insert(activityLog).values({
     leadId,
     action: 'bot_handoff',
-    metadata: { lastBotMessage: lastMessage.slice(0, 200) },
+    metadata: { lastBotMessage: lastMessage.slice(0, 200), assignedTo: agentId },
   })
+
+  await publishCrmEvent({
+    type: 'lead_updated',
+    leadId,
+    assignedTo: agentId,
+    oldAssigned: null,
+    stageId: calificadoStage?.id ?? '',
+    oldStageId: '',
+  })
+}
+
+async function performHandoff(
+  leadId: string,
+  conversationId: string,
+  _contactPhone: string,
+  lastMessage: string,
+): Promise<void> {
+  await qualifyAndAssign(leadId, conversationId, lastMessage)
 }
 
 function checkHandoffPhrases(userMessage: string, phrases: string[]): boolean {
@@ -191,3 +226,4 @@ function checkHandoffPhrases(userMessage: string, phrases: string[]): boolean {
   const allPhrases = [...defaultPhrases, ...phrases]
   return allPhrases.some((p) => lower.includes(p.toLowerCase()))
 }
+

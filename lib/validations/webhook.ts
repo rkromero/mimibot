@@ -8,6 +8,12 @@ const waMediaObjectSchema = z.object({
   sha256: z.string().optional(),
 })
 
+const waInteractiveSchema = z.object({
+  type: z.enum(['button_reply', 'list_reply']),
+  button_reply: z.object({ id: z.string(), title: z.string() }).optional(),
+  list_reply: z.object({ id: z.string(), title: z.string(), description: z.string().optional() }).optional(),
+})
+
 const waMessageSchema = z.object({
   from: z.string(),    // phone en E.164 sin el +
   id: z.string(),      // wamid.XXX
@@ -18,6 +24,7 @@ const waMessageSchema = z.object({
   audio: waMediaObjectSchema.optional(),
   video: waMediaObjectSchema.optional(),
   document: waMediaObjectSchema.optional(),
+  interactive: waInteractiveSchema.optional(),
 })
 
 export const waWebhookSchema = z.object({

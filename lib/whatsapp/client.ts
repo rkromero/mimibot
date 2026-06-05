@@ -115,6 +115,72 @@ export async function sendMediaMessage(
   return data.messages[0]!.id
 }
 
+export type InteractiveButton = { id: string; title: string }
+
+export async function sendInteractiveButtons(
+  to: string,
+  body: string,
+  buttons: InteractiveButton[],
+): Promise<string> {
+  const { phoneNumberId } = await getConfig()
+  const data = await waFetch(`/${phoneNumberId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: body },
+        action: {
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: 'reply',
+            reply: { id: b.id, title: b.title.slice(0, 20) },
+          })),
+        },
+      },
+    }),
+  }) as { messages: Array<{ id: string }> }
+  return data.messages[0]!.id
+}
+
+export type InteractiveRow = { id: string; title: string; description?: string }
+export type InteractiveSection = { title: string; rows: InteractiveRow[] }
+
+export async function sendInteractiveList(
+  to: string,
+  body: string,
+  sections: InteractiveSection[],
+): Promise<string> {
+  const { phoneNumberId } = await getConfig()
+  const data = await waFetch(`/${phoneNumberId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: body },
+        action: {
+          button: 'Ver opciones',
+          sections: sections.map((s) => ({
+            title: s.title.slice(0, 24),
+            rows: s.rows.slice(0, 10).map((r) => ({
+              id: r.id,
+              title: r.title.slice(0, 24),
+              ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+            })),
+          })),
+        },
+      },
+    }),
+  }) as { messages: Array<{ id: string }> }
+  return data.messages[0]!.id
+}
+
 export async function uploadMediaToMeta(
   buffer: Buffer,
   mimeType: string,

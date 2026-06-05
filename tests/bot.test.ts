@@ -35,6 +35,10 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendTextMessage: vi.fn(),
 }))
 
+vi.mock('@/lib/assignment', () => ({
+  assignLeadByRule: vi.fn().mockResolvedValue(null),
+}))
+
 import { db } from '@/db'
 import { anthropic } from '@/lib/claude/client'
 import { sendTextMessage } from '@/lib/whatsapp/client'
@@ -122,6 +126,7 @@ describe('processBotTurn', () => {
     mockFindStages.mockResolvedValue([
       { id: 's1', slug: 'nuevo', position: 0, isTerminal: false },
       { id: 's2', slug: 'contactado', position: 1, isTerminal: false },
+      { id: 's3', slug: 'calificado', position: 2, isTerminal: false },
     ])
 
     const returningMock = vi.fn().mockResolvedValue([{ id: 'msg-bot-2' }])

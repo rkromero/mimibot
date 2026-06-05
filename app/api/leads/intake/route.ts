@@ -4,7 +4,6 @@ import { leads, contacts, conversations, pipelineStages, activityLog } from '@/d
 import { eq, asc } from 'drizzle-orm'
 import { intakeSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
-import { assignNextAgent } from '@/lib/assignment'
 import { sendTextMessage } from '@/lib/whatsapp/client'
 
 const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? '').split(',').filter(Boolean)
@@ -67,8 +66,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Pipeline no configurado' }, { status: 503, headers })
     }
 
-    const assignedTo = await assignNextAgent()
-
     const [lead] = await db
       .insert(leads)
       .values({
@@ -77,7 +74,6 @@ export async function POST(req: NextRequest) {
         source: 'landing',
         notes: message ?? null,
         botEnabled: true,
-        assignedTo,
       })
       .returning()
 

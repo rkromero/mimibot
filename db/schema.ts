@@ -20,6 +20,7 @@ export const activityActionEnum = pgEnum('activity_action', [
 ])
 export const followUpStatusEnum = pgEnum('follow_up_status', ['pending', 'sent', 'cancelled', 'failed'])
 export const followUpScenarioEnum = pgEnum('follow_up_scenario', ['no_response', 'stalling', 'manual'])
+export const assignmentRuleEnum = pgEnum('assignment_rule', ['fixed', 'random', 'weighted', 'round_robin'])
 
 // ─── Auth.js (tablas requeridas por el adapter de Drizzle) ────────────────────
 
@@ -566,6 +567,18 @@ export const businessConfig = pgTable('business_config', {
   alertaLeadHoras: integer('alerta_lead_horas').notNull().default(24),
   alertaMetaDia: integer('alerta_meta_dia').notNull().default(20),
   alertaMetaPct: decimal('alerta_meta_pct', { precision: 5, scale: 2 }).notNull().default('0.50'),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+// ─── Configuración de asignación de leads (singleton) ────────────────────────
+
+export const assignmentConfig = pgTable('assignment_config', {
+  id: integer('id').primaryKey().default(1),
+  rule: assignmentRuleEnum('rule').notNull().default('round_robin'),
+  fixedAgentId: uuid('fixed_agent_id').references(() => users.id),
+  weights: jsonb('weights').notNull().default('[]'),
+  roundRobinPointer: integer('round_robin_pointer').notNull().default(0),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

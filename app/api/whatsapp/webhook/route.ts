@@ -10,8 +10,20 @@ import { eq, asc, sql } from 'drizzle-orm'
 import { processBotTurn } from '@/lib/claude/bot'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
-import { assignNextAgent } from '@/lib/assignment'
 import { publishCrmEvent } from '@/lib/realtime/broker'
+import { handleAdminMenu } from '@/lib/whatsapp/admin-menu'
+
+// ─── Admin routing helpers ────────────────────────────────────────────────────
+
+function isAdminPhone(phone: string): boolean {
+  const raw = process.env['ADMIN_WHATSAPP_NUMBERS'] ?? ''
+  if (!raw.trim()) return false
+  return raw.split(',').map((n) => n.trim()).includes(phone)
+}
+
+function getInteractiveReplyId(msg: WaMessage): string | null {
+  return msg.interactive?.button_reply?.id ?? msg.interactive?.list_reply?.id ?? null
+}
 
 // GET: verificación del webhook por Meta
 export async function GET(req: NextRequest) {
@@ -71,11 +83,25 @@ async function handleWebhookEntries(
       const phoneNumberId = value.metadata.phone_number_id
 
       for (const msg of value.messages ?? []) {
-        // Ignorar tipos no soportados
-        if (!['text', 'image', 'audio', 'video', 'document'].includes(msg.type)) continue
-
         const contactPhone = `+${msg.from}` // normalizar a E.164 con +
         const contactName = value.contacts?.find((c) => c.wa_id === msg.from)?.profile.name ?? 'Desconocido'
+
+        // Admin: interceptar ANTES de cualquier lógica de lead/bot
+        if (isAdminPhone(contactPhone)) {
+          const interactiveId = getInteractiveReplyId(msg)
+          const adminInput = interactiveId ?? (msg.type === 'text' ? (msg.text?.body ?? '') : '')
+          if (adminInput) {
+            try {
+              await handleAdminMenu(contactPhone, adminInput)
+            } catch (err) {
+              console.error('[webhook] error en handleAdminMenu:', err)
+            }
+          }
+          continue // no crear lead ni activar bot para admins
+        }
+
+        // Ignorar tipos no soportados para no-admins
+        if (!['text', 'image', 'audio', 'video', 'document'].includes(msg.type)) continue
 
         try {
           await handleInboundMessage({ msg, contactPhone, contactName, phoneNumberId })
@@ -139,8 +165,6 @@ async function handleInboundMessage(params: {
       return
     }
 
-    assignedTo = await assignNextAgent()
-
     const [newLead] = await db
       .insert(leads)
       .values({
@@ -148,7 +172,6 @@ async function handleInboundMessage(params: {
         stageId: firstStage.id,
         source: 'whatsapp',
         botEnabled: true,
-        assignedTo,
       })
       .returning()
 

@@ -6,7 +6,7 @@ import * as relations from '../db/relations'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 
-const { pipelineStages, users, botConfig } = schema
+const { pipelineStages, users, botConfig, assignmentConfig } = schema
 
 const client = postgres(process.env['DATABASE_URL']!)
 const db = drizzle(client, { schema: { ...schema, ...relations } })
@@ -67,6 +67,15 @@ async function seed() {
     console.log('  + bot config')
   } else {
     console.log('  ~ bot config exists')
+  }
+
+  console.log('Seeding assignment config...')
+  const existingAssignment = await db.query.assignmentConfig.findFirst()
+  if (!existingAssignment) {
+    await db.insert(assignmentConfig).values({ id: 1, rule: 'round_robin' })
+    console.log('  + assignment config')
+  } else {
+    console.log('  ~ assignment config exists')
   }
 
   console.log('Done.')
