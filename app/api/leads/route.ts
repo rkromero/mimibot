@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { leads, contacts, pipelineStages, users, conversations, leadTags, tags, messages, activityLog } from '@/db/schema'
-import { eq, and, ilike, inArray, desc, sql, lt, or } from 'drizzle-orm'
+import { eq, and, ilike, inArray, desc, sql, lt, or, isNull } from 'drizzle-orm'
 import { createLeadSchema, leadFiltersSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
 
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       if (agentId && ctx.agentesVisibles.includes(agentId)) effectiveAgentId = agentId
     }
 
-    const baseConditions = [eq(leads.isOpen, true)]
+    const baseConditions = [eq(leads.isOpen, true), isNull(leads.deletedAt)]
     if (gerenteAgenteIds !== undefined) {
       if (gerenteAgenteIds.length === 0) {
         return stageId

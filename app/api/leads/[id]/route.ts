@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { leads, pipelineStages, activityLog, conversations } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { updateLeadSchema } from '@/lib/validations/lead'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
@@ -26,7 +26,7 @@ export async function GET(
     await canAccessLead(session.user, id)
 
     const lead = await db.query.leads.findFirst({
-      where: eq(leads.id, id),
+      where: and(eq(leads.id, id), isNull(leads.deletedAt)),
       with: {
         contact: true,
         stage: true,
