@@ -193,7 +193,7 @@ async function handleInboundMessage(params: {
 
   // Actualizar metadatos de conversación + incrementar unread atómicamente
   await db.execute(
-    sql`UPDATE conversations SET last_message_at = ${sentAt}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conversationId}`,
+    sql`UPDATE conversations SET last_message_at = ${sentAt.toISOString()}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conversationId}`,
   )
 
   // Actualizar last_contacted_at en el lead
