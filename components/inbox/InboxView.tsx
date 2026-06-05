@@ -87,7 +87,7 @@ export default function InboxView({ user }: Props) {
     <div className="flex h-full">
       {/* Mobile conversation fullscreen — only visible on mobile when a conversation is open */}
       {mobileView === 'conversation' && selectedLeadId && (
-        <div className="flex flex-col h-full md:hidden">
+        <div className="flex flex-col w-full h-full md:hidden">
           {/* Mobile header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
             <button
@@ -114,10 +114,13 @@ export default function InboxView({ user }: Props) {
               <MessageSquare size={18} />
             </button>
           </div>
-          {/* LeadPanel in conversation-only mode */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {/* mobileMode is a forward-compat prop for when LeadPanel gains mobile support */}
-            <LeadPanel leadId={selectedLeadId} onClose={handleCloseLead} user={user} {...({ mobileMode: true } as object)} />
+          {/* LeadPanel in conversation-only mode + spacer for fixed BottomNav */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <LeadPanel leadId={selectedLeadId} onClose={handleCloseLead} user={user} mobileMode />
+            </div>
+            {/* keeps ChatComposer above the fixed BottomNav (min-h-[56px] + pb-safe) */}
+            <div className="shrink-0" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }} aria-hidden="true" />
           </div>
         </div>
       )}

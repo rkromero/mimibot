@@ -63,7 +63,7 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
   }
 
   return (
-    <div className="border-t border-border bg-background shrink-0">
+    <div className="border-t border-border bg-background shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Tabs: WhatsApp / Nota interna */}
       <div className="flex gap-1 px-3 pt-2">
         <button
@@ -98,7 +98,7 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
           placeholder={isNote ? 'Escribir nota interna...' : 'Escribir mensaje de WhatsApp...'}
           rows={2}
           className={cn(
-            'flex-1 resize-none px-3 py-2 text-sm rounded-md border',
+            'flex-1 resize-none px-3 py-2 text-base rounded-md border',
             'border-border bg-background text-foreground',
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-1 focus:ring-ring',
