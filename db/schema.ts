@@ -251,7 +251,7 @@ export const botConfig = pgTable('bot_config', {
 // ─── CRM: Enums ───────────────────────────────────────────────────────────────
 
 export const origenClienteEnum = pgEnum('origen_cliente', ['manual', 'convertido_de_lead'])
-export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'pendiente_aprobacion', 'confirmado', 'en_reparto', 'entregado', 'cancelado'])
+export const estadoPedidoEnum = pgEnum('estado_pedido', ['pendiente', 'pendiente_aprobacion', 'confirmado', 'listo_para_repartir', 'en_reparto', 'entregado', 'cancelado'])
 export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'parcial', 'pagado'])
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
@@ -400,6 +400,9 @@ export const pedidos = pgTable('pedidos', {
   pagoCobradoAt: timestamp('pago_cobrado_at', { mode: 'date', withTimezone: true }),
   mpPreferenceId: text('mp_preference_id'),
   mpPaymentId: text('mp_payment_id'),
+  esReparto: boolean('es_reparto').notNull().default(false),
+  repartidorId: uuid('repartidor_id').references(() => users.id),
+  aceptadoAt: timestamp('aceptado_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),

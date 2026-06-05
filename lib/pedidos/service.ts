@@ -44,6 +44,8 @@ export async function crearPedidoConItems(
     expresoNombre?: string | null
     /** Dirección del expreso (dónde despachar) — solo si metodoEntrega = 'expreso' */
     expresoDireccion?: string | null
+    /** true para pedidos de camioneta (rol vendedor) */
+    esReparto?: boolean
   },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
   const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
@@ -102,6 +104,7 @@ export async function crearPedidoConItems(
         metodoEntrega: extra?.metodoEntrega ?? null,
         expresoNombre: extra?.expresoNombre ?? null,
         expresoDireccion: extra?.expresoDireccion ?? null,
+        esReparto: extra?.esReparto ?? false,
       })
       .returning()
 

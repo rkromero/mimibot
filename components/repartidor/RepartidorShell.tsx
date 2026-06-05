@@ -30,6 +30,7 @@ export default function RepartidorShell({ children }: { children: React.ReactNod
 
   function handleRefresh() {
     void qc.invalidateQueries({ queryKey: ['repartidor-pedidos'] })
+    void qc.invalidateQueries({ queryKey: ['repartidor-listos'] })
   }
 
   return (

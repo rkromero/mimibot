@@ -7,7 +7,7 @@ import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
-import { Truck, Package, RefreshCw, FileText, Download, Tag } from 'lucide-react'
+import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2 } from 'lucide-react'
 
 type PedidoItemFabrica = {
   id: string
@@ -18,8 +18,10 @@ type PedidoItemFabrica = {
 
 type PedidoFabrica = {
   id: string
+  estado: string
   fecha: string
   total: string
+  esReparto: boolean
   metodoEntrega: 'retiro_fabrica' | 'expreso' | null
   expresoNombre: string | null
   expresoDireccion: string | null
@@ -37,6 +39,26 @@ type PedidoFabrica = {
 
 function formatMoney(v: string | number) {
   return `$${parseFloat(String(v)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+}
+
+function EstadoBadge({ estado, esReparto }: { estado: string; esReparto: boolean }) {
+  if (estado === 'listo_para_repartir') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <CheckCircle2 size={11} />
+        Listo para repartir
+      </span>
+    )
+  }
+  if (esReparto) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Truck size={11} />
+        Camioneta
+      </span>
+    )
+  }
+  return null
 }
 
 function EntregaInfo({ pedido }: { pedido: PedidoFabrica }) {
@@ -73,15 +95,17 @@ export default function FabricaConfirmadosView() {
   const qc = useQueryClient()
   const toast = useToast()
   const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
-  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [confirmEnRepartoId, setConfirmEnRepartoId] = useState<string | null>(null)
+  const [confirmListoId, setConfirmListoId] = useState<string | null>(null)
 
   const { data, isLoading, isError, refetch } = useQuery<{ data: PedidoFabrica[] }>({
     queryKey: ['fabrica', 'confirmado'],
-    queryFn: () => fetch('/api/fabrica/pedidos?estado=confirmado').then((r) => r.json()),
+    queryFn: () =>
+      fetch('/api/fabrica/pedidos?estado=confirmado,listo_para_repartir').then((r) => r.json()),
     staleTime: 30_000,
   })
 
-  const mutate = useMutation({
+  const mutateEnReparto = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/pedidos/${id}/en-reparto`, { method: 'POST' })
       if (!res.ok) {
@@ -95,11 +119,35 @@ export default function FabricaConfirmadosView() {
         data: (old?.data ?? []).filter((p) => p.id !== id),
       }))
       toast.success('Pedido pasado a En reparto correctamente')
-      setConfirmId(null)
+      setConfirmEnRepartoId(null)
     },
     onError: (err: Error) => {
       toast.error(err.message)
-      setConfirmId(null)
+      setConfirmEnRepartoId(null)
+    },
+  })
+
+  const mutateListoParaRepartir = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/pedidos/${id}/listo-para-repartir`, { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json() as { error?: string }
+        throw new Error(body.error ?? 'Error al actualizar el pedido')
+      }
+      return id
+    },
+    onSuccess: (id) => {
+      qc.setQueryData(['fabrica', 'confirmado'], (old: { data: PedidoFabrica[] } | undefined) => ({
+        data: (old?.data ?? []).map((p) =>
+          p.id === id ? { ...p, estado: 'listo_para_repartir' } : p,
+        ),
+      }))
+      toast.success('Pedido marcado como listo para repartir')
+      setConfirmListoId(null)
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+      setConfirmListoId(null)
     },
   })
 
@@ -161,6 +209,7 @@ export default function FabricaConfirmadosView() {
                     <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                       #{pedido.id.slice(-8).toUpperCase()}
                     </span>
+                    <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} />
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {formatFechaAR(new Date(pedido.fecha))}
@@ -239,32 +288,66 @@ export default function FabricaConfirmadosView() {
                 </div>
 
                 {/* Transition action */}
-                {confirmId === pedido.id ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">¿Pasar a En reparto?</span>
+                {pedido.estado === 'listo_para_repartir' ? (
+                  <span className="text-xs text-muted-foreground italic">
+                    Esperando repartidor
+                  </span>
+                ) : pedido.esReparto ? (
+                  confirmListoId === pedido.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">¿Marcar listo para repartir?</span>
+                      <button
+                        onClick={() => mutateListoParaRepartir.mutate(pedido.id)}
+                        disabled={mutateListoParaRepartir.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      >
+                        {mutateListoParaRepartir.isPending ? 'Procesando...' : 'Confirmar'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmListoId(null)}
+                        disabled={mutateListoParaRepartir.isPending}
+                        className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => mutate.mutate(pedido.id)}
-                      disabled={mutate.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      onClick={() => setConfirmListoId(pedido.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors"
                     >
-                      {mutate.isPending ? 'Procesando...' : 'Confirmar'}
+                      <CheckCircle2 size={13} />
+                      Listo para repartir
                     </button>
-                    <button
-                      onClick={() => setConfirmId(null)}
-                      disabled={mutate.isPending}
-                      className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
+                  )
                 ) : (
-                  <button
-                    onClick={() => setConfirmId(pedido.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    <Truck size={13} />
-                    Pasar a En reparto
-                  </button>
+                  confirmEnRepartoId === pedido.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">¿Pasar a En reparto?</span>
+                      <button
+                        onClick={() => mutateEnReparto.mutate(pedido.id)}
+                        disabled={mutateEnReparto.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {mutateEnReparto.isPending ? 'Procesando...' : 'Confirmar'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmEnRepartoId(null)}
+                        disabled={mutateEnReparto.isPending}
+                        className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmEnRepartoId(pedido.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      <Truck size={13} />
+                      Pasar a En reparto
+                    </button>
+                  )
                 )}
               </div>
 

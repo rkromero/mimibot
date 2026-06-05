@@ -225,6 +225,7 @@ export async function POST(req: NextRequest) {
         metodoEntrega: metodoEntregaFinal,
         expresoNombre: expresoNombreFinal,
         expresoDireccion: expresoDireccionFinal,
+        esReparto: ctx.role === 'vendedor',
       },
     )
 
