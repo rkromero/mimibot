@@ -9,6 +9,7 @@ import { canAccessCliente } from '@/lib/authz/clientes'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteCliente } from '@/lib/delete/delete.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { geocodeClienteIfNeeded } from '@/lib/geo/geocode.service'
 
 export async function GET(
   _req: NextRequest,
@@ -201,6 +202,16 @@ export async function PATCH(
       .set(updates)
       .where(eq(clientes.id, id))
       .returning()
+
+    const addressChanged =
+      parsed.data.direccion !== undefined ||
+      parsed.data.localidad !== undefined ||
+      parsed.data.provincia !== undefined
+    if (addressChanged) {
+      void geocodeClienteIfNeeded(id, { force: true }).catch((e: unknown) =>
+        console.error('[geocode] error PATCH cliente:', e instanceof Error ? e.message : e),
+      )
+    }
 
     return NextResponse.json({ data: updated })
   } catch (err) {

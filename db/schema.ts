@@ -334,6 +334,9 @@ export const clientes = pgTable('clientes', {
   codigoPostal: text('codigo_postal'),
   expresoNombre: text('expreso_nombre'),
   expresoDireccion: text('expreso_direccion'),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  geocodedAt: timestamp('geocoded_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -526,6 +529,8 @@ export const empresaConfig = pgTable('empresa_config', {
   cuit: text('cuit'),
   condicionIva: text('condicion_iva').default('Responsable Inscripto'),
   puntoVenta: text('punto_venta').default('0001'),
+  depotLat: doublePrecision('depot_lat'),
+  depotLng: doublePrecision('depot_lng'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

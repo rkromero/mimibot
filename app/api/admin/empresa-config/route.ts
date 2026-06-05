@@ -5,6 +5,7 @@ import { empresaConfig } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { toApiError, AuthzError, ValidationError } from '@/lib/errors'
 import { cachedJson } from '@/lib/api/cache'
+import { geocodeDepot } from '@/lib/geo/geocode.service'
 
 const DEFAULT_CONFIG = {
   id: 1,
@@ -106,6 +107,12 @@ export async function PATCH(req: NextRequest) {
         set: updates,
       })
       .returning()
+
+    if (updates.direccion !== undefined) {
+      void geocodeDepot().catch((e: unknown) =>
+        console.error('[geocode] error depot:', e instanceof Error ? e.message : e),
+      )
+    }
 
     return NextResponse.json({ data: result })
   } catch (err) {

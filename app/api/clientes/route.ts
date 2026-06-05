@@ -10,6 +10,7 @@ import { resolverTerritorioPorRol } from '@/lib/territorios/asignacion.service'
 import { getTerritorioActivoDeAgente } from '@/lib/territorios/territorios.service'
 import { parsePagination } from '@/lib/api/pagination'
 import type { Paginated } from '@/lib/types/pagination'
+import { geocodeClienteIfNeeded } from '@/lib/geo/geocode.service'
 
 export async function GET(req: NextRequest) {
   try {
@@ -195,6 +196,12 @@ export async function POST(req: NextRequest) {
         creadoPor: session.user.id,
       })
       .returning()
+
+    if (input.direccion) {
+      void geocodeClienteIfNeeded(cliente!.id).catch((e: unknown) =>
+        console.error('[geocode] error POST cliente:', e instanceof Error ? e.message : e),
+      )
+    }
 
     return NextResponse.json({ data: cliente }, { status: 201 })
   } catch (err) {
