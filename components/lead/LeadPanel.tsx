@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Bot, Phone, ExternalLink } from 'lucide-react'
+import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import Avatar from '@/components/shared/Avatar'
@@ -14,6 +14,32 @@ import type { LeadWithContact } from '@/types/db'
 import type { Session } from 'next-auth'
 
 type LeadWithConversation = LeadWithContact & { conversation?: { id: string } }
+
+type ClienteDetail = {
+  id: string
+  nombre: string
+  apellido: string | null
+  telefono: string | null
+  email: string | null
+  direccion: string | null
+  localidad: string | null
+  provincia: string | null
+  cuit: string | null
+  pedidosSummary: {
+    count: number
+    total: string
+    saldoPendiente: string
+    ultimoPedidoFecha: string | null
+  }
+}
+
+type PedidoItem = {
+  id: string
+  fecha: string
+  total: string
+  estado: string
+  estadoPago: string
+}
 
 type Props = {
   /** Present for lead conversations (and for backwards-compat callers like KanbanBoard) */
@@ -31,6 +57,48 @@ type Props = {
   mobileMode?: boolean
   /** When true, renders inline (no fixed overlay). Used by InboxView desktop. */
   embedded?: boolean
+}
+
+function fmt(value: string | number | null | undefined): string {
+  const n = Number(value ?? 0)
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
+}
+
+function fmtFecha(value: string | null | undefined): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+const ESTADO_LABEL: Record<string, string> = {
+  pendiente: 'Pendiente',
+  pendiente_aprobacion: 'P. Aprobación',
+  confirmado: 'Confirmado',
+  listo_para_repartir: 'Listo',
+  en_reparto: 'En reparto',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado',
+}
+
+const ESTADO_COLOR: Record<string, string> = {
+  pendiente: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  pendiente_aprobacion: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  confirmado: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  listo_para_repartir: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  en_reparto: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  entregado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  cancelado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+const PAGO_LABEL: Record<string, string> = {
+  impago: 'Impago',
+  parcial: 'Parcial',
+  pagado: 'Pagado',
+}
+
+const PAGO_COLOR: Record<string, string> = {
+  impago: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  parcial: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  pagado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 }
 
 export default function LeadPanel({
@@ -57,6 +125,29 @@ export default function LeadPanel({
       return json.data
     },
     enabled: !isClienteMode && !!leadId,
+    retry: false,
+  })
+
+  const { data: cliente } = useQuery<ClienteDetail>({
+    queryKey: ['cliente-detail', clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/clientes/${clienteId}`)
+      if (!res.ok) throw new Error('Error al cargar cliente')
+      const json = await res.json() as { data: ClienteDetail }
+      return json.data
+    },
+    enabled: isClienteMode && !!clienteId,
+    retry: false,
+  })
+
+  const { data: pedidosData } = useQuery<{ data: PedidoItem[] }>({
+    queryKey: ['cliente-pedidos', clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pedidos?clienteId=${clienteId}&limit=5&sortBy=fecha&sortDir=desc`)
+      if (!res.ok) throw new Error('Error al cargar pedidos')
+      return res.json() as Promise<{ data: PedidoItem[] }>
+    },
+    enabled: isClienteMode && !!clienteId,
     retry: false,
   })
 
@@ -119,13 +210,20 @@ export default function LeadPanel({
 
   // ── Desktop mode ─────────────────────────────────────────────────────────────
 
-  // Cliente mode: minimal panel (no lead data needed)
+  // Cliente mode: panel with full client data
   if (isClienteMode) {
-    const displayName = nombre ?? 'Cliente'
+    const displayName = cliente
+      ? [cliente.nombre, cliente.apellido].filter(Boolean).join(' ')
+      : (nombre ?? 'Cliente')
+
+    const saldo = Number(cliente?.pedidosSummary?.saldoPendiente ?? 0)
+    const ultimosPedidos = pedidosData?.data?.slice(0, 5) ?? []
+
     const clienteInner = (
       <div className="flex w-full h-full overflow-hidden">
         {/* Columna izquierda: datos del cliente */}
         <div className="flex flex-col w-72 shrink-0 border-r border-border overflow-y-auto">
+          {/* Header */}
           <div className="flex items-center justify-between px-4 h-12 border-b border-border shrink-0">
             <div className="flex items-center gap-2 min-w-0">
               <Avatar name={displayName} color="#6b7280" size="md" />
@@ -139,19 +237,76 @@ export default function LeadPanel({
             </button>
           </div>
 
-          <div className="flex flex-col gap-3 px-4 py-4">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[11px] font-medium">
-                Cliente
-              </span>
+          {/* Badge cliente */}
+          <div className="px-4 pt-3 pb-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[11px] font-medium">
+              Cliente
+            </span>
+          </div>
+
+          {/* Datos de contacto */}
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Contacto</p>
+            <div className="flex flex-col gap-1.5">
+              <Row icon={<Phone size={12} />} value={cliente?.telefono ?? contactPhone} />
+              <Row icon={<Mail size={12} />} value={cliente?.email} />
+              <Row
+                icon={<MapPin size={12} />}
+                value={[cliente?.direccion, cliente?.localidad, cliente?.provincia].filter(Boolean).join(', ') || null}
+              />
+              <Row icon={<CreditCard size={12} />} label="CUIT" value={cliente?.cuit} />
             </div>
-            {contactPhone && (
-              <div className="flex items-center gap-2 text-sm text-foreground">
-                <Phone size={13} className="text-muted-foreground shrink-0" />
-                <span>{contactPhone}</span>
+          </div>
+
+          {/* Saldo */}
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Saldo pendiente</p>
+            <span
+              className={cn(
+                'text-base font-semibold',
+                saldo > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground',
+              )}
+            >
+              {fmt(saldo)}
+            </span>
+          </div>
+
+          {/* Últimos pedidos */}
+          <div className="px-4 py-3 flex-1">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
+              Últimos pedidos
+            </p>
+            {ultimosPedidos.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin pedidos</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {ultimosPedidos.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/crm/pedidos/${p.id}`}
+                    className="flex flex-col gap-1 p-2 rounded-md border border-border hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{fmtFecha(p.fecha)}</span>
+                      <span className="text-xs font-medium text-foreground">{fmt(p.total)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', ESTADO_COLOR[p.estado] ?? 'bg-zinc-100 text-zinc-600')}>
+                        {ESTADO_LABEL[p.estado] ?? p.estado}
+                      </span>
+                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', PAGO_COLOR[p.estadoPago] ?? 'bg-zinc-100 text-zinc-600')}>
+                        {PAGO_LABEL[p.estadoPago] ?? p.estadoPago}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
-            {clienteId && (
+          </div>
+
+          {/* Footer: link ficha completa */}
+          {clienteId && (
+            <div className="px-4 py-3 border-t border-border shrink-0">
               <Link
                 href={`/crm/clientes/${clienteId}`}
                 className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
@@ -159,13 +314,14 @@ export default function LeadPanel({
                 <ExternalLink size={12} />
                 Ver ficha completa
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Columna derecha: chat */}
         <div className="flex flex-col flex-1 min-w-0">
           <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
+            <ShoppingBag size={14} className="text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Conversación</span>
           </div>
           {effectiveConvId ? (
@@ -316,6 +472,26 @@ export default function LeadPanel({
       <div className="relative flex ml-auto w-[780px] max-w-full h-full bg-background border-l border-border shadow-md">
         {leadInner}
       </div>
+    </div>
+  )
+}
+
+function Row({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label?: string
+  value: string | null | undefined
+}) {
+  return (
+    <div className="flex items-start gap-1.5 text-xs text-foreground">
+      <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
+      <span className="min-w-0 break-words">
+        {label && <span className="text-muted-foreground mr-1">{label}:</span>}
+        {value ?? <span className="text-muted-foreground">—</span>}
+      </span>
     </div>
   )
 }
