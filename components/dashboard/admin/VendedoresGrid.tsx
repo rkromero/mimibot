@@ -151,8 +151,7 @@ export default function VendedoresGrid({
     // Vendedor
     const values: { v: number; obj: number }[] = [
       { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
-      { v: a.pedidos.proyeccion, obj: a.meta.pedidosObjetivo },
-      { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
+      { v: a.clientesPrimerPedido.proyeccion, obj: a.meta.pedidosObjetivo },
     ]
     if (a.pctClientesConPedido.estado !== 'na') {
       values.push({
@@ -240,7 +239,7 @@ export default function VendedoresGrid({
                   ) : (
                     <MetricCell
                       alcanzado={String(avance.clientesPrimerPedido.alcanzado)}
-                      objetivo={String(avance.meta.clientesNuevosObjetivo)}
+                      objetivo={String(avance.meta.pedidosObjetivo)}
                       pct={avance.clientesPrimerPedido.pct}
                       estado={avance.clientesPrimerPedido.estado}
                     />

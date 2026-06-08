@@ -316,7 +316,7 @@ export default function HistoricoTable({ role }: Props) {
                       <div className="flex justify-between gap-1">
                         <span className="text-muted-foreground shrink-0">Primer Pedido</span>
                         <span className={cn('tabular-nums font-medium', cellClass(avance.clientesPrimerPedido.estado))}>
-                          {avance.clientesPrimerPedido.alcanzado}/{meta.clientesNuevosObjetivo}
+                          {avance.clientesPrimerPedido.alcanzado}/{meta.pedidosObjetivo}
                         </span>
                       </div>
                       <div className="flex justify-between gap-1">
@@ -438,7 +438,7 @@ export default function HistoricoTable({ role }: Props) {
                         </td>
                         {isVendedor && (
                           <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.clientesPrimerPedido.estado))}>
-                            {avance.clientesPrimerPedido.alcanzado}/{meta.clientesNuevosObjetivo}
+                            {avance.clientesPrimerPedido.alcanzado}/{meta.pedidosObjetivo}
                             <span className="ml-1 text-[10px] opacity-70">({avance.clientesPrimerPedido.pct}%)</span>
                           </td>
                         )}

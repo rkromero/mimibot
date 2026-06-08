@@ -43,6 +43,7 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
   const isDirty = isVendedor
     ? (
         vendedorValues.clientesNuevosObjetivo !== vendedorSaved.clientesNuevosObjetivo ||
+        vendedorValues.pedidosObjetivo !== vendedorSaved.pedidosObjetivo ||
         vendedorValues.pctClientesConPedidoObjetivo !== vendedorSaved.pctClientesConPedidoObjetivo ||
         vendedorValues.pctCobranzaObjetivo !== vendedorSaved.pctCobranzaObjetivo
       )
@@ -64,7 +65,7 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
   }
 
   function handleVendedor(field: keyof MetaFormValuesVendedor, raw: string) {
-    if (field === 'clientesNuevosObjetivo') {
+    if (field === 'clientesNuevosObjetivo' || field === 'pedidosObjetivo') {
       const n = parseInt(raw, 10)
       setVendedorValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
     } else {
@@ -134,11 +135,18 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
       <div className="px-4 py-3 space-y-3">
         {isVendedor ? (
           <>
-            <Field label="Clientes Nuevos c/PP">
+            <Field label="Clientes Nuevos">
               {isLocked
                 ? roVal(meta?.clientesNuevosObjetivo ?? '—')
                 : <input type="number" min={0} value={vendedorValues.clientesNuevosObjetivo}
                     onChange={(e) => handleVendedor('clientesNuevosObjetivo', e.target.value)}
+                    className={inp} />}
+            </Field>
+            <Field label="Cl. c/PP (Primer Pedido)">
+              {isLocked
+                ? roVal(meta?.pedidosObjetivo ?? '—')
+                : <input type="number" min={0} value={vendedorValues.pedidosObjetivo}
+                    onChange={(e) => handleVendedor('pedidosObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
             <Field label="% Cobertura Cartera">

@@ -424,7 +424,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
 
   const estadoPrimerPedido = calcularEstadoMeta(
     alcanzadoPrimerPedido,
-    objetivoClientesNuevos,
+    objetivoPedidos,
     periodoAnio,
     periodoMes,
   )

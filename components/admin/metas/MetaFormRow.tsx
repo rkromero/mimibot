@@ -41,6 +41,7 @@ export type MetaFormValuesAgent = {
 
 export type MetaFormValuesVendedor = {
   clientesNuevosObjetivo: number
+  pedidosObjetivo: number
   pctClientesConPedidoObjetivo: string
   pctCobranzaObjetivo: string
 }
@@ -62,6 +63,7 @@ export function initAgentValues(meta: MetaRow | null): MetaFormValuesAgent {
 export function initVendedorValues(meta: MetaRow | null): MetaFormValuesVendedor {
   return {
     clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
+    pedidosObjetivo: meta?.pedidosObjetivo ?? 0,
     pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
     pctCobranzaObjetivo: meta?.pctCobranzaObjetivo ?? '0',
   }
@@ -121,6 +123,7 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
   const isDirty = isVendedor
     ? (
         vendedorValues.clientesNuevosObjetivo !== vendedorSaved.clientesNuevosObjetivo ||
+        vendedorValues.pedidosObjetivo !== vendedorSaved.pedidosObjetivo ||
         vendedorValues.pctClientesConPedidoObjetivo !== vendedorSaved.pctClientesConPedidoObjetivo ||
         vendedorValues.pctCobranzaObjetivo !== vendedorSaved.pctCobranzaObjetivo
       )
@@ -142,7 +145,7 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
   }
 
   function handleVendedor(field: keyof MetaFormValuesVendedor, raw: string) {
-    if (field === 'clientesNuevosObjetivo') {
+    if (field === 'clientesNuevosObjetivo' || field === 'pedidosObjetivo') {
       const n = parseInt(raw, 10)
       setVendedorValues((p) => ({ ...p, [field]: isNaN(n) ? 0 : n }))
     } else {
@@ -254,15 +257,26 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         </td>
       )}
 
-      {/* ══ VENDEDOR COLUMNS (cols 6-8) ══ */}
+      {/* ══ VENDEDOR COLUMNS (cols 6-9) ══ */}
 
-      {/* Vendedor: Clientes Nuevos c/PP */}
+      {/* Vendedor: Clientes Nuevos */}
       {!isVendedor ? <DisabledCell agentCol={false} /> : (
         <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
           {isLocked
             ? <span className={ro}>{meta?.clientesNuevosObjetivo ?? '—'}</span>
             : <input type="number" min={0} value={vendedorValues.clientesNuevosObjetivo}
                 onChange={(e) => handleVendedor('clientesNuevosObjetivo', e.target.value)}
+                className={inp} />}
+        </td>
+      )}
+
+      {/* Vendedor: Clientes con Primer Pedido */}
+      {!isVendedor ? <DisabledCell agentCol={false} /> : (
+        <td className="py-2.5 px-3 bg-purple-50/20 dark:bg-purple-950/10">
+          {isLocked
+            ? <span className={ro}>{meta?.pedidosObjetivo ?? '—'}</span>
+            : <input type="number" min={0} value={vendedorValues.pedidosObjetivo}
+                onChange={(e) => handleVendedor('pedidosObjetivo', e.target.value)}
                 className={inp} />}
         </td>
       )}

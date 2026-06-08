@@ -241,7 +241,20 @@ export default function VendedorModal({
                 proyeccion={String(avance.clientesNuevos.proyeccion)}
                 estado={avance.clientesNuevos.estado}
               />
-              {vendedorRole !== 'agent' && (
+              {vendedorRole === 'vendedor' && (
+                <>
+                  <div className="border-t border-border" />
+                  <MetricRow
+                    label="Clientes con Primer Pedido"
+                    alcanzado={String(avance.clientesPrimerPedido.alcanzado)}
+                    objetivo={String(avance.meta.pedidosObjetivo)}
+                    pct={avance.clientesPrimerPedido.pct}
+                    proyeccion={String(avance.clientesPrimerPedido.proyeccion)}
+                    estado={avance.clientesPrimerPedido.estado}
+                  />
+                </>
+              )}
+              {vendedorRole !== 'agent' && vendedorRole !== 'vendedor' && (
                 <>
                   <div className="border-t border-border" />
                   <MetricRow

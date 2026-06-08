@@ -100,7 +100,7 @@ export default function VendedorDashboard({ user }: Props) {
             />
             <MetaCard
               title="Clientes con Primer Pedido"
-              objetivo={avance.meta.clientesNuevosObjetivo}
+              objetivo={avance.meta.pedidosObjetivo}
               alcanzado={avance.clientesPrimerPedido.alcanzado}
               pct={avance.clientesPrimerPedido.pct}
               proyeccion={avance.clientesPrimerPedido.proyeccion}
