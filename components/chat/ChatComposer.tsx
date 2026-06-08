@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 type Props = {
   conversationId: string
-  leadId: string
+  leadId?: string
 }
 
 export default function ChatComposer({ conversationId, leadId }: Props) {
@@ -76,7 +76,7 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('conversationId', conversationId)
-    fd.append('leadId', leadId)
+    if (leadId) fd.append('leadId', leadId)
 
     await fetch('/api/whatsapp/send', { method: 'POST', body: fd })
     void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })

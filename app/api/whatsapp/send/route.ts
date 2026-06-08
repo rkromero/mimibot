@@ -9,8 +9,7 @@ import { z } from 'zod'
 import { sendTextMessage, sendMediaMessage, uploadMediaToMeta, sendTemplateMessage } from '@/lib/whatsapp/client'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType, contentTypeFromExt } from '@/lib/whatsapp/mime'
-import { canAccessLead } from '@/lib/authz'
-import { toApiError, NotFoundError, ValidationError } from '@/lib/errors'
+import { AuthzError, toApiError, NotFoundError, ValidationError } from '@/lib/errors'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
 import type { Session } from 'next-auth'
 
@@ -18,7 +17,8 @@ type SessionUser = Session['user']
 
 const sendTextSchema = z.object({
   conversationId: z.string().uuid(),
-  leadId: z.string().uuid(),
+  // leadId kept as optional for backwards compatibility with existing clients
+  leadId: z.string().uuid().optional(),
   body: z.string().min(1).max(4096),
 })
 
@@ -40,27 +40,49 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function handleTextSend(req: NextRequest, user: SessionUser) {
-  const body: unknown = await req.json()
-  const parsed = sendTextSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 })
-  }
-
-  const { conversationId, leadId, body: text } = parsed.data
-  await canAccessLead(user, leadId)
-
+/** Returns the conversation with enough data to send, after verifying access. */
+async function resolveConversation(user: SessionUser, conversationId: string) {
   const conv = await db.query.conversations.findFirst({
     where: eq(conversations.id, conversationId),
-    columns: { waContactPhone: true },
+    columns: { id: true, waContactPhone: true, clienteId: true, leadId: true },
     with: {
+      cliente: { columns: { asignadoA: true, nombre: true, apellido: true } },
       lead: {
-        columns: { id: true },
+        columns: { id: true, assignedTo: true },
         with: { contact: { columns: { name: true } } },
       },
     },
   })
-  if (!conv?.waContactPhone) throw new NotFoundError('Conversación')
+
+  if (!conv) throw new NotFoundError('Conversación')
+  if (!conv.waContactPhone) throw new ValidationError('La conversación no tiene teléfono de contacto')
+
+  // Permission check for non-admin/non-gerente roles
+  if (user.role !== 'admin' && user.role !== 'gerente') {
+    const effectiveAssignment = conv.clienteId
+      ? conv.cliente?.asignadoA ?? null
+      : conv.lead?.assignedTo ?? null
+    if (effectiveAssignment !== user.id) {
+      throw new AuthzError('No tenés acceso a esta conversación')
+    }
+  }
+
+  const contactName = conv.clienteId
+    ? `${conv.cliente?.nombre ?? ''} ${conv.cliente?.apellido ?? ''}`.trim()
+    : (conv.lead?.contact?.name ?? '')
+
+  return { waContactPhone: conv.waContactPhone, contactName }
+}
+
+async function handleTextSend(req: NextRequest, user: SessionUser) {
+  const body: unknown = await req.json()
+  const parsed = sendTextSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
+  }
+
+  const { conversationId, body: text } = parsed.data
+  const { waContactPhone, contactName } = await resolveConversation(user, conversationId)
 
   const dentro24h = await estaDentroDe24h(conversationId)
 
@@ -91,7 +113,6 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
       columns: { bodyText: true },
     })
 
-    const contactName = conv.lead?.contact?.name ?? ''
     const hasVar = !!tmpl?.bodyText?.includes('{{1}}')
     const components = hasVar && contactName
       ? [{ type: 'body' as const, parameters: [{ type: 'text' as const, text: contactName }] }]
@@ -117,7 +138,7 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
 
     let waMessageId: string | null = null
     try {
-      waMessageId = await sendTemplateMessage(conv.waContactPhone, templateName, templateLang, components)
+      waMessageId = await sendTemplateMessage(waContactPhone, templateName, templateLang, components)
     } catch (err) {
       console.error('[send] Error enviando plantilla de apertura:', err)
     }
@@ -150,15 +171,13 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
 
   let waMessageId: string | null = null
   try {
-    waMessageId = await sendTextMessage(conv.waContactPhone, text)
+    waMessageId = await sendTextMessage(waContactPhone, text)
   } catch (err) {
     console.error('[send] Error enviando por WhatsApp:', err)
   }
 
   if (waMessageId) {
-    await db.update(messages)
-      .set({ waMessageId })
-      .where(eq(messages.id, msg!.id))
+    await db.update(messages).set({ waMessageId }).where(eq(messages.id, msg!.id))
   }
 
   await db.execute(
@@ -172,25 +191,17 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
   const formData = await req.formData()
   const file = formData.get('file') as File | null
   const conversationId = formData.get('conversationId') as string | null
-  const leadId = formData.get('leadId') as string | null
 
-  if (!file || !conversationId || !leadId) {
-    throw new ValidationError('file, conversationId y leadId son requeridos')
+  if (!file || !conversationId) {
+    throw new ValidationError('file y conversationId son requeridos')
   }
 
-  await canAccessLead(user, leadId)
-
-  const conv = await db.query.conversations.findFirst({
-    where: eq(conversations.id, conversationId),
-    columns: { waContactPhone: true },
-  })
-  if (!conv?.waContactPhone) throw new NotFoundError('Conversación')
+  const { waContactPhone } = await resolveConversation(user, conversationId)
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const mimeType = file.type || contentTypeFromExt(file.name)
   const mediaKind = waMediaType(mimeType)
 
-  // Guardar mensaje en DB
   const [msg] = await db
     .insert(messages)
     .values({
@@ -204,7 +215,6 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
     })
     .returning()
 
-  // Subir a R2 (para nuestro storage) + subir a Meta (para envío)
   const [r2Key, metaMediaId] = await Promise.all([
     persistOutboundMedia({
       buffer,
@@ -216,10 +226,9 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
     uploadMediaToMeta(buffer, mimeType, file.name),
   ])
 
-  // Enviar por WhatsApp
   let waMessageId: string | null = null
   try {
-    waMessageId = await sendMediaMessage(conv.waContactPhone, metaMediaId, mediaKind)
+    waMessageId = await sendMediaMessage(waContactPhone, metaMediaId, mediaKind)
   } catch (err) {
     console.error('[send] Error enviando media por WhatsApp:', err)
   }

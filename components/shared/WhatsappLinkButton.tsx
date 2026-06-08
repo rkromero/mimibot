@@ -54,8 +54,8 @@ export default function WhatsappLinkButton({
     try {
       const res = await fetch(`/api/clientes/${clienteId}/conversacion`, { method: 'POST' })
       if (!res.ok) return
-      const json = await res.json() as { data: { leadId: string } }
-      router.push(`/inbox?lead=${json.data.leadId}`)
+      const json = await res.json() as { data: { conversationId: string } }
+      router.push(`/inbox?conversation=${json.data.conversationId}`)
     } catch {
       // ignore
     } finally {

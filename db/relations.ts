@@ -55,6 +55,7 @@ export const contactsRelations = relations(contacts, ({ many }) => ({
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
   lead: one(leads, { fields: [conversations.leadId], references: [leads.id] }),
+  cliente: one(clientes, { fields: [conversations.clienteId], references: [clientes.id] }),
   messages: many(messages),
 }))
 

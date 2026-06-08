@@ -38,7 +38,7 @@ export async function notificarPedidoCreado(
 
     if (!config?.pedidoCreadoEnabled || !config.pedidoCreadoTemplateName) return
 
-    let convResult: { leadId: string; conversationId: string }
+    let convResult: { conversationId: string; clienteId: string }
     try {
       convResult = await ensureConversacionParaCliente(clienteId)
     } catch (err) {
@@ -50,6 +50,9 @@ export async function notificarPedidoCreado(
       where: eq(conversations.id, convResult.conversationId),
       columns: { waContactPhone: true },
       with: {
+        cliente: {
+          columns: { nombre: true, apellido: true },
+        },
         lead: {
           columns: { id: true },
           with: { contact: { columns: { name: true } } },
@@ -59,7 +62,10 @@ export async function notificarPedidoCreado(
 
     if (!conv?.waContactPhone) return
 
-    const contactName = conv.lead?.contact?.name ?? ''
+    const contactName =
+      conv.cliente
+        ? `${conv.cliente.nombre} ${conv.cliente.apellido}`.trim()
+        : (conv.lead?.contact?.name ?? '')
     const pedidoNum = pedidoId.slice(0, 8).toUpperCase()
     const totalStr = `$${parseFloat(total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 

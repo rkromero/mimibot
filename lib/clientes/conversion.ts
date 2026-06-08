@@ -1,6 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm'
 import { db, type Db } from '@/db'
-import { leads, clientes, territorioAgente } from '@/db/schema'
+import { leads, clientes, conversations, territorioAgente } from '@/db/schema'
 import { NotFoundError } from '@/lib/errors'
 
 type DrizzleDb = Db
@@ -102,6 +102,12 @@ export async function convertirLeadACliente(
       .update(leads)
       .set({ isOpen: false, updatedAt: new Date() })
       .where(eq(leads.id, leadId))
+
+    // 4. Reasignar la conversación del lead al cliente
+    await tx
+      .update(conversations)
+      .set({ clienteId: cliente.id, updatedAt: new Date() })
+      .where(eq(conversations.leadId, leadId))
 
     return { cliente, wasNew }
   })

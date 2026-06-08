@@ -14,8 +14,10 @@ type Filter = 'mine' | 'unassigned' | 'all'
 
 type InboxItem = {
   conversationId: string
-  leadId: string
-  contactName: string
+  tipo: 'cliente' | 'lead'
+  leadId: string | null
+  clienteId: string | null
+  nombre: string
   contactPhone: string | null
   unreadCount: number
   lastMessageAt: string | null
@@ -24,7 +26,7 @@ type InboxItem = {
   assignedUserName: string | null
   assignedUserColor: string | null
   assignedUserId: string | null
-  botEnabled: boolean
+  botEnabled: boolean | null
 }
 
 type Props = { user: Session['user'] }
@@ -32,10 +34,14 @@ type Props = { user: Session['user'] }
 export default function InboxView({ user }: Props) {
   const queryClient = useQueryClient()
   const searchParams = useSearchParams()
-  const initLeadId = searchParams.get('lead')
+  const initConvId = searchParams.get('conversation')
+  const initLeadId = searchParams.get('lead') // backwards compat
+
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(initConvId)
   const [filter, setFilter] = useState<Filter>('mine')
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(initLeadId)
-  const [mobileView, setMobileView] = useState<'list' | 'conversation'>(initLeadId ? 'conversation' : 'list')
+  const [mobileView, setMobileView] = useState<'list' | 'conversation'>(
+    initConvId ?? initLeadId ? 'conversation' : 'list',
+  )
   const [qrOpen, setQrOpen] = useState(false)
 
   const fetchFilter = async (f: Filter): Promise<InboxItem[]> => {
@@ -69,6 +75,15 @@ export default function InboxView({ user }: Props) {
   const isLoading = loadingMine || loadingUnassigned || loadingAll
   const counts: Record<Filter, number> = { mine: mineData.length, unassigned: unassignedData.length, all: allData.length }
 
+  // Backwards compat: ?lead= → find the conversation in the list once loaded
+  useEffect(() => {
+    if (initLeadId && !initConvId && !selectedConvId) {
+      const all = [...mineData, ...unassignedData, ...allData]
+      const match = all.find((i) => i.leadId === initLeadId)
+      if (match) setSelectedConvId(match.conversationId)
+    }
+  }, [mineData, unassignedData, allData, initLeadId, initConvId, selectedConvId])
+
   // SSE para actualizar inbox en tiempo real
   useEffect(() => {
     const es = new EventSource('/api/realtime/stream')
@@ -78,23 +93,27 @@ export default function InboxView({ user }: Props) {
     return () => es.close()
   }, [queryClient])
 
+  const allLoadedItems = [...mineData, ...unassignedData, ...allData]
+  const selectedItem = selectedConvId
+    ? (allLoadedItems.find((i) => i.conversationId === selectedConvId) ?? null)
+    : null
+
   const totalUnread = items.reduce((sum, i) => sum + (i.unreadCount ?? 0), 0)
   const formatCount = (n: number) => (n > 99 ? '99+' : String(n))
 
-  function handleCloseLead() {
-    setSelectedLeadId(null)
+  function handleCloseConversation() {
+    setSelectedConvId(null)
     setMobileView('list')
   }
 
   return (
     <div className="flex h-full">
-      {/* Mobile conversation fullscreen — only visible on mobile when a conversation is open */}
-      {mobileView === 'conversation' && selectedLeadId && (
+      {/* Mobile conversation fullscreen */}
+      {mobileView === 'conversation' && selectedConvId && (
         <div className="flex flex-col w-full h-full md:hidden">
-          {/* Mobile header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
             <button
-              onClick={handleCloseLead}
+              onClick={handleCloseConversation}
               className="p-2 -ml-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Volver"
             >
@@ -102,13 +121,15 @@ export default function InboxView({ user }: Props) {
             </button>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground truncate">
-                {items.find(i => i.leadId === selectedLeadId)?.contactName ?? '...'}
+                {selectedItem?.nombre ?? '...'}
               </p>
             </div>
-            <BotToggle
-              leadId={selectedLeadId}
-              botEnabled={items.find(i => i.leadId === selectedLeadId)?.botEnabled ?? false}
-            />
+            {selectedItem?.tipo === 'lead' && selectedItem.leadId && (
+              <BotToggle
+                leadId={selectedItem.leadId}
+                botEnabled={selectedItem.botEnabled ?? false}
+              />
+            )}
             <button
               onClick={() => setQrOpen(true)}
               className="p-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -117,12 +138,20 @@ export default function InboxView({ user }: Props) {
               <MessageSquare size={18} />
             </button>
           </div>
-          {/* LeadPanel in conversation-only mode + spacer for fixed BottomNav */}
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 overflow-hidden">
-              <LeadPanel leadId={selectedLeadId} onClose={handleCloseLead} user={user} mobileMode />
+              <LeadPanel
+                conversationId={selectedConvId}
+                tipo={selectedItem?.tipo ?? 'lead'}
+                leadId={selectedItem?.leadId}
+                clienteId={selectedItem?.clienteId}
+                nombre={selectedItem?.nombre}
+                contactPhone={selectedItem?.contactPhone}
+                onClose={handleCloseConversation}
+                user={user}
+                mobileMode
+              />
             </div>
-            {/* keeps ChatComposer above the fixed BottomNav (min-h-[56px] + pb-safe) */}
             <div className="shrink-0" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }} aria-hidden="true" />
           </div>
         </div>
@@ -136,7 +165,6 @@ export default function InboxView({ user }: Props) {
           mobileView === 'conversation' ? 'hidden md:flex' : 'flex',
         )}
       >
-        {/* Header + filtros */}
         <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2 mb-2">
             <h1 className="text-md font-semibold">Inbox</h1>
@@ -148,7 +176,7 @@ export default function InboxView({ user }: Props) {
           </div>
           <div className="flex gap-1">
             {([
-              { key: 'mine' as Filter, label: 'Mis leads' },
+              { key: 'mine' as Filter, label: 'Mis conversaciones' },
               { key: 'unassigned' as Filter, label: 'Sin asignar' },
               { key: 'all' as Filter, label: 'Todos' },
             ] as const).map(({ key, label }) => {
@@ -196,30 +224,40 @@ export default function InboxView({ user }: Props) {
               <button
                 key={item.conversationId}
                 onClick={() => {
-                  setSelectedLeadId(item.leadId)
+                  setSelectedConvId(item.conversationId)
                   setMobileView('conversation')
                 }}
                 className={cn(
                   'w-full flex items-start gap-3 px-4 py-3 text-left border-b border-border',
                   'hover:bg-accent/50 transition-colors duration-100',
                   'min-h-[72px]',
-                  selectedLeadId === item.leadId && 'bg-accent',
+                  selectedConvId === item.conversationId && 'bg-accent',
                   item.unreadCount > 0 && 'border-l-2 border-l-primary',
                 )}
               >
                 <Avatar
-                  name={item.contactName}
+                  name={item.nombre}
                   color={item.assignedUserColor ?? '#6b7280'}
                   size="md"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className={cn(
-                      'text-sm truncate',
-                      item.unreadCount > 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground',
-                    )}>
-                      {item.contactName}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className={cn(
+                        'text-sm truncate',
+                        item.unreadCount > 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground',
+                      )}>
+                        {item.nombre}
+                      </span>
+                      <span className={cn(
+                        'shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full',
+                        item.tipo === 'cliente'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                      )}>
+                        {item.tipo === 'cliente' ? 'Cliente' : 'Lead'}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {item.unreadCount > 0 && (
                         <span className="text-xs font-medium text-primary-foreground bg-primary rounded-full px-1.5 min-w-[18px] text-center tabular-nums">
@@ -243,12 +281,17 @@ export default function InboxView({ user }: Props) {
         </div>
       </div>
 
-      {/* Ficha del lead seleccionado — desktop only when a lead is selected */}
+      {/* Panel de conversación — desktop */}
       <div className="hidden md:flex flex-1 min-w-0">
-        {selectedLeadId ? (
+        {selectedConvId ? (
           <LeadPanel
-            leadId={selectedLeadId}
-            onClose={() => setSelectedLeadId(null)}
+            conversationId={selectedConvId}
+            tipo={selectedItem?.tipo ?? 'lead'}
+            leadId={selectedItem?.leadId}
+            clienteId={selectedItem?.clienteId}
+            nombre={selectedItem?.nombre}
+            contactPhone={selectedItem?.contactPhone}
+            onClose={() => setSelectedConvId(null)}
             user={user}
           />
         ) : (
@@ -258,7 +301,6 @@ export default function InboxView({ user }: Props) {
         )}
       </div>
 
-      {/* Quick replies sheet */}
       <QuickReplies
         open={qrOpen}
         onClose={() => setQrOpen(false)}
@@ -266,7 +308,7 @@ export default function InboxView({ user }: Props) {
           void navigator.clipboard?.writeText(text)
           setQrOpen(false)
         }}
-        leadNombre={items.find(i => i.leadId === selectedLeadId)?.contactName}
+        leadNombre={selectedItem?.nombre}
       />
     </div>
   )
@@ -278,7 +320,7 @@ function BotToggle({ leadId, botEnabled }: { leadId: string; botEnabled: boolean
 
   async function toggle() {
     const newVal = !localEnabled
-    setLocalEnabled(newVal) // optimistic update
+    setLocalEnabled(newVal)
     try {
       await fetch(`/api/leads/${leadId}`, {
         method: 'PATCH',
@@ -287,7 +329,7 @@ function BotToggle({ leadId, botEnabled }: { leadId: string; botEnabled: boolean
       })
       void queryClient.invalidateQueries({ queryKey: ['inbox'] })
     } catch {
-      setLocalEnabled(!newVal) // revert on error
+      setLocalEnabled(!newVal)
     }
   }
 

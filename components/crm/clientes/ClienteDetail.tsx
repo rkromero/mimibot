@@ -251,8 +251,8 @@ export default function ClienteDetail({ id }: Props) {
         toast.error(data.error ?? 'Error al abrir conversación')
         return
       }
-      const { data } = await res.json() as { data: { leadId: string } }
-      router.push(`/inbox?lead=${data.leadId}`)
+      const { data } = await res.json() as { data: { conversationId: string } }
+      router.push(`/inbox?conversation=${data.conversationId}`)
     } catch {
       toast.error('Error de conexión')
     } finally {

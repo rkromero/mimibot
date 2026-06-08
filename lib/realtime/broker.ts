@@ -28,7 +28,7 @@ export function removeSseClient(client: SseClient) {
 }
 
 export type CrmEvent =
-  | { type: 'new_message'; conversationId: string; leadId: string; assignedTo: string | null; direction: string }
+  | { type: 'new_message'; conversationId: string; leadId: string | null; assignedTo: string | null; direction: string }
   | { type: 'lead_updated'; leadId: string; assignedTo: string | null; oldAssigned: string | null; stageId: string; oldStageId: string }
 
 export function emitLeadEvent(event: CrmEvent) {

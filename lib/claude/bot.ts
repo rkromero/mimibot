@@ -42,6 +42,13 @@ export async function processBotTurn(params: {
   if (!lead || !lead.botEnabled) return
   if (lead.botQualified) return
 
+  // No activar bot para conversaciones de clientes
+  const conv = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+    columns: { clienteId: true },
+  })
+  if (conv?.clienteId) return
+
   // <<CRITERIO_DE_CALIFICACION>>: definir la condición que marca al lead como calificado.
   // Actualmente se califica (handoff) cuando: el bot supera maxTurns, el bot incluye
   // [HANDOFF] en su respuesta, o el usuario escribe una frase de handoff.

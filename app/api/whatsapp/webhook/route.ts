@@ -5,13 +5,14 @@ import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaMessage } from '@/lib/validations/webhook'
 import { db } from '@/db'
-import { leads, contacts, conversations, messages, activityLog, pipelineStages } from '@/db/schema'
+import { leads, contacts, conversations, messages, activityLog, pipelineStages, clientes } from '@/db/schema'
 import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
 import { processBotTurn } from '@/lib/claude/bot'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { handleAdminMenu } from '@/lib/whatsapp/admin-menu'
+import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
 
 // ─── Admin routing helpers ────────────────────────────────────────────────────
 
@@ -128,6 +129,18 @@ async function handleInboundMessage(params: {
   })
   if (existing) return
 
+  // Ruteo: cliente tiene prioridad sobre lead
+  const cliente = await db.query.clientes.findFirst({
+    where: eq(clientes.telefono, contactPhone),
+    columns: { id: true, asignadoA: true },
+  })
+
+  if (cliente) {
+    await handleInboundFromCliente({ msg, contactPhone, phoneNumberId, cliente })
+    return
+  }
+
+  // Flujo lead (teléfono desconocido o sin cliente)
   // Buscar o crear contacto
   let contact = await db.query.contacts.findFirst({ where: eq(contacts.phone, contactPhone) })
   if (!contact) {
@@ -166,7 +179,6 @@ async function handleInboundMessage(params: {
     conversationId = convRow.conversationId
     assignedTo = convRow.assignedTo ?? null
   } else {
-    // Nuevo lead — asignar a la primera etapa del pipeline
     const firstStage = await db.query.pipelineStages.findFirst({
       where: eq(pipelineStages.slug, 'nuevo'),
     }) ?? await db.query.pipelineStages.findFirst({
@@ -207,12 +219,10 @@ async function handleInboundMessage(params: {
     conversationId = newConv!.id
   }
 
-  // Determinar tipo de contenido
   const contentType = msgContentType(msg.type)
   const body = msg.type === 'text' ? (msg.text?.body ?? null) : null
   const sentAt = new Date(parseInt(msg.timestamp) * 1000)
 
-  // Guardar mensaje
   const [savedMsg] = await db
     .insert(messages)
     .values({
@@ -227,17 +237,14 @@ async function handleInboundMessage(params: {
     })
     .returning()
 
-  // Actualizar metadatos de conversación + incrementar unread atómicamente
   await db.execute(
     sql`UPDATE conversations SET last_message_at = ${sentAt.toISOString()}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conversationId}`,
   )
 
-  // Actualizar last_contacted_at en el lead
   await db.update(leads)
     .set({ lastContactedAt: sentAt, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
 
-  // Procesar media en background (no bloquea)
   const mediaId = getMediaId(msg)
   if (mediaId && savedMsg) {
     const mimeType = getMediaMimeType(msg) ?? 'application/octet-stream'
@@ -250,7 +257,6 @@ async function handleInboundMessage(params: {
     }).catch((err) => console.error('[webhook] error guardando media:', err))
   }
 
-  // Emitir evento SSE para actualizar bandeja y chat en tiempo real
   await publishCrmEvent({
     type: 'new_message',
     conversationId,
@@ -259,7 +265,6 @@ async function handleInboundMessage(params: {
     direction: 'inbound',
   })
 
-  // Activar bot si está habilitado
   const lead = await db.query.leads.findFirst({
     where: eq(leads.id, leadId),
     columns: { botEnabled: true, botQualified: true },
@@ -273,6 +278,64 @@ async function handleInboundMessage(params: {
       contactPhone,
     }).catch((err) => console.error('[bot] error en processBotTurn:', err))
   }
+}
+
+async function handleInboundFromCliente(params: {
+  msg: WaMessage
+  contactPhone: string
+  phoneNumberId: string
+  cliente: { id: string; asignadoA: string | null }
+}) {
+  const { msg, contactPhone, phoneNumberId, cliente } = params
+
+  const { conversationId } = await ensureConversacionParaCliente(cliente.id)
+
+  // Actualizar waPhoneNumberId si no estaba seteado
+  await db.execute(
+    sql`UPDATE conversations SET wa_phone_number_id = COALESCE(wa_phone_number_id, ${phoneNumberId}), wa_contact_phone = COALESCE(wa_contact_phone, ${contactPhone}) WHERE id = ${conversationId}`,
+  )
+
+  const contentType = msgContentType(msg.type)
+  const body = msg.type === 'text' ? (msg.text?.body ?? null) : null
+  const sentAt = new Date(parseInt(msg.timestamp) * 1000)
+
+  const [savedMsg] = await db
+    .insert(messages)
+    .values({
+      conversationId,
+      waMessageId: msg.id,
+      direction: 'inbound',
+      senderType: 'contact',
+      contentType,
+      body,
+      isRead: false,
+      sentAt,
+    })
+    .returning()
+
+  await db.execute(
+    sql`UPDATE conversations SET last_message_at = ${sentAt.toISOString()}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conversationId}`,
+  )
+
+  const mediaId = getMediaId(msg)
+  if (mediaId && savedMsg) {
+    const mimeType = getMediaMimeType(msg) ?? 'application/octet-stream'
+    void persistInboundMedia({
+      waMediaId: mediaId,
+      messageId: savedMsg.id,
+      conversationId,
+      mimeType,
+      filename: getMediaFilename(msg),
+    }).catch((err) => console.error('[webhook] error guardando media (cliente):', err))
+  }
+
+  await publishCrmEvent({
+    type: 'new_message',
+    conversationId,
+    leadId: null,
+    assignedTo: cliente.asignadoA,
+    direction: 'inbound',
+  })
 }
 
 function msgContentType(type: string): 'text' | 'image' | 'audio' | 'video' | 'document' {
