@@ -128,7 +128,12 @@ export async function purgeClienteCompleto(clienteId: string, deletedBy: string)
     // 10. Delete historial_territorio_cliente for this client
     await tx.delete(historialTeritorioCliente).where(eq(historialTeritorioCliente.clienteId, clienteId))
 
-    // 11. If client has an originating lead, purge it and its dependents
+    // 11. Delete the client BEFORE the lead — clientes.leadId references leads.id,
+    //     so the lead cannot be deleted while the client row still exists.
+    await tx.delete(clientes).where(eq(clientes.id, clienteId))
+
+    // 12. If client had an originating lead, purge it and its dependents.
+    //     The client row is gone at this point so the FK is no longer violated.
     if (cliente.leadId) {
       const leadId = cliente.leadId
 
@@ -159,12 +164,12 @@ export async function purgeClienteCompleto(clienteId: string, deletedBy: string)
       // c. Delete lead_tags (cascade would handle it, but explicit for safety)
       await tx.delete(leadTags).where(eq(leadTags.leadId, leadId))
 
-      // d. Delete the lead
+      // d. Defensive: null out any other client still pointing to this lead before deleting it
+      await tx.update(clientes).set({ leadId: null }).where(eq(clientes.leadId, leadId))
+
+      // e. Delete the lead
       await tx.delete(leads).where(eq(leads.id, leadId))
     }
-
-    // 12. Finally delete the client
-    await tx.delete(clientes).where(eq(clientes.id, clienteId))
   })
 
   console.log(`[purge] completed: cliente=${clienteId} permanently deleted by admin=${deletedBy}`)
