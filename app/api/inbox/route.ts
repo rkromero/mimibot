@@ -26,8 +26,13 @@ export async function GET(req: NextRequest) {
     const filterVendedorId = sp.get('vendedorId') ?? null
     const { page, limit } = parsePagination(sp, { page: 1, limit: 50 })
 
-    // Base: lead must be open + not deleted (when a lead exists)
-    const baseCondition = sql`(${leads.id} IS NULL OR (${leads.isOpen} = true AND ${leads.deletedAt} IS NULL))`
+    // Base: pass if it's a cliente conversation (clienteId set) OR no lead OR lead is open.
+    // This ensures lead→cliente converted conversations remain visible after the lead closes.
+    const baseCondition = sql`(
+      ${conversations.clienteId} IS NOT NULL
+      OR ${leads.id} IS NULL
+      OR (${leads.isOpen} = true AND ${leads.deletedAt} IS NULL)
+    )`
 
     const filterConditions: ReturnType<typeof sql>[] = []
 
