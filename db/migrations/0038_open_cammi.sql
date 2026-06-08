@@ -1,1 +1,1 @@
-ALTER TABLE "pedidos" ADD COLUMN "descuento" numeric(5, 2) DEFAULT '0' NOT NULL;
+ALTER TABLE "pedidos" ADD COLUMN IF NOT EXISTS "descuento" numeric(5, 2) DEFAULT '0' NOT NULL;
