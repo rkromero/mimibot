@@ -253,6 +253,13 @@
       "when": 1749513600000,
       "tag": "0035_template_variables",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780933563965,
+      "tag": "0036_typical_bloodaxe",
+      "breakpoints": true
     }
   ]
 }
