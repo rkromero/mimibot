@@ -68,6 +68,20 @@ function countCumplidas(avance: MetaAvance, role?: string): { cumplidas: number;
     }
     return { cumplidas, total }
   }
+  if (role === 'vendedor') {
+    const kpis = [avance.clientesNuevos.estado, avance.clientesPrimerPedido.estado]
+    let cumplidas = kpis.filter((e) => e === 'cumplida').length
+    let total = 2
+    if (avance.pctClientesConPedido.estado !== 'na') {
+      total++
+      if (avance.pctClientesConPedido.estado === 'cumplida') cumplidas++
+    }
+    if (avance.pctCobranza.estado !== 'na') {
+      total++
+      if (avance.pctCobranza.estado === 'cumplida') cumplidas++
+    }
+    return { cumplidas, total }
+  }
   const kpis = [
     avance.clientesNuevos.estado,
     avance.pedidos.estado,
@@ -92,6 +106,7 @@ export default function HistoricoTable({ role }: Props) {
   const [showSinMeta, setShowSinMeta] = useState(false)
 
   const isAgent = role === 'agent'
+  const isVendedor = role === 'vendedor'
 
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -289,48 +304,38 @@ export default function HistoricoTable({ role }: Props) {
                         </span>
                       </div>
                     </div>
-                  ) : (
-                    /* Vendedor KPIs: C.Nuevos, Pedidos, Conversión, Cobertura, % Cobranza */
-                    <>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                        <div className="flex justify-between gap-1">
-                          <span className="text-muted-foreground shrink-0">C.Nuevos</span>
-                          <span className={cn('tabular-nums font-medium', cellClass(avance.clientesNuevos.estado))}>
-                            {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-1">
-                          <span className="text-muted-foreground shrink-0">Pedidos</span>
-                          <span className={cn('tabular-nums font-medium', cellClass(avance.pedidos.estado))}>
-                            {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-1">
-                          <span className="text-muted-foreground shrink-0">Conversión</span>
-                          <span className={cn('tabular-nums font-medium', cellClass(avance.conversionLeads.estado))}>
-                            {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-1">
-                          <span className="text-muted-foreground shrink-0">Cobertura</span>
-                          <span
-                            className={cn(
-                              'tabular-nums font-medium',
-                              avance.pctClientesConPedido.estado === 'na'
-                                ? 'text-muted-foreground'
-                                : cellClass(avance.pctClientesConPedido.estado),
-                            )}
-                          >
-                            {avance.pctClientesConPedido.estado === 'na'
-                              ? '—'
-                              : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
-                          </span>
-                        </div>
+                  ) : isVendedor ? (
+                    /* Vendedor KPIs: C.Nuevos, Primer Pedido, Cobertura, % Cobranza */
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">C.Nuevos</span>
+                        <span className={cn('tabular-nums font-medium', cellClass(avance.clientesNuevos.estado))}>
+                          {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
+                        </span>
                       </div>
-
-                      {/* % Cobranza — full width row */}
-                      <div className="flex justify-between text-xs border-t border-border pt-2">
-                        <span className="text-muted-foreground">% Cobranza</span>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">Primer Pedido</span>
+                        <span className={cn('tabular-nums font-medium', cellClass(avance.clientesPrimerPedido.estado))}>
+                          {avance.clientesPrimerPedido.alcanzado}/{meta.clientesNuevosObjetivo}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">Cobertura</span>
+                        <span
+                          className={cn(
+                            'tabular-nums font-medium',
+                            avance.pctClientesConPedido.estado === 'na'
+                              ? 'text-muted-foreground'
+                              : cellClass(avance.pctClientesConPedido.estado),
+                          )}
+                        >
+                          {avance.pctClientesConPedido.estado === 'na'
+                            ? '—'
+                            : `${avance.pctClientesConPedido.alcanzado}%/${meta.pctClientesConPedidoObjetivo}%`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span className="text-muted-foreground shrink-0">% Cobranza</span>
                         <span
                           className={cn(
                             'tabular-nums font-medium',
@@ -344,8 +349,8 @@ export default function HistoricoTable({ role }: Props) {
                             : `${avance.pctCobranza.alcanzado}%/${meta.pctCobranzaObjetivo}%`}
                         </span>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  ) : null}
                 </div>
               )
             })}
@@ -365,10 +370,15 @@ export default function HistoricoTable({ role }: Props) {
                   <tr className="border-b border-border bg-muted/40">
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Mes</th>
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">C.Nuevos</th>
-                    {!isAgent && (
+                    {isVendedor && (
+                      <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Primer Pedido</th>
+                    )}
+                    {!isAgent && !isVendedor && (
                       <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Pedidos</th>
                     )}
-                    <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Conversión</th>
+                    {!isVendedor && (
+                      <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Conversión</th>
+                    )}
                     <th className="px-2 py-2 text-center font-semibold text-muted-foreground">Cobertura</th>
                     {isAgent && (
                       <th className="px-2 py-2 text-center font-semibold text-muted-foreground">% Ped.Pagados</th>
@@ -385,7 +395,7 @@ export default function HistoricoTable({ role }: Props) {
                       isCurrent ? 'bg-primary/5' : 'hover:bg-muted/20 transition-colors',
                     )
                     // Mes col + data cols + Resultado col
-                    const dataColSpan = 6
+                    const dataColSpan = isVendedor ? 5 : 6
 
                     if (error) {
                       return (
@@ -426,15 +436,23 @@ export default function HistoricoTable({ role }: Props) {
                           {avance.clientesNuevos.alcanzado}/{meta.clientesNuevosObjetivo}
                           <span className="ml-1 text-[10px] opacity-70">({avance.clientesNuevos.pct}%)</span>
                         </td>
-                        {!isAgent && (
+                        {isVendedor && (
+                          <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.clientesPrimerPedido.estado))}>
+                            {avance.clientesPrimerPedido.alcanzado}/{meta.clientesNuevosObjetivo}
+                            <span className="ml-1 text-[10px] opacity-70">({avance.clientesPrimerPedido.pct}%)</span>
+                          </td>
+                        )}
+                        {!isAgent && !isVendedor && (
                           <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.pedidos.estado))}>
                             {avance.pedidos.alcanzado}/{meta.pedidosObjetivo}
                             <span className="ml-1 text-[10px] opacity-70">({avance.pedidos.pct}%)</span>
                           </td>
                         )}
-                        <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.conversionLeads.estado))}>
-                          {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
-                        </td>
+                        {!isVendedor && (
+                          <td className={cn('px-2 py-2 text-center tabular-nums', cellClass(avance.conversionLeads.estado))}>
+                            {avance.conversionLeads.alcanzado}%/{meta.conversionLeadsObjetivo}%
+                          </td>
+                        )}
                         <td
                           className={cn(
                             'px-2 py-2 text-center tabular-nums',

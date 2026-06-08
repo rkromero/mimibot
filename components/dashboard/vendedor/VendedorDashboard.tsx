@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query'
 import MetaCard from './MetaCard'
-import VendedorKpiCards from './VendedorKpiCards'
 import CarteraSection from './CarteraSection'
 import HistoricoTable from './HistoricoTable'
 import type { MetaAvance } from '@/lib/metas/avance.service'
@@ -55,12 +54,12 @@ export default function VendedorDashboard({ user }: Props) {
       return json.data ?? null
     },
     staleTime: 60_000,
-    enabled: isAgent, // skip fetch for vendedor role
+    enabled: isAgent || user.role === 'vendedor',
   })
 
   const noMeta = !isLoading && (isError || avance === null)
 
-  // ── Vendedor role: 3 KPI cards (Fase 3) ────────────────────────────────────
+  // ── Vendedor role: 4 meta cards ─────────────────────────────────────────────
   if (user.role === 'vendedor') {
     return (
       <div className="space-y-6">
@@ -74,8 +73,64 @@ export default function VendedorDashboard({ user }: Props) {
           </div>
         </div>
 
-        {/* 3 vendedor KPI cards (role-specific) */}
-        <VendedorKpiCards userId={user.id} monthLabel={monthLabel} />
+        {isLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-4 h-[88px] sm:h-32 animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {noMeta && (
+          <div className="rounded-xl border border-border bg-blue-50 p-4 text-sm text-blue-800">
+            No hay meta cargada para este mes. Consulta con tu administrador.
+          </div>
+        )}
+
+        {!isLoading && avance && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetaCard
+              title="Clientes Nuevos"
+              objetivo={avance.meta.clientesNuevosObjetivo}
+              alcanzado={avance.clientesNuevos.alcanzado}
+              pct={avance.clientesNuevos.pct}
+              proyeccion={avance.clientesNuevos.proyeccion}
+              estado={avance.clientesNuevos.estado}
+              pctMesTranscurrido={pctMesTranscurrido}
+            />
+            <MetaCard
+              title="Clientes con Primer Pedido"
+              objetivo={avance.meta.clientesNuevosObjetivo}
+              alcanzado={avance.clientesPrimerPedido.alcanzado}
+              pct={avance.clientesPrimerPedido.pct}
+              proyeccion={avance.clientesPrimerPedido.proyeccion}
+              estado={avance.clientesPrimerPedido.estado}
+              pctMesTranscurrido={pctMesTranscurrido}
+            />
+            <MetaCard
+              title="Cobertura de Cartera"
+              objetivo={Number(avance.meta.pctClientesConPedidoObjetivo)}
+              alcanzado={avance.pctClientesConPedido.alcanzado ?? 0}
+              pct={avance.pctClientesConPedido.pct ?? 0}
+              proyeccion={avance.pctClientesConPedido.proyeccion ?? 0}
+              estado={avance.pctClientesConPedido.estado}
+              formatValue={fmtPct}
+              naMessage="Sin cartera asignada"
+              pctMesTranscurrido={pctMesTranscurrido}
+            />
+            <MetaCard
+              title="% Cobranza"
+              objetivo={Number(avance.meta.pctCobranzaObjetivo)}
+              alcanzado={avance.pctCobranza.alcanzado ?? 0}
+              pct={avance.pctCobranza.pct ?? 0}
+              proyeccion={avance.pctCobranza.proyeccion ?? 0}
+              estado={avance.pctCobranza.estado}
+              formatValue={fmtPct}
+              naMessage="Sin pedidos confirmados"
+              pctMesTranscurrido={pctMesTranscurrido}
+            />
+          </div>
+        )}
 
         {/* Cartera */}
         <CarteraSection vendedorId={user.id} />
