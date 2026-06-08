@@ -1,13 +1,22 @@
-import { eq, and, isNull, ne, sql } from 'drizzle-orm'
+import { eq, and, isNull, ne, sql, inArray, or } from 'drizzle-orm'
 import { db } from '@/db'
 import {
   clientes,
   pedidos,
+  pedidoItems,
   movimientosCC,
   aplicacionesPago,
   stockMovements,
-  productos,
+  documentosEmitidos,
+  actividadesCliente,
+  historialTeritorioCliente,
   leads,
+  conversations,
+  messages,
+  attachments,
+  leadTags,
+  activityLog,
+  productos,
 } from '@/db/schema'
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors'
 import { calcularDistribucionFIFO, type PedidoPendiente } from '@/lib/cuenta-corriente/pago.service'
@@ -54,6 +63,111 @@ export async function deleteCliente(clienteId: string, _deletedBy: string): Prom
     .update(clientes)
     .set({ deletedAt: new Date() })
     .where(eq(clientes.id, clienteId))
+}
+
+// ─── purgeClienteCompleto ──────────────────────────────────────────────────────
+// Hard-delete a client and ALL associated data in FK-safe order.
+// Admin-only. Does NOT soft-delete — rows are physically removed.
+
+export async function purgeClienteCompleto(clienteId: string, deletedBy: string): Promise<void> {
+  const cliente = await db.query.clientes.findFirst({
+    where: eq(clientes.id, clienteId),
+    columns: { id: true, leadId: true, nombre: true, apellido: true },
+  })
+  if (!cliente) throw new NotFoundError('Cliente')
+
+  console.log(`[purge] admin=${deletedBy} purging cliente=${clienteId} (${cliente.nombre} ${cliente.apellido ?? ''})`)
+
+  await db.transaction(async (tx) => {
+    // 1. Collect pedido IDs for this client
+    const pedidoRows = await tx
+      .select({ id: pedidos.id })
+      .from(pedidos)
+      .where(eq(pedidos.clienteId, clienteId))
+    const pedidoIds = pedidoRows.map((r) => r.id)
+
+    // 2. Collect movimientosCC IDs for this client (needed to cover all aplicaciones_pago)
+    const movRows = await tx
+      .select({ id: movimientosCC.id })
+      .from(movimientosCC)
+      .where(eq(movimientosCC.clienteId, clienteId))
+    const movIds = movRows.map((r) => r.id)
+
+    // 3. Delete aplicaciones_pago linked to client pedidos OR client credit movements
+    if (pedidoIds.length > 0 || movIds.length > 0) {
+      const conditions = []
+      if (pedidoIds.length > 0) conditions.push(inArray(aplicacionesPago.pedidoId, pedidoIds))
+      if (movIds.length > 0) conditions.push(inArray(aplicacionesPago.movimientoCreditoId, movIds))
+      await tx.delete(aplicacionesPago).where(or(...conditions))
+    }
+
+    // 4. Delete documentos_emitidos linked to client pedidos
+    if (pedidoIds.length > 0) {
+      await tx.delete(documentosEmitidos).where(inArray(documentosEmitidos.pedidoId, pedidoIds))
+    }
+
+    // 5. Delete stock_movements linked to client pedidos (no stock adjustment per spec)
+    if (pedidoIds.length > 0) {
+      await tx.delete(stockMovements).where(inArray(stockMovements.pedidoId, pedidoIds))
+    }
+
+    // 6. Delete pedido_items linked to client pedidos
+    if (pedidoIds.length > 0) {
+      await tx.delete(pedidoItems).where(inArray(pedidoItems.pedidoId, pedidoIds))
+    }
+
+    // 7. Delete movimientos_cc for this client
+    await tx.delete(movimientosCC).where(eq(movimientosCC.clienteId, clienteId))
+
+    // 8. Delete pedidos for this client
+    await tx.delete(pedidos).where(eq(pedidos.clienteId, clienteId))
+
+    // 9. Delete actividades_cliente for this client
+    await tx.delete(actividadesCliente).where(eq(actividadesCliente.clienteId, clienteId))
+
+    // 10. Delete historial_territorio_cliente for this client
+    await tx.delete(historialTeritorioCliente).where(eq(historialTeritorioCliente.clienteId, clienteId))
+
+    // 11. If client has an originating lead, purge it and its dependents
+    if (cliente.leadId) {
+      const leadId = cliente.leadId
+
+      // Find the conversation (if any)
+      const conv = await tx.query.conversations.findFirst({
+        where: eq(conversations.leadId, leadId),
+        columns: { id: true },
+      })
+
+      if (conv) {
+        // a. Collect message IDs to delete attachments
+        const msgRows = await tx
+          .select({ id: messages.id })
+          .from(messages)
+          .where(eq(messages.conversationId, conv.id))
+        const msgIds = msgRows.map((r) => r.id)
+
+        if (msgIds.length > 0) {
+          await tx.delete(attachments).where(inArray(attachments.messageId, msgIds))
+        }
+        await tx.delete(messages).where(eq(messages.conversationId, conv.id))
+        await tx.delete(conversations).where(eq(conversations.id, conv.id))
+      }
+
+      // b. Delete activity_log for this lead
+      await tx.delete(activityLog).where(eq(activityLog.leadId, leadId))
+
+      // c. Delete lead_tags (cascade would handle it, but explicit for safety)
+      await tx.delete(leadTags).where(eq(leadTags.leadId, leadId))
+
+      // d. Delete the lead
+      await tx.delete(leads).where(eq(leads.id, leadId))
+    }
+
+    // 12. Finally delete the client
+    await tx.delete(clientes).where(eq(clientes.id, clienteId))
+  })
+
+  console.log(`[purge] completed: cliente=${clienteId} permanently deleted by admin=${deletedBy}`)
 }
 
 // ─── deletePedido ──────────────────────────────────────────────────────────────
