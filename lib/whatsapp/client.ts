@@ -63,6 +63,11 @@ type TemplateComponent = {
   parameters: Array<{ type: 'text'; text: string }>
 }
 
+export function buildBodyComponents(values: string[]): TemplateComponent[] | undefined {
+  if (values.length === 0) return undefined
+  return [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
+}
+
 export async function sendTemplateMessage(
   to: string,
   templateName: string,

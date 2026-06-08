@@ -6,6 +6,8 @@ import { RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsappTemplate } from '@/types/db'
 
+type TemplateVar = { index: number; source: string; sample: string }
+
 type FormData = {
   name: string
   language: string
@@ -13,6 +15,7 @@ type FormData = {
   bodyText: string
   headerText: string
   footerText: string
+  variables: TemplateVar[]
 }
 
 const INITIAL_FORM: FormData = {
@@ -22,7 +25,17 @@ const INITIAL_FORM: FormData = {
   bodyText: '',
   headerText: '',
   footerText: '',
+  variables: [],
 }
+
+const SOURCE_OPTIONS = [
+  { value: 'cliente_nombre',  label: 'Nombre del cliente' },
+  { value: 'vendedor_nombre', label: 'Nombre del vendedor' },
+  { value: 'empresa_nombre',  label: 'Nombre de la empresa' },
+  { value: 'pedido_numero',   label: 'Número de pedido' },
+  { value: 'pedido_total',    label: 'Total del pedido' },
+  { value: 'texto_fijo',      label: 'Texto fijo' },
+]
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   PENDING: {
@@ -41,6 +54,16 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     label: 'Desactivada',
     className: 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400',
   },
+}
+
+function extractVariableIndices(text: string): number[] {
+  const seen = new Set<number>()
+  const re = /\{\{(\d+)\}\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    seen.add(parseInt(m[1]!, 10))
+  }
+  return [...seen].sort((a, b) => a - b)
 }
 
 async function fetchTemplates(): Promise<WhatsappTemplate[]> {
@@ -110,9 +133,26 @@ export default function WhatsappTemplatesPage() {
     },
   })
 
-  function handleChange(field: keyof FormData) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+  function handleChange(field: keyof Omit<FormData, 'variables' | 'category'>) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((p) => ({ ...p, [field]: e.target.value }))
+  }
+
+  function handleBodyTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const text = e.target.value
+    const indices = extractVariableIndices(text)
+    setForm((p) => {
+      const existing = new Map(p.variables.map((v) => [v.index, v]))
+      const vars = indices.map((i) => existing.get(i) ?? { index: i, source: 'cliente_nombre', sample: '' })
+      return { ...p, bodyText: text, variables: vars }
+    })
+  }
+
+  function handleVarChange(index: number, field: 'source' | 'sample', value: string) {
+    setForm((p) => ({
+      ...p,
+      variables: p.variables.map((v) => v.index === index ? { ...v, [field]: value } : v),
+    }))
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -181,7 +221,11 @@ export default function WhatsappTemplatesPage() {
 
             <div className="space-y-1.5">
               <label className="block text-sm font-medium">Categoría</label>
-              <select value={form.category} onChange={handleChange('category')} className={inputClass}>
+              <select
+                value={form.category}
+                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value as FormData['category'] }))}
+                className={inputClass}
+              >
                 <option value="UTILITY">UTILITY</option>
                 <option value="MARKETING">MARKETING</option>
                 <option value="AUTHENTICATION">AUTHENTICATION</option>
@@ -214,7 +258,7 @@ export default function WhatsappTemplatesPage() {
               rows={4}
               placeholder={'Hola {{1}}, tu pedido #{{2}} está confirmado.'}
               value={form.bodyText}
-              onChange={handleChange('bodyText')}
+              onChange={handleBodyTextChange}
               className={cn(inputClass, 'resize-none')}
             />
             <p className="text-xs text-muted-foreground">
@@ -223,6 +267,46 @@ export default function WhatsappTemplatesPage() {
               <span className="font-mono bg-accent px-1 rounded">{'{{2}}'}</span>, etc.
             </p>
           </div>
+
+          {/* Variables detectadas */}
+          {form.variables.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border bg-accent/20 p-3">
+              <div>
+                <p className="text-sm font-medium">Variables detectadas</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Indicá qué dato va en cada variable y un valor de ejemplo para la revisión de Meta.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {form.variables.map((v) => (
+                  <div key={v.index} className="grid grid-cols-[3rem_1fr_1fr] gap-2 items-center">
+                    <span className="text-xs font-mono font-medium bg-background border border-border rounded px-2 py-1.5 text-center">
+                      {`{{${v.index}}}`}
+                    </span>
+                    <select
+                      value={v.source}
+                      onChange={(e) => handleVarChange(v.index, 'source', e.target.value)}
+                      className={inputClass}
+                    >
+                      {SOURCE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder={v.source === 'texto_fijo' ? 'Texto fijo' : 'Valor de ejemplo'}
+                      value={v.sample}
+                      onChange={(e) => handleVarChange(v.index, 'sample', e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                El valor de ejemplo se envía a Meta solo para la revisión. Al enviar el mensaje, se usa el dato real del sistema.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="block text-sm font-medium">

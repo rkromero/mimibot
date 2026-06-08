@@ -219,6 +219,11 @@ const MIGRATION_0034_STATEMENTS: string[] = [
   `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "pedido_creado_template_lang" text`,
 ]
 
+const MIGRATION_0035_STATEMENTS: string[] = [
+  // Migration 0035: variable config (source + sample) for whatsapp_templates.
+  `ALTER TABLE "whatsapp_templates" ADD COLUMN IF NOT EXISTS "variables" jsonb NOT NULL DEFAULT '[]'`,
+]
+
 async function runStatements(migrationName: string, statements: string[]): Promise<StepResult[]> {
   const results: StepResult[] = []
   for (let i = 0; i < statements.length; i++) {
@@ -273,6 +278,7 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0027_pedidos_perf_indexes', MIGRATION_0027_STATEMENTS))
     results.push(...await runStatements('0033_apertura_template', MIGRATION_0033_STATEMENTS))
     results.push(...await runStatements('0034_pedido_creado_config', MIGRATION_0034_STATEMENTS))
+    results.push(...await runStatements('0035_template_variables', MIGRATION_0035_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`

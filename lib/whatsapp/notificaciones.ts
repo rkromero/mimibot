@@ -1,9 +1,26 @@
 import { db } from '@/db'
 import { conversations, messages, whatsappConfig, whatsappTemplates } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { sendTemplateMessage, sendTextMessage } from '@/lib/whatsapp/client'
+import { sendTemplateMessage, sendTextMessage, buildBodyComponents } from '@/lib/whatsapp/client'
 import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
+import { resolveTemplateVariables, applyTemplateValues, type TemplateVariable } from '@/lib/whatsapp/variables'
+
+function toTemplateVariables(raw: unknown): TemplateVariable[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (v): v is TemplateVariable =>
+      typeof v === 'object' && v !== null && 'index' in v && 'source' in v && 'sample' in v,
+  )
+}
+
+function fallbackPedidoVariables(bodyText: string): TemplateVariable[] {
+  const vars: TemplateVariable[] = []
+  if (bodyText.includes('{{1}}')) vars.push({ index: 1, source: 'cliente_nombre', sample: 'Cliente' })
+  if (bodyText.includes('{{2}}')) vars.push({ index: 2, source: 'pedido_numero', sample: 'ABC12345' })
+  if (bodyText.includes('{{3}}')) vars.push({ index: 3, source: 'pedido_total', sample: '$1.000,00' })
+  return vars
+}
 
 export async function notificarPedidoCreado(
   clienteId: string,
@@ -59,15 +76,22 @@ export async function notificarPedidoCreado(
             eq(whatsappTemplates.language, templateLang),
             eq(whatsappTemplates.status, 'APPROVED'),
           ),
-      columns: { bodyText: true },
+      columns: { bodyText: true, variables: true },
+    })
+
+    const configuredVars = toTemplateVariables(tmpl?.variables)
+    const varsToUse = configuredVars.length > 0
+      ? configuredVars
+      : fallbackPedidoVariables(tmpl?.bodyText ?? '')
+
+    const resolvedValues = resolveTemplateVariables(varsToUse, {
+      clienteNombre: contactName,
+      pedidoNumero: pedidoNum,
+      pedidoTotal: totalStr,
     })
 
     const resolvedBody = tmpl?.bodyText
-      ? tmpl.bodyText
-          .replace(/\{\{1\}\}/g, contactName)
-          .replace(/\{\{2\}\}/g, pedidoNum)
-          .replace(/\{\{3\}\}/g, totalStr)
-          .trim()
+      ? applyTemplateValues(tmpl.bodyText, resolvedValues).trim()
       : `Tu pedido #${pedidoNum} por ${totalStr} fue confirmado.`
 
     let waMessageId: string | null = null
@@ -82,15 +106,7 @@ export async function notificarPedidoCreado(
       }
     } else {
       contentType = 'template'
-      const bodyText = tmpl?.bodyText ?? ''
-      const params: { type: 'text'; text: string }[] = []
-      if (bodyText.includes('{{1}}')) params.push({ type: 'text', text: contactName })
-      if (bodyText.includes('{{2}}')) params.push({ type: 'text', text: pedidoNum })
-      if (bodyText.includes('{{3}}')) params.push({ type: 'text', text: totalStr })
-      const components = params.length > 0
-        ? [{ type: 'body' as const, parameters: params }]
-        : undefined
-
+      const components = buildBodyComponents(resolvedValues)
       try {
         waMessageId = await sendTemplateMessage(conv.waContactPhone, templateName, templateLang, components)
       } catch (err) {

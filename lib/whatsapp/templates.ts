@@ -27,6 +27,7 @@ type MetaComponent = {
   type: string
   format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
   text?: string
+  example?: { body_text?: string[][]; header_text?: string[] }
   buttons?: MetaTemplateButton[]
 }
 
@@ -58,10 +59,20 @@ export async function createMetaTemplate(params: {
   headerText?: string
   footerText?: string
   buttons?: MetaTemplateButton[]
+  variables?: Array<{ index: number; source: string; sample: string }>
 }): Promise<{ id: string; status: string; category: string }> {
   const { wabaId, accessToken } = await getWabaConfig()
 
-  const components: MetaComponent[] = [{ type: 'BODY', text: params.bodyText }]
+  const sortedVars = (params.variables ?? []).sort((a, b) => a.index - b.index)
+  const bodySamples = sortedVars.map((v) => v.sample || `valor_${v.index}`)
+
+  const bodyComp: MetaComponent = {
+    type: 'BODY',
+    text: params.bodyText,
+    ...(bodySamples.length > 0 ? { example: { body_text: [bodySamples] } } : {}),
+  }
+
+  const components: MetaComponent[] = [bodyComp]
 
   if (params.headerText?.trim()) {
     components.unshift({ type: 'HEADER', format: 'TEXT', text: params.headerText.trim() })

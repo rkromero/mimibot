@@ -16,6 +16,11 @@ const createTemplateSchema = z.object({
   headerText: z.string().optional(),
   footerText: z.string().optional(),
   buttons: z.array(z.record(z.unknown())).optional(),
+  variables: z.array(z.object({
+    index: z.number().int().min(1),
+    source: z.string().min(1),
+    sample: z.string(),
+  })).optional(),
 })
 
 export async function GET() {
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const { name, language, category, bodyText, headerText, footerText, buttons } = parsed.data
+      const { name, language, category, bodyText, headerText, footerText, buttons, variables } = parsed.data
 
       const [row] = await db
         .insert(whatsappTemplates)
@@ -62,6 +67,7 @@ export async function POST(req: NextRequest) {
           headerText: headerText ?? null,
           footerText: footerText ?? null,
           buttons: (buttons ?? []) as object[],
+          variables: (variables ?? []) as object[],
           status: 'PENDING',
           createdBy: user.id,
         })
@@ -73,7 +79,7 @@ export async function POST(req: NextRequest) {
 
       let metaResult: { id: string; status: string; category: string }
       try {
-        metaResult = await createMetaTemplate({ name, language, category, bodyText, headerText, footerText })
+        metaResult = await createMetaTemplate({ name, language, category, bodyText, headerText, footerText, variables })
       } catch (metaErr) {
         await db.delete(whatsappTemplates).where(eq(whatsappTemplates.id, row.id))
         const msg = metaErr instanceof Error ? metaErr.message : 'Error al registrar plantilla en Meta'

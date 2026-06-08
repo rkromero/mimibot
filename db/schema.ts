@@ -570,6 +570,7 @@ export const whatsappTemplates = pgTable('whatsapp_templates', {
   headerText: text('header_text'),
   footerText: text('footer_text'),
   buttons: jsonb('buttons').notNull().default('[]'),
+  variables: jsonb('variables').notNull().default('[]'),
   rejectedReason: text('rejected_reason'),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
