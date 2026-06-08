@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
   Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
+  ClipboardList, History,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -12,7 +13,7 @@ import Avatar from '@/components/shared/Avatar'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent' | 'vendedor'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica'
 
 type NavItem = {
   href: string
@@ -78,8 +79,17 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
 ]
 
 export function filterGroups(role: Role): NavGroup[] {
+  if (role === 'fabrica') {
+    return [{
+      label: 'Fábrica',
+      items: [
+        { href: '/fabrica', label: 'Pedidos Confirmados', icon: ClipboardList },
+        { href: '/fabrica/historico', label: 'Histórico', icon: History },
+      ],
+    }]
+  }
   return RAW_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.roles || i.roles.includes(role)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.roles || i.roles.includes(role as Exclude<Role, 'fabrica'>)) }))
     .filter((g) => g.items.length > 0)
 }
 

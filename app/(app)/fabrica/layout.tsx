@@ -9,7 +9,7 @@ export default function FabricaLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="flex flex-col h-full">
-      <nav className="flex border-b border-border bg-card shrink-0 px-4">
+      <nav className="md:hidden flex border-b border-border bg-card shrink-0 px-4">
         <Link
           href="/fabrica"
           className={cn(

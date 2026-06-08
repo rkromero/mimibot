@@ -46,28 +46,35 @@ export default function AppShell({ user, children }: Props) {
 
   if (user.role === 'fabrica') {
     return (
-      <div className="flex flex-col h-screen bg-background overflow-hidden">
-        <header className="h-14 flex items-center px-6 border-b border-border bg-card shrink-0">
-          <span className="text-base font-semibold text-foreground flex-1">
-            Mimi Alfajores — Fábrica
-          </span>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {user.name ?? user.email}
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Desktop: sidebar lateral — el propio Sidebar aplica hidden md:flex */}
+        <Sidebar user={user} />
+
+        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+          {/* Mobile-only header */}
+          <header className="md:hidden h-14 flex items-center px-6 border-b border-border bg-card shrink-0">
+            <span className="text-base font-semibold text-foreground flex-1">
+              Mimi Alfajores — Fábrica
             </span>
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-accent transition-colors"
-              title="Cerrar sesión"
-            >
-              <LogOut size={15} />
-              Salir
-            </button>
-          </div>
-        </header>
-        <main className="flex-1 overflow-hidden">
-          {children}
-        </main>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {user.name ?? user.email}
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-accent transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={15} />
+                Salir
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 min-w-0 overflow-hidden">
+            {children}
+          </main>
+        </div>
       </div>
     )
   }
