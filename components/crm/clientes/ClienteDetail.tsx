@@ -799,6 +799,16 @@ export default function ClienteDetail({ id }: Props) {
                 Registrar Pago
               </button>
             )}
+            {cliente.telefono ? (
+              <button
+                onClick={() => void handleOpenInbox()}
+                disabled={isOpeningInbox}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-60"
+              >
+                <MessageCircle size={14} />
+                {isOpeningInbox ? 'Abriendo...' : 'WhatsApp'}
+              </button>
+            ) : null}
             <button
               onClick={() => setShowCreatePedido(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
