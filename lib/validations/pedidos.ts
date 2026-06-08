@@ -17,6 +17,7 @@ export const createPedidoSchema = z.object({
     .min(1, 'El pedido debe tener al menos un ítem'),
   // Gerente cargando en nombre de un agente
   vendedorId: z.string().uuid().optional().nullable(),
+  descuento: z.number().min(0).max(100).optional().default(0),
   // Método de entrega — solo aplica al rol Agente; ignorado para Vendedor
   metodoEntrega: z.enum(['retiro_fabrica', 'expreso']).optional().nullable(),
   expresoNombre: z.string().max(200).optional().nullable(),

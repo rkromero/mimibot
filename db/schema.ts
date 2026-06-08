@@ -392,6 +392,7 @@ export const pedidos = pgTable('pedidos', {
   fecha: timestamp('fecha', { mode: 'date' }).notNull().defaultNow(),
   estado: estadoPedidoEnum('estado').notNull().default('pendiente'),
   total: decimal('total', { precision: 12, scale: 2 }).notNull().default('0'),
+  descuento: decimal('descuento', { precision: 5, scale: 2 }).notNull().default('0'),
   montoPagado: decimal('monto_pagado', { precision: 12, scale: 2 }).notNull().default('0'),
   saldoPendiente: decimal('saldo_pendiente', { precision: 12, scale: 2 }).notNull().default('0'),
   estadoPago: estadoPagoPedidoEnum('estado_pago').notNull().default('impago'),

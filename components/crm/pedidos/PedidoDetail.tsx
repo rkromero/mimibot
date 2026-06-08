@@ -41,6 +41,7 @@ type Pedido = {
   estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'entregado' | 'cancelado'
   observaciones: string | null
   total: string
+  descuento: string
   montoPagado: string
   saldoPendiente: string
   estadoPago: 'impago' | 'parcial' | 'pagado'
@@ -167,9 +168,10 @@ export default function PedidoDetail({ id }: Props) {
     )
   }
 
-  const displayTotal = (pedido.estado === 'pendiente' || pedido.estado === 'pendiente_aprobacion')
-    ? pedido.items.reduce((sum, item) => sum + parseFloat(item.subtotal), 0).toFixed(2)
-    : pedido.total
+  const itemsSubtotal = pedido.items.reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
+  const descuentoPct = parseFloat(pedido.descuento ?? '0')
+  const descuentoMonto = itemsSubtotal * (descuentoPct / 100)
+  const displayTotal = pedido.total
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -379,8 +381,18 @@ export default function PedidoDetail({ id }: Props) {
         <div className="bg-card border border-border rounded-lg p-4 space-y-2">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Resumen Financiero</h3>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Total</span>
-            <span className="font-medium">{formatMoney(displayTotal)}</span>
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="font-medium">{formatMoney(itemsSubtotal)}</span>
+          </div>
+          {descuentoPct > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Descuento ({descuentoPct}%)</span>
+              <span className="text-destructive font-medium">-{formatMoney(descuentoMonto)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm border-t border-border pt-2 mt-2">
+            <span className="font-semibold text-foreground">Total</span>
+            <span className="font-bold">{formatMoney(displayTotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Pagado</span>
@@ -425,7 +437,25 @@ export default function PedidoDetail({ id }: Props) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3} className="py-2.5 px-3 text-right text-sm font-semibold text-muted-foreground border-t border-border">
+                <td colSpan={3} className="py-2.5 px-3 text-right text-sm text-muted-foreground border-t border-border">
+                  Subtotal
+                </td>
+                <td className="py-2.5 px-3 text-right text-muted-foreground border-t border-border">
+                  {formatMoney(itemsSubtotal)}
+                </td>
+              </tr>
+              {descuentoPct > 0 && (
+                <tr>
+                  <td colSpan={3} className="py-2.5 px-3 text-right text-sm text-muted-foreground">
+                    Descuento ({descuentoPct}%)
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-destructive">
+                    -{formatMoney(descuentoMonto)}
+                  </td>
+                </tr>
+              )}
+              <tr>
+                <td colSpan={3} className="py-2.5 px-3 text-right text-sm font-semibold text-foreground border-t border-border">
                   Total
                 </td>
                 <td className="py-2.5 px-3 text-right font-bold text-foreground border-t border-border">

@@ -46,6 +46,8 @@ export async function crearPedidoConItems(
     expresoDireccion?: string | null
     /** true para pedidos de camioneta (rol vendedor) */
     esReparto?: boolean
+    /** Porcentaje de descuento 0-100 */
+    descuento?: number
   },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
   const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
@@ -82,9 +84,9 @@ export async function crearPedidoConItems(
       const subtotal = (parseFloat(precioUnitario) * item.cantidad).toFixed(2)
       return { productoId: item.productoId, cantidad: item.cantidad, precioUnitario, subtotal }
     })
-    const totalCalculado = itemsBase
-      .reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
-      .toFixed(2)
+    const subtotalCalculado = itemsBase.reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
+    const descuentoPct = extra?.descuento ?? 0
+    const totalCalculado = (subtotalCalculado - subtotalCalculado * (descuentoPct / 100)).toFixed(2)
 
     // 2. Insert pedido
     const [pedido] = await tx
@@ -97,6 +99,7 @@ export async function crearPedidoConItems(
         fecha: fechaDate,
         estado: esPendienteAprobacion ? 'pendiente_aprobacion' : 'confirmado',
         total: totalCalculado,
+        descuento: descuentoPct.toFixed(2),
         montoPagado: '0',
         saldoPendiente: totalCalculado,
         estadoPago: 'impago',

@@ -267,6 +267,13 @@
       "when": 1780963500000,
       "tag": "0037_crazy_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1780950791613,
+      "tag": "0038_open_cammi",
+      "breakpoints": true
     }
   ]
 }

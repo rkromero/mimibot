@@ -178,6 +178,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           clienteId: selectedClienteId,
           fecha: todayStr,
           observaciones: observaciones.trim() || undefined,
+          descuento,
           condicionPago,
           fechaEntrega,
           items: items.map(i => ({
