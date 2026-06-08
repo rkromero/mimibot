@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   pgTable, pgEnum, text, timestamp, boolean, integer,
   decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision,
@@ -155,11 +156,12 @@ export const leadTags = pgTable('lead_tags', {
   index('lead_tags_tag_idx').on(t.tagId),
 ])
 
-// ─── Conversaciones (una por lead) ────────────────────────────────────────────
+// ─── Conversaciones (pertenece a un lead o a un cliente) ──────────────────────
 
 export const conversations = pgTable('conversations', {
   id: uuid('id').defaultRandom().primaryKey(),
-  leadId: uuid('lead_id').notNull().references(() => leads.id).unique(),
+  leadId: uuid('lead_id').references(() => leads.id),
+  clienteId: uuid('cliente_id').references(() => clientes.id),
   waPhoneNumberId: text('wa_phone_number_id'),
   waContactPhone: text('wa_contact_phone'),
   lastMessageAt: timestamp('last_message_at', { mode: 'date' }),
@@ -168,6 +170,9 @@ export const conversations = pgTable('conversations', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 }, (t) => [
   index('conversations_last_message_idx').on(t.lastMessageAt),
+  index('conversations_cliente_id_idx').on(t.clienteId),
+  uniqueIndex('conversations_lead_id_unique_idx').on(t.leadId).where(sql`${t.leadId} IS NOT NULL`),
+  uniqueIndex('conversations_cliente_id_unique_idx').on(t.clienteId).where(sql`${t.clienteId} IS NOT NULL`),
 ])
 
 // ─── Mensajes ─────────────────────────────────────────────────────────────────

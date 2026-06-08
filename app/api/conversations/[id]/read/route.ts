@@ -23,7 +23,7 @@ export async function POST(
       where: eq(conversations.id, id),
       columns: { leadId: true },
     })
-    if (!conv) throw new NotFoundError('Conversación')
+    if (!conv?.leadId) throw new NotFoundError('Conversación')
     await canAccessLead(session.user, conv.leadId)
 
     await db

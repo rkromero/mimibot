@@ -30,7 +30,7 @@ export async function GET(
       where: eq(conversations.id, id),
       columns: { leadId: true },
     })
-    if (!conv) throw new NotFoundError('Conversación')
+    if (!conv?.leadId) throw new NotFoundError('Conversación')
     await canAccessLead(session.user, conv.leadId)
 
     const msgs = await db.query.messages.findMany({
@@ -65,7 +65,7 @@ export async function POST(
       where: eq(conversations.id, id),
       columns: { leadId: true },
     })
-    if (!conv) throw new NotFoundError('Conversación')
+    if (!conv?.leadId) throw new NotFoundError('Conversación')
     await canAccessLead(session.user, conv.leadId)
 
     const body: unknown = await req.json()
