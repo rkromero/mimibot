@@ -25,8 +25,29 @@ type MetaTemplateButton =
 
 type MetaComponent = {
   type: string
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
   text?: string
   buttons?: MetaTemplateButton[]
+}
+
+type MetaErrorBody = {
+  error?: {
+    message?: string
+    code?: number
+    error_subcode?: number
+    error_user_title?: string
+    error_user_msg?: string
+    error_data?: { details?: string }
+  }
+}
+
+function metaErrorMessage(body: MetaErrorBody, statusCode: number): string {
+  const e = body?.error
+  if (!e) return `Error ${statusCode}`
+  const detail = e.error_user_msg ?? e.error_user_title ?? e.message ?? `Error ${statusCode}`
+  const code = e.code != null ? `code ${e.code}${e.error_subcode != null ? `/${e.error_subcode}` : ''}` : null
+  const extra = e.error_data?.details ? ` — ${e.error_data.details}` : ''
+  return `Meta API error: ${detail}${code ? ` (${code})` : ''}${extra}`
 }
 
 export async function createMetaTemplate(params: {
@@ -42,11 +63,11 @@ export async function createMetaTemplate(params: {
 
   const components: MetaComponent[] = [{ type: 'BODY', text: params.bodyText }]
 
-  if (params.headerText) {
-    components.unshift({ type: 'HEADER', text: params.headerText })
+  if (params.headerText?.trim()) {
+    components.unshift({ type: 'HEADER', format: 'TEXT', text: params.headerText.trim() })
   }
-  if (params.footerText) {
-    components.push({ type: 'FOOTER', text: params.footerText })
+  if (params.footerText?.trim()) {
+    components.push({ type: 'FOOTER', text: params.footerText.trim() })
   }
   if (params.buttons && params.buttons.length > 0) {
     components.push({ type: 'BUTTONS', buttons: params.buttons })
@@ -67,9 +88,8 @@ export async function createMetaTemplate(params: {
   })
 
   if (!res.ok) {
-    const body = await res.json() as { error?: { message?: string } }
-    const msg = body?.error?.message ?? `Error ${res.status}`
-    throw new Error(`Meta API error: ${msg}`)
+    const body = await res.json() as MetaErrorBody
+    throw new Error(metaErrorMessage(body, res.status))
   }
 
   return res.json() as Promise<{ id: string; status: string; category: string }>
@@ -89,9 +109,8 @@ export async function listMetaTemplates(): Promise<Array<{
   })
 
   if (!res.ok) {
-    const body = await res.json() as { error?: { message?: string } }
-    const msg = body?.error?.message ?? `Error ${res.status}`
-    throw new Error(`Meta API error: ${msg}`)
+    const body = await res.json() as MetaErrorBody
+    throw new Error(metaErrorMessage(body, res.status))
   }
 
   const data = await res.json() as {
