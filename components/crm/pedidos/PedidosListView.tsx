@@ -255,7 +255,7 @@ export default function PedidosListView() {
           {openMenuId === row.id && (
             <div className="absolute right-0 top-8 z-20 w-44 rounded-md border border-border bg-card shadow-lg py-1">
               <button
-                onClick={() => { setOpenMenuId(null); router.push(`/crm/pedidos/${row.id}`) }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpenMenuId(null); router.push(`/crm/pedidos/${row.id}`) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
               >
                 <Eye size={13} className="text-muted-foreground" />
@@ -266,7 +266,7 @@ export default function PedidosListView() {
                 <>
                   <div className="border-t border-border my-1" />
                   <button
-                    onClick={() => { setOpenMenuId(null); approveMutation.mutate(row.id) }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpenMenuId(null); approveMutation.mutate(row.id) }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
                   >
                     <CheckCircle size={13} className="text-green-600" />
@@ -278,7 +278,7 @@ export default function PedidosListView() {
                 <>
                   <div className="border-t border-border my-1" />
                   <button
-                    onClick={() => { setOpenMenuId(null); setDeleteError(null); setDeletingPedido(row) }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpenMenuId(null); setDeleteError(null); setDeletingPedido(row) }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     <Trash2 size={13} />
