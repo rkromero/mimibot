@@ -297,6 +297,7 @@ export default function InboxView({ user }: Props) {
             contactPhone={selectedItem?.contactPhone}
             onClose={() => setSelectedConvId(null)}
             user={user}
+            embedded={true}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
