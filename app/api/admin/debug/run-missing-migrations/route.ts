@@ -206,6 +206,19 @@ const MIGRATION_0011_STATEMENTS: string[] = [
   END $$`,
 ]
 
+const MIGRATION_0033_STATEMENTS: string[] = [
+  // Migration 0033: apertura template fields on whatsapp_config.
+  `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "apertura_template_name" text`,
+  `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "apertura_template_lang" text`,
+]
+
+const MIGRATION_0034_STATEMENTS: string[] = [
+  // Migration 0034: pedido creado notification config on whatsapp_config.
+  `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "pedido_creado_enabled" boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "pedido_creado_template_name" text`,
+  `ALTER TABLE "whatsapp_config" ADD COLUMN IF NOT EXISTS "pedido_creado_template_lang" text`,
+]
+
 async function runStatements(migrationName: string, statements: string[]): Promise<StepResult[]> {
   const results: StepResult[] = []
   for (let i = 0; i < statements.length; i++) {
@@ -258,6 +271,8 @@ export async function POST(_req: NextRequest) {
     results.push(...await runStatements('0025_entrega_gps', MIGRATION_0025_STATEMENTS))
     results.push(...await runStatements('0026_mercadopago', MIGRATION_0026_STATEMENTS))
     results.push(...await runStatements('0027_pedidos_perf_indexes', MIGRATION_0027_STATEMENTS))
+    results.push(...await runStatements('0033_apertura_template', MIGRATION_0033_STATEMENTS))
+    results.push(...await runStatements('0034_pedido_creado_config', MIGRATION_0034_STATEMENTS))
 
     // Snapshot what's now in the DB so the response confirms success
     const productosCols = await db.execute(sql`

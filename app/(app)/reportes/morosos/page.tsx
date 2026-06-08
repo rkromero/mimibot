@@ -7,7 +7,6 @@ import { Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatFechaAR } from '@/lib/dates'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
-import { recordatorioMorosoMessage } from '@/lib/whatsapp/messages'
 
 type Moroso = {
   id: string
@@ -136,16 +135,10 @@ export default function MorososPage() {
                       <span className="text-destructive font-medium">{m.diasVencido} dias</span> vencido · {m.vendedorNombre ?? '—'}
                     </div>
                     <WhatsappLinkButton
+                      clienteId={m.clienteId}
                       phone={m.clienteTelefono}
                       label="Recordar"
                       variant="subtle"
-                      message={recordatorioMorosoMessage({
-                        clienteNombre: m.clienteNombre,
-                        vendedorName,
-                        saldoPendiente: m.saldoPendiente,
-                        diasVencido: m.diasVencido,
-                        fechaPedido: m.fecha,
-                      })}
                     />
                   </div>
                 </div>
@@ -195,16 +188,10 @@ export default function MorososPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <WhatsappLinkButton
+                          clienteId={m.clienteId}
                           phone={m.clienteTelefono}
                           label="Recordar"
                           variant="subtle"
-                          message={recordatorioMorosoMessage({
-                            clienteNombre: m.clienteNombre,
-                            vendedorName,
-                            saldoPendiente: m.saldoPendiente,
-                            diasVencido: m.diasVencido,
-                            fechaPedido: m.fecha,
-                          })}
                         />
                       </td>
                     </tr>

@@ -5,6 +5,7 @@ import { pedidos, clientes, users } from '@/db/schema'
 import { eq, and, inArray, isNull, asc, desc, sql } from 'drizzle-orm'
 import { createPedidoSchema } from '@/lib/validations/pedidos'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
+import { notificarPedidoCreado } from '@/lib/whatsapp/notificaciones'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { parsePagination } from '@/lib/api/pagination'
@@ -228,6 +229,9 @@ export async function POST(req: NextRequest) {
         esReparto: ctx.role === 'vendedor',
       },
     )
+
+    // Fire-and-forget: WhatsApp confirmation (best-effort, never blocks creation)
+    void notificarPedidoCreado(input.clienteId, pedido.id, pedido.total)
 
     return NextResponse.json({ data: pedido }, { status: 201 })
   } catch (err) {

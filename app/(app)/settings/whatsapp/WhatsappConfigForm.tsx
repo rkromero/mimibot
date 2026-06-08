@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsappConfig } from '@/types/db'
+
+type TemplateRecord = { id: string; name: string; language: string; bodyText: string; status: string }
 
 function WebhookUrlBlock() {
   const [copied, setCopied] = useState(false)
@@ -51,6 +53,11 @@ type FormState = {
   appSecret: string
   verifyToken: string
   wabaId: string
+  aperturaTemplateName: string
+  aperturaTemplateLang: string
+  pedidoCreadoEnabled: boolean
+  pedidoCreadoTemplateName: string
+  pedidoCreadoTemplateLang: string
 }
 
 export default function WhatsappConfigForm({ initialConfig }: Props) {
@@ -58,6 +65,7 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showTokens, setShowTokens] = useState(false)
+  const [approvedTemplates, setApprovedTemplates] = useState<TemplateRecord[]>([])
 
   const [form, setForm] = useState<FormState>({
     phoneNumberId: initialConfig?.phoneNumberId ?? '',
@@ -65,7 +73,22 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     appSecret: initialConfig?.appSecret ?? '',
     verifyToken: initialConfig?.verifyToken ?? '',
     wabaId: initialConfig?.wabaId ?? '',
+    aperturaTemplateName: initialConfig?.aperturaTemplateName ?? '',
+    aperturaTemplateLang: initialConfig?.aperturaTemplateLang ?? '',
+    pedidoCreadoEnabled: initialConfig?.pedidoCreadoEnabled ?? false,
+    pedidoCreadoTemplateName: initialConfig?.pedidoCreadoTemplateName ?? '',
+    pedidoCreadoTemplateLang: initialConfig?.pedidoCreadoTemplateLang ?? '',
   })
+
+  useEffect(() => {
+    void fetch('/api/settings/whatsapp/templates')
+      .then(r => r.ok ? r.json() as Promise<{ data?: TemplateRecord[] }> : null)
+      .then(data => {
+        if (!data?.data) return
+        setApprovedTemplates(data.data.filter(t => t.status === 'APPROVED'))
+      })
+      .catch(() => null)
+  }, [])
 
   function handleChange(field: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -226,6 +249,117 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
 
         {/* Webhook URL info */}
         <WebhookUrlBlock />
+
+        {/* Plantilla de apertura */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div>
+            <h2 className="text-md font-semibold mb-1">Plantilla de apertura de conversación</h2>
+            <p className="text-sm text-muted-foreground">
+              Cuando han pasado más de 24h desde el último mensaje del cliente, WhatsApp requiere iniciar con una plantilla aprobada.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium">Plantilla de apertura</label>
+            <select
+              value={form.aperturaTemplateName && form.aperturaTemplateLang
+                ? `${form.aperturaTemplateName}::${form.aperturaTemplateLang}`
+                : ''}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setForm(p => ({ ...p, aperturaTemplateName: '', aperturaTemplateLang: '' }))
+                  return
+                }
+                const parts = e.target.value.split('::')
+                setForm(p => ({ ...p, aperturaTemplateName: parts[0] ?? '', aperturaTemplateLang: parts[1] ?? '' }))
+              }}
+              className={inputClass}
+            >
+              <option value="">— Sin plantilla —</option>
+              {approvedTemplates.map(t => (
+                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                  {t.name} ({t.language})
+                </option>
+              ))}
+            </select>
+            {approvedTemplates.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No hay plantillas aprobadas. Aprobá una en la sección Plantillas de WhatsApp.
+              </p>
+            )}
+            {form.aperturaTemplateName && (
+              <p className="text-xs text-muted-foreground">
+                Si el cuerpo de la plantilla usa <span className="font-mono">{'{{1}}'}</span>, se reemplazará automáticamente con el nombre del cliente.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Notificación de pedido creado */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-md font-semibold mb-0.5">Confirmación de pedido por WhatsApp</h2>
+              <p className="text-sm text-muted-foreground">
+                Envía automáticamente una notificación al cliente cuando se crea un pedido.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.pedidoCreadoEnabled}
+              onClick={() => setForm(p => ({ ...p, pedidoCreadoEnabled: !p.pedidoCreadoEnabled }))}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                'transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                form.pedidoCreadoEnabled ? 'bg-primary' : 'bg-input',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg',
+                  'transform transition duration-200',
+                  form.pedidoCreadoEnabled ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
+          {form.pedidoCreadoEnabled && (
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium">Plantilla de confirmación de pedido</label>
+              <select
+                value={form.pedidoCreadoTemplateName && form.pedidoCreadoTemplateLang
+                  ? `${form.pedidoCreadoTemplateName}::${form.pedidoCreadoTemplateLang}`
+                  : ''}
+                onChange={(e) => {
+                  if (!e.target.value) {
+                    setForm(p => ({ ...p, pedidoCreadoTemplateName: '', pedidoCreadoTemplateLang: '' }))
+                    return
+                  }
+                  const parts = e.target.value.split('::')
+                  setForm(p => ({ ...p, pedidoCreadoTemplateName: parts[0] ?? '', pedidoCreadoTemplateLang: parts[1] ?? '' }))
+                }}
+                className={inputClass}
+              >
+                <option value="">— Seleccionar plantilla —</option>
+                {approvedTemplates.map(t => (
+                  <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                    {t.name} ({t.language})
+                  </option>
+                ))}
+              </select>
+              {approvedTemplates.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No hay plantillas aprobadas. Aprobá una en la sección Plantillas de WhatsApp.
+                </p>
+              )}
+              {form.pedidoCreadoTemplateName && (
+                <p className="text-xs text-muted-foreground">
+                  Variables disponibles: <span className="font-mono">{'{{1}}'}</span> nombre del cliente, <span className="font-mono">{'{{2}}'}</span> nº de pedido, <span className="font-mono">{'{{3}}'}</span> total.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 

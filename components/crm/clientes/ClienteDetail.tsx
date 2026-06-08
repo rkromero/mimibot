@@ -12,7 +12,6 @@ import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
-import { buildWhatsappLink } from '@/lib/whatsapp/messages'
 import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
@@ -107,6 +106,7 @@ export default function ClienteDetail({ id }: Props) {
   const [showPurgeModal, setShowPurgeModal] = useState(false)
   const [isPurging, setIsPurging] = useState(false)
   const [purgeError, setPurgeError] = useState<string | null>(null)
+  const [isOpeningInbox, setIsOpeningInbox] = useState(false)
 
   const { data: cliente, isLoading, isError } = useQuery<Cliente>({
     queryKey: ['cliente', id],
@@ -239,6 +239,24 @@ export default function ClienteDetail({ id }: Props) {
       setDeleteError('Error de conexión')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  async function handleOpenInbox() {
+    setIsOpeningInbox(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}/conversacion`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        toast.error(data.error ?? 'Error al abrir conversación')
+        return
+      }
+      const { data } = await res.json() as { data: { leadId: string } }
+      router.push(`/inbox?lead=${data.leadId}`)
+    } catch {
+      toast.error('Error de conexión')
+    } finally {
+      setIsOpeningInbox(false)
     }
   }
 
@@ -606,15 +624,16 @@ export default function ClienteDetail({ id }: Props) {
           {/* 3 primary action buttons */}
           <div className="grid grid-cols-3 gap-2">
             {cliente.telefono ? (
-              <a
-                href={buildWhatsappLink(cliente.telefono, `Hola ${cliente.nombre}!`) ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl active:bg-green-100 transition-colors"
+              <button
+                onClick={() => void handleOpenInbox()}
+                disabled={isOpeningInbox}
+                className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl active:bg-green-100 transition-colors disabled:opacity-60"
               >
                 <MessageCircle size={22} className="text-green-600" />
-                <span className="text-xs font-medium text-green-700 dark:text-green-400">WhatsApp</span>
-              </a>
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                  {isOpeningInbox ? '...' : 'WhatsApp'}
+                </span>
+              </button>
             ) : (
               <div className="flex flex-col items-center justify-center gap-1.5 py-3.5 bg-muted rounded-xl opacity-40">
                 <MessageCircle size={22} className="text-muted-foreground" />

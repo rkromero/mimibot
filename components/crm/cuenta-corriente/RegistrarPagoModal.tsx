@@ -7,7 +7,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { formatFechaAR, todayStrAR } from '@/lib/dates'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
-import { cobroConfirmadoMessage } from '@/lib/whatsapp/messages'
 
 type Props = {
   clienteId: string
@@ -186,17 +185,11 @@ export default function RegistrarPagoModal({ clienteId, clienteNombre, clienteTe
                 const saldoRestante = Math.max(0, saldo - successData.monto)
                 return (
                   <WhatsappLinkButton
+                    clienteId={clienteId}
                     phone={clienteTelefono ?? null}
                     label="Enviar comprobante por WhatsApp"
                     variant="subtle"
                     className="w-full"
-                    message={cobroConfirmadoMessage({
-                      clienteNombre,
-                      vendedorName,
-                      monto: successData.monto,
-                      saldoRestante,
-                      fecha: new Date(),
-                    })}
                   />
                 )
               })()}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Bot, MessageSquare } from 'lucide-react'
 import { cn, relativeTime } from '@/lib/utils'
@@ -30,9 +31,11 @@ type Props = { user: Session['user'] }
 
 export default function InboxView({ user }: Props) {
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
+  const initLeadId = searchParams.get('lead')
   const [filter, setFilter] = useState<Filter>('mine')
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
-  const [mobileView, setMobileView] = useState<'list' | 'conversation'>('list')
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(initLeadId)
+  const [mobileView, setMobileView] = useState<'list' | 'conversation'>(initLeadId ? 'conversation' : 'list')
   const [qrOpen, setQrOpen] = useState(false)
 
   const fetchFilter = async (f: Filter): Promise<InboxItem[]> => {

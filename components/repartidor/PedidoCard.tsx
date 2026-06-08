@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { Phone, MessageCircle, MapPin, CheckCircle, Package } from 'lucide-react'
 import EntregarSheet from './EntregarSheet'
@@ -12,6 +13,7 @@ type Item = {
 }
 
 type Cliente = {
+  id: string
   nombre: string
   apellido: string
   direccion: string | null
@@ -30,9 +32,25 @@ export type Pedido = {
 }
 
 export default function PedidoCard({ id, fecha, total, saldoPendiente, cliente, items }: Pedido) {
+  const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
+  const [isOpeningInbox, setIsOpeningInbox] = useState(false)
   const qc = useQueryClient()
+
+  async function handleOpenInbox() {
+    setIsOpeningInbox(true)
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}/conversacion`, { method: 'POST' })
+      if (!res.ok) return
+      const json = await res.json() as { data: { leadId: string } }
+      router.push(`/inbox?lead=${json.data.leadId}`)
+    } catch {
+      // ignore
+    } finally {
+      setIsOpeningInbox(false)
+    }
+  }
 
   function dismissCard() {
     setIsDismissing(true)
@@ -108,16 +126,16 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, cliente, 
 
           {/* WhatsApp */}
           {cleanPhone ? (
-            <a
-              href={`https://wa.me/${cleanPhone}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-green-100 hover:bg-green-200 active:bg-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 rounded-xl transition-colors text-green-700 dark:text-green-400"
+            <button
+              type="button"
+              onClick={() => void handleOpenInbox()}
+              disabled={isOpeningInbox}
+              className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-green-100 hover:bg-green-200 active:bg-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 rounded-xl transition-colors text-green-700 dark:text-green-400 disabled:opacity-60"
               aria-label={`Escribir por WhatsApp a ${cliente.nombre}`}
             >
               <MessageCircle size={18} strokeWidth={2} />
               <span className="text-[11px] font-medium">WhatsApp</span>
-            </a>
+            </button>
           ) : (
             <span className="flex flex-col items-center justify-center gap-1 min-h-[52px] rounded-xl bg-muted/40 opacity-40 cursor-not-allowed text-muted-foreground">
               <MessageCircle size={18} />

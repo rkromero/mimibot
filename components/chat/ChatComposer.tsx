@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { Send, Paperclip } from 'lucide-react'
+import { Send, Paperclip, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -14,6 +14,8 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
   const [text, setText] = useState('')
   const [isPending, startTransition] = useTransition()
   const [isNote, setIsNote] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [templateNotice, setTemplateNotice] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
@@ -29,22 +31,41 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
     if (!trimmed || isPending) return
 
     startTransition(async () => {
-      const endpoint = isNote
-        ? `/api/conversations/${conversationId}/messages`
-        : `/api/whatsapp/send`
+      setSendError(null)
+      setTemplateNotice(false)
 
-      await fetch(endpoint, {
+      if (isNote) {
+        await fetch(`/api/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: trimmed, contentType: 'internal_note', conversationId }),
+        })
+        setText('')
+        void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
+        return
+      }
+
+      const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isNote
-            ? { body: trimmed, contentType: 'internal_note', conversationId }
-            : { conversationId, leadId, body: trimmed },
-        ),
+        body: JSON.stringify({ conversationId, leadId, body: trimmed }),
       })
 
+      if (!res.ok) {
+        const data = await res.json() as { error?: string; code?: string }
+        if (data.code === 'WINDOW_CLOSED_NO_TEMPLATE') {
+          setSendError(data.error ?? 'Han pasado más de 24h. Configurá una plantilla de apertura en Sistema → WhatsApp.')
+        }
+        return
+      }
+
+      const data = await res.json() as { sentAsTemplate?: boolean }
       setText('')
       void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
+      if (data.sentAsTemplate) {
+        setTemplateNotice(true)
+        setTimeout(() => setTemplateNotice(false), 6000)
+      }
     })
   }
 
@@ -64,6 +85,17 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
 
   return (
     <div className="border-t border-border bg-background shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {sendError && (
+        <div className="flex items-start gap-2 px-3 pt-2 pb-1">
+          <AlertCircle size={14} className="text-destructive shrink-0 mt-0.5" />
+          <p className="text-xs text-destructive leading-snug">{sendError}</p>
+        </div>
+      )}
+      {templateNotice && (
+        <div className="px-3 pt-2 pb-1">
+          <p className="text-xs text-blue-600 dark:text-blue-400">Conversación abierta con plantilla de apertura.</p>
+        </div>
+      )}
       {/* Tabs: WhatsApp / Nota interna */}
       <div className="flex gap-1 px-3 pt-2">
         <button

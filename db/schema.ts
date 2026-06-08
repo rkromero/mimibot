@@ -548,6 +548,11 @@ export const whatsappConfig = pgTable('whatsapp_config', {
   verifyToken: text('verify_token').notNull().default(''),
   wabaId: text('waba_id').notNull().default(''),
   isConfigured: boolean('is_configured').notNull().default(false),
+  aperturaTemplateName: text('apertura_template_name'),
+  aperturaTemplateLang: text('apertura_template_lang'),
+  pedidoCreadoEnabled: boolean('pedido_creado_enabled').notNull().default(false),
+  pedidoCreadoTemplateName: text('pedido_creado_template_name'),
+  pedidoCreadoTemplateLang: text('pedido_creado_template_lang'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

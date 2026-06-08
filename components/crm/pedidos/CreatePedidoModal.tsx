@@ -11,7 +11,6 @@ import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoM
 import Stepper from '@/components/shared/Stepper'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
-import { pedidoConfirmadoMessage } from '@/lib/whatsapp/messages'
 
 type Props = {
   clienteId?: string
@@ -233,19 +232,11 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                   apenas confirmado el pedido. Si el cliente no tiene teléfono,
                   el componente muestra el botón en estado deshabilitado. */}
               <WhatsappLinkButton
+                clienteId={clienteId}
                 phone={clienteData?.telefono ?? null}
                 label="Enviar comprobante por WhatsApp"
                 variant="subtle"
                 className="w-full"
-                message={pedidoConfirmadoMessage({
-                  clienteNombre: clienteNombre,
-                  vendedorName,
-                  items,
-                  total: parseFloat(successData.total),
-                  condicionPago,
-                  fechaEntrega,
-                  fecha: todayStr,
-                })}
               />
               <button
                 onClick={() => { router.push(`/crm/pedidos/${successData.pedidoId}`); onClose() }}

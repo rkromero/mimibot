@@ -232,6 +232,20 @@
       "when": 1780703224400,
       "tag": "0032_clumsy_moonstone",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780876800000,
+      "tag": "0033_apertura_template",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1780963200000,
+      "tag": "0034_pedido_creado_config",
+      "breakpoints": true
     }
   ]
 }
