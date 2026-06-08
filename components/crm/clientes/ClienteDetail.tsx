@@ -854,21 +854,24 @@ export default function ClienteDetail({ id }: Props) {
 
       {/* Mobile sticky bottom bar when editing */}
       {isEditing && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 flex gap-3 md:hidden z-20">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl text-base font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? 'Guardando...' : 'Guardar'}
-          </button>
-          <button
-            onClick={handleCancelEdit}
-            disabled={isSaving}
-            className="flex-1 py-3 border border-border rounded-xl text-base font-medium text-foreground bg-card hover:bg-accent transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-4 pb-safe flex flex-col gap-2 md:hidden z-50">
+          {saveError && <p className="text-xs text-destructive text-center">{saveError}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 min-h-[44px] py-3 bg-primary text-primary-foreground rounded-xl text-base font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="flex-1 min-h-[44px] py-3 border border-border rounded-xl text-base font-medium text-foreground bg-card hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 
