@@ -37,6 +37,8 @@ export default function InboxView({ user }: Props) {
   const initConvId = searchParams.get('conversation')
   const initLeadId = searchParams.get('lead') // backwards compat
 
+  const isRestrictedRole = user.role === 'agent' || user.role === 'vendedor'
+
   const [selectedConvId, setSelectedConvId] = useState<string | null>(initConvId)
   const [filter, setFilter] = useState<Filter>('mine')
   const [mobileView, setMobileView] = useState<'list' | 'conversation'>(
@@ -62,12 +64,14 @@ export default function InboxView({ user }: Props) {
     queryFn: () => fetchFilter('unassigned'),
     refetchOnWindowFocus: false,
     staleTime: 15_000,
+    enabled: !isRestrictedRole,
   })
   const { data: allData = [], isLoading: loadingAll } = useQuery({
     queryKey: ['inbox', 'all'],
     queryFn: () => fetchFilter('all'),
     refetchOnWindowFocus: false,
     staleTime: 15_000,
+    enabled: !isRestrictedRole,
   })
 
   const dataMap: Record<Filter, InboxItem[]> = { mine: mineData, unassigned: unassignedData, all: allData }
@@ -179,7 +183,7 @@ export default function InboxView({ user }: Props) {
               { key: 'mine' as Filter, label: 'Mis conversaciones' },
               { key: 'unassigned' as Filter, label: 'Sin asignar' },
               { key: 'all' as Filter, label: 'Todos' },
-            ] as const).map(({ key, label }) => {
+            ] as const).filter(({ key }) => isRestrictedRole ? key === 'mine' : true).map(({ key, label }) => {
               const isActive = filter === key
               return (
                 <button

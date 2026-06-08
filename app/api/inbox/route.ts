@@ -31,7 +31,10 @@ export async function GET(req: NextRequest) {
 
     const filterConditions: ReturnType<typeof sql>[] = []
 
-    if (filter === 'mine') {
+    const isRestrictedRole = session.user.role === 'agent' || session.user.role === 'vendedor'
+
+    if (filter === 'mine' || (filter === 'unassigned' && isRestrictedRole)) {
+      // vendedor/agent never see unassigned — clamp to their own conversations
       filterConditions.push(
         sql`(CASE WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.asignadoA} ELSE ${leads.assignedTo} END) = ${session.user.id}::uuid`,
       )
@@ -40,7 +43,7 @@ export async function GET(req: NextRequest) {
         sql`(CASE WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.asignadoA} ELSE ${leads.assignedTo} END) IS NULL`,
       )
     } else if (filter === 'all') {
-      if (session.user.role === 'agent' || session.user.role === 'vendedor') {
+      if (isRestrictedRole) {
         filterConditions.push(
           sql`(CASE WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.asignadoA} ELSE ${leads.assignedTo} END) = ${session.user.id}::uuid`,
         )
