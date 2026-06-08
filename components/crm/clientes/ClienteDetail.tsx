@@ -13,6 +13,7 @@ import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { buildWhatsappLink } from '@/lib/whatsapp/messages'
+import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
 
@@ -92,6 +93,7 @@ export default function ClienteDetail({ id }: Props) {
   const canRegisterPago = session?.user?.role === 'admin' || session?.user?.role === 'gerente'
   const queryClient = useQueryClient()
   const router = useRouter()
+  const toast = useToast()
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -102,6 +104,9 @@ export default function ClienteDetail({ id }: Props) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showPurgeModal, setShowPurgeModal] = useState(false)
+  const [isPurging, setIsPurging] = useState(false)
+  const [purgeError, setPurgeError] = useState<string | null>(null)
 
   const { data: cliente, isLoading, isError } = useQuery<Cliente>({
     queryKey: ['cliente', id],
@@ -234,6 +239,26 @@ export default function ClienteDetail({ id }: Props) {
       setDeleteError('Error de conexión')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  async function handlePurge() {
+    setPurgeError(null)
+    setIsPurging(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}/purge`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setPurgeError(data.error ?? 'Error al eliminar definitivamente')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      toast.success('Cliente eliminado definitivamente')
+      router.push('/crm/clientes')
+    } catch {
+      setPurgeError('Error de conexión')
+    } finally {
+      setIsPurging(false)
     }
   }
 
@@ -632,6 +657,17 @@ export default function ClienteDetail({ id }: Props) {
             </button>
           )}
 
+          {/* Eliminar definitivamente — solo admin */}
+          {isAdmin && (
+            <button
+              onClick={() => { setPurgeError(null); setShowPurgeModal(true) }}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-destructive/40 text-destructive rounded-xl text-sm font-medium bg-card active:bg-destructive/10 transition-colors"
+            >
+              <Trash2 size={16} />
+              Eliminar definitivamente
+            </button>
+          )}
+
           {/* Saldo + ultimo pedido — info "de campo" para el vendedor */}
           {(() => {
             const saldo = parseFloat(cliente.pedidosSummary?.saldoPendiente ?? '0')
@@ -719,10 +755,20 @@ export default function ClienteDetail({ id }: Props) {
               <button
                 onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-destructive/50 text-destructive rounded-md text-sm font-medium hover:bg-destructive/10 transition-colors"
-                title="Eliminar cliente"
+                title="Eliminar cliente (soft)"
               >
                 <Trash2 size={14} />
                 Eliminar
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => { setPurgeError(null); setShowPurgeModal(true) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90 transition-colors"
+                title="Eliminar definitivamente (purge total)"
+              >
+                <Trash2 size={14} />
+                Eliminar definitivamente
               </button>
             )}
             {canRegisterPago && (
@@ -812,6 +858,63 @@ export default function ClienteDetail({ id }: Props) {
           clienteId={id}
           onClose={() => setShowCreatePedido(false)}
         />
+      )}
+
+      {showPurgeModal && cliente && (
+        <div className="fixed inset-0 z-50 flex flex-col md:bg-black/50 md:items-center md:justify-center">
+          <div className="absolute inset-0 hidden md:block" onClick={() => !isPurging && setShowPurgeModal(false)} />
+          <div className="relative flex flex-col h-full w-full bg-card md:h-auto md:rounded-lg md:border md:border-border md:shadow-xl md:max-w-sm overflow-hidden">
+            <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
+              <button onClick={() => !isPurging && setShowPurgeModal(false)} className="md:hidden p-2 -ml-2 text-muted-foreground">
+                <ArrowLeft size={20} />
+              </button>
+              <div className="flex items-center gap-2 flex-1">
+                <Trash2 size={16} className="text-destructive shrink-0" />
+                <h2 className="text-base md:text-sm font-semibold text-foreground">Eliminar definitivamente</h2>
+              </div>
+              <button
+                onClick={() => !isPurging && setShowPurgeModal(false)}
+                className="hidden md:block p-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="flex-1 md:flex-none overflow-y-auto p-4 space-y-3">
+              <p className="text-sm text-foreground">
+                ¿Eliminar permanentemente a <strong>{cliente.nombre} {cliente.apellido}</strong>?
+              </p>
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive space-y-1">
+                <p className="font-semibold">Se borrarán de forma permanente e irreversible:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs mt-1">
+                  <li>El cliente y todos sus datos</li>
+                  <li>Sus pedidos, ítems y documentos emitidos</li>
+                  <li>Pagos, cuenta corriente y aplicaciones</li>
+                  <li>Actividades e historial de territorio</li>
+                  <li>El lead de origen (conversación, mensajes y actividad)</li>
+                </ul>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">Esta acción NO se puede deshacer.</p>
+              {purgeError && <p className="text-xs text-destructive">{purgeError}</p>}
+            </div>
+            <div className="p-4 border-t border-border bg-card shrink-0 flex flex-col gap-3 md:flex-row-reverse md:gap-2">
+              <button
+                onClick={() => void handlePurge()}
+                disabled={isPurging}
+                className="flex items-center justify-center gap-2 w-full md:w-auto px-4 py-3 md:py-1.5 bg-destructive text-destructive-foreground rounded-xl md:rounded-md text-base md:text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+                {isPurging ? 'Eliminando...' : 'Eliminar definitivamente'}
+              </button>
+              <button
+                onClick={() => setShowPurgeModal(false)}
+                disabled={isPurging}
+                className="w-full md:w-auto px-4 py-3 md:py-1.5 border border-border rounded-xl md:rounded-md text-base md:text-sm font-medium text-foreground bg-card hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showDeleteModal && (() => {
