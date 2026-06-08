@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/db'
-import { pedidos, users } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 import { getPayment } from '@/lib/mercadopago/client'
-import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
+import { confirmarPagoPedido } from '@/lib/mercadopago/confirmar-pago'
 
 // ── Signature validation ──────────────────────────────────────────────────────
 // MP signs webhooks with HMAC-SHA256 over: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
@@ -51,10 +48,12 @@ export async function POST(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
     const type = searchParams.get('type')
+    const topic = searchParams.get('topic')
+    // Accepts both regular webhooks (?type=payment) and IPN (?topic=payment&id=...)
+    const isPaymentNotification = type === 'payment' || topic === 'payment'
     const dataId = searchParams.get('data.id') ?? searchParams.get('id') ?? ''
 
-    // We only care about payment notifications
-    if (type !== 'payment' || !dataId) {
+    if (!isPaymentNotification || !dataId) {
       return NextResponse.json({ ok: true })
     }
 
@@ -64,71 +63,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
     }
 
-    // Fetch payment details from MP API
     const payment = await getPayment(dataId)
 
     if (payment.status !== 'approved') {
-      // Not yet approved — nothing to do, acknowledge
       return NextResponse.json({ ok: true })
     }
 
-    const pedidoId = payment.external_reference
-    if (!pedidoId) {
-      console.warn('[mp-webhook] Payment', payment.id, 'has no external_reference')
-      return NextResponse.json({ ok: true })
-    }
+    await confirmarPagoPedido(payment)
 
-    // Idempotency: skip if this payment was already recorded
-    const pedido = await db.query.pedidos.findFirst({
-      where: eq(pedidos.id, pedidoId),
-      columns: { id: true, mpPaymentId: true, entregadoPor: true, entregadoAt: true, saldoPendiente: true },
-    })
-
-    if (!pedido) {
-      console.warn('[mp-webhook] Pedido not found:', pedidoId)
-      return NextResponse.json({ ok: true })
-    }
-
-    if (pedido.mpPaymentId === String(payment.id)) {
-      // Already processed — idempotent response
-      return NextResponse.json({ ok: true })
-    }
-
-    // Resolve registradoPor: use the repartidor saved at QR generation, or fall back to any admin
-    let registradoPor = pedido.entregadoPor
-    if (!registradoPor) {
-      const admin = await db.query.users.findFirst({
-        where: eq(users.role, 'admin'),
-        columns: { id: true },
-      })
-      if (!admin) {
-        console.error('[mp-webhook] Cannot register payment: no valid registradoPor for pedido', pedidoId)
-        return NextResponse.json({ ok: true })
-      }
-      registradoPor = admin.id
-    }
-
-    // Register the payment
-    const monto = payment.transaction_amount.toFixed(2)
-    await registrarPagoPedido({
-      pedidoId,
-      monto,
-      metodoPago: 'mercadopago',
-      registradoPor,
-    })
-
-    // Mark delivered + save mp_payment_id (idempotent: preserve existing entregadoAt if set)
-    await db
-      .update(pedidos)
-      .set({
-        estado: 'entregado',
-        entregadoAt: pedido.entregadoAt ?? new Date(),
-        mpPaymentId: String(payment.id),
-        updatedAt: new Date(),
-      })
-      .where(eq(pedidos.id, pedidoId))
-
-    console.info('[mp-webhook] Payment', payment.id, 'applied to pedido', pedidoId, '— monto', monto)
     return NextResponse.json({ ok: true })
   } catch (err) {
     // Always respond 200 to MP so it doesn't retry indefinitely

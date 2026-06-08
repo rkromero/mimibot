@@ -73,3 +73,22 @@ export interface MpPayment {
 export async function getPayment(paymentId: string | number): Promise<MpPayment> {
   return mpFetch<MpPayment>(`/v1/payments/${paymentId}`)
 }
+
+export interface MpPaymentSearchItem {
+  id: number
+  status: string
+  transaction_amount: number
+  external_reference: string
+}
+
+export async function searchApprovedPaymentByExternalRef(
+  externalRef: string,
+): Promise<MpPaymentSearchItem | null> {
+  interface SearchResponse {
+    results: MpPaymentSearchItem[]
+  }
+  const data = await mpFetch<SearchResponse>(
+    `/v1/payments/search?external_reference=${encodeURIComponent(externalRef)}&sort=date_created&criteria=desc`,
+  )
+  return data.results.find((p) => p.status === 'approved') ?? null
+}

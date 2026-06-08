@@ -4,6 +4,8 @@ import { db } from '@/db'
 import { pedidos } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
+import { searchApprovedPaymentByExternalRef } from '@/lib/mercadopago/client'
+import { confirmarPagoPedido } from '@/lib/mercadopago/confirmar-pago'
 
 export async function GET(
   _req: NextRequest,
@@ -26,6 +28,39 @@ export async function GET(
     })
 
     if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+
+    // If already paid, return immediately
+    const saldo = parseFloat(pedido.saldoPendiente ?? '0')
+    if (pedido.estadoPago === 'pagado' || saldo <= 0) {
+      return NextResponse.json({
+        estadoPago: pedido.estadoPago,
+        saldoPendiente: pedido.saldoPendiente,
+        montoPagado: pedido.montoPagado,
+      })
+    }
+
+    // Active fallback: query MP directly for an approved payment
+    try {
+      const mpPayment = await searchApprovedPaymentByExternalRef(id)
+      if (mpPayment) {
+        await confirmarPagoPedido(mpPayment, session.user.id)
+
+        // Re-read the updated state
+        const updated = await db.query.pedidos.findFirst({
+          where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)),
+          columns: { estadoPago: true, saldoPendiente: true, montoPagado: true },
+        })
+        if (updated) {
+          return NextResponse.json({
+            estadoPago: updated.estadoPago,
+            saldoPendiente: updated.saldoPendiente,
+            montoPagado: updated.montoPagado,
+          })
+        }
+      }
+    } catch (mpErr) {
+      console.warn('[estado-pago] MP search failed for pedido', id, ':', mpErr)
+    }
 
     return NextResponse.json({
       estadoPago: pedido.estadoPago,
