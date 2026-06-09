@@ -32,6 +32,17 @@ export default function FabricaLayout({ children }: { children: React.ReactNode 
         >
           Histórico
         </Link>
+        <Link
+          href="/fabrica/orden-trabajo"
+          className={cn(
+            'px-6 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap',
+            pathname.startsWith('/fabrica/orden-trabajo')
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Orden de trabajo
+        </Link>
       </nav>
       <div className="flex-1 overflow-auto">
         {children}

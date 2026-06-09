@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
   Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
-  ClipboardList, History,
+  ClipboardList, History, ListChecks,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -85,6 +85,7 @@ export function filterGroups(role: Role): NavGroup[] {
       items: [
         { href: '/fabrica', label: 'Pedidos Confirmados', icon: ClipboardList },
         { href: '/fabrica/historico', label: 'Histórico', icon: History },
+        { href: '/fabrica/orden-trabajo', label: 'Orden de trabajo', icon: ListChecks },
       ],
     }]
   }
