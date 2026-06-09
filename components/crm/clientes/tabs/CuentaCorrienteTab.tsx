@@ -25,6 +25,7 @@ type Movimiento = {
   fecha: string
   descripcion: string | null
   pedidoId: string | null
+  metodoPago: 'efectivo' | 'transferencia' | 'mercadopago' | null
 }
 
 type PedidoCC = {
@@ -49,6 +50,17 @@ type CuentaCorrienteData = {
 
 function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+}
+
+const metodoPagoLabels: Record<string, string> = {
+  efectivo: 'Efectivo',
+  transferencia: 'Transferencia',
+  mercadopago: 'QR / MP',
+}
+const metodoPagoColors: Record<string, string> = {
+  efectivo: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  transferencia: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  mercadopago: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
 }
 
 const estadoPagoColors: Record<string, string> = {
@@ -154,6 +166,11 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                     <div>
                       <p className="text-sm text-muted-foreground">{formatFechaAR(m.fecha, true)}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{m.descripcion ?? (m.tipo === 'credito' ? 'Pago recibido' : 'Pedido')}</p>
+                      {m.tipo === 'credito' && m.metodoPago && (
+                        <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block', metodoPagoColors[m.metodoPago])}>
+                          {metodoPagoLabels[m.metodoPago]}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={cn('text-base font-semibold', m.tipo === 'credito' ? 'text-green-600' : 'text-red-600')}>
@@ -181,6 +198,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha</th>
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Tipo</th>
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Descripción</th>
+                      <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Método</th>
                       <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Monto</th>
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Pedido</th>
                       {isAdmin && <th className="py-2 px-3 border-b border-border" />}
@@ -201,6 +219,13 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-muted-foreground">{m.descripcion ?? '—'}</td>
+                        <td className="py-2.5 px-3">
+                          {m.tipo === 'credito' && m.metodoPago ? (
+                            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', metodoPagoColors[m.metodoPago])}>
+                              {metodoPagoLabels[m.metodoPago]}
+                            </span>
+                          ) : '—'}
+                        </td>
                         <td className={cn('py-2.5 px-3 text-right font-medium', m.tipo === 'credito' ? 'text-green-600' : 'text-red-600')}>
                           {m.tipo === 'credito' ? '+' : '-'}{formatMoney(m.monto)}
                         </td>
