@@ -117,7 +117,7 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
   const saldoPositivo = saldo > 0
 
   const pedidosPendientes = data.pedidos
-    .filter(p => p.estadoPago !== 'pagado' && parseFloat(p.saldoPendiente) > 0)
+    .filter(p => parseFloat(p.saldoPendiente) > 0)
     .map(p => ({
       id: p.id,
       fecha: p.fecha,
