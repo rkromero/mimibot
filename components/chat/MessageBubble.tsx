@@ -56,11 +56,11 @@ export default function MessageBubble({ message }: { message: MessageWithAttachm
         >
           {message.contentType === 'text' || message.contentType === 'internal_note' ? (
             <p className="whitespace-pre-wrap break-words">{message.body}</p>
-          ) : (
+          ) : message.attachments.length === 0 ? (
             <p className="text-xs italic opacity-80">
               [{contentTypeLabel(message.contentType)}]
             </p>
-          )}
+          ) : null}
 
           {message.attachments.length > 0 && (
             <div className="mt-1.5 space-y-1">
@@ -91,19 +91,38 @@ function contentTypeLabel(type: string): string {
 }
 
 function AttachmentThumb({ mimeType, r2Key }: { mimeType: string; r2Key: string }) {
+  const src = `/api/attachments/url?key=${encodeURIComponent(r2Key)}`
+
   if (mimeType.startsWith('image/')) {
     return (
       <img
-        src={`/api/attachments/url?key=${encodeURIComponent(r2Key)}`}
+        src={src}
         alt="adjunto"
         className="max-w-[200px] rounded-md"
         loading="lazy"
       />
     )
   }
+
+  if (mimeType.startsWith('audio/')) {
+    return (
+      // eslint-disable-next-line jsx-a11y/media-has-caption
+      <audio controls preload="metadata" src={src} className="max-w-[240px]" />
+    )
+  }
+
+  if (mimeType.startsWith('video/')) {
+    return (
+      // eslint-disable-next-line jsx-a11y/media-has-caption
+      <video controls preload="metadata" className="max-w-[240px] rounded-md">
+        <source src={src} type={mimeType} />
+      </video>
+    )
+  }
+
   return (
     <a
-      href={`/api/attachments/url?key=${encodeURIComponent(r2Key)}`}
+      href={src}
       target="_blank"
       rel="noreferrer"
       className="text-xs underline opacity-80"
