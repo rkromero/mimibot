@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
-import { Search, Truck, Package, RefreshCw, FileText, Download, ChevronDown, Tag } from 'lucide-react'
+import { Search, Truck, Package, RefreshCw, FileText, Download, ChevronDown, Tag, Send } from 'lucide-react'
 
 type PedidoItemFabrica = {
   id: string
@@ -34,6 +34,25 @@ type PedidoHistorico = {
     provincia: string | null
   } | null
   items: PedidoItemFabrica[]
+}
+
+function MetodoBadge({ metodoEntrega }: { metodoEntrega: 'expreso' | 'retiro_fabrica' | null }) {
+  if (metodoEntrega === 'expreso') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+        <Send size={11} />
+        Expreso
+      </span>
+    )
+  }
+  if (metodoEntrega === 'retiro_fabrica') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+        Retiro
+      </span>
+    )
+  }
+  return null
 }
 
 const estadoBadge: Record<string, { label: string; cls: string }> = {
@@ -186,11 +205,14 @@ export default function FabricaHistoricoView() {
                         {entregaLabel(pedido)}
                       </td>
                       <td className="px-4 py-3">
-                        {badge && (
-                          <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', badge.cls)}>
-                            {badge.label}
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {badge && (
+                            <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', badge.cls)}>
+                              {badge.label}
+                            </span>
+                          )}
+                          <MetodoBadge metodoEntrega={pedido.metodoEntrega} />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -256,6 +278,7 @@ export default function FabricaHistoricoView() {
                             {badge.label}
                           </span>
                         )}
+                        <MetodoBadge metodoEntrega={pedido.metodoEntrega} />
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {formatFechaAR(new Date(pedido.fecha))}

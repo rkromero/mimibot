@@ -8,7 +8,7 @@ import { useGenerarDocumento, type DocTipo } from '@/lib/pedidos/useGenerarDocum
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
-import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2 } from 'lucide-react'
+import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2, Send } from 'lucide-react'
 
 type PedidoItemFabrica = {
   id: string
@@ -58,7 +58,15 @@ function productosResumen(items: PedidoItemFabrica[]): string {
   return `${items.length} productos (${total} un.)`
 }
 
-function EstadoBadge({ estado, esReparto }: { estado: string; esReparto: boolean }) {
+function EstadoBadge({
+  estado,
+  esReparto,
+  metodoEntrega,
+}: {
+  estado: string
+  esReparto: boolean
+  metodoEntrega: 'expreso' | 'retiro_fabrica' | null
+}) {
   if (estado === 'listo_para_repartir') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
@@ -72,6 +80,21 @@ function EstadoBadge({ estado, esReparto }: { estado: string; esReparto: boolean
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
         <Truck size={11} />
         Camioneta
+      </span>
+    )
+  }
+  if (metodoEntrega === 'expreso') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+        <Send size={11} />
+        Expreso
+      </span>
+    )
+  }
+  if (metodoEntrega === 'retiro_fabrica') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+        Retiro
       </span>
     )
   }
@@ -134,7 +157,7 @@ function ActionCell({
   anyGenerating,
 }: ActionCellProps) {
   return (
-    <div className="flex items-center gap-1.5 flex-wrap min-w-[260px]">
+    <div className="flex items-center gap-1.5 flex-nowrap">
       <button
         onClick={() => void generarDocumento(pedido.id, 'remito')}
         disabled={anyGenerating(pedido.id)}
@@ -378,7 +401,7 @@ export default function FabricaConfirmadosView() {
                       {entregaLabel(pedido)}
                     </td>
                     <td className="px-4 py-3">
-                      <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} />
+                      <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
                     </td>
                     <td className="px-4 py-3">
                       <ActionCell pedido={pedido} {...actionProps} />
@@ -404,7 +427,7 @@ export default function FabricaConfirmadosView() {
                       <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                         #{pedido.id.slice(-8).toUpperCase()}
                       </span>
-                      <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} />
+                      <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {formatFechaAR(new Date(pedido.fecha))}
