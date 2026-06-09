@@ -35,7 +35,6 @@ export type MetaFormValuesAgent = {
   clientesNuevosObjetivo: number
   conversionLeadsObjetivo: string
   pctClientesConPedidoObjetivo: string
-  pctPedidosPagadosObjetivo: string
   pctCobranzaObjetivo: string
 }
 
@@ -55,7 +54,6 @@ export function initAgentValues(meta: MetaRow | null): MetaFormValuesAgent {
     clientesNuevosObjetivo: meta?.clientesNuevosObjetivo ?? 0,
     conversionLeadsObjetivo: meta?.conversionLeadsObjetivo ?? '0',
     pctClientesConPedidoObjetivo: meta?.pctClientesConPedidoObjetivo ?? '0',
-    pctPedidosPagadosObjetivo: meta?.pctPedidosPagadosObjetivo ?? '0',
     pctCobranzaObjetivo: meta?.pctCobranzaObjetivo ?? '0',
   }
 }
@@ -131,7 +129,6 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
         agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
-        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo ||
         agentValues.pctCobranzaObjetivo !== agentSaved.pctCobranzaObjetivo
       )
 
@@ -231,17 +228,6 @@ export default function MetaFormRow({ vendedor, meta, onSave, isSaving, isLocked
             ? <span className={ro}>{meta ? fmtPct(meta.pctClientesConPedidoObjetivo) : '—'}</span>
             : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctClientesConPedidoObjetivo}
                 onChange={(e) => handleAgent('pctClientesConPedidoObjetivo', e.target.value)}
-                className={inp} />}
-        </td>
-      )}
-
-      {/* Agent: % Pedidos Pagados */}
-      {isVendedor ? <DisabledCell agentCol /> : (
-        <td className="py-2.5 px-3 bg-blue-50/20 dark:bg-blue-950/10">
-          {isLocked
-            ? <span className={ro}>{meta ? fmtPct(meta.pctPedidosPagadosObjetivo) : '—'}</span>
-            : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctPedidosPagadosObjetivo}
-                onChange={(e) => handleAgent('pctPedidosPagadosObjetivo', e.target.value)}
                 className={inp} />}
         </td>
       )}

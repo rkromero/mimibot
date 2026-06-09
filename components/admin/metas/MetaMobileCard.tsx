@@ -51,7 +51,6 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
         agentValues.clientesNuevosObjetivo !== agentSaved.clientesNuevosObjetivo ||
         agentValues.conversionLeadsObjetivo !== agentSaved.conversionLeadsObjetivo ||
         agentValues.pctClientesConPedidoObjetivo !== agentSaved.pctClientesConPedidoObjetivo ||
-        agentValues.pctPedidosPagadosObjetivo !== agentSaved.pctPedidosPagadosObjetivo ||
         agentValues.pctCobranzaObjetivo !== agentSaved.pctCobranzaObjetivo
       )
 
@@ -185,13 +184,6 @@ export default function MetaMobileCard({ vendedor, meta, onSave, isSaving, isLoc
                 ? roVal(meta ? `${parseFloat(meta.pctClientesConPedidoObjetivo).toFixed(1)}%` : '—')
                 : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctClientesConPedidoObjetivo}
                     onChange={(e) => handleAgent('pctClientesConPedidoObjetivo', e.target.value)}
-                    className={inp} />}
-            </Field>
-            <Field label="% Pedidos Pagados">
-              {isLocked
-                ? roVal(meta ? `${parseFloat(meta.pctPedidosPagadosObjetivo).toFixed(1)}%` : '—')
-                : <input type="number" min={0} max={100} step="0.5" value={agentValues.pctPedidosPagadosObjetivo}
-                    onChange={(e) => handleAgent('pctPedidosPagadosObjetivo', e.target.value)}
                     className={inp} />}
             </Field>
             <Field label="% Cobranza">
