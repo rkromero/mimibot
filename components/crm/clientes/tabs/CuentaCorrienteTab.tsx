@@ -31,10 +31,8 @@ type Movimiento = {
 type PedidoCC = {
   id: string
   fecha: string
-  total: string
-  montoPagado: string
   saldoPendiente: string
-  estadoPago: 'impago' | 'parcial' | 'pagado'
+  estadoPago: 'impago' | 'parcial'
 }
 
 type CuentaCorrienteData = {
@@ -63,16 +61,6 @@ const metodoPagoColors: Record<string, string> = {
   mercadopago: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
 }
 
-const estadoPagoColors: Record<string, string> = {
-  impago: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  parcial: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-  pagado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-}
-const estadoPagoLabels: Record<string, string> = {
-  impago: 'Impago',
-  parcial: 'Parcial',
-  pagado: 'Pagado',
-}
 
 export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTelefono, showPago, onClosePago }: Props) {
   const { data: session } = useSession()
@@ -283,72 +271,6 @@ export default function CuentaCorrienteTab({ clienteId, clienteNombre, clienteTe
             </div>
           </div>
         )}
-      </div>
-
-      {/* Pedidos */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Pedidos</h3>
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          {data.pedidos.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">Sin pedidos</div>
-          ) : (
-            <>
-              {/* Mobile: lista de pedidos */}
-              <div className="md:hidden">
-                {data.pedidos.map(p => (
-                  <Link key={p.id} href={`/crm/pedidos/${p.id}`}
-                    className="flex items-center justify-between p-3 border-b border-border last:border-0 active:bg-accent/50">
-                    <div>
-                      <p className="text-sm text-foreground">{formatFechaAR(p.fecha, true)}</p>
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', estadoPagoColors[p.estadoPago])}>
-                        {estadoPagoLabels[p.estadoPago]}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">{formatMoney(p.total)}</p>
-                      {parseFloat(p.saldoPendiente) > 0 && (
-                        <p className="text-xs text-red-600">Saldo: {formatMoney(p.saldoPendiente)}</p>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              {/* Desktop: tabla */}
-              <div className="hidden md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Fecha</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Total</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Pagado</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Saldo</th>
-                      <th className="text-left py-2 px-3 text-muted-foreground font-medium border-b border-border">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pedidos.map((p) => (
-                      <tr key={p.id} className="border-b border-border last:border-0">
-                        <td className="py-2.5 px-3">
-                          <Link href={`/crm/pedidos/${p.id}`} className="text-primary hover:underline">
-                            {formatFechaAR(p.fecha)}
-                          </Link>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(p.montoPagado)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(p.saldoPendiente)}</td>
-                        <td className="py-2.5 px-3">
-                          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
-                            {estadoPagoLabels[p.estadoPago]}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       {showPago && (
