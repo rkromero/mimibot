@@ -34,6 +34,7 @@ vi.mock('@/db/schema', () => ({
     fechaConversionANuevo: 'clientes.fechaConversionANuevo',
     asignadoA: 'clientes.asignadoA',
     deletedAt: 'clientes.deletedAt',
+    createdAt: 'clientes.createdAt',
     $inferSelect: {},
   },
   pedidos: {
@@ -159,26 +160,32 @@ interface SelectStubs {
   pctCobranzaNum: ReturnType<typeof makeSelectResult>
   montoSum: ReturnType<typeof makeSelectResult>
   pctPedidos: ReturnType<typeof makeSelectResult>
+  clientesCreadosCount: ReturnType<typeof makeSelectResult>
+  clientesCreadosConPedidoIds: ReturnType<typeof makeSelectResult>
+  clientesCreadosConPedidoPedidos: ReturnType<typeof makeSelectResult>
   primerPedidoEnPeriodo: ReturnType<typeof makeSelectResult>
   primerPedidoAnteriores: ReturnType<typeof makeSelectResult>
 }
 
 function setupSelectStubs(stubs: SelectStubs) {
   mockSelect
-    .mockReturnValueOnce(stubs.clientesNuevos.stub)          // #0
-    .mockReturnValueOnce(stubs.pedidosCount.stub)             // #1
-    .mockReturnValueOnce(stubs.montoClienteIds.stub)          // #2
-    .mockReturnValueOnce(stubs.leadsGanados.stub)             // #3
-    .mockReturnValueOnce(stubs.leadsGestionados.stub)         // #4
-    .mockReturnValueOnce(stubs.pctClienteIds.stub)            // #5
-    .mockReturnValueOnce(stubs.pctPedidosPagadosDen.stub)     // #6
-    .mockReturnValueOnce(stubs.pctPedidosPagadosNum.stub)     // #7
-    .mockReturnValueOnce(stubs.pctCobranzaDen.stub)           // #8
-    .mockReturnValueOnce(stubs.pctCobranzaNum.stub)           // #9
-    .mockReturnValueOnce(stubs.montoSum.stub)                 // #10
-    .mockReturnValueOnce(stubs.pctPedidos.stub)               // #11
-    .mockReturnValueOnce(stubs.primerPedidoEnPeriodo.stub)    // #12 (sequential, after main Promise.all)
-    .mockReturnValueOnce(stubs.primerPedidoAnteriores.stub)   // #13 (only fires when #12 returns non-empty)
+    .mockReturnValueOnce(stubs.clientesNuevos.stub)                    // #0
+    .mockReturnValueOnce(stubs.pedidosCount.stub)                       // #1
+    .mockReturnValueOnce(stubs.montoClienteIds.stub)                    // #2
+    .mockReturnValueOnce(stubs.leadsGanados.stub)                       // #3
+    .mockReturnValueOnce(stubs.leadsGestionados.stub)                   // #4
+    .mockReturnValueOnce(stubs.pctClienteIds.stub)                      // #5
+    .mockReturnValueOnce(stubs.pctPedidosPagadosDen.stub)               // #6
+    .mockReturnValueOnce(stubs.pctPedidosPagadosNum.stub)               // #7
+    .mockReturnValueOnce(stubs.pctCobranzaDen.stub)                     // #8
+    .mockReturnValueOnce(stubs.pctCobranzaNum.stub)                     // #9
+    .mockReturnValueOnce(stubs.montoSum.stub)                           // #10
+    .mockReturnValueOnce(stubs.pctPedidos.stub)                         // #11
+    .mockReturnValueOnce(stubs.clientesCreadosCount.stub)               // #12 (sequential, after main Promise.all)
+    .mockReturnValueOnce(stubs.clientesCreadosConPedidoIds.stub)        // #13
+    .mockReturnValueOnce(stubs.clientesCreadosConPedidoPedidos.stub)    // #14 (only fires when #13 returns non-empty)
+    .mockReturnValueOnce(stubs.primerPedidoEnPeriodo.stub)              // #15
+    .mockReturnValueOnce(stubs.primerPedidoAnteriores.stub)             // #16 (only fires when #15 returns non-empty)
 }
 
 // Helper: generates rows representing `count` distinct clients each with 3 paid orders.
@@ -202,6 +209,9 @@ function defaultStubs(overrides: Partial<{
   pctPedidosPagadosNum: number
   pctCobranzaDen: string | null
   pctCobranzaNum: string | null
+  clientesCreadosTotal: number
+  clientesCreadosConPedidoIds: Array<{ id: string }>
+  clientesCreadosConPedidoRows: Array<{ clienteId: string }>
 }> = {}): SelectStubs {
   const o = {
     clientesNuevosRows: [] as Array<{ clienteId: string }>,
@@ -210,12 +220,17 @@ function defaultStubs(overrides: Partial<{
     montoTotal: null,
     leadsGanados: 0,
     leadsGestionados: 0,
-    pctClienteIds: [],
-    pctPedidoClienteIds: [],
+    // Non-empty so pctPedidos (deferred #11) is always consumed,
+    // keeping queue positions predictable for subsequent sequential stubs.
+    pctClienteIds: [{ id: 'cliente-default' }] as Array<{ id: string }>,
+    pctPedidoClienteIds: [] as Array<{ clienteId: string }>,
     pctPedidosPagadosDen: 0,
     pctPedidosPagadosNum: 0,
     pctCobranzaDen: null,
     pctCobranzaNum: null,
+    clientesCreadosTotal: 0,
+    clientesCreadosConPedidoIds: [] as Array<{ id: string }>,
+    clientesCreadosConPedidoRows: [] as Array<{ clienteId: string }>,
     ...overrides,
   }
   return {
@@ -231,6 +246,11 @@ function defaultStubs(overrides: Partial<{
     pctCobranzaNum: makeSelectResult([{ total: o.pctCobranzaNum }]),
     montoSum: makeSelectResult([{ total: o.montoTotal }]),
     pctPedidos: makeSelectResult(o.pctPedidoClienteIds),
+    // Default: 0 → clientesCreadosDelPeriodo returns 0
+    clientesCreadosCount: makeSelectResult([{ total: o.clientesCreadosTotal }]),
+    // Default: empty → clientesCreadosConPedidoDelPeriodo returns 0 without pedidos query
+    clientesCreadosConPedidoIds: makeSelectResult(o.clientesCreadosConPedidoIds),
+    clientesCreadosConPedidoPedidos: makeSelectResult(o.clientesCreadosConPedidoRows),
     // Default: empty → clientesPrimerPedidoDelPeriodo returns 0 without a second query
     primerPedidoEnPeriodo: makeSelectResult([]),
     primerPedidoAnteriores: makeSelectResult([]),
@@ -480,7 +500,9 @@ describe('montoCobradoDelPeriodo', () => {
       .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub)         // #9 pctCobranza num
       // No montoSum call (#10) when clienteIds is empty
       // No pctPedidos call (#11) when pctClienteIds is empty
-      .mockReturnValueOnce(makeSelectResult([]).stub)                        // #10 primerPedidoEnPeriodo → [] → returns 0 early
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)           // #12 clientesCreadosCount
+      .mockReturnValueOnce(makeSelectResult([]).stub)                       // #13 clientesCreadosConPedidoIds → [] → returns 0 early
+      .mockReturnValueOnce(makeSelectResult([]).stub)                       // #15 primerPedidoEnPeriodo → [] → returns 0 early
 
     const result = await calcularAvanceMeta('meta-1')
 
@@ -800,5 +822,65 @@ describe('pctCobranzaDelPeriodo', () => {
     const result = await pctCobranzaDelPeriodo('vendedor-1', 2026, 5)
 
     expect(result).toBe(33.33)
+  })
+})
+
+// ─── Tests: clientesCreadosDelPeriodo y clientesCreadosConPedidoDelPeriodo ─────
+//
+// Tested via calcularAvanceMeta (functions are private).
+
+describe('clientesCreadosDelPeriodo / clientesCreadosConPedidoDelPeriodo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('un cliente creado en el período sin pedidos: clientesCreados=1, clientesCreadosConPedido=0', async () => {
+    mockMetasFindFirst.mockResolvedValue(makeMeta())
+    setupSelectStubs(defaultStubs({
+      clientesCreadosTotal: 1,
+      clientesCreadosConPedidoIds: [],  // sin pedidos → retorna 0 early
+    }))
+
+    const result = await calcularAvanceMeta('meta-1')
+
+    expect(result.clientesCreados).toBe(1)
+    expect(result.clientesCreadosConPedido).toBe(0)
+  })
+
+  it('un cliente creado en el período con un pedido: clientesCreados=1, clientesCreadosConPedido=1', async () => {
+    mockMetasFindFirst.mockResolvedValue(makeMeta())
+    setupSelectStubs(defaultStubs({
+      clientesCreadosTotal: 1,
+      clientesCreadosConPedidoIds: [{ id: 'cliente-nuevo-1' }],
+      clientesCreadosConPedidoRows: [{ clienteId: 'cliente-nuevo-1' }],
+    }))
+
+    const result = await calcularAvanceMeta('meta-1')
+
+    expect(result.clientesCreados).toBe(1)
+    expect(result.clientesCreadosConPedido).toBe(1)
+    expect(result.clientesCreadosConPedido).toBeLessThanOrEqual(result.clientesCreados)
+  })
+
+  it('clientesCreadosConPedido nunca supera a clientesCreados', async () => {
+    mockMetasFindFirst.mockResolvedValue(makeMeta())
+    setupSelectStubs(defaultStubs({
+      clientesCreadosTotal: 2,
+      clientesCreadosConPedidoIds: [{ id: 'c1' }, { id: 'c2' }],
+      // Solo 1 de los 2 tiene pedido
+      clientesCreadosConPedidoRows: [{ clienteId: 'c1' }],
+    }))
+
+    const result = await calcularAvanceMeta('meta-1')
+
+    expect(result.clientesCreados).toBe(2)
+    expect(result.clientesCreadosConPedido).toBe(1)
+    expect(result.clientesCreadosConPedido).toBeLessThanOrEqual(result.clientesCreados)
   })
 })

@@ -12,6 +12,8 @@ export type MetaAvance = {
   meta: MetaRow
   clientesNuevos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   clientesPrimerPedido: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
+  clientesCreados: number
+  clientesCreadosConPedido: number
   pedidos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   montoCobrado: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   conversionLeads: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
@@ -254,6 +256,62 @@ async function clientesPrimerPedidoDelPeriodo(
   return countPrimerPedidoClientes(clientesEnPeriodo, conHistorial)
 }
 
+async function clientesCreadosDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number> {
+  const { start, end } = periodoRange(anio, mes)
+  const result = await db
+    .select({ total: count() })
+    .from(clientes)
+    .where(
+      and(
+        eq(clientes.asignadoA, vendedorId),
+        isNull(clientes.deletedAt),
+        gte(clientes.createdAt, start),
+        lt(clientes.createdAt, end),
+      ),
+    )
+  return result[0]?.total ?? 0
+}
+
+async function clientesCreadosConPedidoDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number> {
+  const { start, end } = periodoRange(anio, mes)
+
+  const clienteRows = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(
+      and(
+        eq(clientes.asignadoA, vendedorId),
+        isNull(clientes.deletedAt),
+        gte(clientes.createdAt, start),
+        lt(clientes.createdAt, end),
+      ),
+    )
+
+  if (clienteRows.length === 0) return 0
+
+  const clienteIds = clienteRows.map((c) => c.id)
+
+  const pedidoRows = await db
+    .select({ clienteId: pedidos.clienteId })
+    .from(pedidos)
+    .where(
+      and(
+        inArray(pedidos.clienteId, clienteIds),
+        isNull(pedidos.deletedAt),
+      ),
+    )
+
+  return new Set(pedidoRows.map((p) => p.clienteId)).size
+}
+
 export async function pctClientesConPedidoDelPeriodo(
   vendedorId: string,
   anio: number,
@@ -405,6 +463,8 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
     ])
 
   // Sequential: keeps existing Promise.all call ordering intact for test stability
+  const alcanzadoClientesCreados = await clientesCreadosDelPeriodo(vendedorId, periodoAnio, periodoMes)
+  const alcanzadoClientesCreadosConPedido = await clientesCreadosConPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes)
   const alcanzadoPrimerPedido = await clientesPrimerPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes)
 
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
@@ -482,6 +542,8 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       proyeccion: estadoPrimerPedido.proyeccion,
       estado: estadoPrimerPedido.estado,
     },
+    clientesCreados: alcanzadoClientesCreados,
+    clientesCreadosConPedido: alcanzadoClientesCreadosConPedido,
     pedidos: {
       alcanzado: alcanzadoPedidos,
       pct: estadoPedidos.pct,

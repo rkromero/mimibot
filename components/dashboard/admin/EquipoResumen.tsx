@@ -33,6 +33,8 @@ interface MetaAvance {
   }
   clientesNuevos: MetricaAvance
   clientesPrimerPedido: MetricaAvance
+  clientesCreados: number
+  clientesCreadosConPedido: number
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
@@ -80,6 +82,12 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
 
   const totalClientesNuevos = avances.reduce((acc, a) => acc + a.clientesNuevos.alcanzado, 0)
 
+  const totalClientesCreados = avances.reduce((acc, a) => acc + a.clientesCreados, 0)
+  const totalCreadosConPedido = avances.reduce((acc, a) => acc + a.clientesCreadosConPedido, 0)
+  const pctCreadosConPedido = totalClientesCreados > 0
+    ? (totalCreadosConPedido / totalClientesCreados) * 100
+    : null
+
   const avgConversion =
     avances.length > 0
       ? avances.reduce((acc, a) => acc + a.conversionLeads.alcanzado, 0) / avances.length
@@ -114,6 +122,15 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
     <div className="flex flex-wrap gap-4">
       <div className="flex-1 min-w-[140px]">
         <KpiCard label="Total Clientes Nuevos" value={String(totalClientesNuevos)} />
+      </div>
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard label="Clientes Creados" value={String(totalClientesCreados)} />
+      </div>
+      <div className="flex-1 min-w-[140px]">
+        <KpiCard
+          label="% Creados con Pedido"
+          value={pctCreadosConPedido !== null ? `${Number(pctCreadosConPedido.toFixed(1))}%` : '—'}
+        />
       </div>
       {hasVendedores && (
         <div className="flex-1 min-w-[140px]">
