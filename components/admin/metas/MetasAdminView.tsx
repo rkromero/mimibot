@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Copy, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MetaFormRow, { type MetaRow, type User, type MetaFormValues } from './MetaFormRow'
@@ -28,6 +28,11 @@ function isFuturePeriod(anio: number, mes: number): boolean {
 function isPastPeriod(anio: number, mes: number): boolean {
   const now = new Date()
   return anio < now.getFullYear() || (anio === now.getFullYear() && mes < now.getMonth() + 1)
+}
+
+function isCurrentPeriod(anio: number, mes: number): boolean {
+  const now = new Date()
+  return anio === now.getFullYear() && mes === now.getMonth() + 1
 }
 
 function prevPeriod(anio: number, mes: number) {
@@ -95,6 +100,62 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
   )
 }
 
+// ─── Corregir dialog (mes vigente) ───────────────────────────────────────────
+
+function CorregirMetaDialog({
+  onConfirm, onClose, isSaving,
+}: {
+  onConfirm: (motivo: string) => void
+  onClose: () => void
+  isSaving: boolean
+}) {
+  const [motivo, setMotivo] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const valid = motivo.trim().length >= 10
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-lg shadow-xl max-w-sm w-full mx-4 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Corregir meta vigente</h3>
+        <p className="text-sm text-muted-foreground">
+          Estás modificando el mes en curso. Indicá el motivo de la corrección.
+        </p>
+        <div>
+          <textarea
+            ref={inputRef}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ej: Ajuste por ingreso de nuevo vendedor..."
+            rows={3}
+            className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+          <p className="text-xs text-muted-foreground mt-1">{motivo.trim().length}/10 caracteres mínimos</p>
+        </div>
+        <div className="flex items-center gap-2 justify-end pt-1">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => valid && onConfirm(motivo.trim())}
+            disabled={!valid || isSaving}
+            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isSaving ? 'Guardando...' : 'Confirmar corrección'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function MetasAdminView() {
@@ -110,6 +171,7 @@ export default function MetasAdminView() {
   const [showConfirmDuplicar, setShowConfirmDuplicar] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingCorreccion, setPendingCorreccion] = useState<{ userId: string; values: MetaFormValues } | null>(null)
 
   // Fetch both agents and vendedores once
   useEffect(() => {
@@ -158,12 +220,28 @@ export default function MetasAdminView() {
   }
 
   async function handleSaveMeta(userId: string, values: MetaFormValues) {
+    // Mes vigente: requiere motivo via /corregir
+    if (isCurrentPeriod(selectedAnio, selectedMes) && metasMap.has(userId)) {
+      setPendingCorreccion({ userId, values })
+      return
+    }
+    await doSaveMeta(userId, values, null)
+  }
+
+  async function doSaveMeta(userId: string, values: MetaFormValues, motivo: string | null) {
     setSavingMap((prev) => new Map(prev).set(userId, true))
     setError(null)
     try {
       const existingMeta = metasMap.get(userId)
       let res: Response
-      if (existingMeta) {
+      if (existingMeta && motivo !== null) {
+        // Corrección de meta vigente
+        res = await fetch(`/api/metas/${existingMeta.id}/corregir`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...values, motivo }),
+        })
+      } else if (existingMeta) {
         res = await fetch(`/api/metas/${existingMeta.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -383,6 +461,18 @@ export default function MetasAdminView() {
           onConfirm={() => void handleDuplicar()}
           onClose={() => setShowConfirmDuplicar(false)}
           isDuplicating={isDuplicating}
+        />
+      )}
+
+      {pendingCorreccion && (
+        <CorregirMetaDialog
+          isSaving={savingMap.get(pendingCorreccion.userId) === true}
+          onClose={() => setPendingCorreccion(null)}
+          onConfirm={(motivo) => {
+            const { userId, values } = pendingCorreccion
+            setPendingCorreccion(null)
+            void doSaveMeta(userId, values, motivo)
+          }}
         />
       )}
     </div>
