@@ -46,6 +46,8 @@ interface MetaAvance {
   }
   clientesNuevos: MetricaAvance
   clientesPrimerPedido: MetricaAvance
+  clientesCreados: number
+  clientesCreadosConPedido: number
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance

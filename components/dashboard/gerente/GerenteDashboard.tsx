@@ -18,6 +18,8 @@ type MetaAvance = {
   meta: { id: string; vendedorId: string; periodoAnio: number; periodoMes: number; clientesNuevosObjetivo: number; pedidosObjetivo: number; montoCobradoObjetivo: string; conversionLeadsObjetivo: string; pctClientesConPedidoObjetivo: string; pctPedidosPagadosObjetivo: string; pctCobranzaObjetivo: string }
   clientesNuevos: MetricaAvance
   clientesPrimerPedido: MetricaAvance
+  clientesCreados: number
+  clientesCreadosConPedido: number
   pedidos: MetricaAvance
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
