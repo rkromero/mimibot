@@ -79,9 +79,12 @@ function ExpresoPendienteCard({
     <div className="bg-card border border-border rounded-2xl p-4 space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
+          <p className="font-bold text-base text-foreground truncate">
+            {[pedido.cliente.nombre, pedido.cliente.apellido].filter(Boolean).join(' ')}
+          </p>
           <div className="flex items-center gap-1.5 mb-0.5">
             <Send size={14} className="text-blue-500 shrink-0" />
-            <p className="font-bold text-base text-foreground truncate">{nombreDestino}</p>
+            <p className="text-sm text-muted-foreground truncate">{nombreDestino}</p>
           </div>
           {direccion && (
             <p className="text-sm text-muted-foreground flex items-center gap-1">
