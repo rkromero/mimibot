@@ -234,7 +234,7 @@ export default function FabricaConfirmadosView() {
   const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
   const [confirmListoId, setConfirmListoId] = useState<string | null>(null)
 
-  const { data, isLoading, isError, refetch } = useQuery<{ data: PedidoFabrica[] }>({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery<{ data: PedidoFabrica[] }>({
     queryKey: ['fabrica', 'confirmado'],
     queryFn: () =>
       fetch('/api/fabrica/pedidos?estado=confirmado,listo_para_repartir').then((r) => r.json()),
@@ -304,9 +304,10 @@ export default function FabricaConfirmadosView() {
         actions={
           <button
             onClick={() => void refetch()}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            disabled={isFetching}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
             Actualizar
           </button>
         }
