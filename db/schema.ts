@@ -403,6 +403,7 @@ export const pedidos = pgTable('pedidos', {
   entregadoAt: timestamp('entregado_at', { mode: 'date', withTimezone: true }),
   entregadoPor: uuid('entregado_por').references(() => users.id),
   firmaUrl: text('firma_url'),
+  remitoFotoUrl: text('remito_foto_url'),
   entregaLat: doublePrecision('entrega_lat'),
   entregaLng: doublePrecision('entrega_lng'),
   entregaPrecisionM: doublePrecision('entrega_precision_m'),

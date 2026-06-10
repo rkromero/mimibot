@@ -1,0 +1,1 @@
+ALTER TABLE "pedidos" ADD COLUMN "remito_foto_url" text;

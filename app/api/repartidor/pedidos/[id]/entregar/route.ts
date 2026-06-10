@@ -7,7 +7,7 @@ import { toApiError, AuthzError, NotFoundError, ConflictError, ValidationError }
 import { z } from 'zod'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 
-const bodySchema = z.object({
+const camionetaSchema = z.object({
   firmaUrl: z.string().min(1),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
@@ -22,6 +22,13 @@ const bodySchema = z.object({
       monto: z.number().positive().optional(),
     }),
   ]),
+})
+
+const expresoSchema = z.object({
+  remitoFotoUrl: z.string().min(1, 'La foto del remito firmado es requerida para pedidos de expreso'),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  precisionM: z.number().nonnegative().optional(),
 })
 
 export async function PATCH(
@@ -39,17 +46,14 @@ export async function PATCH(
 
     const { id } = await params
 
-    const parsed = bodySchema.safeParse(await req.json())
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }, { status: 400 })
-    }
-    const { firmaUrl, lat, lng, precisionM, settlement } = parsed.data
+    const rawBody: unknown = await req.json()
 
     const [pedido] = await db
       .select({
         id: pedidos.id,
         estado: pedidos.estado,
         saldoPendiente: pedidos.saldoPendiente,
+        metodoEntrega: pedidos.metodoEntrega,
       })
       .from(pedidos)
       .where(and(eq(pedidos.id, id), isNull(pedidos.deletedAt)))
@@ -62,6 +66,56 @@ export async function PATCH(
 
     const registradoPor = session.user.id ?? null
     if (!registradoPor) throw new AuthzError('Usuario sin ID')
+
+    const isExpreso = pedido.metodoEntrega === 'expreso'
+
+    if (isExpreso) {
+      // ── Entrega de expreso: solo requiere foto del remito firmado ──────────
+      const parsed = expresoSchema.safeParse(rawBody)
+      if (!parsed.success) {
+        const message = parsed.error.errors[0]?.message ?? 'Datos inválidos'
+        return NextResponse.json({ error: message }, { status: 400 })
+      }
+      const { remitoFotoUrl, lat, lng, precisionM } = parsed.data
+
+      let updated: typeof pedidos.$inferSelect | undefined
+      try {
+        const rows = await db
+          .update(pedidos)
+          .set({
+            estado: 'entregado' as const,
+            entregadoAt: new Date(),
+            entregadoPor: registradoPor,
+            remitoFotoUrl,
+            entregaLat: lat ?? null,
+            entregaLng: lng ?? null,
+            entregaPrecisionM: precisionM ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(pedidos.id, id))
+          .returning()
+        updated = rows[0]
+      } catch (dbErr) {
+        const pgCode = (dbErr as { code?: string }).code
+        const pgMsg = (dbErr as Error).message ?? ''
+        if (pgCode === '42703' || pgMsg.includes('does not exist')) {
+          return NextResponse.json(
+            { error: 'Error de base de datos: columna remito_foto_url no encontrada. Aplicar migración 0040.' },
+            { status: 503 },
+          )
+        }
+        throw dbErr
+      }
+
+      return NextResponse.json({ data: updated })
+    }
+
+    // ── Entrega de camioneta: requiere settlement + firmaUrl ───────────────
+    const parsed = camionetaSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }, { status: 400 })
+    }
+    const { firmaUrl, lat, lng, precisionM, settlement } = parsed.data
 
     const entregaFields = {
       estado: 'entregado' as const,
@@ -88,7 +142,6 @@ export async function PATCH(
       })
     }
 
-    // Mark delivered (for both efectivo and a_cuenta)
     let updated: typeof pedidos.$inferSelect | undefined
     try {
       const rows = await db

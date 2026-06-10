@@ -281,6 +281,13 @@
       "when": 1781115996596,
       "tag": "0039_happy_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781121630379,
+      "tag": "0040_lush_owl",
+      "breakpoints": true
     }
   ]
 }
