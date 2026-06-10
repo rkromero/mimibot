@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const rows = await db.query.pedidos.findMany({
       where: and(inArray(pedidos.id, ids), isNull(pedidos.deletedAt)),
-      columns: { id: true, estado: true, esReparto: true },
+      columns: { id: true, estado: true, esReparto: true, metodoEntrega: true },
     })
 
     const rowMap = new Map(rows.map((r) => [r.id, r]))
@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
         omitidos.push({ id, motivo: `Estado inválido: '${row.estado}' (se requiere 'listo_para_repartir')` })
         continue
       }
-      if (!row.esReparto) {
-        omitidos.push({ id, motivo: 'No es pedido de camioneta (esReparto=false)' })
+      if (!row.esReparto && row.metodoEntrega !== 'expreso') {
+        omitidos.push({ id, motivo: 'Solo se pueden aceptar pedidos de camioneta o expreso' })
         continue
       }
       elegibles.push(id)

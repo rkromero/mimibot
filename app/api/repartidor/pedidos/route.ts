@@ -15,11 +15,20 @@ export async function GET() {
       throw new AuthzError('Solo repartidor, admin o gerente pueden acceder a este endpoint')
     }
 
+    // Repartidores ven solo sus pedidos aceptados; admin/gerente ven todos
+    const whereClause = role === 'repartidor'
+      ? and(
+          isNull(pedidos.deletedAt),
+          eq(pedidos.estado, 'en_reparto'),
+          eq(pedidos.repartidorId, session.user.id),
+        )
+      : and(
+          isNull(pedidos.deletedAt),
+          eq(pedidos.estado, 'en_reparto'),
+        )
+
     const data = await db.query.pedidos.findMany({
-      where: and(
-        isNull(pedidos.deletedAt),
-        eq(pedidos.estado, 'en_reparto'),
-      ),
+      where: whereClause,
       orderBy: [desc(pedidos.fecha)],
       columns: {
         id: true,
@@ -28,6 +37,10 @@ export async function GET() {
         saldoPendiente: true,
         estado: true,
         estadoPago: true,
+        esReparto: true,
+        metodoEntrega: true,
+        expresoNombre: true,
+        expresoDireccion: true,
       },
       with: {
         cliente: {

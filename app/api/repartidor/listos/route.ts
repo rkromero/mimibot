@@ -19,13 +19,16 @@ export async function GET() {
       where: and(
         isNull(pedidos.deletedAt),
         eq(pedidos.estado, 'listo_para_repartir'),
-        eq(pedidos.esReparto, true),
       ),
       orderBy: [desc(pedidos.fecha)],
       columns: {
         id: true,
         fecha: true,
         total: true,
+        esReparto: true,
+        metodoEntrega: true,
+        expresoNombre: true,
+        expresoDireccion: true,
       },
       with: {
         cliente: {
@@ -51,17 +54,18 @@ export async function GET() {
       },
     })
 
-    // Fase 2 ORS: separar pedidos con/sin coordenadas para el cálculo de ruta.
-    // Los pedidos cuyo cliente no tiene lat/lng o tiene geocodeStatus='failed'
-    // se excluyen del cálculo de ruta y se listan aparte para corrección.
-    const conUbicacion = todos.filter(
+    const camioneta = todos.filter((p) => p.esReparto)
+    const expreso = todos.filter((p) => !p.esReparto && p.metodoEntrega === 'expreso')
+
+    // conUbicacion / sinUbicacion solo aplican a camioneta (para el cálculo de ruta)
+    const conUbicacion = camioneta.filter(
       (p) => p.cliente?.lat != null && p.cliente?.lng != null && p.cliente?.geocodeStatus !== 'failed',
     )
-    const sinUbicacion = todos.filter(
+    const sinUbicacion = camioneta.filter(
       (p) => p.cliente?.lat == null || p.cliente?.lng == null || p.cliente?.geocodeStatus === 'failed',
     )
 
-    return NextResponse.json({ data: todos, conUbicacion, sinUbicacion })
+    return NextResponse.json({ camioneta, expreso, conUbicacion, sinUbicacion })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
