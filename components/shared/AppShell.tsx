@@ -45,37 +45,113 @@ export default function AppShell({ user, children }: Props) {
   }, [])
 
   if (user.role === 'fabrica') {
+    const fabricaGroups = filterGroups('fabrica')
     return (
-      <div className="flex h-screen bg-background overflow-hidden">
-        {/* Desktop: sidebar lateral — el propio Sidebar aplica hidden md:flex */}
-        <Sidebar user={user} />
+      <>
+        <div className="flex h-screen bg-background overflow-hidden">
+          {/* Desktop: sidebar lateral — el propio Sidebar aplica hidden md:flex */}
+          <Sidebar user={user} />
 
-        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-          {/* Mobile-only header */}
-          <header className="md:hidden h-14 flex items-center px-6 border-b border-border bg-card shrink-0">
-            <span className="text-base font-semibold text-foreground flex-1">
-              Mimi Alfajores — Fábrica
-            </span>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {user.name ?? user.email}
-              </span>
+          <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+            {/* Mobile-only header */}
+            <header className="md:hidden h-12 flex items-center px-4 border-b border-border bg-card shrink-0">
               <button
-                onClick={() => signOut({ callbackUrl: '/login' })}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-accent transition-colors"
-                title="Cerrar sesión"
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                className="p-1 -ml-1 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Abrir menú"
               >
-                <LogOut size={15} />
-                Salir
+                <Menu size={20} />
               </button>
-            </div>
-          </header>
+              <span className="flex-1 text-center text-sm font-semibold text-foreground">
+                Mimi Alfajores
+              </span>
+              <span className="w-7" aria-hidden />
+            </header>
 
-          <main className="flex-1 min-w-0 overflow-hidden">
-            {children}
-          </main>
+            <main className="flex-1 min-w-0 overflow-hidden">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+
+        {/* Mobile drawer — same pattern as other roles */}
+        {drawerOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-50 bg-black/40 md:hidden"
+              onClick={() => setDrawerOpen(false)}
+              aria-hidden
+            />
+            <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-card border-r border-border flex flex-col md:hidden">
+              <div className="h-12 flex items-center px-4 border-b border-border shrink-0">
+                <span className="flex-1 text-sm font-semibold text-foreground">Mimi Alfajores</span>
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Cerrar menú"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <nav className="flex-1 py-2 px-2 overflow-y-auto" aria-label="Navegación">
+                {fabricaGroups.map((group, gi) => (
+                  <div key={group.label} className={cn('pb-1', gi > 0 && 'pt-3')}>
+                    <p className="px-2.5 pb-0.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      {group.label}
+                    </p>
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => {
+                        const Icon = item.icon
+                        const isActive = pathname.startsWith(item.href)
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setDrawerOpen(false)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={cn(
+                              'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors duration-100',
+                              isActive
+                                ? 'bg-accent text-foreground font-medium'
+                                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                            )}
+                          >
+                            <Icon size={15} strokeWidth={1.75} />
+                            {item.label}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+
+              <div className="border-t border-border p-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Avatar name={user.name ?? user.email} color={user.avatarColor} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {user.name ?? 'Sin nombre'}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                  </div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/login' })}
+                    className="p-1 text-muted-foreground hover:text-foreground transition-colors duration-100"
+                    title="Cerrar sesión"
+                    aria-label="Cerrar sesión"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </>
+        )}
+      </>
     )
   }
 
