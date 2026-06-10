@@ -369,7 +369,7 @@ export async function pctCobranzaDelPeriodo(
       .where(
         and(
           eq(pedidos.vendedorId, vendedorId),
-          eq(pedidos.estado, 'confirmado'),
+          inArray(pedidos.estado, ['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado']),
           gte(pedidos.fecha, start),
           lt(pedidos.fecha, end),
           isNull(pedidos.deletedAt),
@@ -381,7 +381,7 @@ export async function pctCobranzaDelPeriodo(
       .where(
         and(
           eq(pedidos.vendedorId, vendedorId),
-          eq(pedidos.estado, 'confirmado'),
+          inArray(pedidos.estado, ['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado']),
           gte(pedidos.fecha, start),
           lt(pedidos.fecha, end),
           isNull(pedidos.deletedAt),
@@ -410,7 +410,7 @@ export async function pctPedidosPagadosDelPeriodo(
       .where(
         and(
           eq(pedidos.vendedorId, vendedorId),
-          eq(pedidos.estado, 'confirmado'),
+          inArray(pedidos.estado, ['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado']),
           gte(pedidos.fecha, start),
           lt(pedidos.fecha, end),
           isNull(pedidos.deletedAt),
@@ -422,7 +422,7 @@ export async function pctPedidosPagadosDelPeriodo(
       .where(
         and(
           eq(pedidos.vendedorId, vendedorId),
-          eq(pedidos.estado, 'confirmado'),
+          inArray(pedidos.estado, ['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado']),
           eq(pedidos.estadoPago, 'pagado'),
           gte(pedidos.fecha, start),
           lt(pedidos.fecha, end),
