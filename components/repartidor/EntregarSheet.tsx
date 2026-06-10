@@ -1,20 +1,21 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  CheckCircle, Loader2, AlertCircle, X, QrCode, Banknote, Clock, ChevronLeft,
+  CheckCircle, Loader2, AlertCircle, X, QrCode, Banknote, Clock, ChevronLeft, Camera, ImagePlus,
 } from 'lucide-react'
 import BottomSheet from '@/components/shared/BottomSheet'
 import SignaturePad from '@/components/shared/SignaturePad'
 import { useToast } from '@/components/shared/ToastProvider'
 
-type Step = 'firma' | 'metodo' | 'efectivo' | 'a_cuenta' | 'qr' | 'paid' | 'partial'
+type Step = 'firma' | 'metodo' | 'efectivo' | 'a_cuenta' | 'qr' | 'paid' | 'partial' | 'foto_remito'
 type GpsCoords = { lat: number; lng: number; precisionM: number }
 
 type Props = {
   pedidoId: string
   clienteNombre: string
   saldoPendiente: string
+  metodoEntrega?: string | null
   open: boolean
   onClose: () => void
   onDelivered: () => void
@@ -28,6 +29,7 @@ const TITLES: Record<Step, string> = {
   qr: 'Cobrar con QR',
   paid: '¡Entrega confirmada!',
   partial: 'Entrega confirmada',
+  foto_remito: 'Foto del remito firmado',
 }
 
 function formatMoney(v: string | number) {
@@ -92,10 +94,11 @@ function BackBtn({ onClick, disabled }: { onClick: () => void; disabled: boolean
 }
 
 export default function EntregarSheet({
-  pedidoId, clienteNombre, saldoPendiente, open, onClose, onDelivered,
+  pedidoId, clienteNombre, saldoPendiente, metodoEntrega, open, onClose, onDelivered,
 }: Props) {
   const toast = useToast()
-  const [step, setStep] = useState<Step>('firma')
+  const isExpreso = metodoEntrega === 'expreso'
+  const [step, setStep] = useState<Step>(isExpreso ? 'foto_remito' : 'firma')
   const [signature, setSignature] = useState<string | null>(null)
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null)
   const gpsRef = useRef<Promise<GpsCoords | null>>(Promise.resolve(null))
@@ -105,6 +108,10 @@ export default function EntregarSheet({
   const [montoStr, setMontoStr] = useState('')
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [partialSaldo, setPartialSaldo] = useState<string | null>(null)
+  // Expreso: foto del remito
+  const fotoInputRef = useRef<HTMLInputElement | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
 
   function stopPolling() {
     if (pollingRef.current) {
@@ -117,7 +124,7 @@ export default function EntregarSheet({
   useEffect(() => {
     if (!open) {
       stopPolling()
-      setStep('firma')
+      setStep(isExpreso ? 'foto_remito' : 'firma')
       setSignature(null)
       setFirmaUrl(null)
       gpsRef.current = Promise.resolve(null)
@@ -126,6 +133,8 @@ export default function EntregarSheet({
       setMontoStr('')
       setQrDataUrl(null)
       setPartialSaldo(null)
+      setFotoPreview(null)
+      setFotoFile(null)
     }
     return () => stopPolling()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,6 +144,51 @@ export default function EntregarSheet({
   useEffect(() => {
     if (open) gpsRef.current = startGps()
   }, [open])
+
+  // ── Expreso: foto remito ──────────────────────────────────────────────────────
+
+  const handleFotoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFotoFile(file)
+    setFotoPreview(URL.createObjectURL(file))
+    setErrorMsg(null)
+  }, [])
+
+  async function handleEntregarExpreso() {
+    if (!fotoFile) return
+    setLoading(true)
+    setErrorMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', fotoFile, fotoFile.name)
+      const uploadRes = await fetch('/api/repartidor/upload-firma', { method: 'POST', body: fd })
+      if (!uploadRes.ok) {
+        const json = await uploadRes.json().catch(() => ({})) as { error?: string }
+        throw new Error(json.error ?? 'Error al subir la foto del remito')
+      }
+      const { r2Key } = await uploadRes.json() as { r2Key: string }
+
+      const gps = await gpsRef.current
+      const body: Record<string, unknown> = { remitoFotoUrl: r2Key }
+      if (gps) { body.lat = gps.lat; body.lng = gps.lng; body.precisionM = gps.precisionM }
+
+      const res = await fetch(`/api/repartidor/pedidos/${pedidoId}/entregar`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(json.error ?? 'Error al confirmar entrega')
+      }
+      setStep('paid')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Error inesperado')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // ── Step 1: firma ────────────────────────────────────────────────────────────
 
@@ -526,6 +580,83 @@ export default function EntregarSheet({
               Continuar
             </button>
           </div>
+        )}
+
+        {/* ── FOTO REMITO (expreso) ── */}
+        {step === 'foto_remito' && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Sacá una foto del remito firmado por{' '}
+              <span className="font-medium text-foreground">{clienteNombre}</span>:
+            </p>
+
+            {/* Preview or capture button */}
+            {fotoPreview ? (
+              <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fotoPreview}
+                  alt="Vista previa del remito"
+                  className="w-full max-h-64 object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setFotoPreview(null); setFotoFile(null) }}
+                  disabled={loading}
+                  aria-label="Sacar otra foto"
+                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors disabled:opacity-50"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fotoInputRef.current?.click()}
+                disabled={loading}
+                className="w-full min-h-[120px] rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-muted/30 hover:bg-muted/50 active:bg-muted/70 transition-all flex flex-col items-center justify-center gap-2 text-muted-foreground disabled:opacity-50"
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Camera size={24} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <span className="text-sm font-medium">Tomar foto del remito</span>
+                <span className="text-xs flex items-center gap-1">
+                  <ImagePlus size={12} />
+                  O elegir desde la galería
+                </span>
+              </button>
+            )}
+
+            {/* Hidden file input — opens camera on mobile */}
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={handleFotoChange}
+            />
+
+            {errorMsg && <ErrorBox msg={errorMsg} />}
+
+            <button
+              type="button"
+              onClick={() => void handleEntregarExpreso()}
+              disabled={!fotoFile || loading}
+              className="w-full min-h-[52px] bg-blue-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2.5 text-base disabled:opacity-50 active:scale-[0.98] transition-all hover:bg-blue-700"
+            >
+              {loading
+                ? <><Loader2 size={20} className="animate-spin" /> Subiendo y confirmando...</>
+                : <><CheckCircle size={20} /> Confirmar entrega</>
+              }
+            </button>
+
+            {!fotoFile && (
+              <p className="text-xs text-center text-muted-foreground">
+                La foto del remito firmado es requerida para confirmar la entrega
+              </p>
+            )}
+          </>
         )}
 
         {/* ── PAGO PARCIAL ── */}

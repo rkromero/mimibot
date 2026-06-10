@@ -27,11 +27,12 @@ export type Pedido = {
   fecha: string
   total: string
   saldoPendiente: string
+  metodoEntrega: string | null
   cliente: Cliente
   items: Item[]
 }
 
-export default function PedidoCard({ id, fecha, total, saldoPendiente, cliente, items }: Pedido) {
+export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEntrega, cliente, items }: Pedido) {
   const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
@@ -172,6 +173,7 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, cliente, 
         pedidoId={id}
         clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
         saldoPendiente={saldoPendiente}
+        metodoEntrega={metodoEntrega}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         onDelivered={dismissCard}
