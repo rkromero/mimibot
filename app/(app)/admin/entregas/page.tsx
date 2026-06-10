@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, ImageIcon, Loader2, AlertCircle, DollarSign, MapPin } from 'lucide-react'
+import { X, ImageIcon, Loader2, AlertCircle, DollarSign, MapPin, Check, AlertTriangle } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { useToast } from '@/components/shared/ToastProvider'
@@ -39,10 +39,20 @@ type MetodoPagoEntry = {
   total: string
 }
 
+type RendicionValidacion = {
+  id: string
+  repartidorId: string
+  fecha: string
+  efectivoEsperado: string
+  efectivoRecibido: string
+  diferencia: string
+}
+
 type ApiResponse = {
   data: Entrega[]
   repartidores: Repartidor[]
   metodosPago: MetodoPagoEntry[]
+  validaciones: RendicionValidacion[]
 }
 
 type PagoResult = {
@@ -250,6 +260,117 @@ function PagoModal({ entrega, onClose }: { entrega: Entrega; onClose: () => void
   )
 }
 
+function ValidarModal({
+  repartidorId,
+  repartidorNombre,
+  fecha,
+  efectivoEsperado,
+  onClose,
+  onSuccess,
+}: {
+  repartidorId: string
+  repartidorNombre: string
+  fecha: string
+  efectivoEsperado: number
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [monto, setMonto] = useState(efectivoEsperado.toFixed(2))
+  const [lastError, setLastError] = useState<string | null>(null)
+  const toast = useToast()
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/admin/rendicion-validacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repartidorId,
+          fecha,
+          efectivoEsperado,
+          efectivoRecibido: parseFloat(monto),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(err.error ?? 'Error al validar')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      toast.success('Rendición validada')
+      onSuccess()
+      onClose()
+    },
+    onError: (err) => {
+      setLastError(err instanceof Error ? err.message : 'Error al validar')
+    },
+  })
+
+  const montoNum = parseFloat(monto)
+  const isValid = !isNaN(montoNum) && montoNum >= 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-card rounded-2xl shadow-2xl max-w-sm w-full p-5 relative" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} disabled={isPending} className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-accent text-muted-foreground transition-colors" aria-label="Cerrar">
+          <X size={16} />
+        </button>
+        <h3 className="font-semibold text-base mb-0.5">Validar cierre de caja</h3>
+        <p className="text-sm text-muted-foreground mb-4">{repartidorNombre} · {fecha}</p>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 rounded-md text-sm">
+            <span className="text-muted-foreground">Debería traer</span>
+            <span className="font-semibold tabular-nums">{formatMoney(efectivoEsperado)}</span>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Efectivo recibido</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={monto}
+              onChange={(e) => { setMonto(e.target.value); setLastError(null) }}
+              className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              autoFocus
+            />
+          </div>
+
+          {isValid && montoNum !== efectivoEsperado && (
+            <p className={`text-xs mt-1 ${montoNum < efectivoEsperado ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              {montoNum < efectivoEsperado
+                ? `Faltante: ${formatMoney(efectivoEsperado - montoNum)}`
+                : `Sobrante: ${formatMoney(montoNum - efectivoEsperado)}`}
+            </p>
+          )}
+
+          {lastError && (
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+              <AlertCircle size={15} className="shrink-0 mt-0.5" />
+              <span>{lastError}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-2 text-sm rounded-md border border-border text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50">
+            Cancelar
+          </button>
+          <button
+            onClick={() => mutate()}
+            disabled={!isValid || isPending}
+            className="flex-1 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isPending && <Loader2 size={14} className="animate-spin" />}
+            {isPending ? 'Guardando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type RendicionRow = {
   repartidorId: string | null
   repartidorNombre: string
@@ -261,7 +382,23 @@ type RendicionRow = {
   qr: number
 }
 
-function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodosPago: MetodoPagoEntry[] }) {
+function RendicionTable({
+  entregas,
+  metodosPago,
+  validaciones,
+  desde,
+  hasta,
+  onRefetch,
+}: {
+  entregas: Entrega[]
+  metodosPago: MetodoPagoEntry[]
+  validaciones: RendicionValidacion[]
+  desde: string
+  hasta: string
+  onRefetch: () => void
+}) {
+  const [validarRow, setValidarRow] = useState<RendicionRow | null>(null)
+  const esDiaUnico = desde === hasta
   const rows = useMemo<RendicionRow[]>(() => {
     const map = new Map<string, RendicionRow>()
     for (const e of entregas) {
@@ -307,6 +444,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
   if (rows.length === 0) return null
 
   return (
+    <>
     <div className="bg-card border border-border rounded-lg overflow-hidden mb-5">
       <div className="px-4 py-2.5 border-b border-border bg-muted/40">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rendición por repartidor</p>
@@ -315,25 +453,63 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {['Repartidor', 'Entregas', 'Entregado', 'Cobrado', 'Pendiente', 'Efectivo ↑', 'QR ↑'].map((h, i) => (
-                <th key={h} className={`px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? 'text-left' : 'text-right'}`}>
+              {['Repartidor', 'Entregas', 'Entregado', 'Cobrado', 'Pendiente', 'Efectivo ↑', 'QR ↑', 'Validación'].map((h, i) => (
+                <th key={h} className={`px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? 'text-left' : i === 7 ? 'text-center' : 'text-right'}`}>
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.map((r) => (
-              <tr key={r.repartidorId ?? 'none'} className="hover:bg-muted/20">
-                <td className="px-4 py-2.5 font-medium">{r.repartidorNombre}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums">{r.count}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.totalEntregado)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-green-700 dark:text-green-400 font-medium">{formatMoney(r.totalCobrado)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-red-700 dark:text-red-400 font-medium">{formatMoney(r.totalPendiente)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-blue-700 dark:text-blue-400 font-medium">{formatMoney(r.efectivo)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400 font-medium">{formatMoney(r.qr)}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const val = r.repartidorId
+                ? validaciones.find((v) => v.repartidorId === r.repartidorId && v.fecha === desde)
+                : undefined
+              const dif = val ? parseFloat(val.diferencia) : null
+
+              return (
+                <tr key={r.repartidorId ?? 'none'} className="hover:bg-muted/20">
+                  <td className="px-4 py-2.5 font-medium">{r.repartidorNombre}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{r.count}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.totalEntregado)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-green-700 dark:text-green-400 font-medium">{formatMoney(r.totalCobrado)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-red-700 dark:text-red-400 font-medium">{formatMoney(r.totalPendiente)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-blue-700 dark:text-blue-400 font-medium">{formatMoney(r.efectivo)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400 font-medium">{formatMoney(r.qr)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    {val ? (
+                      <div className="inline-flex items-center gap-1.5 flex-wrap justify-center">
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium ${dif === 0 ? 'text-green-700 dark:text-green-400' : dif! < 0 ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                          {dif === 0
+                            ? <><Check size={13} />Validado ✓</>
+                            : dif! < 0
+                              ? <><AlertTriangle size={13} />Faltante {formatMoney(Math.abs(dif!))}</>
+                              : <><AlertTriangle size={13} />Sobrante {formatMoney(dif!)}</>
+                          }
+                        </span>
+                        <button
+                          onClick={() => r.repartidorId && setValidarRow(r)}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                        >
+                          Re-validar
+                        </button>
+                      </div>
+                    ) : r.repartidorId ? (
+                      <button
+                        onClick={() => esDiaUnico && setValidarRow(r)}
+                        disabled={!esDiaUnico}
+                        title={!esDiaUnico ? 'Seleccioná un solo día para validar' : undefined}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Validar
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-muted/30 font-semibold">
@@ -344,11 +520,24 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
               <td className="px-4 py-2.5 text-right tabular-nums text-red-700 dark:text-red-400">{formatMoney(totales.totalPendiente)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoney(totales.efectivo)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400">{formatMoney(totales.qr)}</td>
+              <td className="px-4 py-2.5" />
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
+
+    {validarRow?.repartidorId && (
+      <ValidarModal
+        repartidorId={validarRow.repartidorId}
+        repartidorNombre={validarRow.repartidorNombre}
+        fecha={desde}
+        efectivoEsperado={validarRow.efectivo}
+        onClose={() => setValidarRow(null)}
+        onSuccess={onRefetch}
+      />
+    )}
+    </>
   )
 }
 
@@ -371,6 +560,7 @@ export default function AdminEntregasPage() {
   const entregas = useMemo(() => data?.data ?? [], [data])
   const repartidores = useMemo(() => data?.repartidores ?? [], [data])
   const metodosPago = useMemo(() => data?.metodosPago ?? [], [data])
+  const validaciones = useMemo(() => data?.validaciones ?? [], [data])
 
   const totalSum = useMemo(() => entregas.reduce((acc, e) => acc + parseFloat(e.total || '0'), 0), [entregas])
   const totalCobrado = useMemo(() => entregas.reduce((acc, e) => acc + parseFloat(e.montoPagado || '0'), 0), [entregas])
@@ -447,7 +637,16 @@ export default function AdminEntregasPage() {
       )}
 
       {/* Rendición por repartidor */}
-      {!isLoading && !isError && <RendicionTable entregas={entregas} metodosPago={metodosPago} />}
+      {!isLoading && !isError && (
+        <RendicionTable
+          entregas={entregas}
+          metodosPago={metodosPago}
+          validaciones={validaciones}
+          desde={desde}
+          hasta={hasta}
+          onRefetch={() => void refetch()}
+        />
+      )}
 
       {/* Table */}
       {isError ? (

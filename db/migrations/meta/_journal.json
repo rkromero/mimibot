@@ -274,6 +274,13 @@
       "when": 1780950791613,
       "tag": "0038_open_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781115996596,
+      "tag": "0039_happy_zodiak",
+      "breakpoints": true
     }
   ]
 }

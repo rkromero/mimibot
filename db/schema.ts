@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   pgTable, pgEnum, text, timestamp, boolean, integer,
-  decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision,
+  decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision, date,
 } from 'drizzle-orm/pg-core'
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -650,6 +650,24 @@ export const metas = pgTable('metas', {
   uniqueIndex('metas_vendedor_periodo_idx').on(t.vendedorId, t.periodoAnio, t.periodoMes),
   index('metas_periodo_idx').on(t.periodoAnio, t.periodoMes),
   index('metas_vendedor_idx').on(t.vendedorId),
+])
+
+// ─── Rendición: validación de cierre de caja ──────────────────────────────────
+
+export const rendicionValidaciones = pgTable('rendicion_validaciones', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  repartidorId: uuid('repartidor_id').notNull().references(() => users.id),
+  fecha: date('fecha').notNull(),
+  efectivoEsperado: decimal('efectivo_esperado', { precision: 12, scale: 2 }).notNull(),
+  efectivoRecibido: decimal('efectivo_recibido', { precision: 12, scale: 2 }).notNull(),
+  diferencia: decimal('diferencia', { precision: 12, scale: 2 }).notNull(),
+  validadoPor: uuid('validado_por').notNull().references(() => users.id),
+  validadoAt: timestamp('validado_at', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('rendicion_validaciones_repartidor_fecha_idx').on(t.repartidorId, t.fecha),
+  index('rendicion_validaciones_fecha_idx').on(t.fecha),
 ])
 
 // ─── Auditoría de correcciones de metas ───────────────────────────────────────

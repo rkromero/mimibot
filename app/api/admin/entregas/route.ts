@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { requireAdminOrGerente } from '@/lib/authz'
 import { db } from '@/db'
-import { pedidos, clientes, users, movimientosCC } from '@/db/schema'
+import { pedidos, clientes, users, movimientosCC, rendicionValidaciones } from '@/db/schema'
 import { eq, and, isNull, gte, lte, desc, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { toApiError } from '@/lib/errors'
@@ -40,7 +40,12 @@ export async function GET(req: NextRequest) {
     if (hasta) metodosConditions.push(lte(pedidos.entregadoAt, new Date(`${hasta}T23:59:59.999Z`)))
     if (repartidorId) metodosConditions.push(eq(pedidos.entregadoPor, repartidorId))
 
-    const [data, repartidores, metodosPago] = await Promise.all([
+    const validacionesConditions = []
+    if (desde) validacionesConditions.push(gte(rendicionValidaciones.fecha, desde))
+    if (hasta) validacionesConditions.push(lte(rendicionValidaciones.fecha, hasta))
+    if (repartidorId) validacionesConditions.push(eq(rendicionValidaciones.repartidorId, repartidorId))
+
+    const [data, repartidores, metodosPago, validaciones] = await Promise.all([
       db
         .select({
           id: pedidos.id,
@@ -83,9 +88,13 @@ export async function GET(req: NextRequest) {
         .innerJoin(pedidos, eq(movimientosCC.pedidoId, pedidos.id))
         .where(and(...metodosConditions))
         .groupBy(pedidos.entregadoPor, movimientosCC.metodoPago),
+
+      validacionesConditions.length > 0
+        ? db.select().from(rendicionValidaciones).where(and(...validacionesConditions))
+        : db.select().from(rendicionValidaciones),
     ])
 
-    return NextResponse.json({ data, repartidores, metodosPago })
+    return NextResponse.json({ data, repartidores, metodosPago, validaciones })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
