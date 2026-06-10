@@ -45,13 +45,13 @@ export default function RepartidorPage() {
   })
 
   // Share the same cache key used by ListoParaRepartirView for the count badge
-  const { data: listosData } = useQuery<{ data: unknown[] }>({
+  const { data: listosData } = useQuery<{ camioneta: unknown[]; expreso: unknown[] }>({
     queryKey: ['repartidor-listos'],
-    queryFn: () => fetch('/api/repartidor/listos').then((r) => r.json()) as Promise<{ data: unknown[] }>,
+    queryFn: () => fetch('/api/repartidor/listos').then((r) => r.json()) as Promise<{ camioneta: unknown[]; expreso: unknown[] }>,
     refetchInterval: 60_000,
   })
 
-  const listosCount = listosData?.data.length ?? 0
+  const listosCount = (listosData?.camioneta?.length ?? 0) + (listosData?.expreso?.length ?? 0)
   const rutaCount = rutaData?.length ?? 0
 
   return (
