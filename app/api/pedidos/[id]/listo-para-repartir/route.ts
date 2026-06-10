@@ -25,7 +25,7 @@ export async function POST(
 
     const current = await db.query.pedidos.findFirst({
       where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)),
-      columns: { id: true, estado: true, esReparto: true },
+      columns: { id: true, estado: true, esReparto: true, metodoEntrega: true },
     })
     if (!current) throw new NotFoundError('Pedido')
 
@@ -35,9 +35,9 @@ export async function POST(
       )
     }
 
-    if (!current.esReparto) {
+    if (!current.esReparto && current.metodoEntrega !== 'expreso') {
       throw new ConflictError(
-        'Este pedido no es de camioneta (esReparto=false). Los pedidos de expreso/retiro no pasan por listo_para_repartir.',
+        'Solo pedidos de camioneta o expreso pueden pasar a listo_para_repartir.',
       )
     }
 

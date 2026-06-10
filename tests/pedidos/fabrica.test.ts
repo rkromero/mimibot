@@ -210,6 +210,87 @@ describe('POST /api/pedidos/[id]/en-reparto', () => {
   })
 })
 
+describe('POST /api/pedidos/[id]/listo-para-repartir', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('camioneta (esReparto=true) en confirmado → 200 + listo_para_repartir', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('fabrica'))
+    mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'confirmado', esReparto: true, metodoEntrega: null })
+    makeUpdateChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir' }])
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+    const body = await res.json() as { data: { estado: string } }
+
+    expect(res.status).toBe(200)
+    expect(body.data.estado).toBe('listo_para_repartir')
+  })
+
+  it('expreso (metodoEntrega=expreso) en confirmado → 200 + listo_para_repartir', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('fabrica'))
+    mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'confirmado', esReparto: false, metodoEntrega: 'expreso' })
+    makeUpdateChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir' }])
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+    const body = await res.json() as { data: { estado: string } }
+
+    expect(res.status).toBe(200)
+    expect(body.data.estado).toBe('listo_para_repartir')
+  })
+
+  it('expreso sin foto enviado — no se registra pago (no llama a ningún servicio de pago)', async () => {
+    // Este test verifica que el endpoint listo-para-repartir no toca pago en absoluto
+    mockAuthFn.mockResolvedValue(makeSession('fabrica'))
+    mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'confirmado', esReparto: false, metodoEntrega: 'expreso' })
+    makeUpdateChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir' }])
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+
+    // El update solo debe llamarse una vez (el estado), sin ningún insert de pago
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('retiro_fabrica (esReparto=false, metodoEntrega=retiro_fabrica) → 409', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('fabrica'))
+    mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'confirmado', esReparto: false, metodoEntrega: 'retiro_fabrica' })
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+
+    expect(res.status).toBe(409)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('expreso en estado listo_para_repartir (ya procesado) → 409', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('fabrica'))
+    mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'listo_para_repartir', esReparto: false, metodoEntrega: 'expreso' })
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+
+    expect(res.status).toBe(409)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('vendedor → 403', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('vendedor'))
+
+    const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
+    const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
+    const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+
+    expect(res.status).toBe(403)
+    expect(mockPedidosFindFirst).not.toHaveBeenCalled()
+  })
+})
+
 describe('GET /api/pedidos — rol fábrica', () => {
   beforeEach(() => { vi.clearAllMocks() })
 

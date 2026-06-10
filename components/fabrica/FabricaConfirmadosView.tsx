@@ -134,11 +134,8 @@ function EntregaInfo({ pedido }: { pedido: PedidoFabrica }) {
 type ActionCellProps = {
   pedido: PedidoFabrica
   confirmListoId: string | null
-  confirmEnRepartoId: string | null
   setConfirmListoId: (id: string | null) => void
-  setConfirmEnRepartoId: (id: string | null) => void
   mutateListoParaRepartir: { mutate: (id: string) => void; isPending: boolean }
-  mutateEnReparto: { mutate: (id: string) => void; isPending: boolean }
   generarDocumento: (id: string, tipo: DocTipo) => void
   isGenerating: (id: string, tipo: DocTipo) => boolean
   anyGenerating: (id: string) => boolean
@@ -147,15 +144,16 @@ type ActionCellProps = {
 function ActionCell({
   pedido,
   confirmListoId,
-  confirmEnRepartoId,
   setConfirmListoId,
-  setConfirmEnRepartoId,
   mutateListoParaRepartir,
-  mutateEnReparto,
   generarDocumento,
   isGenerating,
   anyGenerating,
 }: ActionCellProps) {
+  const isExpreso = pedido.metodoEntrega === 'expreso'
+  const isCamioneta = pedido.esReparto
+  const needsListo = isCamioneta || isExpreso
+
   return (
     <div className="flex items-center gap-1.5 flex-nowrap">
       <button
@@ -188,13 +186,18 @@ function ActionCell({
 
       {pedido.estado === 'listo_para_repartir' ? (
         <span className="text-xs text-muted-foreground italic">Esperando repartidor</span>
-      ) : pedido.esReparto ? (
+      ) : needsListo ? (
         confirmListoId === pedido.id ? (
           <div className="flex items-center gap-1">
             <button
               onClick={() => mutateListoParaRepartir.mutate(pedido.id)}
               disabled={mutateListoParaRepartir.isPending}
-              className="px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              className={cn(
+                'px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50',
+                isExpreso
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700',
+              )}
             >
               {mutateListoParaRepartir.isPending ? '...' : 'Confirmar'}
             </button>
@@ -209,38 +212,18 @@ function ActionCell({
         ) : (
           <button
             onClick={() => setConfirmListoId(pedido.id)}
-            className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 transition-colors"
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+              isExpreso
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700',
+            )}
           >
-            <CheckCircle2 size={11} />
-            Listo p/repartir
+            {isExpreso ? <Send size={11} /> : <CheckCircle2 size={11} />}
+            {isExpreso ? 'Listo expreso' : 'Listo p/repartir'}
           </button>
         )
-      ) : confirmEnRepartoId === pedido.id ? (
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => mutateEnReparto.mutate(pedido.id)}
-            disabled={mutateEnReparto.isPending}
-            className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {mutateEnReparto.isPending ? '...' : 'Confirmar'}
-          </button>
-          <button
-            onClick={() => setConfirmEnRepartoId(null)}
-            disabled={mutateEnReparto.isPending}
-            className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setConfirmEnRepartoId(pedido.id)}
-          className="flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Truck size={11} />
-          En reparto
-        </button>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -249,7 +232,6 @@ export default function FabricaConfirmadosView() {
   const qc = useQueryClient()
   const toast = useToast()
   const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
-  const [confirmEnRepartoId, setConfirmEnRepartoId] = useState<string | null>(null)
   const [confirmListoId, setConfirmListoId] = useState<string | null>(null)
 
   const { data, isLoading, isError, refetch } = useQuery<{ data: PedidoFabrica[] }>({
@@ -257,28 +239,6 @@ export default function FabricaConfirmadosView() {
     queryFn: () =>
       fetch('/api/fabrica/pedidos?estado=confirmado,listo_para_repartir').then((r) => r.json()),
     staleTime: 30_000,
-  })
-
-  const mutateEnReparto = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/pedidos/${id}/en-reparto`, { method: 'POST' })
-      if (!res.ok) {
-        const body = await res.json() as { error?: string }
-        throw new Error(body.error ?? 'Error al actualizar el pedido')
-      }
-      return id
-    },
-    onSuccess: (id) => {
-      qc.setQueryData(['fabrica', 'confirmado'], (old: { data: PedidoFabrica[] } | undefined) => ({
-        data: (old?.data ?? []).filter((p) => p.id !== id),
-      }))
-      toast.success('Pedido pasado a En reparto correctamente')
-      setConfirmEnRepartoId(null)
-    },
-    onError: (err: Error) => {
-      toast.error(err.message)
-      setConfirmEnRepartoId(null)
-    },
   })
 
   const mutateListoParaRepartir = useMutation({
@@ -307,11 +267,8 @@ export default function FabricaConfirmadosView() {
 
   const actionProps = {
     confirmListoId,
-    confirmEnRepartoId,
     setConfirmListoId,
-    setConfirmEnRepartoId,
     mutateListoParaRepartir,
-    mutateEnReparto,
     generarDocumento,
     isGenerating,
     anyGenerating,
@@ -414,161 +371,150 @@ export default function FabricaConfirmadosView() {
 
           {/* Mobile: tarjetas */}
           <div className="md:hidden space-y-4">
-            {pedidos.map((pedido) => (
-              <article key={pedido.id} className="border border-border rounded-lg bg-card overflow-hidden">
+            {pedidos.map((pedido) => {
+              const isExpreso = pedido.metodoEntrega === 'expreso'
+              const isCamioneta = pedido.esReparto
+              const needsListo = isCamioneta || isExpreso
+              return (
+                <article key={pedido.id} className="border border-border rounded-lg bg-card overflow-hidden">
 
-                {/* Header */}
-                <div className="flex items-start justify-between px-4 py-3 border-b border-border">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-semibold text-foreground">
-                        {pedido.cliente?.nombre} {pedido.cliente?.apellido}
-                      </span>
-                      <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                        #{pedido.id.slice(-8).toUpperCase()}
-                      </span>
-                      <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
+                  {/* Header */}
+                  <div className="flex items-start justify-between px-4 py-3 border-b border-border">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base font-semibold text-foreground">
+                          {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                        </span>
+                        <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                          #{pedido.id.slice(-8).toUpperCase()}
+                        </span>
+                        <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatFechaAR(new Date(pedido.fecha))}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatFechaAR(new Date(pedido.fecha))}
-                    </p>
-                  </div>
-                  <span className="text-lg font-semibold text-foreground tabular-nums shrink-0 ml-4">
-                    {formatMoney(pedido.total)}
-                  </span>
-                </div>
-
-                {/* Delivery */}
-                <div className="flex items-start gap-2 px-4 py-2 border-b border-border text-sm text-muted-foreground">
-                  <Truck size={14} className="mt-0.5 shrink-0" />
-                  <EntregaInfo pedido={pedido} />
-                </div>
-
-                {/* Items */}
-                <div className="px-4 py-3 border-b border-border">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Package size={13} className="text-muted-foreground" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Productos
+                    <span className="text-lg font-semibold text-foreground tabular-nums shrink-0 ml-4">
+                      {formatMoney(pedido.total)}
                     </span>
                   </div>
-                  <div className="space-y-1">
-                    {pedido.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground">{item.producto.nombre}</span>
-                        <div className="flex items-center gap-4 shrink-0 ml-4">
-                          <span className="font-medium text-foreground">×{item.cantidad}</span>
-                          <span className="tabular-nums text-muted-foreground w-20 text-right">
-                            {formatMoney(item.subtotal)}
-                          </span>
+
+                  {/* Delivery */}
+                  <div className="flex items-start gap-2 px-4 py-2 border-b border-border text-sm text-muted-foreground">
+                    <Truck size={14} className="mt-0.5 shrink-0" />
+                    <EntregaInfo pedido={pedido} />
+                  </div>
+
+                  {/* Items */}
+                  <div className="px-4 py-3 border-b border-border">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Package size={13} className="text-muted-foreground" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Productos
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {pedido.items.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between text-sm">
+                          <span className="text-foreground">{item.producto.nombre}</span>
+                          <div className="flex items-center gap-4 shrink-0 ml-4">
+                            <span className="font-medium text-foreground">×{item.cantidad}</span>
+                            <span className="tabular-nums text-muted-foreground w-20 text-right">
+                              {formatMoney(item.subtotal)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  {pedido.observaciones && (
-                    <p className="mt-2 text-xs text-muted-foreground italic border-t border-border pt-2">
-                      {pedido.observaciones}
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void generarDocumento(pedido.id, 'remito')}
-                      disabled={anyGenerating(pedido.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                      title="Descargar remito PDF"
-                    >
-                      <FileText size={13} />
-                      {isGenerating(pedido.id, 'remito') ? 'Generando...' : 'Remito'}
-                    </button>
-                    <button
-                      onClick={() => void generarDocumento(pedido.id, 'proforma')}
-                      disabled={anyGenerating(pedido.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                      title="Descargar proforma PDF"
-                    >
-                      <Download size={13} />
-                      {isGenerating(pedido.id, 'proforma') ? 'Generando...' : 'Proforma'}
-                    </button>
-                    <button
-                      onClick={() => void generarDocumento(pedido.id, 'etiqueta')}
-                      disabled={anyGenerating(pedido.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                      title="Descargar etiqueta de envío PDF"
-                    >
-                      <Tag size={13} />
-                      {isGenerating(pedido.id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
-                    </button>
+                      ))}
+                    </div>
+                    {pedido.observaciones && (
+                      <p className="mt-2 text-xs text-muted-foreground italic border-t border-border pt-2">
+                        {pedido.observaciones}
+                      </p>
+                    )}
                   </div>
 
-                  {pedido.estado === 'listo_para_repartir' ? (
-                    <span className="text-xs text-muted-foreground italic">
-                      Esperando repartidor
-                    </span>
-                  ) : pedido.esReparto ? (
-                    confirmListoId === pedido.id ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">¿Marcar listo para repartir?</span>
-                        <button
-                          onClick={() => mutateListoParaRepartir.mutate(pedido.id)}
-                          disabled={mutateListoParaRepartir.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                        >
-                          {mutateListoParaRepartir.isPending ? 'Procesando...' : 'Confirmar'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmListoId(null)}
-                          disabled={mutateListoParaRepartir.isPending}
-                          className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
+                  {/* Actions */}
+                  <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setConfirmListoId(pedido.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors"
+                        onClick={() => void generarDocumento(pedido.id, 'remito')}
+                        disabled={anyGenerating(pedido.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                        title="Descargar remito PDF"
                       >
-                        <CheckCircle2 size={13} />
-                        Listo para repartir
+                        <FileText size={13} />
+                        {isGenerating(pedido.id, 'remito') ? 'Generando...' : 'Remito'}
                       </button>
-                    )
-                  ) : (
-                    confirmEnRepartoId === pedido.id ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">¿Pasar a En reparto?</span>
-                        <button
-                          onClick={() => mutateEnReparto.mutate(pedido.id)}
-                          disabled={mutateEnReparto.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                        >
-                          {mutateEnReparto.isPending ? 'Procesando...' : 'Confirmar'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmEnRepartoId(null)}
-                          disabled={mutateEnReparto.isPending}
-                          className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
                       <button
-                        onClick={() => setConfirmEnRepartoId(pedido.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                        onClick={() => void generarDocumento(pedido.id, 'proforma')}
+                        disabled={anyGenerating(pedido.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                        title="Descargar proforma PDF"
                       >
-                        <Truck size={13} />
-                        Pasar a En reparto
+                        <Download size={13} />
+                        {isGenerating(pedido.id, 'proforma') ? 'Generando...' : 'Proforma'}
                       </button>
-                    )
-                  )}
-                </div>
+                      <button
+                        onClick={() => void generarDocumento(pedido.id, 'etiqueta')}
+                        disabled={anyGenerating(pedido.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                        title="Descargar etiqueta de envío PDF"
+                      >
+                        <Tag size={13} />
+                        {isGenerating(pedido.id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
+                      </button>
+                    </div>
 
-              </article>
-            ))}
+                    {pedido.estado === 'listo_para_repartir' ? (
+                      <span className="text-xs text-muted-foreground italic">
+                        Esperando repartidor
+                      </span>
+                    ) : needsListo ? (
+                      confirmListoId === pedido.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {isExpreso ? '¿Marcar listo expreso?' : '¿Marcar listo para repartir?'}
+                          </span>
+                          <button
+                            onClick={() => mutateListoParaRepartir.mutate(pedido.id)}
+                            disabled={mutateListoParaRepartir.isPending}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-50',
+                              isExpreso
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                            )}
+                          >
+                            {mutateListoParaRepartir.isPending ? 'Procesando...' : 'Confirmar'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmListoId(null)}
+                            disabled={mutateListoParaRepartir.isPending}
+                            className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmListoId(pedido.id)}
+                          className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                            isExpreso
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                          )}
+                        >
+                          {isExpreso ? <Send size={13} /> : <CheckCircle2 size={13} />}
+                          {isExpreso ? 'Listo expreso' : 'Listo para repartir'}
+                        </button>
+                      )
+                    ) : null}
+                  </div>
+
+                </article>
+              )
+            })}
           </div>
         </>
       )}
