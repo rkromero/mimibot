@@ -281,6 +281,9 @@ export function RemitoDocument({ data, numero }: Props) {
             {data.empresa.direccion && (
               <Text style={S.empresaMeta}>Dirección: {data.empresa.direccion}</Text>
             )}
+            {data.empresa.telefono && (
+              <Text style={S.empresaMeta}>Tel: {data.empresa.telefono}</Text>
+            )}
             {data.empresa.condicionIva && (
               <Text style={S.empresaMeta}>Condición IVA: {data.empresa.condicionIva}</Text>
             )}
