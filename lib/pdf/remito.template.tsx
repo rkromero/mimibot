@@ -63,9 +63,9 @@ export function formatCurrency(value: string): string {
 export const S = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
-    fontSize: 9,
-    paddingTop: 36,
-    paddingBottom: 60,
+    fontSize: 11,
+    paddingTop: 28,
+    paddingBottom: 130,
     paddingLeft: 40,
     paddingRight: 40,
     color: '#111111',
@@ -77,12 +77,12 @@ export const S = StyleSheet.create({
     marginBottom: 14,
   },
   empresaNombre: {
-    fontSize: 16,
+    fontSize: 19,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 4,
   },
   empresaMeta: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#555555',
     marginBottom: 2,
   },
@@ -91,19 +91,19 @@ export const S = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   headerRightText: {
-    fontSize: 8,
+    fontSize: 10,
     textAlign: 'right',
     marginBottom: 2,
     color: '#333333',
   },
   // Title block (PROFORMA / REMITO + Nº + thick rule)
   docTitle: {
-    fontSize: 22,
+    fontSize: 26,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 2,
   },
   docNumero: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#444444',
     marginBottom: 8,
   },
@@ -128,7 +128,7 @@ export const S = StyleSheet.create({
     marginBottom: 14,
   },
   clientBoxTitle: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -142,18 +142,18 @@ export const S = StyleSheet.create({
     paddingRight: 4,
   },
   clientLabel: {
-    fontSize: 7,
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: '#555555',
     marginBottom: 1,
   },
   clientValue: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#111111',
   },
   // Section title above table
   sectionTitle: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 4,
   },
@@ -168,7 +168,7 @@ export const S = StyleSheet.create({
   },
   tableHeaderCell: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 10,
     padding: 5,
     color: '#111111',
   },
@@ -178,7 +178,7 @@ export const S = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   tableCell: {
-    fontSize: 8,
+    fontSize: 10,
     padding: 5,
     color: '#222222',
   },
@@ -190,14 +190,57 @@ export const S = StyleSheet.create({
   // Remito column widths (2 columns)
   colDesc: { flex: 5 },
   colQty: { flex: 1, textAlign: 'right' },
+  // Bultos
+  bultosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  bultosLabel: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    marginRight: 12,
+  },
+  bultosBox: {
+    width: 42,
+    height: 22,
+    borderWidth: 1.5,
+    borderColor: '#111111',
+  },
+  // Signatures
+  firmasSection: {
+    position: 'absolute',
+    bottom: 50,
+    left: 40,
+    right: 40,
+    flexDirection: 'row',
+  },
+  firmaBloque: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  firmaBox: {
+    width: '100%',
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#aaaaaa',
+    marginBottom: 5,
+  },
+  firmaLabel: {
+    fontSize: 9,
+    color: '#444444',
+    textAlign: 'center',
+  },
   // Footer
   footer: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 15,
     left: 40,
     right: 40,
     textAlign: 'center',
-    fontSize: 7,
+    fontSize: 9,
     color: '#777777',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
@@ -286,7 +329,7 @@ export function RemitoDocument({ data, numero }: Props) {
         {data.metodoEntrega && (
           <View style={{ marginBottom: 12 }}>
             <Text style={S.sectionTitle}>Método de Entrega</Text>
-            <Text style={{ fontSize: 8, color: '#333333' }}>
+            <Text style={{ fontSize: 10, color: '#333333' }}>
               {data.metodoEntrega === 'retiro_fabrica'
                 ? 'Retiro en fábrica'
                 : `Envío por expreso${data.expresoNombre ? ` — ${data.expresoNombre}` : ''}${data.expresoDireccion ? `, ${data.expresoDireccion}` : ''}`}
@@ -307,6 +350,24 @@ export function RemitoDocument({ data, numero }: Props) {
           </View>
         ))}
         <View style={S.tableClosingRule} />
+
+        {/* ── Cantidad de bultos ───────────────────────────────────────────── */}
+        <View style={S.bultosRow}>
+          <Text style={S.bultosLabel}>Cantidad de bultos:</Text>
+          <View style={S.bultosBox} />
+        </View>
+
+        {/* ── Firmas ──────────────────────────────────────────────────────── */}
+        <View style={S.firmasSection}>
+          <View style={S.firmaBloque}>
+            <View style={S.firmaBox} />
+            <Text style={S.firmaLabel}>Firma del cliente</Text>
+          </View>
+          <View style={S.firmaBloque}>
+            <View style={S.firmaBox} />
+            <Text style={S.firmaLabel}>Firma del repartidor</Text>
+          </View>
+        </View>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
         <Text style={S.footer}>{footerText}</Text>
