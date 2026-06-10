@@ -105,6 +105,11 @@ export const S = StyleSheet.create({
   docNumero: {
     fontSize: 12,
     color: '#444444',
+    marginBottom: 3,
+  },
+  docVendedor: {
+    fontSize: 10,
+    color: '#666666',
     marginBottom: 8,
   },
   thickRule: {
@@ -292,6 +297,7 @@ export function RemitoDocument({ data, numero }: Props) {
         {/* ── Título ──────────────────────────────────────────────────────── */}
         <Text style={S.docTitle}>REMITO</Text>
         <Text style={S.docNumero}>Nº {padNumero(numero)}</Text>
+        <Text style={S.docVendedor}>Vendedor: {data.vendedorNombre}</Text>
         <View style={S.thickRule} />
 
         {/* ── Datos del cliente ────────────────────────────────────────────── */}
