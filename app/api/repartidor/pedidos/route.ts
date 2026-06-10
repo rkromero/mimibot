@@ -11,12 +11,12 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
-      throw new AuthzError('Solo repartidor, admin o gerente pueden acceder a este endpoint')
+    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
+      throw new AuthzError('Solo repartidor, fabrica, admin o gerente pueden acceder a este endpoint')
     }
 
-    // Repartidores ven solo sus pedidos aceptados; admin/gerente ven todos
-    const whereClause = role === 'repartidor'
+    // Repartidores y fábrica ven solo sus pedidos aceptados; admin/gerente ven todos
+    const whereClause = (role === 'repartidor' || role === 'fabrica')
       ? and(
           isNull(pedidos.deletedAt),
           eq(pedidos.estado, 'en_reparto'),

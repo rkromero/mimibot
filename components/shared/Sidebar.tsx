@@ -86,6 +86,7 @@ export function filterGroups(role: Role): NavGroup[] {
         { href: '/fabrica', label: 'Pedidos Confirmados', icon: ClipboardList },
         { href: '/fabrica/historico', label: 'Histórico', icon: History },
         { href: '/fabrica/orden-trabajo', label: 'Orden de trabajo', icon: ListChecks },
+        { href: '/fabrica/entregas', label: 'Entregas', icon: Truck },
       ],
     }]
   }

@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
-      throw new AuthzError('Solo repartidor, admin o gerente pueden subir firmas')
+    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
+      throw new AuthzError('Solo repartidor, fabrica, admin o gerente pueden subir firmas')
     }
 
     // Pre-flight: verify R2 credentials are present before attempting upload
