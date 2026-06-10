@@ -6,38 +6,25 @@ import { eq, and, isNull } from 'drizzle-orm'
 import { EtiquetaDocument, type EtiquetaData } from './etiqueta.template'
 import { NotFoundError } from '@/lib/errors'
 
-/** Resolve delivery address lines — same logic as the EntregaInfo component in FabricaConfirmadosView */
 function resolverEntregaLineas(
   metodoEntrega: 'retiro_fabrica' | 'expreso' | null | undefined,
-  expresoNombre: string | null | undefined,
-  expresoDireccion: string | null | undefined,
   cliente: {
     direccion: string | null
     localidad: string | null
-    provincia: string | null
     codigoPostal: string | null
+    telefono: string | null
   },
 ): string[] {
   if (metodoEntrega === 'retiro_fabrica') {
     return ['RETIRO EN FÁBRICA']
   }
 
-  if (metodoEntrega === 'expreso') {
-    const lineas: string[] = []
-    if (expresoNombre) lineas.push(`Expreso: ${expresoNombre}`)
-    if (expresoDireccion) lineas.push(expresoDireccion)
-    return lineas.length > 0 ? lineas : ['Envío por expreso']
-  }
-
-  // Default: cliente address
+  // Both expreso and default: always show client delivery address
   const lineas: string[] = []
   if (cliente.direccion) lineas.push(cliente.direccion)
-
-  const localLine = [cliente.localidad, cliente.provincia]
-    .filter(Boolean)
-    .join(', ')
-  const cpPart = cliente.codigoPostal ? ` (${cliente.codigoPostal})` : ''
-  if (localLine) lineas.push(`${localLine}${cpPart}`)
+  if (cliente.localidad) lineas.push(cliente.localidad)
+  if (cliente.codigoPostal) lineas.push(cliente.codigoPostal)
+  if (cliente.telefono) lineas.push(cliente.telefono)
 
   return lineas.length > 0 ? lineas : ['Sin dirección registrada']
 }
@@ -52,12 +39,10 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
           apellido: true,
           direccion: true,
           localidad: true,
-          provincia: true,
           codigoPostal: true,
           telefono: true,
         },
       },
-      items: { columns: { id: true } },
     },
   })
 
@@ -71,8 +56,6 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
 
   const entregaLineas = resolverEntregaLineas(
     pedido.metodoEntrega as 'retiro_fabrica' | 'expreso' | null,
-    pedido.expresoNombre,
-    pedido.expresoDireccion,
     pedido.cliente,
   )
 
@@ -83,7 +66,6 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     clienteTelefono: pedido.cliente.telefono ?? undefined,
     entregaLineas,
     empresa: { nombre: config?.nombre ?? '' },
-    totalItems: pedido.items.length,
     observaciones: pedido.observaciones ?? undefined,
   }
 

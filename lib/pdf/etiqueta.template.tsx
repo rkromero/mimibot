@@ -1,9 +1,6 @@
 import React from 'react'
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 
-// Label size: 10 × 15 cm in points (1 cm = 28.346 pt)
-const LABEL_SIZE: [number, number] = [283.46, 425.2]
-
 export type EtiquetaData = {
   pedidoId: string
   clienteNombre: string
@@ -12,7 +9,6 @@ export type EtiquetaData = {
   /** Resolved delivery address lines (ready to display) */
   entregaLineas: string[]
   empresa: { nombre: string }
-  totalItems: number
   observaciones?: string
 }
 
@@ -101,7 +97,7 @@ export function EtiquetaDocument({ data }: { data: EtiquetaData }) {
 
   return (
     <Document>
-      <Page size={LABEL_SIZE} style={styles.page}>
+      <Page size="A5" style={styles.page}>
 
         {/* Remitente */}
         <Text style={styles.remitente}>
@@ -134,12 +130,6 @@ export function EtiquetaDocument({ data }: { data: EtiquetaData }) {
             <Text style={styles.metaValue}>{data.clienteTelefono}</Text>
           </View>
         )}
-
-        {/* Bultos */}
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Bultos:</Text>
-          <Text style={styles.metaValue}>{data.totalItems}</Text>
-        </View>
 
         {/* Observaciones */}
         {data.observaciones && (
