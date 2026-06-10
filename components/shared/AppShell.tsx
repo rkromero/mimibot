@@ -113,7 +113,7 @@ export default function AppShell({ user, children }: Props) {
             <span className="w-7" aria-hidden />
           </header>
 
-          <main className="flex-1 min-w-0 overflow-hidden">
+          <main className="flex-1 min-w-0 overflow-y-auto">
             {children}
           </main>
         </div>

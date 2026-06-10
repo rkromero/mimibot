@@ -258,7 +258,7 @@ type RendicionRow = {
   totalCobrado: number
   totalPendiente: number
   efectivo: number
-  transferencia: number
+  qr: number
 }
 
 function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodosPago: MetodoPagoEntry[] }) {
@@ -274,7 +274,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
         totalCobrado: 0,
         totalPendiente: 0,
         efectivo: 0,
-        transferencia: 0,
+        qr: 0,
       }
       existing.count++
       existing.totalEntregado += parseFloat(e.total || '0')
@@ -289,7 +289,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
       if (!row) continue
       const t = parseFloat(m.total || '0')
       if (m.metodoPago === 'efectivo') row.efectivo += t
-      else if (m.metodoPago === 'transferencia') row.transferencia += t
+      else if (m.metodoPago === 'mercadopago') row.qr += t
     }
 
     return Array.from(map.values()).sort((a, b) => b.totalEntregado - a.totalEntregado)
@@ -301,7 +301,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
     totalCobrado: rows.reduce((s, r) => s + r.totalCobrado, 0),
     totalPendiente: rows.reduce((s, r) => s + r.totalPendiente, 0),
     efectivo: rows.reduce((s, r) => s + r.efectivo, 0),
-    transferencia: rows.reduce((s, r) => s + r.transferencia, 0),
+    qr: rows.reduce((s, r) => s + r.qr, 0),
   }), [rows])
 
   if (rows.length === 0) return null
@@ -315,7 +315,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {['Repartidor', 'Entregas', 'Entregado', 'Cobrado', 'Pendiente', 'Efectivo ↑', 'Transferencia ↑'].map((h, i) => (
+              {['Repartidor', 'Entregas', 'Entregado', 'Cobrado', 'Pendiente', 'Efectivo ↑', 'QR ↑'].map((h, i) => (
                 <th key={h} className={`px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? 'text-left' : 'text-right'}`}>
                   {h}
                 </th>
@@ -331,7 +331,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
                 <td className="px-4 py-2.5 text-right tabular-nums text-green-700 dark:text-green-400 font-medium">{formatMoney(r.totalCobrado)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-red-700 dark:text-red-400 font-medium">{formatMoney(r.totalPendiente)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-blue-700 dark:text-blue-400 font-medium">{formatMoney(r.efectivo)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400 font-medium">{formatMoney(r.transferencia)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400 font-medium">{formatMoney(r.qr)}</td>
               </tr>
             ))}
           </tbody>
@@ -343,7 +343,7 @@ function RendicionTable({ entregas, metodosPago }: { entregas: Entrega[]; metodo
               <td className="px-4 py-2.5 text-right tabular-nums text-green-700 dark:text-green-400">{formatMoney(totales.totalCobrado)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-red-700 dark:text-red-400">{formatMoney(totales.totalPendiente)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoney(totales.efectivo)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400">{formatMoney(totales.transferencia)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums text-purple-700 dark:text-purple-400">{formatMoney(totales.qr)}</td>
             </tr>
           </tfoot>
         </table>
