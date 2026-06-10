@@ -473,3 +473,128 @@ export async function revertirPedidoAAprobacion(
     return updated!
   })
 }
+
+// ─── Actualizar items de un pedido ────────────────────────────────────────────
+
+/**
+ * Actualiza los items, fecha y observaciones de un pedido existente.
+ *
+ * - Para estados `pendiente` / `pendiente_aprobacion`: no hay movimientos de CC
+ *   ni stock, se reemplazan los items y se recalcula el total directamente.
+ * - Para estados `confirmado`+: se soft-deletean el CC débito existente,
+ *   se insertan entradas de stock compensatorias, se reemplazan los items,
+ *   se inserta el nuevo CC débito y las nuevas salidas de stock, y se
+ *   recalculan los pagos aplicados.
+ *
+ * La autorización (admin vs. agent/vendedor) se valida en la ruta antes de llamar aquí.
+ */
+const ESTADOS_CON_MOVIMIENTOS = new Set(['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado'])
+
+export async function actualizarItemsPedido(
+  pedidoId: string,
+  newItems: Array<{ productoId: string; cantidad: number }>,
+  updates: { fecha?: string | null; observaciones?: string | null; descuento?: number },
+  userId: string,
+  drizzleDb: Db = db,
+): Promise<typeof pedidos.$inferSelect> {
+  const resultado = await drizzleDb.transaction(async (tx) => {
+    const pedido = await tx.query.pedidos.findFirst({
+      where: eq(pedidos.id, pedidoId),
+      with: { items: true },
+    })
+    if (!pedido) throw new NotFoundError('Pedido')
+
+    const productoIds = newItems.map(i => i.productoId)
+    const productosRows = await tx.query.productos.findMany({
+      where: inArray(productos.id, productoIds),
+      columns: { id: true, precio: true, activo: true, nombre: true },
+    })
+    const productosMap = new Map(productosRows.map(p => [p.id, p]))
+    for (const item of newItems) {
+      const producto = productosMap.get(item.productoId)
+      if (!producto) throw new NotFoundError(`Producto ${item.productoId}`)
+      if (!producto.activo) throw new ValidationError(`El producto "${producto.nombre}" no está activo`)
+    }
+
+    const descuentoPct = updates.descuento ?? parseFloat(pedido.descuento ?? '0')
+    const newItemsRows = newItems.map(item => {
+      const producto = productosMap.get(item.productoId)!
+      const subtotal = (parseFloat(producto.precio) * item.cantidad).toFixed(2)
+      return { pedidoId, productoId: item.productoId, cantidad: item.cantidad, precioUnitario: producto.precio, subtotal }
+    })
+    const subtotalNuevo = newItemsRows.reduce((s, i) => s + parseFloat(i.subtotal), 0)
+    const totalNuevo = (subtotalNuevo - subtotalNuevo * (descuentoPct / 100)).toFixed(2)
+
+    const conMovimientos = ESTADOS_CON_MOVIMIENTOS.has(pedido.estado)
+
+    // 1. Reemplazar items
+    await tx.delete(pedidoItems).where(eq(pedidoItems.pedidoId, pedidoId))
+    await tx.insert(pedidoItems).values(newItemsRows)
+
+    // 2. Actualizar pedido
+    const pedidoUpdates: Partial<typeof pedidos.$inferInsert> = {
+      total: totalNuevo,
+      descuento: descuentoPct.toFixed(2),
+      updatedAt: new Date(),
+    }
+    if (!conMovimientos) pedidoUpdates.saldoPendiente = totalNuevo
+    if (updates.fecha !== undefined) pedidoUpdates.fecha = updates.fecha ? new Date(updates.fecha) : new Date()
+    if (updates.observaciones !== undefined) pedidoUpdates.observaciones = updates.observaciones
+
+    const [updated] = await tx
+      .update(pedidos)
+      .set(pedidoUpdates)
+      .where(eq(pedidos.id, pedidoId))
+      .returning()
+
+    // 3. Ajustar CC y stock para estados con movimientos (solo admin puede llegar aquí)
+    if (conMovimientos) {
+      await tx
+        .update(movimientosCC)
+        .set({ deletedAt: new Date() })
+        .where(and(eq(movimientosCC.pedidoId, pedidoId), eq(movimientosCC.tipo, 'debito'), isNull(movimientosCC.deletedAt)))
+
+      for (const item of pedido.items) {
+        const [latest] = await tx
+          .select({ saldo: stockMovements.saldoResultante })
+          .from(stockMovements)
+          .where(eq(stockMovements.productoId, item.productoId))
+          .orderBy(sql`${stockMovements.createdAt} DESC`)
+          .limit(1)
+        const saldoActual = latest?.saldo ?? 0
+        await tx.insert(stockMovements).values({
+          productoId: item.productoId, tipo: 'entrada', cantidad: item.cantidad,
+          saldoResultante: saldoActual + item.cantidad, pedidoId,
+          referencia: `Edición #${pedidoId.slice(0, 8)}`, registradoPor: userId,
+        })
+      }
+
+      await tx.insert(movimientosCC).values({
+        clienteId: pedido.clienteId, tipo: 'debito', monto: totalNuevo, pedidoId,
+        fecha: new Date(), descripcion: `Pedido editado #${pedidoId.slice(0, 8)}`, registradoPor: userId,
+      })
+
+      for (const item of newItemsRows) {
+        const [latest] = await tx
+          .select({ saldo: stockMovements.saldoResultante })
+          .from(stockMovements)
+          .where(eq(stockMovements.productoId, item.productoId))
+          .orderBy(sql`${stockMovements.createdAt} DESC`)
+          .limit(1)
+        const saldoActual = latest?.saldo ?? 0
+        await tx.insert(stockMovements).values({
+          productoId: item.productoId, tipo: 'salida', cantidad: item.cantidad,
+          saldoResultante: saldoActual - item.cantidad, pedidoId,
+          referencia: `Pedido #${pedidoId.slice(0, 8)}`, registradoPor: userId,
+        })
+      }
+
+      await recalcularPagosPedido(tx as unknown as Db, pedidoId)
+    }
+
+    return updated!
+  })
+
+  const final = await drizzleDb.query.pedidos.findFirst({ where: eq(pedidos.id, pedidoId) })
+  return final ?? resultado
+}

@@ -3,23 +3,33 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon, Pencil, X } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
+import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { formatFechaAR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
+import ProductSheet from './ProductSheet'
 
 type Props = { id: string }
 
 type PedidoItem = {
   id: string
+  productoId: string
   cantidad: number
   precioUnitario: string
   subtotal: string
   producto: { id: string; nombre: string; sku?: string | null }
+}
+
+type SelectedItem = {
+  productoId: string
+  productoNombre: string
+  cantidad: number
+  precioUnitario: string
 }
 
 type AplicacionPago = {
@@ -38,7 +48,7 @@ type Pedido = {
   vendedorNombre: string | null
   vendedorId: string
   fecha: string
-  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'entregado' | 'cancelado'
+  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'listo_para_repartir' | 'en_reparto' | 'entregado' | 'cancelado'
   observaciones: string | null
   total: string
   descuento: string
@@ -54,7 +64,10 @@ type Pedido = {
   esReparto: boolean
   firmaUrl: string | null
   remitoFotoUrl: string | null
+  comprobantePagoUrl: string | null
 }
+
+const ESTADOS_BLOQUEADOS = new Set(['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado'])
 
 const estadoColors: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
@@ -170,6 +183,13 @@ export default function PedidoDetail({ id }: Props) {
   const [actionError, setActionError] = useState<string | null>(null)
   const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
 
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false)
+  const [editItems, setEditItems] = useState<SelectedItem[]>([])
+  const [editFecha, setEditFecha] = useState('')
+  const [editObservaciones, setEditObservaciones] = useState('')
+  const [showProductSheet, setShowProductSheet] = useState(false)
+
   const { data: pedido, isLoading, isError } = useQuery<Pedido>({
     queryKey: ['pedido', id],
     queryFn: async () => {
@@ -222,6 +242,57 @@ export default function PedidoDetail({ id }: Props) {
     },
   })
 
+  const canEdit = isAdmin || (pedido != null && !ESTADOS_BLOQUEADOS.has(pedido.estado))
+
+  function enterEditMode() {
+    if (!pedido) return
+    setEditFecha(pedido.fecha ? pedido.fecha.slice(0, 10) : '')
+    setEditObservaciones(pedido.observaciones ?? '')
+    setEditItems(pedido.items.map(item => ({
+      productoId: item.productoId,
+      productoNombre: item.producto?.nombre ?? '',
+      cantidad: item.cantidad,
+      precioUnitario: item.precioUnitario,
+    })))
+    setEditMode(true)
+  }
+
+  function exitEditMode() {
+    setEditMode(false)
+    setShowProductSheet(false)
+  }
+
+  const { mutate: saveEdits, isPending: isSaving } = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/pedidos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editItems.map(i => ({ productoId: i.productoId, cantidad: i.cantidad })),
+          fecha: editFecha || null,
+          observaciones: editObservaciones || null,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        throw new Error(data.error ?? 'Error al guardar')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      exitEditMode()
+      void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
+      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      if (pedido) {
+        void queryClient.invalidateQueries({ queryKey: ['clientes', pedido.clienteId, 'pedidos'] })
+      }
+      toast.success('Pedido actualizado')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
   if (isLoading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -269,6 +340,36 @@ export default function PedidoDetail({ id }: Props) {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+
+          {/* ── Editar pedido ── */}
+          {canEdit && !editMode && (
+            <button
+              onClick={enterEditMode}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
+            >
+              <Pencil size={14} />
+              Editar
+            </button>
+          )}
+          {editMode && (
+            <>
+              <button
+                onClick={() => saveEdits()}
+                disabled={isSaving || editItems.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+              <button
+                onClick={exitEditMode}
+                disabled={isSaving}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <X size={14} />
+                Cancelar
+              </button>
+            </>
+          )}
 
           {/* ── Estado: pendiente (legacy) ── */}
           {pedido.estado === 'pendiente' && (
@@ -419,6 +520,13 @@ export default function PedidoDetail({ id }: Props) {
         <div className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">{actionError}</div>
       )}
 
+      {/* Aviso de solo lectura para no-admin con pedido bloqueado */}
+      {!isAdmin && ESTADOS_BLOQUEADOS.has(pedido.estado) && (
+        <div className="text-xs text-muted-foreground bg-muted border border-border rounded-md px-3 py-2">
+          Solo un administrador puede modificar pedidos confirmados.
+        </div>
+      )}
+
       {/* Aviso informativo para agentes cuando el pedido está pendiente de aprobación */}
       {pedido.estado === 'pendiente_aprobacion' && (role === 'agent' || role === 'vendedor') && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300">
@@ -438,14 +546,31 @@ export default function PedidoDetail({ id }: Props) {
           </div>
           <div className="flex gap-2 text-sm">
             <span className="text-muted-foreground w-24 shrink-0">Fecha:</span>
-            <span>{formatFechaAR(pedido.fecha)}</span>
+            {editMode ? (
+              <input
+                type="date"
+                value={editFecha}
+                onChange={e => setEditFecha(e.target.value)}
+                className="border border-border rounded px-2 py-0.5 text-sm bg-background text-foreground"
+              />
+            ) : (
+              <span>{formatFechaAR(pedido.fecha)}</span>
+            )}
           </div>
-          {pedido.observaciones && (
-            <div className="flex gap-2 text-sm">
-              <span className="text-muted-foreground w-24 shrink-0">Notas:</span>
-              <span className="text-foreground">{pedido.observaciones}</span>
-            </div>
-          )}
+          <div className="flex gap-2 text-sm">
+            <span className="text-muted-foreground w-24 shrink-0">Notas:</span>
+            {editMode ? (
+              <textarea
+                value={editObservaciones}
+                onChange={e => setEditObservaciones(e.target.value)}
+                rows={2}
+                className="flex-1 border border-border rounded px-2 py-1 text-sm bg-background text-foreground resize-none"
+                placeholder="Observaciones..."
+              />
+            ) : (
+              <span className="text-foreground">{pedido.observaciones ?? '—'}</span>
+            )}
+          </div>
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4 space-y-2">
@@ -477,9 +602,25 @@ export default function PedidoDetail({ id }: Props) {
         </div>
       </div>
 
+      {/* Comprobante de pago */}
+      {role !== 'vendedor' && (
+        <ComprobantePago pedidoId={id} role={role} estado={pedido.estado} />
+      )}
+
       {/* Items */}
       <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Items del Pedido</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-foreground">Items del Pedido</h3>
+          {editMode && (
+            <button
+              onClick={() => setShowProductSheet(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 border border-border rounded text-xs hover:bg-accent transition-colors"
+            >
+              <Pencil size={12} />
+              Cambiar productos
+            </button>
+          )}
+        </div>
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -488,54 +629,97 @@ export default function PedidoDetail({ id }: Props) {
                 <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Cantidad</th>
                 <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Precio Unit.</th>
                 <th className="text-right py-2 px-3 text-muted-foreground font-medium border-b border-border">Subtotal</th>
+                {editMode && <th className="py-2 px-3 border-b border-border" />}
               </tr>
             </thead>
             <tbody>
-              {pedido.items.map((item) => (
-                <tr key={item.id} className="border-b border-border last:border-0">
-                  <td className="py-2.5 px-3 text-foreground">
-                    {item.producto?.nombre ?? '—'}
-                    {item.producto?.sku && (
-                      <span className="block text-xs text-muted-foreground font-mono">{item.producto.sku}</span>
+              {(editMode ? editItems : pedido.items).map((item, idx) => {
+                const nombre = editMode ? (item as SelectedItem).productoNombre : (item as PedidoItem).producto?.nombre ?? '—'
+                const sku = editMode ? null : (item as PedidoItem).producto?.sku
+                const precioUnitario = editMode ? (item as SelectedItem).precioUnitario : (item as PedidoItem).precioUnitario
+                const subtotal = editMode
+                  ? (parseFloat((item as SelectedItem).precioUnitario) * (item as SelectedItem).cantidad).toFixed(2)
+                  : (item as PedidoItem).subtotal
+                const rowKey = editMode ? `edit-${idx}` : (item as PedidoItem).id
+                return (
+                  <tr key={rowKey} className="border-b border-border last:border-0">
+                    <td className="py-2.5 px-3 text-foreground">
+                      {nombre}
+                      {sku && <span className="block text-xs text-muted-foreground font-mono">{sku}</span>}
+                    </td>
+                    <td className="py-2.5 px-3 text-right text-muted-foreground">
+                      {editMode ? (
+                        <input
+                          type="number"
+                          min={1}
+                          value={(item as SelectedItem).cantidad}
+                          onChange={e => {
+                            const val = parseInt(e.target.value, 10)
+                            if (isNaN(val) || val < 1) return
+                            setEditItems(prev => prev.map((it, i) => i === idx ? { ...it, cantidad: val } : it))
+                          }}
+                          className="w-16 border border-border rounded px-2 py-0.5 text-sm bg-background text-foreground text-right"
+                        />
+                      ) : (item as PedidoItem).cantidad}
+                    </td>
+                    <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(precioUnitario)}</td>
+                    <td className="py-2.5 px-3 text-right font-medium">{formatMoney(subtotal)}</td>
+                    {editMode && (
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          onClick={() => setEditItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title="Quitar item"
+                        >
+                          <X size={14} />
+                        </button>
+                      </td>
                     )}
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-muted-foreground">{item.cantidad}</td>
-                  <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(item.precioUnitario)}</td>
-                  <td className="py-2.5 px-3 text-right font-medium">{formatMoney(item.subtotal)}</td>
-                </tr>
-              ))}
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
-              <tr>
-                <td colSpan={3} className="py-2.5 px-3 text-right text-sm text-muted-foreground border-t border-border">
-                  Subtotal
-                </td>
-                <td className="py-2.5 px-3 text-right text-muted-foreground border-t border-border">
-                  {formatMoney(itemsSubtotal)}
-                </td>
-              </tr>
-              {descuentoPct > 0 && (
-                <tr>
-                  <td colSpan={3} className="py-2.5 px-3 text-right text-sm text-muted-foreground">
-                    Descuento ({descuentoPct}%)
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-destructive">
-                    -{formatMoney(descuentoMonto)}
-                  </td>
-                </tr>
-              )}
-              <tr>
-                <td colSpan={3} className="py-2.5 px-3 text-right text-sm font-semibold text-foreground border-t border-border">
-                  Total
-                </td>
-                <td className="py-2.5 px-3 text-right font-bold text-foreground border-t border-border">
-                  {formatMoney(displayTotal)}
-                </td>
-              </tr>
+              {(() => {
+                const subtotal = editMode
+                  ? editItems.reduce((s, i) => s + parseFloat(i.precioUnitario) * i.cantidad, 0)
+                  : itemsSubtotal
+                const total = editMode ? subtotal - subtotal * (descuentoPct / 100) : parseFloat(displayTotal)
+                const colSpan = editMode ? 4 : 3
+                return (
+                  <>
+                    <tr>
+                      <td colSpan={colSpan} className="py-2.5 px-3 text-right text-sm text-muted-foreground border-t border-border">Subtotal</td>
+                      <td className="py-2.5 px-3 text-right text-muted-foreground border-t border-border">{formatMoney(subtotal)}</td>
+                    </tr>
+                    {descuentoPct > 0 && (
+                      <tr>
+                        <td colSpan={colSpan} className="py-2.5 px-3 text-right text-sm text-muted-foreground">Descuento ({descuentoPct}%)</td>
+                        <td className="py-2.5 px-3 text-right text-destructive">-{formatMoney(subtotal * (descuentoPct / 100))}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td colSpan={colSpan} className="py-2.5 px-3 text-right text-sm font-semibold text-foreground border-t border-border">Total</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-foreground border-t border-border">{formatMoney(total)}</td>
+                    </tr>
+                  </>
+                )
+              })()}
             </tfoot>
           </table>
         </div>
       </div>
+
+      <ProductSheet
+        open={showProductSheet}
+        onClose={() => setShowProductSheet(false)}
+        clienteId={pedido.clienteId}
+        existingItems={editItems}
+        onConfirm={(items) => {
+          setEditItems(items)
+          setShowProductSheet(false)
+        }}
+      />
 
       {showProof && (
         <EntregaProofModal

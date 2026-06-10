@@ -288,6 +288,13 @@
       "when": 1781121630379,
       "tag": "0040_lush_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0041_add_comprobante_pago",
+      "breakpoints": true
     }
   ]
 }

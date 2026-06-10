@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { pedidos, clientes } from '@/db/schema'
 import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { updatePedidoSchema } from '@/lib/validations/pedidos'
-import { confirmarPedido, aprobarPedido, revertirPedidoAAprobacion } from '@/lib/pedidos/service'
+import { confirmarPedido, aprobarPedido, revertirPedidoAAprobacion, actualizarItemsPedido } from '@/lib/pedidos/service'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/authz'
@@ -129,13 +129,23 @@ export async function PATCH(
     const current = await db.query.pedidos.findFirst({ where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)) })
     if (!current) throw new NotFoundError('Pedido')
 
-    const { estado, observaciones } = parsed.data
+    const { estado, observaciones, items, fecha, descuento } = parsed.data
 
-    // ── Guardas de permiso por rol ────────────────────────────────────────────
+    // ── Guardia central de permisos por estado ────────────────────────────────
+    const ESTADOS_BLOQUEADOS = new Set(['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado'])
+    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && ESTADOS_BLOQUEADOS.has(current.estado)) {
+      throw new AuthzError('Solo un administrador puede modificar pedidos confirmados.')
+    }
 
-    // Agente no puede editar un pedido ya confirmado
-    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && !estado && current.estado === 'confirmado') {
-      throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
+    // ── Actualización de items / fecha ────────────────────────────────────────
+    if (items !== undefined) {
+      const updated = await actualizarItemsPedido(
+        id,
+        items,
+        { fecha, observaciones, descuento },
+        session.user.id,
+      )
+      return NextResponse.json({ data: updated })
     }
 
     if (estado) {
@@ -191,24 +201,18 @@ export async function PATCH(
       }
     }
 
-    // ── Actualización simple de campos (estado distinto a los manejados arriba
-    //    u observaciones) ─────────────────────────────────────────────────────
-
-    // Agente no puede modificar pedidos confirmados
-    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && current.estado === 'confirmado') {
-      throw new AuthzError('No podés editar un pedido confirmado. Solicitá al gerente que lo revierta primero.')
-    }
-
-    const updates: Partial<typeof pedidos.$inferInsert> = {
+    // ── Actualización simple de campos ────────────────────────────────────────
+    const fieldUpdates: Partial<typeof pedidos.$inferInsert> = {
       updatedAt: new Date(),
     }
 
-    if (estado !== undefined) updates.estado = estado
-    if (observaciones !== undefined) updates.observaciones = observaciones
+    if (estado !== undefined) fieldUpdates.estado = estado
+    if (observaciones !== undefined) fieldUpdates.observaciones = observaciones
+    if (fecha !== undefined) fieldUpdates.fecha = fecha ? new Date(fecha) : new Date()
 
     const [updated] = await db
       .update(pedidos)
-      .set(updates)
+      .set(fieldUpdates)
       .where(eq(pedidos.id, id))
       .returning()
 

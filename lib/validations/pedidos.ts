@@ -26,9 +26,18 @@ export const createPedidoSchema = z.object({
 
 export const updatePedidoSchema = z.object({
   estado: z
-    .enum(['pendiente', 'pendiente_aprobacion', 'confirmado', 'en_reparto', 'entregado', 'cancelado'])
+    .enum(['pendiente', 'pendiente_aprobacion', 'confirmado', 'listo_para_repartir', 'en_reparto', 'entregado', 'cancelado'])
     .optional(),
   observaciones: z.string().max(2000).nullable().optional(),
+  fecha: z.string().nullable().optional(),
+  items: z
+    .array(z.object({
+      productoId: z.string().uuid('ID de producto inválido'),
+      cantidad: z.number().int('La cantidad debe ser un entero').positive('La cantidad debe ser mayor a 0'),
+    }))
+    .min(1, 'El pedido debe tener al menos un ítem')
+    .optional(),
+  descuento: z.number().min(0).max(100).optional(),
 })
 
 export const registrarPagoSchema = z.object({

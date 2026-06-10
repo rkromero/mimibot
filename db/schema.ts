@@ -414,6 +414,7 @@ export const pedidos = pgTable('pedidos', {
   esReparto: boolean('es_reparto').notNull().default(false),
   repartidorId: uuid('repartidor_id').references(() => users.id),
   aceptadoAt: timestamp('aceptado_at', { mode: 'date' }),
+  comprobantePagoUrl: text('comprobante_pago_url'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
