@@ -16,6 +16,16 @@ export const createClienteSchema = z.object({
   territorioId: z.string().uuid().optional().nullable(),
 })
 
+// Schema for agents: telefono and codigoPostal are required and non-empty
+export const createClienteAgentSchema = createClienteSchema.extend({
+  telefono: z.string(
+    { required_error: 'El teléfono es requerido para agentes' },
+  ).min(1, 'El teléfono es requerido para agentes').max(30),
+  codigoPostal: z.string(
+    { required_error: 'El código postal es requerido para agentes' },
+  ).min(1, 'El código postal es requerido para agentes').max(10),
+})
+
 export const updateClienteSchema = z.object({
   nombre: z.string().min(1).max(200).optional(),
   apellido: z.string().min(1).max(200).optional(),

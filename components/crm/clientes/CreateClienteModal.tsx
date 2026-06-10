@@ -29,9 +29,11 @@ export default function CreateClienteModal({ onClose }: Props) {
   const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
+  const isAgent = session?.user?.role === 'agent'
 
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; codigoPostal?: string }>({})
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -64,6 +66,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setFieldErrors({})
 
     if (!form.nombre.trim()) {
       setError('El nombre es requerido')
@@ -72,6 +75,16 @@ export default function CreateClienteModal({ onClose }: Props) {
     if (!form.apellido.trim()) {
       setError('El apellido es requerido')
       return
+    }
+
+    if (isAgent) {
+      const fe: { telefono?: string; codigoPostal?: string } = {}
+      if (!form.telefono.trim()) fe.telefono = 'El teléfono es requerido'
+      if (!form.codigoPostal.trim()) fe.codigoPostal = 'El código postal es requerido'
+      if (fe.telefono ?? fe.codigoPostal) {
+        setFieldErrors(fe)
+        return
+      }
     }
 
     setIsPending(true)
@@ -166,14 +179,17 @@ export default function CreateClienteModal({ onClose }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Teléfono</label>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">
+                  Teléfono {isAgent && <span className="text-destructive">*</span>}
+                </label>
                 <input
                   type="tel"
                   value={form.telefono}
-                  onChange={(e) => set('telefono', e.target.value)}
+                  onChange={(e) => { set('telefono', e.target.value); setFieldErrors((p) => ({ ...p, telefono: undefined })) }}
                   placeholder="+549..."
-                  className={inputClass}
+                  className={cn(inputClass, fieldErrors.telefono && 'border-destructive focus:ring-destructive/50')}
                 />
+                {fieldErrors.telefono && <p className="text-xs text-destructive mt-1">{fieldErrors.telefono}</p>}
               </div>
             </div>
 
@@ -233,14 +249,17 @@ export default function CreateClienteModal({ onClose }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Código Postal</label>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">
+                  Código Postal {isAgent && <span className="text-destructive">*</span>}
+                </label>
                 <input
                   inputMode="numeric"
                   value={form.codigoPostal}
-                  onChange={(e) => set('codigoPostal', e.target.value)}
+                  onChange={(e) => { set('codigoPostal', e.target.value); setFieldErrors((p) => ({ ...p, codigoPostal: undefined })) }}
                   placeholder="1234"
-                  className={inputClass}
+                  className={cn(inputClass, fieldErrors.codigoPostal && 'border-destructive focus:ring-destructive/50')}
                 />
+                {fieldErrors.codigoPostal && <p className="text-xs text-destructive mt-1">{fieldErrors.codigoPostal}</p>}
               </div>
             </div>
 
@@ -279,7 +298,7 @@ export default function CreateClienteModal({ onClose }: Props) {
           <div className="p-4 border-t border-border bg-card shrink-0">
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || (isAgent && (!form.telefono.trim() || !form.codigoPostal.trim()))}
               className="w-full py-3 md:py-2 bg-primary text-primary-foreground rounded-lg md:rounded-md text-base md:text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? 'Guardando...' : 'Crear Cliente'}

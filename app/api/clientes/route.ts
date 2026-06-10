@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, users, territorios } from '@/db/schema'
 import { eq, and, ilike, or, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
-import { createClienteSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
+import { createClienteSchema, createClienteAgentSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { resolverTerritorioPorRol } from '@/lib/territorios/asignacion.service'
@@ -141,9 +141,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body: unknown = await req.json()
-    const parsed = createClienteSchema.safeParse(body)
+    const schema = ctx.role === 'agent' ? createClienteAgentSchema : createClienteSchema
+    const parsed = schema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
+      const firstIssue = parsed.error.issues[0]
+      const field = firstIssue?.path[0] as string | undefined
+      const message = firstIssue?.message ?? 'Datos inválidos'
+      return NextResponse.json({ error: message, field }, { status: 400 })
     }
 
     const input = parsed.data
