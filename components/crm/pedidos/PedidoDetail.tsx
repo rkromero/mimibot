@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
@@ -50,6 +50,10 @@ type Pedido = {
   entregaLat: number | null
   entregaLng: number | null
   entregaPrecisionM: number | null
+  metodoEntrega: 'expreso' | 'retiro_fabrica' | null
+  esReparto: boolean
+  firmaUrl: string | null
+  remitoFotoUrl: string | null
 }
 
 const estadoColors: Record<string, string> = {
@@ -84,6 +88,72 @@ const estadoPagoLabels: Record<string, string> = {
 
 function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+}
+
+type ComprobanteProps = {
+  pedidoId: string
+  metodoEntrega: 'expreso' | 'retiro_fabrica' | null
+  esReparto: boolean
+}
+
+function ComprobanteEntrega({ pedidoId, metodoEntrega, esReparto }: ComprobanteProps) {
+  const { data, isLoading, isError } = useQuery<{ url: string | null; tipo: string | null; missingComprobante: boolean }>({
+    queryKey: ['comprobante', pedidoId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pedidos/${pedidoId}/comprobante`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) throw new Error('Error al cargar comprobante')
+      return res.json() as Promise<{ url: string | null; tipo: string | null; missingComprobante: boolean }>
+    },
+    staleTime: 60_000,
+    enabled: metodoEntrega === 'expreso' || esReparto,
+  })
+
+  const tipoLabel = metodoEntrega === 'expreso' ? 'Foto de remito firmado' : 'Firma del cliente'
+
+  if (!metodoEntrega && !esReparto) return null
+  if (metodoEntrega !== 'expreso' && !esReparto) return null
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground mb-3">Comprobante de entrega</h3>
+      <div className="bg-card border border-border rounded-lg p-4">
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Cargando comprobante...</p>
+        )}
+        {isError && (
+          <p className="text-sm text-destructive">Error al cargar el comprobante.</p>
+        )}
+        {!isLoading && !isError && data?.missingComprobante && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ImageIcon size={16} />
+            Sin comprobante cargado
+          </div>
+        )}
+        {!isLoading && !isError && data?.url && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">{tipoLabel}</p>
+            <img
+              src={data.url}
+              alt={tipoLabel}
+              className="max-w-full max-h-80 rounded-md border border-border object-contain"
+            />
+            <a
+              href={data.url}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
+            >
+              <Download size={13} />
+              Descargar
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function PedidoDetail({ id }: Props) {
@@ -505,6 +575,11 @@ export default function PedidoDetail({ id }: Props) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Comprobante de entrega */}
+      {pedido.estado === 'entregado' && (
+        <ComprobanteEntrega pedidoId={id} metodoEntrega={pedido.metodoEntrega} esReparto={pedido.esReparto} />
       )}
 
       {/* Ubicación de la entrega */}
