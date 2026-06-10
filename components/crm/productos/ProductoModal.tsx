@@ -60,6 +60,7 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
 
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [skuError, setSkuError] = useState<string | null>(null)
   const [form, setForm] = useState({
     sku: producto?.sku ?? '',
     nombre: producto?.nombre ?? '',
@@ -81,6 +82,7 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setSkuError(null)
 
     if (!form.nombre.trim()) { setError('El nombre es requerido'); return }
     const precio = parseFloat(form.precio)
@@ -114,7 +116,11 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
 
       if (!res.ok) {
         const data = await res.json() as { error: string }
-        setError(data.error ?? 'Error al guardar producto')
+        if (res.status === 409) {
+          setSkuError(data.error ?? 'SKU duplicado')
+        } else {
+          setError(data.error ?? 'Error al guardar producto')
+        }
         return
       }
 
@@ -146,11 +152,12 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
               <label className="block text-xs text-muted-foreground mb-1">SKU</label>
               <input
                 value={form.sku}
-                onChange={(e) => set('sku', e.target.value)}
-                placeholder="MIM-001"
-                className={inputClass}
+                onChange={(e) => { set('sku', e.target.value); setSkuError(null) }}
+                placeholder={isEdit ? '' : 'Se genera automáticamente si lo dejás vacío'}
+                className={cn(inputClass, skuError ? 'border-destructive' : '')}
                 style={{ textTransform: 'uppercase' }}
               />
+              {skuError && <p className="text-xs text-destructive mt-1">{skuError}</p>}
             </div>
             <div className="col-span-2 sm:col-span-1">
               <label className="block text-xs text-muted-foreground mb-1">Categoría</label>
