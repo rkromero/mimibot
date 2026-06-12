@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import PedidoCard, { type Pedido } from '@/components/repartidor/PedidoCard'
 import ListoParaRepartirView from '@/components/repartidor/ListoParaRepartirView'
+import RutaOptimizer from '@/components/repartidor/RutaOptimizer'
 
 async function fetchPedidos(): Promise<Pedido[]> {
   const res = await fetch('/api/repartidor/pedidos')
@@ -37,6 +38,8 @@ type Tab = 'listos' | 'ruta'
 
 export default function RepartidorPage() {
   const [tab, setTab] = useState<Tab>('listos')
+  // Sugerencia de optimización tras armar la ruta (solo en memoria, no localStorage).
+  const [suggestOptimize, setSuggestOptimize] = useState(false)
 
   const { data: rutaData, isLoading: rutaLoading, error: rutaError, refetch: rutaRefetch, isFetching: rutaFetching } = useQuery({
     queryKey: ['repartidor-pedidos'],
@@ -92,7 +95,7 @@ export default function RepartidorPage() {
 
       {/* Tab content */}
       {tab === 'listos' ? (
-        <ListoParaRepartirView onRutaArmada={() => setTab('ruta')} />
+        <ListoParaRepartirView onRutaArmada={() => { setTab('ruta'); setSuggestOptimize(true) }} />
       ) : (
         <div className="flex-1 overflow-y-auto">
           {rutaLoading ? (
@@ -133,6 +136,10 @@ export default function RepartidorPage() {
             </div>
           ) : (
             <div className="p-4 pb-10 space-y-4">
+              <RutaOptimizer
+                suggested={suggestOptimize}
+                onDismissSuggestion={() => setSuggestOptimize(false)}
+              />
               {rutaFetching && !rutaLoading && (
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-1">
                   <RefreshCw size={12} className="animate-spin" />

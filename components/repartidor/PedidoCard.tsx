@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { Phone, MessageCircle, MapPin, CheckCircle, Package } from 'lucide-react'
+import { Phone, MessageCircle, Navigation, CheckCircle, Package } from 'lucide-react'
 import EntregarSheet from './EntregarSheet'
+import { construirMapsUrl } from '@/lib/repartidor/route-ui'
 
 type Item = {
   id: string
@@ -20,6 +21,8 @@ type Cliente = {
   localidad: string | null
   provincia: string | null
   telefono: string | null
+  lat: number | null
+  lng: number | null
 }
 
 export type Pedido = {
@@ -28,11 +31,12 @@ export type Pedido = {
   total: string
   saldoPendiente: string
   metodoEntrega: string | null
+  ordenRuta: number | null
   cliente: Cliente
   items: Item[]
 }
 
-export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEntrega, cliente, items }: Pedido) {
+export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEntrega, ordenRuta, cliente, items }: Pedido) {
   const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
@@ -60,10 +64,12 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
     }, 350)
   }
 
+  function handleNavegar() {
+    window.open(construirMapsUrl(cliente), '_blank', 'noopener,noreferrer')
+  }
+
   const addressParts = [cliente.direccion, cliente.localidad, cliente.provincia].filter(Boolean)
   const fullAddress = addressParts.join(', ')
-  const destination = fullAddress || `${cliente.nombre} ${cliente.apellido}`
-  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
   const cleanPhone = cliente.telefono?.replace(/\D/g, '') ?? ''
 
   const itemsText = items
@@ -82,8 +88,15 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
   return (
     <>
       <article className={`bg-card border border-border rounded-2xl p-4 space-y-3 shadow-sm transition-all duration-300 ease-out ${isDismissing ? 'opacity-0 -translate-y-2 scale-95 pointer-events-none' : 'opacity-100 translate-y-0 scale-100'}`}>
-        {/* Header: cliente + total */}
-        <div className="flex items-start justify-between gap-3">
+        {/* Header: badge de parada + cliente + total */}
+        <div className="flex items-start gap-3">
+          {/* Badge nº de parada (orden_ruta) */}
+          <span
+            className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground font-bold text-base leading-none tabular-nums"
+            aria-label={ordenRuta != null ? `Parada número ${ordenRuta}` : 'Sin orden de ruta'}
+          >
+            {ordenRuta ?? '–'}
+          </span>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-lg leading-tight text-foreground truncate">
               {cliente.nombre} {cliente.apellido}
@@ -144,17 +157,16 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
             </span>
           )}
 
-          {/* Mapa */}
-          <a
-            href={mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          {/* Navegar (Google Maps) */}
+          <button
+            type="button"
+            onClick={handleNavegar}
             className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-blue-100 hover:bg-blue-200 active:bg-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-xl transition-colors text-blue-700 dark:text-blue-400"
-            aria-label="Abrir en Google Maps"
+            aria-label="Navegar con Google Maps"
           >
-            <MapPin size={18} strokeWidth={2} />
-            <span className="text-[11px] font-medium">Mapa</span>
-          </a>
+            <Navigation size={18} strokeWidth={2} />
+            <span className="text-[11px] font-medium">Navegar</span>
+          </button>
 
           {/* Entregar */}
           <button
