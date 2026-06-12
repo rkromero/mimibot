@@ -13,7 +13,7 @@ export interface AdminDashboardStats {
   productosVendidos: number
   carteraActiva: number
   mesNombre: string
-  clientesCreadosPorDia: Array<{ day: number; total: number }>
+  clientesCreadosPorDia: Array<{ day: number; total: number; conPedido: number }>
 }
 
 export const MESES_NOMBRES = [
@@ -92,7 +92,7 @@ export async function getAdminDashboardStats(
         productosVendidos: 0,
         carteraActiva: 0,
         mesNombre: MESES_NOMBRES[mes - 1] ?? '',
-        clientesCreadosPorDia: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, total: 0 })),
+        clientesCreadosPorDia: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, total: 0, conPedido: 0 })),
       }
     }
     territorioIds = rows.map((r) => r.territorioId)
@@ -197,11 +197,35 @@ export async function getAdminDashboardStats(
     )
     .groupBy(sql`extract(day from ${clientes.createdAt})`)
 
+  // Clients created this month with at least one non-deleted order placed on the
+  // same calendar day they were created (filtered by territory when applicable)
+  const conPedidoMismoDiaRows = await db
+    .select({
+      day: sql<number>`extract(day from ${clientes.createdAt})::int`,
+      conPedido: sql<number>`count(distinct ${clientes.id})::int`,
+    })
+    .from(clientes)
+    .innerJoin(pedidos, eq(pedidos.clienteId, clientes.id))
+    .where(
+      and(
+        gte(clientes.createdAt, mesStart),
+        lt(clientes.createdAt, mesEnd),
+        isNull(clientes.deletedAt),
+        isNull(pedidos.deletedAt),
+        sql`date(${pedidos.fecha}) = date(${clientes.createdAt})`,
+        territorioConditionClientes,
+      ),
+    )
+    .groupBy(sql`extract(day from ${clientes.createdAt})`)
+
   const creadosMap = new Map(creadosPorDiaRows.map((r) => [r.day, r.total]))
-  const clientesCreadosPorDia = Array.from({ length: diasEnMes }, (_, i) => ({
-    day: i + 1,
-    total: creadosMap.get(i + 1) ?? 0,
-  }))
+  const conPedidoMap = new Map(conPedidoMismoDiaRows.map((r) => [r.day, r.conPedido]))
+  const clientesCreadosPorDia = Array.from({ length: diasEnMes }, (_, i) => {
+    const total = creadosMap.get(i + 1) ?? 0
+    // conPedido can never exceed total (clamp defensively)
+    const conPedido = Math.min(conPedidoMap.get(i + 1) ?? 0, total)
+    return { day: i + 1, total, conPedido }
+  })
 
   return {
     chartData,

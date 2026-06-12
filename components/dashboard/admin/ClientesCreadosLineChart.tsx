@@ -5,6 +5,7 @@ import { useState } from 'react'
 interface DataPoint {
   day: number
   total: number
+  conPedido: number
 }
 
 interface Props {
@@ -17,23 +18,31 @@ interface TooltipState {
   y: number
   day: number
   total: number
+  conPedido: number
 }
 
 const LINE_COLOR = '#3b82f6'
+const BAR_COLOR = '#10b981'
 const CHART_H = 200
 const PADDING_LEFT = 28
 const PADDING_BOTTOM = 20
 const PADDING_TOP = 8
 const PADDING_RIGHT = 8
 const VIEWBOX_W = 700
+const GAP = 1
 
 export default function ClientesCreadosLineChart({ data, mes }: Props) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
+  // Both series share the same Y axis: max driven by total (line)
   const maxVal = Math.max(1, ...data.map((d) => d.total))
   const n = data.length
   const chartW = VIEWBOX_W - PADDING_LEFT - PADDING_RIGHT
   const chartH = CHART_H - PADDING_BOTTOM - PADDING_TOP
+  const groupW = chartW / n
+  // Same width/style as the bars in ClientesBarChart.tsx
+  const barW = Math.max(2, (groupW - GAP * 3) / 2)
+  const bottomY = PADDING_TOP + chartH
 
   const xPos = (i: number) => PADDING_LEFT + (i + 0.5) * (chartW / n)
   const yPos = (val: number) => PADDING_TOP + chartH - (val / maxVal) * chartH
@@ -46,10 +55,16 @@ export default function ClientesCreadosLineChart({ data, mes }: Props) {
     <div className="rounded-lg border border-border bg-card p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-sm font-medium">Clientes creados por día — {mes}</h3>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: LINE_COLOR }} />
-          Con o sin pedido
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-3 h-0.5 rounded-full" style={{ background: LINE_COLOR }} />
+            Clientes creados
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: BAR_COLOR }} />
+            Con pedido el mismo día
+          </span>
+        </div>
       </div>
 
       <div className="relative select-none" onMouseLeave={() => setTooltip(null)}>
@@ -78,7 +93,25 @@ export default function ClientesCreadosLineChart({ data, mes }: Props) {
             )
           })}
 
-          {/* Line */}
+          {/* Bars (con pedido el mismo día) — drawn first, under the line */}
+          {data.map((d, i) => {
+            if (d.conPedido <= 0) return null
+            const barH = (d.conPedido / maxVal) * chartH
+            const barX = xPos(i) - barW / 2
+            return (
+              <rect
+                key={`bar-${d.day}`}
+                x={barX}
+                y={bottomY - barH}
+                width={barW}
+                height={barH}
+                fill={BAR_COLOR}
+                rx="2"
+              />
+            )
+          })}
+
+          {/* Line (clientes creados) */}
           <polyline
             points={polylinePoints}
             fill="none"
@@ -95,11 +128,11 @@ export default function ClientesCreadosLineChart({ data, mes }: Props) {
             return (
               <g key={d.day}>
                 <circle cx={cx} cy={cy} r={3} fill={LINE_COLOR} />
-                {/* invisible hover target */}
+                {/* invisible hover target spanning the day's slot */}
                 <rect
-                  x={cx - 8}
+                  x={cx - groupW / 2}
                   y={PADDING_TOP}
-                  width={16}
+                  width={groupW}
                   height={chartH}
                   fill="transparent"
                   onMouseEnter={(e) => {
@@ -112,6 +145,7 @@ export default function ClientesCreadosLineChart({ data, mes }: Props) {
                       y: (e.clientY - rect.top) * scaleY,
                       day: d.day,
                       total: d.total,
+                      conPedido: d.conPedido,
                     })
                   }}
                   onMouseMove={(e) => {
@@ -161,7 +195,10 @@ export default function ClientesCreadosLineChart({ data, mes }: Props) {
           >
             <p className="font-medium mb-1">Día {tooltip.day}</p>
             <p style={{ color: LINE_COLOR }}>
-              Clientes creados: <span className="font-semibold">{tooltip.total}</span>
+              Creados: <span className="font-semibold">{tooltip.total}</span>
+            </p>
+            <p style={{ color: BAR_COLOR }}>
+              Con pedido ese día: <span className="font-semibold">{tooltip.conPedido}</span>
             </p>
           </div>
         )}
