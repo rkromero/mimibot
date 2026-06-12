@@ -7,6 +7,8 @@ import type { AdminDashboardStats } from '@/lib/admin/dashboard.service'
 interface Props {
   anio: number
   mes: number
+  territorioId?: string
+  gerenteId?: string
 }
 
 function formatCurrency(value: number): string {
@@ -21,7 +23,7 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-AR').format(value)
 }
 
-export default function AdminKPISection({ anio, mes }: Props) {
+export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: Props) {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +32,10 @@ export default function AdminKPISection({ anio, mes }: Props) {
     setLoading(true)
     setError(null)
     setStats(null)
-    fetch(`/api/admin/dashboard-kpis?anio=${anio}&mes=${mes}`)
+    const qs = new URLSearchParams({ anio: String(anio), mes: String(mes) })
+    if (territorioId) qs.set('territorioId', territorioId)
+    else if (gerenteId) qs.set('gerenteId', gerenteId)
+    fetch(`/api/admin/dashboard-kpis?${qs.toString()}`)
       .then(async (r) => {
         if (!r.ok) throw new Error('Error al cargar indicadores')
         return (await r.json()) as { data: AdminDashboardStats }
@@ -40,7 +45,7 @@ export default function AdminKPISection({ anio, mes }: Props) {
         setError(err instanceof Error ? err.message : 'Error al cargar indicadores'),
       )
       .finally(() => setLoading(false))
-  }, [anio, mes])
+  }, [anio, mes, territorioId, gerenteId])
 
   if (loading) {
     return (

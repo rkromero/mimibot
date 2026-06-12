@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { pedidos, pedidoItems } from '@/db/schema'
+import { pedidos, pedidoItems, territorioGerente } from '@/db/schema'
 import { and, gte, lt, isNull, sql, eq, inArray } from 'drizzle-orm'
 
 export interface DayDataPoint {
@@ -69,10 +69,39 @@ export function aggregateChartData(
 export async function getAdminDashboardStats(
   anio: number,
   mes: number,
+  filtros?: { territorioId?: string; gerenteId?: string },
 ): Promise<AdminDashboardStats> {
   const mesStart = new Date(anio, mes - 1, 1)
   const mesEnd = new Date(anio, mes, 1)
   const diasEnMes = new Date(anio, mes, 0).getDate()
+
+  // Resolve territory filter condition
+  let territorioIds: string[] | null = null
+
+  if (filtros?.territorioId) {
+    territorioIds = [filtros.territorioId]
+  } else if (filtros?.gerenteId) {
+    const rows = await db
+      .select({ territorioId: territorioGerente.territorioId })
+      .from(territorioGerente)
+      .where(eq(territorioGerente.gerenteId, filtros.gerenteId))
+    if (rows.length === 0) {
+      return {
+        chartData: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, primerPedido: 0, clienteNuevo: 0 })),
+        productosVendidos: 0,
+        carteraActiva: 0,
+        mesNombre: MESES_NOMBRES[mes - 1] ?? '',
+      }
+    }
+    territorioIds = rows.map((r) => r.territorioId)
+  }
+
+  const territorioCondition =
+    territorioIds !== null
+      ? territorioIds.length === 1
+        ? eq(pedidos.territorioIdImputado, territorioIds[0]!)
+        : inArray(pedidos.territorioIdImputado, territorioIds)
+      : undefined
 
   const chartData: DayDataPoint[] = Array.from({ length: diasEnMes }, (_, i) => ({
     day: i + 1,
@@ -80,7 +109,7 @@ export async function getAdminDashboardStats(
     clienteNuevo: 0,
   }))
 
-  // Paid orders this month (to identify which clients have 1st or 3rd paid order here)
+  // Paid orders this month (filtered by territory when applicable)
   const pedidosMes = await db
     .select({ id: pedidos.id, clienteId: pedidos.clienteId, fecha: pedidos.fecha })
     .from(pedidos)
@@ -90,13 +119,14 @@ export async function getAdminDashboardStats(
         eq(pedidos.estadoPago, 'pagado'),
         gte(pedidos.fecha, mesStart),
         lt(pedidos.fecha, mesEnd),
+        territorioCondition,
       ),
     )
 
   if (pedidosMes.length > 0) {
     const clienteIds = [...new Set(pedidosMes.map((p) => p.clienteId))]
 
-    // All paid orders for those clients (all time) to compute rank
+    // All paid orders for those clients (all time, global — no territory filter)
     const allPaid = await db
       .select({ id: pedidos.id, clienteId: pedidos.clienteId, fecha: pedidos.fecha })
       .from(pedidos)
@@ -112,7 +142,7 @@ export async function getAdminDashboardStats(
     aggregateChartData(chartData, pedidosMes, rankMap)
   }
 
-  // Sum of product units in paid orders this month
+  // Sum of product units in paid orders this month (filtered by territory)
   const [productosRow] = await db
     .select({ total: sql<number>`coalesce(sum(${pedidoItems.cantidad}), 0)::int` })
     .from(pedidoItems)
@@ -123,10 +153,11 @@ export async function getAdminDashboardStats(
         eq(pedidos.estadoPago, 'pagado'),
         gte(pedidos.fecha, mesStart),
         lt(pedidos.fecha, mesEnd),
+        territorioCondition,
       ),
     )
 
-  // Pending receivables (impago + parcial) in orders from this month
+  // Pending receivables (impago + parcial) in orders from this month (filtered by territory)
   const [carteraRow] = await db
     .select({ total: sql<string>`coalesce(sum(${pedidos.saldoPendiente}::numeric), 0)` })
     .from(pedidos)
@@ -136,6 +167,7 @@ export async function getAdminDashboardStats(
         sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
         gte(pedidos.fecha, mesStart),
         lt(pedidos.fecha, mesEnd),
+        territorioCondition,
       ),
     )
 

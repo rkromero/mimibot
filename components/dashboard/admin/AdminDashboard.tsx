@@ -208,7 +208,12 @@ export default function AdminDashboard({
       )}
 
       {/* KPI section: products sold, active portfolio, clients bar chart */}
-      <AdminKPISection anio={anio} mes={mes} />
+      <AdminKPISection
+        anio={anio}
+        mes={mes}
+        territorioId={territorioFiltro || undefined}
+        gerenteId={gerenteFiltro || undefined}
+      />
 
       {/* Content */}
       {!loading && !error && avances !== null && users !== null && (
