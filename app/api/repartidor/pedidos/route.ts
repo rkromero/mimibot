@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos } from '@/db/schema'
-import { eq, and, isNull, desc } from 'drizzle-orm'
+import { eq, and, isNull, desc, sql } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
 
 export async function GET() {
@@ -29,7 +29,9 @@ export async function GET() {
 
     const data = await db.query.pedidos.findMany({
       where: whereClause,
-      orderBy: [desc(pedidos.fecha)],
+      // Orden óptimo de reparto primero (orden_ruta asc); los sin optimizar
+      // (orden_ruta NULL) van al final, ordenados por fecha desc.
+      orderBy: [sql`${pedidos.ordenRuta} asc nulls last`, desc(pedidos.fecha)],
       columns: {
         id: true,
         fecha: true,
@@ -41,6 +43,7 @@ export async function GET() {
         metodoEntrega: true,
         expresoNombre: true,
         expresoDireccion: true,
+        ordenRuta: true,
       },
       with: {
         cliente: {
@@ -52,6 +55,8 @@ export async function GET() {
             localidad: true,
             provincia: true,
             telefono: true,
+            lat: true,
+            lng: true,
           },
         },
         items: {
