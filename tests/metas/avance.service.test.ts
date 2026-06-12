@@ -503,6 +503,7 @@ describe('montoCobradoDelPeriodo', () => {
       .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)           // #12 clientesCreadosCount
       .mockReturnValueOnce(makeSelectResult([]).stub)                       // #13 clientesCreadosConPedidoIds → [] → returns 0 early
       .mockReturnValueOnce(makeSelectResult([]).stub)                       // #15 primerPedidoEnPeriodo → [] → returns 0 early
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)          // pedidosSinEntregar
 
     const result = await calcularAvanceMeta('meta-1')
 

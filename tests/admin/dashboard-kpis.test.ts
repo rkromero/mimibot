@@ -44,6 +44,13 @@ vi.mock('@/db/schema', () => ({
     gerenteId: 'territorioGerente.gerenteId',
     $inferSelect: {},
   },
+  clientes: {
+    id: 'clientes.id',
+    territorioId: 'clientes.territorioId',
+    createdAt: 'clientes.createdAt',
+    deletedAt: 'clientes.deletedAt',
+    $inferSelect: {},
+  },
 }))
 
 vi.mock('@/lib/auth', () => ({ auth: mockAuth }))
@@ -64,6 +71,14 @@ function makeChain(resolvedValue: unknown) {
   const innerJoinFn = vi.fn().mockReturnValue({ where: whereFn })
   const fromFn = vi.fn().mockReturnValue({ where: whereFn, innerJoin: innerJoinFn })
   return { stub: { from: fromFn }, whereFn, fromFn, innerJoinFn }
+}
+
+/** For db.select().from().where().groupBy() chains (clientesCreadosPorDia query) */
+function makeGroupByChain(resolvedValue: unknown) {
+  const groupByFn = vi.fn().mockResolvedValue(resolvedValue)
+  const whereFn = vi.fn().mockReturnValue({ groupBy: groupByFn })
+  const fromFn = vi.fn().mockReturnValue({ where: whereFn })
+  return { stub: { from: fromFn }, groupByFn, whereFn, fromFn }
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -91,6 +106,8 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     mockSelect.mockReturnValueOnce(makeChain([{ total: 0 }]).stub)
     // carteraActiva
     mockSelect.mockReturnValueOnce(makeChain([{ total: '0' }]).stub)
+    // clientesCreadosPorDia → ningún cliente
+    mockSelect.mockReturnValueOnce(makeGroupByChain([]).stub)
 
     const result = await getAdminDashboardStats(2026, 6)
 
@@ -98,7 +115,7 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     expect(result.carteraActiva).toBe(0)
     expect(result.mesNombre).toBe('Junio')
     expect(result.chartData).toHaveLength(30)
-    expect(mockSelect).toHaveBeenCalledTimes(3)
+    expect(mockSelect).toHaveBeenCalledTimes(4)
   })
 
   it('(a) sin filtros: con pedidos → devuelve totales y chartData correctos', async () => {
@@ -112,6 +129,8 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     mockSelect.mockReturnValueOnce(makeChain([{ total: 10 }]).stub)
     // carteraActiva
     mockSelect.mockReturnValueOnce(makeChain([{ total: '5000' }]).stub)
+    // clientesCreadosPorDia
+    mockSelect.mockReturnValueOnce(makeGroupByChain([]).stub)
 
     const result = await getAdminDashboardStats(2026, 6)
 
@@ -119,7 +138,7 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     expect(result.carteraActiva).toBe(5000)
     // p1 es el 1er pedido de c1 → primerPedido[día 5] = 1
     expect(result.chartData[4]!.primerPedido).toBe(1)
-    expect(mockSelect).toHaveBeenCalledTimes(4)
+    expect(mockSelect).toHaveBeenCalledTimes(5)
   })
 
   it('(b) con territorioId: filtra las 3 queries y devuelve datos del territorio', async () => {
@@ -133,13 +152,15 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     mockSelect.mockReturnValueOnce(makeChain([{ total: 7 }]).stub)
     // carteraActiva → resultado del territorio
     mockSelect.mockReturnValueOnce(makeChain([{ total: '3000' }]).stub)
+    // clientesCreadosPorDia → filtrado por territorio
+    mockSelect.mockReturnValueOnce(makeGroupByChain([]).stub)
 
     const result = await getAdminDashboardStats(2026, 6, { territorioId: TERRITORIO_UUID })
 
     expect(result.productosVendidos).toBe(7)
     expect(result.carteraActiva).toBe(3000)
     // No extra query por territorio (se pasó directo)
-    expect(mockSelect).toHaveBeenCalledTimes(4)
+    expect(mockSelect).toHaveBeenCalledTimes(5)
   })
 
   it('(c) con gerenteId: resuelve territorios primero, luego filtra las 3 queries con inArray', async () => {
@@ -155,13 +176,15 @@ describe('getAdminDashboardStats — filtros de territorio/gerente', () => {
     mockSelect.mockReturnValueOnce(makeChain([{ total: 5 }]).stub)
     // carteraActiva
     mockSelect.mockReturnValueOnce(makeChain([{ total: '2000' }]).stub)
+    // clientesCreadosPorDia → filtrado por territorio del gerente
+    mockSelect.mockReturnValueOnce(makeGroupByChain([]).stub)
 
     const result = await getAdminDashboardStats(2026, 6, { gerenteId: GERENTE_UUID })
 
     expect(result.productosVendidos).toBe(5)
     expect(result.carteraActiva).toBe(2000)
-    // 5 calls: territorioGerente + pedidosMes + allPaid + productos + cartera
-    expect(mockSelect).toHaveBeenCalledTimes(5)
+    // 6 calls: territorioGerente + pedidosMes + allPaid + productos + cartera + clientesCreados
+    expect(mockSelect).toHaveBeenCalledTimes(6)
   })
 
   it('(d) gerente sin territorios: devuelve ceros sin consultar pedidos', async () => {
@@ -215,5 +238,77 @@ describe('GET /api/admin/dashboard-kpis — validación UUID', () => {
     )
     const response = await getDashboardKpis(req)
     expect(response.status).toBe(400)
+  })
+})
+
+// ─── clientesCreadosPorDia tests ──────────────────────────────────────────────
+
+describe('getAdminDashboardStats — clientesCreadosPorDia', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('(a) tiene un elemento por día del mes con los conteos correctos', async () => {
+    // pedidosMes → []
+    mockSelect.mockReturnValueOnce(makeChain([]).stub)
+    // productosVendidos
+    mockSelect.mockReturnValueOnce(makeChain([{ total: 0 }]).stub)
+    // carteraActiva
+    mockSelect.mockReturnValueOnce(makeChain([{ total: '0' }]).stub)
+    // clientesCreadosPorDia: 2 clientes el día 3, 1 cliente el día 15
+    mockSelect.mockReturnValueOnce(makeGroupByChain([{ day: 3, total: 2 }, { day: 15, total: 1 }]).stub)
+
+    const result = await getAdminDashboardStats(2026, 6)
+
+    expect(result.clientesCreadosPorDia).toHaveLength(30)       // 30 días en junio
+    expect(result.clientesCreadosPorDia[2]!.day).toBe(3)        // día 3 (idx 2)
+    expect(result.clientesCreadosPorDia[2]!.total).toBe(2)      // 2 clientes ese día
+    expect(result.clientesCreadosPorDia[14]!.day).toBe(15)
+    expect(result.clientesCreadosPorDia[14]!.total).toBe(1)
+  })
+
+  it('(b) días sin clientes creados devuelven total=0', async () => {
+    mockSelect.mockReturnValueOnce(makeChain([]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: 0 }]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: '0' }]).stub)
+    // Solo 1 día con clientes; el resto debe ser 0
+    mockSelect.mockReturnValueOnce(makeGroupByChain([{ day: 10, total: 3 }]).stub)
+
+    const result = await getAdminDashboardStats(2026, 6)
+
+    const dia10 = result.clientesCreadosPorDia.find((d) => d.day === 10)
+    const dia5 = result.clientesCreadosPorDia.find((d) => d.day === 5)
+    expect(dia10?.total).toBe(3)
+    expect(dia5?.total).toBe(0)
+    // Todos los demás días también 0
+    const sinClientes = result.clientesCreadosPorDia.filter((d) => d.day !== 10)
+    expect(sinClientes.every((d) => d.total === 0)).toBe(true)
+  })
+
+  it('(c) clientes eliminados o creados fuera del mes no se cuentan (DB no los devuelve)', async () => {
+    // The WHERE clause in the service filters deletedAt IS NULL and date range.
+    // DB returns empty because all matching rows are filtered out.
+    mockSelect.mockReturnValueOnce(makeChain([]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: 0 }]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: '0' }]).stub)
+    mockSelect.mockReturnValueOnce(makeGroupByChain([]).stub)   // DB returns [] after applying filters
+
+    const result = await getAdminDashboardStats(2026, 6)
+
+    expect(result.clientesCreadosPorDia.every((d) => d.total === 0)).toBe(true)
+  })
+
+  it('(d) se cuentan clientes aunque no tengan pedidos (no hay filtro por pedidos)', async () => {
+    // The clientes query has no JOIN with pedidos → counts all clients regardless
+    // Stub returns 5 clients on day 7 (could be any clients, with or without orders)
+    mockSelect.mockReturnValueOnce(makeChain([]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: 0 }]).stub)
+    mockSelect.mockReturnValueOnce(makeChain([{ total: '0' }]).stub)
+    mockSelect.mockReturnValueOnce(makeGroupByChain([{ day: 7, total: 5 }]).stub)
+
+    const result = await getAdminDashboardStats(2026, 6)
+
+    const dia7 = result.clientesCreadosPorDia.find((d) => d.day === 7)
+    expect(dia7?.total).toBe(5)
   })
 })

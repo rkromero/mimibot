@@ -133,6 +133,7 @@ function setupNoClientesStubs() {
     .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #12 clientesCreadosCount
     .mockReturnValueOnce(makeSelectResult([]).stub)                // #13 clientesCreadosConPedidoIds → [] → returns 0 early
     .mockReturnValueOnce(makeSelectResult([]).stub)                // #15 primerPedidoEnPeriodo → [] → returns 0 early
+    .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)   // pedidosSinEntregar
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -243,6 +244,8 @@ describe('GET /api/metas/avance — end-to-end (real avance.service, mocked db)'
     mockSelect.mockReturnValueOnce(makeSelectResult([]).stub)
     // #15 primerPedidoEnPeriodo → [] → returns 0 early (no second query needed)
     mockSelect.mockReturnValueOnce(makeSelectResult([]).stub)
+    // pedidosSinEntregar
+    mockSelect.mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)
 
     const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
     const response = await getAvance(req)
@@ -255,5 +258,99 @@ describe('GET /api/metas/avance — end-to-end (real avance.service, mocked db)'
     expect(body.data.pctClientesConPedido.alcanzado).toBe(100)
     // objetivo = 80%, alcanzado = 100% → pct = 125% → cumplida
     expect(body.data.pctClientesConPedido.estado).toBe('cumplida')
+  })
+
+  it('(a) pedidosSinEntregar=0 cuando no hay pedidos en esos estados', async () => {
+    setupNoClientesStubs()
+    // pedidosSinEntregar already added in setupNoClientesStubs with total=0
+    // Override: re-add to confirm 0
+    // (setupNoClientesStubs already adds the stub; this test verifies the field)
+
+    const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
+    const response = await getAvance(req)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.pedidosSinEntregar).toBe(0)
+  })
+
+  it('(b) pedidosSinEntregar=3 cuando hay 3 pedidos confirmados', async () => {
+    // Use setupNoClientesStubs but override the pedidosSinEntregar stub
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 2 }]).stub)    // #0 clientesNuevos
+      .mockReturnValueOnce(makeSelectResult([{ total: 5 }]).stub)    // #1 pedidos
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #2 montoClienteIds → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // #3 leadsGanados
+      .mockReturnValueOnce(makeSelectResult([{ total: 10 }]).stub)   // #4 leadsGestionados
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #5 pctClienteIds → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #6 pctPedidosPagados den
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #7 pctPedidosPagados num
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #8 pctCobranza den
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #9 pctCobranza num
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #12 clientesCreadosCount
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #13 clientesCreadosConPedidoIds → []
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #15 primerPedidoEnPeriodo → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // pedidosSinEntregar → 3
+
+    const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
+    const response = await getAvance(req)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.pedidosSinEntregar).toBe(3)
+  })
+
+  it('(c) pedidosSinEntregar=5 cuando hay 2 confirmados + 3 listo_para_repartir', async () => {
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 2 }]).stub)    // #0
+      .mockReturnValueOnce(makeSelectResult([{ total: 8 }]).stub)    // #1 pedidos (todos)
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #2 montoClienteIds → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // #3
+      .mockReturnValueOnce(makeSelectResult([{ total: 10 }]).stub)   // #4
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #5 pctClienteIds → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #6
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #7
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #8
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #9
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #12
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #13 → []
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #15 → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 5 }]).stub)    // pedidosSinEntregar → 2+3=5
+
+    const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
+    const response = await getAvance(req)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.pedidosSinEntregar).toBe(5)
+  })
+
+  it('(d) pedidosSinEntregar no cuenta pedidos pagados', async () => {
+    // 8 pedidos confirmed by service (#1), but DB returns 3 for the sin_entregar filter
+    // (meaning 5 are in 'pagado' or another excluded state)
+    mockSelect
+      .mockReturnValueOnce(makeSelectResult([{ total: 2 }]).stub)    // #0
+      .mockReturnValueOnce(makeSelectResult([{ total: 8 }]).stub)    // #1 pedidos totales (incluye pagados)
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #2
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // #3
+      .mockReturnValueOnce(makeSelectResult([{ total: 10 }]).stub)   // #4
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #5
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #6
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #7
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #8
+      .mockReturnValueOnce(makeSelectResult([{ total: null }]).stub) // #9
+      .mockReturnValueOnce(makeSelectResult([{ total: 0 }]).stub)    // #12
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #13 → []
+      .mockReturnValueOnce(makeSelectResult([]).stub)                // #15 → []
+      .mockReturnValueOnce(makeSelectResult([{ total: 3 }]).stub)    // pedidosSinEntregar → solo no-pagados
+
+    const req = new NextRequest('http://localhost/api/metas/avance?anio=2026&mes=5')
+    const response = await getAvance(req)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    // Despite 8 total pedidos confirmed, only 3 are sin entregar (pagado excluded)
+    expect(body.data.pedidosSinEntregar).toBe(3)
+    expect(body.data.pedidosSinEntregar).not.toBe(8)
   })
 })

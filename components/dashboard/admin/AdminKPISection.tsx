@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import ClientesBarChart from './ClientesBarChart'
+import ClientesCreadosLineChart from './ClientesCreadosLineChart'
 import type { AdminDashboardStats } from '@/lib/admin/dashboard.service'
 
 interface Props {
@@ -54,7 +55,10 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
           <div className="h-28 rounded-lg border border-border bg-muted/30 animate-pulse" />
           <div className="h-28 rounded-lg border border-border bg-muted/30 animate-pulse" />
         </div>
-        <div className="h-72 rounded-lg border border-border bg-muted/30 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="h-72 rounded-lg border border-border bg-muted/30 animate-pulse" />
+          <div className="h-72 rounded-lg border border-border bg-muted/30 animate-pulse" />
+        </div>
       </div>
     )
   }
@@ -94,8 +98,11 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
         </div>
       </div>
 
-      {/* Bar chart */}
-      <ClientesBarChart data={stats.chartData} mes={stats.mesNombre} />
+      {/* Charts side by side on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ClientesBarChart data={stats.chartData} mes={stats.mesNombre} />
+        <ClientesCreadosLineChart data={stats.clientesCreadosPorDia} mes={stats.mesNombre} />
+      </div>
     </div>
   )
 }

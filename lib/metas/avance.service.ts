@@ -15,6 +15,7 @@ export type MetaAvance = {
   clientesCreados: number
   clientesCreadosConPedido: number
   pedidos: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
+  pedidosSinEntregar: number
   montoCobrado: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   conversionLeads: { alcanzado: number; pct: number; proyeccion: number; estado: EstadoMeta }
   pctClientesConPedido: { alcanzado: number | null; pct: number | null; proyeccion: number | null; estado: EstadoMeta }
@@ -119,6 +120,29 @@ async function pedidosConfirmadosDelPeriodo(
       and(
         eq(pedidos.vendedorId, vendedorId),
         eq(pedidos.estado, 'confirmado'),
+        gte(pedidos.fecha, start),
+        lt(pedidos.fecha, end),
+        isNull(pedidos.deletedAt),
+      ),
+    )
+
+  return result[0]?.total ?? 0
+}
+
+async function pedidosSinEntregarDelPeriodo(
+  vendedorId: string,
+  anio: number,
+  mes: number,
+): Promise<number> {
+  const { start, end } = periodoRange(anio, mes)
+
+  const result = await db
+    .select({ total: count() })
+    .from(pedidos)
+    .where(
+      and(
+        eq(pedidos.vendedorId, vendedorId),
+        inArray(pedidos.estado, ['confirmado', 'listo_para_repartir', 'en_reparto']),
         gte(pedidos.fecha, start),
         lt(pedidos.fecha, end),
         isNull(pedidos.deletedAt),
@@ -466,6 +490,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
   const alcanzadoClientesCreados = await clientesCreadosDelPeriodo(vendedorId, periodoAnio, periodoMes)
   const alcanzadoClientesCreadosConPedido = await clientesCreadosConPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes)
   const alcanzadoPrimerPedido = await clientesPrimerPedidoDelPeriodo(vendedorId, periodoAnio, periodoMes)
+  const alcanzadoPedidosSinEntregar = await pedidosSinEntregarDelPeriodo(vendedorId, periodoAnio, periodoMes)
 
   const objetivoClientesNuevos = meta.clientesNuevosObjetivo
   const objetivoPedidos = meta.pedidosObjetivo
@@ -550,6 +575,7 @@ export async function calcularAvanceMeta(metaId: string): Promise<MetaAvance> {
       proyeccion: estadoPedidos.proyeccion,
       estado: estadoPedidos.estado,
     },
+    pedidosSinEntregar: alcanzadoPedidosSinEntregar,
     montoCobrado: {
       alcanzado: alcanzadoMonto,
       pct: estadoMonto.pct,

@@ -36,6 +36,7 @@ interface MetaAvance {
   clientesCreados: number
   clientesCreadosConPedido: number
   pedidos: MetricaAvance
+  pedidosSinEntregar: number
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
@@ -101,7 +102,7 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
       : null
 
   const totalPedidos = hasVendedores
-    ? vendedorAvances.reduce((acc, a) => acc + a.pedidos.alcanzado, 0)
+    ? vendedorAvances.reduce((acc, a) => acc + a.pedidosSinEntregar, 0)
     : 0
 
   const cobranzaConDatos = avances.filter((a) => a.pctCobranza.estado !== 'na')
@@ -134,7 +135,7 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
       </div>
       {hasVendedores && (
         <div className="flex-1 min-w-[140px]">
-          <KpiCard label="Total Pedidos" value={String(totalPedidos)} />
+          <KpiCard label="Total Pedidos sin Entregar" value={String(totalPedidos)} />
         </div>
       )}
       <div className="flex-1 min-w-[140px]">

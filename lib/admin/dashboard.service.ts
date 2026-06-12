@@ -1,6 +1,6 @@
 import { db } from '@/db'
-import { pedidos, pedidoItems, territorioGerente } from '@/db/schema'
-import { and, gte, lt, isNull, sql, eq, inArray } from 'drizzle-orm'
+import { pedidos, pedidoItems, territorioGerente, clientes } from '@/db/schema'
+import { and, gte, lt, isNull, sql, eq, inArray, count } from 'drizzle-orm'
 
 export interface DayDataPoint {
   day: number
@@ -13,6 +13,7 @@ export interface AdminDashboardStats {
   productosVendidos: number
   carteraActiva: number
   mesNombre: string
+  clientesCreadosPorDia: Array<{ day: number; total: number }>
 }
 
 export const MESES_NOMBRES = [
@@ -91,6 +92,7 @@ export async function getAdminDashboardStats(
         productosVendidos: 0,
         carteraActiva: 0,
         mesNombre: MESES_NOMBRES[mes - 1] ?? '',
+        clientesCreadosPorDia: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, total: 0 })),
       }
     }
     territorioIds = rows.map((r) => r.territorioId)
@@ -101,6 +103,13 @@ export async function getAdminDashboardStats(
       ? territorioIds.length === 1
         ? eq(pedidos.territorioIdImputado, territorioIds[0]!)
         : inArray(pedidos.territorioIdImputado, territorioIds)
+      : undefined
+
+  const territorioConditionClientes =
+    territorioIds !== null
+      ? territorioIds.length === 1
+        ? eq(clientes.territorioId, territorioIds[0]!)
+        : inArray(clientes.territorioId, territorioIds)
       : undefined
 
   const chartData: DayDataPoint[] = Array.from({ length: diasEnMes }, (_, i) => ({
@@ -171,10 +180,34 @@ export async function getAdminDashboardStats(
       ),
     )
 
+  // Clients created this month grouped by day (filtered by territory when applicable)
+  const creadosPorDiaRows = await db
+    .select({
+      day: sql<number>`extract(day from ${clientes.createdAt})::int`,
+      total: count(),
+    })
+    .from(clientes)
+    .where(
+      and(
+        gte(clientes.createdAt, mesStart),
+        lt(clientes.createdAt, mesEnd),
+        isNull(clientes.deletedAt),
+        territorioConditionClientes,
+      ),
+    )
+    .groupBy(sql`extract(day from ${clientes.createdAt})`)
+
+  const creadosMap = new Map(creadosPorDiaRows.map((r) => [r.day, r.total]))
+  const clientesCreadosPorDia = Array.from({ length: diasEnMes }, (_, i) => ({
+    day: i + 1,
+    total: creadosMap.get(i + 1) ?? 0,
+  }))
+
   return {
     chartData,
     productosVendidos: productosRow?.total ?? 0,
     carteraActiva: Number(carteraRow?.total ?? 0),
     mesNombre: MESES_NOMBRES[mes - 1] ?? '',
+    clientesCreadosPorDia,
   }
 }

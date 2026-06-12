@@ -21,6 +21,7 @@ type MetaAvance = {
   clientesCreados: number
   clientesCreadosConPedido: number
   pedidos: MetricaAvance
+  pedidosSinEntregar: number
   montoCobrado: MetricaAvance
   conversionLeads: MetricaAvance
   pctClientesConPedido: MetricaCobertura
