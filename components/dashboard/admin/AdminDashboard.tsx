@@ -9,6 +9,7 @@ import RankingSection, { type GerenteEquipo } from './RankingSection'
 import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
 import AdminKPISection from './AdminKPISection'
+import EmbudoSection from './EmbudoSection'
 
 type Territorio = { id: string; nombre: string }
 type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
@@ -212,6 +213,12 @@ export default function AdminDashboard({
       <AdminKPISection
         anio={anio}
         mes={mes}
+        territorioId={territorioFiltro || undefined}
+        gerenteId={gerenteFiltro || undefined}
+      />
+
+      {/* Embudo de apertura: aperturas → conversión → recompras → consolidados */}
+      <EmbudoSection
         territorioId={territorioFiltro || undefined}
         gerenteId={gerenteFiltro || undefined}
       />
