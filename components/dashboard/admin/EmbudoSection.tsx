@@ -276,7 +276,7 @@ export default function EmbudoSection({ territorioId, gerenteId }: Props) {
 
   // Lista de vendedores/agentes (una sola vez).
   useEffect(() => {
-    void fetch('/api/users?role=vendedor,agent')
+    void fetch('/api/users?role=vendedor,agent,rtv')
       .then(async (r) => (r.ok ? ((await r.json()) as { data: VendedorOption[] }).data : []))
       .then((data) => setVendedores(data))
       .catch(() => setVendedores([]))

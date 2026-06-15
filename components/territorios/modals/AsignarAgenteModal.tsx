@@ -16,7 +16,7 @@ export default function AsignarAgenteModal({ territorioId, onClose, onDone }: Pr
   const { data: usuarios = [] } = useQuery<User[]>({
     queryKey: ['usuarios-agentes'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent,vendedor')
+      const res = await fetch('/api/users?role=agent,vendedor,rtv')
       if (!res.ok) return []
       return (await res.json() as { data: User[] }).data
     },
