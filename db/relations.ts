@@ -6,6 +6,7 @@ import {
   clientes, productos, pedidos, pedidoItems, movimientosCC, aplicacionesPago, stockMovements,
   actividadesCliente, metas, auditLogMetas,
   territorios, territorioAgente, territorioGerente, historialTeritorioCliente,
+  marcas, usuarioMarcas,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -25,6 +26,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   territoriosCreados: many(territorios, { relationName: 'territoriosCreados' }),
   pedidosComoVendedor: many(pedidos, { relationName: 'pedidosComoVendedor' }),
   pedidosCargados: many(pedidos, { relationName: 'pedidosCargados' }),
+  marcas: many(usuarioMarcas),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -151,8 +153,21 @@ export const actividadesClienteRelations = relations(actividadesCliente, ({ one 
 
 export const productosRelations = relations(productos, ({ one, many }) => ({
   creadoPor: one(users, { fields: [productos.creadoPor], references: [users.id] }),
+  marca: one(marcas, { fields: [productos.marcaId], references: [marcas.id] }),
   items: many(pedidoItems),
   stockMovements: many(stockMovements),
+}))
+
+// ─── Marcas Relations ─────────────────────────────────────────────────────────
+
+export const marcasRelations = relations(marcas, ({ many }) => ({
+  productos: many(productos),
+  usuarios: many(usuarioMarcas),
+}))
+
+export const usuarioMarcasRelations = relations(usuarioMarcas, ({ one }) => ({
+  usuario: one(users, { fields: [usuarioMarcas.usuarioId], references: [users.id] }),
+  marca: one(marcas, { fields: [usuarioMarcas.marcaId], references: [marcas.id] }),
 }))
 
 export const pedidosRelations = relations(pedidos, ({ one, many }) => ({

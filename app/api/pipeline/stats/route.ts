@@ -5,6 +5,7 @@ import { leads, pipelineStages } from '@/db/schema'
 import { and, eq, gte, lt, isNull, inArray, sql, type SQL } from 'drizzle-orm'
 import { todayStrAR, parseFechaAR } from '@/lib/dates'
 import { toApiError } from '@/lib/errors'
+import { esRolVentas } from '@/lib/authz/roles'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export async function GET() {
     // ── Scoping por rol ───────────────────────────────────────────────────────
     const roleConditions: SQL<unknown>[] = []
 
-    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
+    if (esRolVentas(session.user.role)) {
       // Vendedor/agente: solo sus propios leads
       roleConditions.push(eq(leads.assignedTo, session.user.id))
     } else if (session.user.role === 'gerente') {

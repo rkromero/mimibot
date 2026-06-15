@@ -5,6 +5,7 @@ import MetaCard from './MetaCard'
 import CarteraSection from './CarteraSection'
 import HistoricoTable from './HistoricoTable'
 import type { MetaAvance } from '@/lib/metas/avance.service'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 interface Props {
   user: {
@@ -43,7 +44,7 @@ export default function VendedorDashboard({ user }: Props) {
   const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${currentYear}`
   const firstName = user.name?.split(' ')[0] ?? 'agente'
 
-  const isAgent = user.role === 'agent'
+  const isAgent = esRolTipoAgent(user.role)
 
   const { data: avance, isLoading, isError } = useQuery<MetaAvance | null>({
     queryKey: ['meta-avance', currentYear, currentMonth],

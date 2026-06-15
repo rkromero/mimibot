@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { productos } from '@/db/schema'
+import { productos, marcas } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { updateProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
+import { assertPuedeVerMarca } from '@/lib/authz/marcas'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteProducto } from '@/lib/delete/delete.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
@@ -26,6 +27,9 @@ export async function GET(
     })
 
     if (!producto) throw new NotFoundError('Producto')
+
+    // Ventas no pueden ver productos de marcas no habilitadas para ellos.
+    await assertPuedeVerMarca(session.user, producto.marcaId)
 
     return NextResponse.json({ data: producto })
   } catch (err) {
@@ -65,6 +69,16 @@ export async function PATCH(
       updatedAt: new Date(),
     }
 
+    if (parsed.data.marcaId !== undefined) {
+      const marca = await db.query.marcas.findFirst({
+        where: and(eq(marcas.id, parsed.data.marcaId), eq(marcas.activo, true)),
+        columns: { id: true },
+      })
+      if (!marca) {
+        return NextResponse.json({ error: 'Marca inválida o inactiva' }, { status: 400 })
+      }
+      updates.marcaId = parsed.data.marcaId
+    }
     if (parsed.data.nombre !== undefined) updates.nombre = parsed.data.nombre
     if (parsed.data.descripcion !== undefined) updates.descripcion = parsed.data.descripcion
     if (parsed.data.precio !== undefined) updates.precio = parsed.data.precio

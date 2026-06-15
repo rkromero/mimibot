@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 type Producto = {
   id: string
+  marcaId: string
   sku: string | null
   nombre: string
   descripcion: string | null
@@ -20,6 +21,8 @@ type Producto = {
   stockMinimo: number
   activo: boolean
 }
+
+type Marca = { id: string; nombre: string; slug: string; activo: boolean; esDefault: boolean }
 
 type Props = {
   producto?: Partial<Producto>
@@ -61,7 +64,19 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [skuError, setSkuError] = useState<string | null>(null)
+
+  const { data: marcas = [] } = useQuery<Marca[]>({
+    queryKey: ['marcas', 'activas'],
+    queryFn: async () => {
+      const res = await fetch('/api/marcas?soloActivas=true')
+      if (!res.ok) return []
+      const json = await res.json() as { data: Marca[] }
+      return json.data
+    },
+  })
+
   const [form, setForm] = useState({
+    marcaId: producto?.marcaId ?? '',
     sku: producto?.sku ?? '',
     nombre: producto?.nombre ?? '',
     descripcion: producto?.descripcion ?? '',
@@ -79,12 +94,21 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  // Al crear, sugerir la marca por defecto (Mimi) una vez cargadas las marcas.
+  useEffect(() => {
+    if (!isEdit && !form.marcaId && marcas.length > 0) {
+      const def = marcas.find((m) => m.esDefault) ?? marcas[0]
+      if (def) setForm((prev) => ({ ...prev, marcaId: def.id }))
+    }
+  }, [marcas, isEdit, form.marcaId])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setSkuError(null)
 
     if (!form.nombre.trim()) { setError('El nombre es requerido'); return }
+    if (!form.marcaId) { setError('La marca es requerida'); return }
     const precio = parseFloat(form.precio)
     if (!form.precio || isNaN(precio) || precio <= 0) { setError('El precio debe ser mayor a 0'); return }
 
@@ -94,6 +118,7 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
       const method = isEdit ? 'PATCH' : 'POST'
 
       const body: Record<string, unknown> = {
+        marcaId: form.marcaId,
         nombre: form.nombre.trim(),
         descripcion: form.descripcion.trim() || null,
         precio: form.precio,
@@ -172,6 +197,21 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
                 {CATEGORIAS.map((c) => <option key={c} value={c} />)}
               </datalist>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Marca *</label>
+            <select
+              required
+              value={form.marcaId}
+              onChange={(e) => set('marcaId', e.target.value)}
+              className={selectClass}
+            >
+              <option value="" disabled>Seleccioná una marca</option>
+              {marcas.map((m) => (
+                <option key={m.id} value={m.id}>{m.nombre}</option>
+              ))}
+            </select>
           </div>
 
           <div>

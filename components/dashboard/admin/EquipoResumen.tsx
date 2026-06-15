@@ -1,5 +1,7 @@
 'use client'
 
+import { esRolTipoAgent } from '@/lib/authz/roles'
+
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
 
@@ -48,7 +50,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv'
   avatarColor: string
   isActive: boolean
 }
@@ -76,7 +78,7 @@ export default function EquipoResumen({ avances, users }: EquipoResumenProps) {
   const getRole = (vendedorId: string) =>
     users.find((u) => u.id === vendedorId)?.role
 
-  const agentAvances = avances.filter((a) => getRole(a.meta.vendedorId) === 'agent')
+  const agentAvances = avances.filter((a) => esRolTipoAgent(getRole(a.meta.vendedorId)))
   const vendedorAvances = avances.filter((a) => getRole(a.meta.vendedorId) === 'vendedor')
   const hasAgents = agentAvances.length > 0
   const hasVendedores = vendedorAvances.length > 0

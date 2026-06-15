@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
+import { esRolVentas, esRolTipoAgent } from '@/lib/authz/roles'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
@@ -254,7 +255,7 @@ export default function VendedorModal({
                   />
                 </>
               )}
-              {vendedorRole !== 'agent' && vendedorRole !== 'vendedor' && (
+              {!esRolVentas(vendedorRole) && (
                 <>
                   <div className="border-t border-border" />
                   <MetricRow
@@ -294,7 +295,7 @@ export default function VendedorModal({
                   estado={avance.pctClientesConPedido.estado as EstadoMeta}
                 />
               )}
-              {vendedorRole === 'agent' && (
+              {esRolTipoAgent(vendedorRole) && (
                 <>
                   <div className="border-t border-border" />
                   {avance.pctPedidosPagados.estado === 'na' ? (

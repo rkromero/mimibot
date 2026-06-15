@@ -103,6 +103,10 @@ vi.mock('@/lib/authz', () => ({
   requireAdmin: vi.fn(),
 }))
 
+vi.mock('@/lib/authz/marcas', () => ({
+  assertPuedeCargarProductos: vi.fn(),
+}))
+
 vi.mock('@/lib/delete/delete.service', () => ({
   deletePedido: vi.fn(),
 }))

@@ -49,7 +49,7 @@ type AgentRow = { id: string; name: string | null }
 async function getActiveAgents(): Promise<AgentRow[]> {
   const rows = await db.execute(sql`
     SELECT id, name FROM users
-    WHERE role IN ('agent', 'vendedor') AND is_active = true
+    WHERE role IN ('agent', 'vendedor', 'rtv') AND is_active = true
     ORDER BY name LIMIT 10
   `)
   return rows as unknown as AgentRow[]

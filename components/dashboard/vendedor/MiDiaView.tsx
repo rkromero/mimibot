@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import ParaHoySection from './ParaHoySection'
 import UltimosMovimientos from './UltimosMovimientos'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 type Movimiento = {
   tipo: string
@@ -99,7 +100,7 @@ function Skeleton() {
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export default function MiDiaView({ user }: Props) {
-  const isAgent = user.role === 'agent'
+  const isAgent = esRolTipoAgent(user.role)
 
   const { data, isLoading } = useQuery<HoyData | null>({
     queryKey: ['dashboard-hoy'],

@@ -6,6 +6,7 @@ import { eq, desc, sql, and, isNull } from 'drizzle-orm'
 import { registrarPagoSchema } from '@/lib/validations/pedidos'
 import { registrarPago } from '@/lib/cuenta-corriente/pago.service'
 import { canAccessCliente } from '@/lib/authz/clientes'
+import { esRolVentas } from '@/lib/authz/roles'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { validateUuidParam } from '@/lib/api/validate-params'
 import { evaluarClienteNuevo } from '@/lib/clientes/actividad.service'
@@ -130,7 +131,7 @@ export async function POST(
     if (!cliente) throw new NotFoundError('Cliente')
 
     const role = session.user.role
-    if (role === 'agent' || role === 'vendedor') {
+    if (esRolVentas(role)) {
       return NextResponse.json({ error: 'No autorizado para registrar pagos' }, { status: 403 })
     }
 

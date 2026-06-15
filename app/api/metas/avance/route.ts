@@ -9,6 +9,7 @@ import { getSessionContext } from '@/lib/territorios/context'
 import { db } from '@/db'
 import { territorioAgente, territorioGerente } from '@/db/schema'
 import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { esRolVentas } from '@/lib/authz/roles'
 
 async function getAgentesDeTerritorioOGerente(
   territorioId?: string | null,
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       const avance = await calcularAvanceVendedor(ctx.userId, anio, mes)
       return NextResponse.json({ data: avance })
     }

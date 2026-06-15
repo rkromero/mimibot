@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
 
 type Props = {
   user: User
@@ -163,7 +163,7 @@ export default function AppShell({ user, children }: Props) {
     )
   }
 
-  const groups = filterGroups(user.role as 'admin' | 'gerente' | 'agent' | 'vendedor')
+  const groups = filterGroups(user.role as 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv')
 
   return (
     <>

@@ -7,6 +7,7 @@ import { createMetaSchema } from '@/lib/validations/metas'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { createMeta, getMetaByVendedorPeriodo, isMesBloqueable } from '@/lib/metas/metas.service'
 import { getSessionContext } from '@/lib/territorios/context'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     const conditions: ReturnType<typeof eq>[] = []
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       conditions.push(eq(metas.vendedorId, ctx.userId))
     } else if (ctx.role === 'gerente') {
       const agentes = ctx.agentesVisibles
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       throw new AuthzError('Los agentes no pueden crear metas')
     }
 

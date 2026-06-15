@@ -6,6 +6,7 @@ import { eq, and, count, sum, isNull, desc, max, sql, ne } from 'drizzle-orm'
 import { updateClienteSchema } from '@/lib/validations/clientes'
 import { requireAdmin } from '@/lib/authz'
 import { canAccessCliente } from '@/lib/authz/clientes'
+import { esRolVentas } from '@/lib/authz/roles'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteCliente } from '@/lib/delete/delete.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
@@ -193,7 +194,7 @@ export async function PATCH(
         if (!assignee || !assignee.isActive) {
           return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 400 })
         }
-        if (assignee.role !== 'agent' && assignee.role !== 'vendedor') {
+        if (!esRolVentas(assignee.role)) {
           return NextResponse.json({ error: 'Solo se puede asignar a un agente o vendedor' }, { status: 400 })
         }
       }

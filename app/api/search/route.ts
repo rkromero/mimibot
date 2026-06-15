@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, productos, contacts } from '@/db/schema'
 import { ilike, or, isNull, and, eq } from 'drizzle-orm'
+import { marcaVisibleFilter } from '@/lib/authz/marcas'
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest) {
     }
 
     const pattern = `%${q}%`
+    // Marcas visibles: ventas no encuentran productos de marcas no habilitadas.
+    const marcaFilter = await marcaVisibleFilter(session.user)
 
     const [clientesRows, productosRows, contactosRows] = await Promise.all([
       db
@@ -54,6 +57,7 @@ export async function GET(req: NextRequest) {
             isNull(productos.deletedAt),
             eq(productos.activo, true),
             or(ilike(productos.nombre, pattern), ilike(productos.sku, pattern)),
+            ...(marcaFilter ? [marcaFilter] : []),
           ),
         )
         .limit(6),

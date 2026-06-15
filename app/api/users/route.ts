@@ -11,12 +11,13 @@ import { sql } from 'drizzle-orm'
 import { stringToColor } from '@/lib/utils'
 import { cachedJson } from '@/lib/api/cache'
 import { getSessionContext } from '@/lib/territorios/context'
+import { esRolVentas } from '@/lib/authz/roles'
 
 const createUserSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8).max(100),
-  role: z.enum(['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor']).default('agent'),
+  role: z.enum(['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor', 'rtv']).default('agent'),
 })
 
 export async function GET(req: NextRequest) {
@@ -28,14 +29,14 @@ export async function GET(req: NextRequest) {
 
     const roleParam = req.nextUrl.searchParams.get('role')
 
-    const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor'] as const
+    const VALID_ROLES = ['admin', 'agent', 'gerente', 'vendedor', 'fabrica', 'repartidor', 'rtv'] as const
     type UserRole = typeof VALID_ROLES[number]
     const conditions = [eq(users.isActive, true)]
 
     if (ctx.role === 'gerente') {
       if (ctx.agentesVisibles.length === 0) return NextResponse.json({ data: [] })
       conditions.push(inArray(users.id, ctx.agentesVisibles))
-    } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    } else if (esRolVentas(ctx.role)) {
       conditions.push(inArray(users.id, [session.user.id]))
     }
 

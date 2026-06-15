@@ -18,6 +18,7 @@ import 'dotenv/config'
 import { db } from '@/db'
 import {
   users,
+  marcas,
   productos,
   clientes,
   pedidos,
@@ -97,10 +98,18 @@ async function main(): Promise<void> {
     console.log(`  ✓ Vendedor:  ${vendedorId}`)
 
     // ── 2. Producto de prueba ───────────────────────────────────────────────
+    const [marcaDefault] = await db
+      .select({ id: marcas.id })
+      .from(marcas)
+      .where(eq(marcas.esDefault, true))
+      .limit(1)
+    if (!marcaDefault) throw new Error('No hay marca por defecto configurada')
+
     const [producto] = await db.insert(productos).values({
       nombre: `Producto Smoke ${ts}`,
       sku: `SMOKE-${ts}`,
       precio: '100.00',
+      marcaId: marcaDefault.id,
       creadoPor: vendedorId,
     }).returning()
 

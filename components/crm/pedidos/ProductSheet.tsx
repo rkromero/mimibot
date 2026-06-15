@@ -17,6 +17,15 @@ type SelectedItem = {
   precioUnitario: string
 }
 
+type RawProducto = {
+  id: string
+  nombre: string
+  precio: string
+  sku: string | null
+  categoria: string | null
+  marcaNombre?: string | null
+}
+
 type Producto = {
   id: string
   nombre: string
@@ -26,6 +35,7 @@ type Producto = {
   stockMinimo: number
   bajoCritico: boolean
   categoria: string | null
+  marcaNombre: string | null
 }
 
 type Props = {
@@ -79,14 +89,12 @@ export default function ProductSheet({
   }, [])
 
   // Fetch all products
-  const { data: rawProductos = [], isLoading: loadingProductos } = useQuery<
-    Array<{ id: string; nombre: string; precio: string; sku: string | null; categoria: string | null }>
-  >({
+  const { data: rawProductos = [], isLoading: loadingProductos } = useQuery<RawProducto[]>({
     queryKey: ['productos-activos'],
     queryFn: async () => {
       const res = await fetch('/api/productos?activo=true')
       if (!res.ok) return []
-      const json = await res.json() as { data: Array<{ id: string; nombre: string; precio: string; sku: string | null; categoria: string | null }> }
+      const json = await res.json() as { data: RawProducto[] }
       return json.data
     },
     staleTime: 60_000,
@@ -109,14 +117,12 @@ export default function ProductSheet({
   })
 
   // Fetch habituales
-  const { data: habitualesRaw = [] } = useQuery<
-    Array<{ id: string; nombre: string; precio: string; sku: string | null; categoria: string | null }>
-  >({
+  const { data: habitualesRaw = [] } = useQuery<RawProducto[]>({
     queryKey: ['cliente-habituales', clienteId],
     queryFn: async () => {
       const res = await fetch(`/api/clientes/${clienteId}/productos-habituales`)
       if (!res.ok) return []
-      const json = await res.json() as { data: Array<{ id: string; nombre: string; precio: string; sku: string | null; categoria: string | null }> }
+      const json = await res.json() as { data: RawProducto[] }
       return json.data
     },
     staleTime: 60_000,
@@ -125,13 +131,12 @@ export default function ProductSheet({
 
   const stockMap = new Map(stockSaldos.map((s) => [s.id, s]))
 
-  function mergeStock(
-    raw: Array<{ id: string; nombre: string; precio: string; sku: string | null; categoria: string | null }>,
-  ): Producto[] {
+  function mergeStock(raw: RawProducto[]): Producto[] {
     return raw.map((p) => {
       const stock = stockMap.get(p.id)
       return {
         ...p,
+        marcaNombre: p.marcaNombre ?? null,
         stockActual: stock?.stockActual ?? 0,
         stockMinimo: stock?.stockMinimo ?? 0,
         bajoCritico: stock?.bajoCritico ?? false,
@@ -238,9 +243,16 @@ export default function ProductSheet({
           outOfStock && 'opacity-50 cursor-not-allowed',
         )}
       >
-        {/* Left: name + sku */}
+        {/* Left: name + marca + sku */}
         <div className="flex-1 min-w-0">
-          <p className="text-base font-medium text-foreground truncate">{p.nombre}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="text-base font-medium text-foreground truncate">{p.nombre}</p>
+            {p.marcaNombre && (
+              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                {p.marcaNombre}
+              </span>
+            )}
+          </div>
           {p.sku && (
             <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>
           )}

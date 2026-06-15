@@ -11,6 +11,8 @@ import { requireAdmin } from '@/lib/authz'
 import { deletePedido } from '@/lib/delete/delete.service'
 import { getSessionContext } from '@/lib/territorios/context'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { esRolVentas } from '@/lib/authz/roles'
+import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 
 async function canAccessPedido(
   pedidoId: string,
@@ -26,7 +28,7 @@ async function canAccessPedido(
   if (ctx.role === 'fabrica') return pedido
 
   // Agente: solo accede al pedido si el cliente sigue asignado a él HOY.
-  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+  if (esRolVentas(ctx.role)) {
     const cliente = await db.query.clientes.findFirst({
       where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
       columns: { id: true },
@@ -133,12 +135,14 @@ export async function PATCH(
 
     // ── Guardia central de permisos por estado ────────────────────────────────
     const ESTADOS_BLOQUEADOS = new Set(['confirmado', 'listo_para_repartir', 'en_reparto', 'entregado'])
-    if ((ctx.role === 'agent' || ctx.role === 'vendedor') && ESTADOS_BLOQUEADOS.has(current.estado)) {
+    if (esRolVentas(ctx.role) && ESTADOS_BLOQUEADOS.has(current.estado)) {
       throw new AuthzError('Solo un administrador puede modificar pedidos confirmados.')
     }
 
     // ── Actualización de items / fecha ────────────────────────────────────────
     if (items !== undefined) {
+      // Cada producto debe pertenecer a una marca habilitada para el usuario.
+      await assertPuedeCargarProductos(session.user, items.map((i) => i.productoId))
       const updated = await actualizarItemsPedido(
         id,
         items,
@@ -158,7 +162,7 @@ export async function PATCH(
 
       // ── Aprobar: pendiente_aprobacion → confirmado ──────────────────────────
       if (estado === 'confirmado' && current.estado === 'pendiente_aprobacion') {
-        if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+        if (esRolVentas(ctx.role)) {
           throw new AuthzError('Los agentes no pueden aprobar pedidos')
         }
         if (ctx.role === 'gerente') {
@@ -188,7 +192,7 @@ export async function PATCH(
 
       // ── Revertir: confirmado → pendiente_aprobacion ─────────────────────────
       if (estado === 'pendiente_aprobacion' && current.estado === 'confirmado') {
-        if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+        if (esRolVentas(ctx.role)) {
           throw new AuthzError('Los agentes no pueden revertir pedidos')
         }
         if (ctx.role === 'gerente') {

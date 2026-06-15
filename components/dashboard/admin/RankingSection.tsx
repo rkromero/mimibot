@@ -1,5 +1,7 @@
 'use client'
 
+import { esRolTipoAgent } from '@/lib/authz/roles'
+
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
 
@@ -45,7 +47,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv'
   avatarColor: string
   isActive: boolean
 }
@@ -151,7 +153,7 @@ function rankingPctPedidosPagadosPorVendedor(
   return [...avances]
     .filter((a) => {
       const user = users.find((u) => u.id === a.meta.vendedorId)
-      return user?.role === 'agent' && a.pctPedidosPagados.estado !== 'na'
+      return esRolTipoAgent(user?.role) && a.pctPedidosPagados.estado !== 'na'
     })
     .sort((a, b) => (b.pctPedidosPagados.alcanzado ?? 0) - (a.pctPedidosPagados.alcanzado ?? 0))
     .map((a) => {
@@ -259,7 +261,7 @@ function rankingPctPedidosPagadosPorGerente(
       .filter((a): a is MetaAvance => {
         if (!a) return false
         const user = users.find((u) => u.id === a.meta.vendedorId)
-        return user?.role === 'agent' && a.pctPedidosPagados.estado !== 'na'
+        return esRolTipoAgent(user?.role) && a.pctPedidosPagados.estado !== 'na'
       })
 
     const value =
@@ -345,7 +347,7 @@ export default function RankingSection({
   const fmtInt = (v: number) => String(Math.round(v))
   const fmtPct = (v: number) => `${Math.round(v * 100) / 100}%`
 
-  const hasAgents = avances.some((a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'agent')
+  const hasAgents = avances.some((a) => esRolTipoAgent(users.find((u) => u.id === a.meta.vendedorId)?.role))
   const hasVendedores = avances.some((a) => users.find((u) => u.id === a.meta.vendedorId)?.role === 'vendedor')
 
   const vendedorAvances = avances.filter(

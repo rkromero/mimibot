@@ -11,6 +11,7 @@ const TABS = [
   { href: '/settings/followup',               label: 'Seguimiento' },
   { href: '/settings/assignment',             label: 'Asignación' },
   { href: '/settings/stages',                 label: 'Etapas' },
+  { href: '/settings/marcas',                 label: 'Marcas' },
   { href: '/settings/team',                   label: 'Equipo' },
   { href: '/settings/security',               label: 'Seguridad' },
 ]

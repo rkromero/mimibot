@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 type Props = {
   onClose: () => void
@@ -29,7 +30,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
-  const isAgent = session?.user?.role === 'agent'
+  const isAgent = esRolTipoAgent(session?.user?.role)
 
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)

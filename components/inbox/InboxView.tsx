@@ -9,6 +9,7 @@ import Avatar from '@/components/shared/Avatar'
 import LeadPanel from '@/components/lead/LeadPanel'
 import QuickReplies from '@/components/chat/QuickReplies'
 import type { Session } from 'next-auth'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type Filter = 'mine' | 'unassigned' | 'all'
 
@@ -37,7 +38,7 @@ export default function InboxView({ user }: Props) {
   const initConvId = searchParams.get('conversation')
   const initLeadId = searchParams.get('lead') // backwards compat
 
-  const isRestrictedRole = user.role === 'agent' || user.role === 'vendedor'
+  const isRestrictedRole = esRolVentas(user.role)
 
   const [selectedConvId, setSelectedConvId] = useState<string | null>(initConvId)
   const [filter, setFilter] = useState<Filter>('mine')

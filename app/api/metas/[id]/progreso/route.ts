@@ -4,6 +4,7 @@ import { AuthzError } from '@/lib/errors'
 import { toApiError } from '@/lib/errors'
 import { validateUuidParam } from '@/lib/api/validate-params'
 import { calcularProgresoVendedor } from '@/lib/metas/progreso-vendedor.service'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -27,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     const { user } = session
 
     // vendedor / agent can only query their own progress
-    if (user.role === 'vendedor' || user.role === 'agent') {
+    if (esRolVentas(user.role)) {
       if (user.id !== userId) throw new AuthzError()
     }
     // admin / gerente can query any user (gerente scope can be added later)

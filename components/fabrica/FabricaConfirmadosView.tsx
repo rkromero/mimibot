@@ -14,7 +14,7 @@ type PedidoItemFabrica = {
   id: string
   cantidad: number
   subtotal: string
-  producto: { id: string; nombre: string; sku: string | null }
+  producto: { id: string; nombre: string; sku: string | null; marca: { id: string; nombre: string } | null }
 }
 
 type PedidoFabrica = {
@@ -56,6 +56,23 @@ function productosResumen(items: PedidoItemFabrica[]): string {
   if (items.length === 1) return `${first.producto.nombre} ×${first.cantidad}`
   const total = items.reduce((s, i) => s + i.cantidad, 0)
   return `${items.length} productos (${total} un.)`
+}
+
+// Marcas distintas presentes en un pedido (un pedido puede mezclar marcas).
+function marcasDistintas(items: PedidoItemFabrica[]): string[] {
+  const seen = new Set<string>()
+  for (const item of items) {
+    seen.add(item.producto.marca?.nombre ?? 'Sin marca')
+  }
+  return [...seen]
+}
+
+function MarcaTag({ nombre }: { nombre: string }) {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+      {nombre}
+    </span>
+  )
 }
 
 function EstadoBadge({
@@ -329,6 +346,7 @@ export default function FabricaConfirmadosView() {
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Fecha</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Productos</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">Marca</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Total</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Entrega</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Estado</th>
@@ -349,8 +367,15 @@ export default function FabricaConfirmadosView() {
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                       {formatFechaAR(new Date(pedido.fecha))}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} ×${i.cantidad}`).join(', ')}>
+                    <td className="px-4 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} (${i.producto.marca?.nombre ?? 'Sin marca'}) ×${i.cantidad}`).join(', ')}>
                       {productosResumen(pedido.items)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {marcasDistintas(pedido.items).map((m) => (
+                          <MarcaTag key={m} nombre={m} />
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
                       {formatMoney(pedido.total)}
@@ -417,7 +442,10 @@ export default function FabricaConfirmadosView() {
                     <div className="space-y-1">
                       {pedido.items.map((item) => (
                         <div key={item.id} className="flex items-center justify-between text-sm">
-                          <span className="text-foreground">{item.producto.nombre}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-foreground truncate">{item.producto.nombre}</span>
+                            <MarcaTag nombre={item.producto.marca?.nombre ?? 'Sin marca'} />
+                          </span>
                           <div className="flex items-center gap-4 shrink-0 ml-4">
                             <span className="font-medium text-foreground">×{item.cantidad}</span>
                             <span className="tabular-nums text-muted-foreground w-20 text-right">

@@ -7,6 +7,7 @@
  *   gerente  → /admin/dashboard  (team metrics filtered by territory)
  *   vendedor → /dashboard         (personal KPIs + Mi Cartera)
  *   agent    → /dashboard         (personal KPIs + Mi Cartera)
+ *   rtv      → /dashboard         (clon de agent en esta fase)
  *   fabrica  → /fabrica           (production/dispatch view)
  *   other    → /pipeline          (fallback)
  */
@@ -17,6 +18,7 @@ export function getHomeRouteByRole(role: string | null | undefined): string {
       return '/admin/dashboard'
     case 'vendedor':
     case 'agent':
+    case 'rtv':
       return '/dashboard'
     case 'fabrica':
       return '/fabrica'

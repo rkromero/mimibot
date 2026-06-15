@@ -1,5 +1,7 @@
 'use client'
 
+import { esRolTipoAgent } from '@/lib/authz/roles'
+
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
 
@@ -45,7 +47,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv'
   avatarColor: string
   isActive: boolean
 }
@@ -100,7 +102,7 @@ function MetricCell({ alcanzado, objetivo, pct, estado }: MetricCellProps) {
 }
 
 function proyeccionGeneral(a: MetaAvance, role: string): number {
-  if (role === 'agent') {
+  if (esRolTipoAgent(role)) {
     const values: { v: number; obj: number }[] = [
       { v: a.clientesNuevos.proyeccion, obj: a.meta.clientesNuevosObjetivo },
       { v: a.conversionLeads.proyeccion, obj: parseFloat(a.meta.conversionLeadsObjetivo) },
@@ -176,13 +178,13 @@ export default function VendedoresGrid({
 
   const agentesConMeta = avances
     .map((a) => ({ avance: a, user: users.find((u) => u.id === a.meta.vendedorId) }))
-    .filter(({ user }) => user?.role === 'agent')
+    .filter(({ user }) => esRolTipoAgent(user?.role))
 
   const vendedoresConMeta = avances
     .map((a) => ({ avance: a, user: users.find((u) => u.id === a.meta.vendedorId) }))
     .filter(({ user }) => user?.role === 'vendedor')
 
-  const agentesSinMeta = users.filter((u) => u.role === 'agent' && !avanceMap.has(u.id))
+  const agentesSinMeta = users.filter((u) => esRolTipoAgent(u.role) && !avanceMap.has(u.id))
   const vendedoresSinMeta = users.filter((u) => u.role === 'vendedor' && !avanceMap.has(u.id))
 
   const showAgentes = agentesConMeta.length > 0 || agentesSinMeta.length > 0

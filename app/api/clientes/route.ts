@@ -11,6 +11,7 @@ import { getTerritorioActivoDeAgente } from '@/lib/territorios/territorios.servi
 import { parsePagination } from '@/lib/api/pagination'
 import type { Paginated } from '@/lib/types/pagination'
 import { geocodeClienteIfNeeded } from '@/lib/geo/geocode.service'
+import { esRolVentas, esRolTipoAgent } from '@/lib/authz/roles'
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       isNull(clientes.deletedAt) as ReturnType<typeof eq>,
     ]
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body: unknown = await req.json()
-    const schema = ctx.role === 'agent' ? createClienteAgentSchema : createClienteSchema
+    const schema = esRolTipoAgent(ctx.role) ? createClienteAgentSchema : createClienteSchema
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
       const firstIssue = parsed.error.issues[0]
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
     }
 
     let asignadoA: string | null = null
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       asignadoA = ctx.userId
     } else if (ctx.role === 'admin' && input.asignadoA) {
       const assignee = await db.query.users.findFirst({
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
       if (!assignee || !assignee.isActive) {
         return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 400 })
       }
-      if (assignee.role !== 'agent' && assignee.role !== 'vendedor') {
+      if (!esRolVentas(assignee.role)) {
         return NextResponse.json({ error: 'Solo se puede asignar a un agente o vendedor' }, { status: 400 })
       }
       asignadoA = input.asignadoA

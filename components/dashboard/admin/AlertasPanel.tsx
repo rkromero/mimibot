@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, AlertTriangle, AlertCircle } from 'lucide-react'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
@@ -44,7 +45,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv'
   avatarColor: string
   isActive: boolean
 }
@@ -69,7 +70,7 @@ function buildAlertas(
   mes: number,
 ): Alerta[] {
   const alertas: Alerta[] = []
-  const agents = users.filter((u) => (u.role === 'agent' || u.role === 'vendedor') && u.isActive)
+  const agents = users.filter((u) => esRolVentas(u.role) && u.isActive)
   const avanceMap = new Map(avances.map((a) => [a.meta.vendedorId, a]))
 
   // Vendors without a meta

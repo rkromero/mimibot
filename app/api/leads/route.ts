@@ -5,6 +5,7 @@ import { leads, contacts, pipelineStages, users, conversations, leadTags, tags, 
 import { eq, and, ilike, inArray, desc, sql, lt, or, isNull } from 'drizzle-orm'
 import { createLeadSchema, leadFiltersSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
+import { esRolVentas } from '@/lib/authz/roles'
 
 // ─── Cursor helpers ────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     let effectiveAgentId: string | undefined = agentId
     let gerenteAgenteIds: string[] | undefined
 
-    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
+    if (esRolVentas(session.user.role)) {
       effectiveAgentId = session.user.id
     } else if (session.user.role === 'gerente') {
       const { getSessionContext } = await import('@/lib/territorios/context')
@@ -292,7 +293,7 @@ export async function POST(req: NextRequest) {
     const input = parsed.data
 
     const assignedTo =
-      session.user.role === 'agent' || session.user.role === 'vendedor'
+      esRolVentas(session.user.role)
         ? session.user.id
         : (input.assignedTo ?? null)
 

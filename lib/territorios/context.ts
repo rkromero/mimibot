@@ -2,10 +2,11 @@ import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { territorioAgente, territorioGerente } from '@/db/schema'
 import type { Session } from 'next-auth'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export type SessionContext = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
   /** Territorios que gestiona este gerente */
   territoriosGestionados: string[]
   /** Agentes en los territorios del gerente (para scoping de queries) */
@@ -25,7 +26,7 @@ export async function getSessionContext(user: Session['user']): Promise<SessionC
 
   if (user.role === 'admin') return base
 
-  if (user.role === 'agent' || user.role === 'vendedor') {
+  if (esRolVentas(user.role)) {
     const activos = await db.query.territorioAgente.findMany({
       where: and(
         eq(territorioAgente.agenteId, user.id),

@@ -9,7 +9,7 @@ export default async function AssignmentSettingsPage() {
     db.query.assignmentConfig.findFirst({ where: eq(assignmentConfig.id, 1) }),
     db.query.users.findMany({
       where: (u, { and, inArray, eq: sqlEq }) =>
-        and(inArray(u.role, ['agent', 'vendedor']), sqlEq(u.isActive, true)),
+        and(inArray(u.role, ['agent', 'vendedor', 'rtv']), sqlEq(u.isActive, true)),
       columns: { id: true, name: true },
       orderBy: (u, { asc }) => [asc(u.name)],
     }),

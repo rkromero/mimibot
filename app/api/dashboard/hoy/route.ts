@@ -5,6 +5,7 @@ import {
   leads, pipelineStages, actividadesCliente, pedidos, clientes, metas,
 } from '@/db/schema'
 import { eq, and, isNull, sql, desc, gte, lt, inArray } from 'drizzle-orm'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export async function GET() {
   try {
@@ -15,7 +16,7 @@ export async function GET() {
     const now = new Date()
 
     // Non-agents get a zeroed response (they have their own dashboards)
-    if (session.user.role !== 'agent' && session.user.role !== 'vendedor') {
+    if (!esRolVentas(session.user.role)) {
       return NextResponse.json({
         data: {
           nombre: session.user.name?.split(' ')[0] ?? 'usuario',

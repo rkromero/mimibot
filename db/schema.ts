@@ -6,7 +6,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica', 'repartidor'])
+export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica', 'repartidor', 'rtv'])
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
@@ -356,6 +356,30 @@ export const clientes = pgTable('clientes', {
   index('clientes_conversion_idx').on(t.fechaConversionANuevo),
 ])
 
+// ─── CRM: Marcas ──────────────────────────────────────────────────────────────
+
+export const marcas = pgTable('marcas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  slug: text('slug').notNull(),
+  activo: boolean('activo').notNull().default(true),
+  esDefault: boolean('es_default').notNull().default(false),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('marcas_slug_idx').on(t.slug),
+])
+
+// Qué marcas puede VER y CARGAR PEDIDOS cada usuario de ventas (M:N)
+export const usuarioMarcas = pgTable('usuario_marcas', {
+  usuarioId: uuid('usuario_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  marcaId: uuid('marca_id').notNull().references(() => marcas.id, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.usuarioId, t.marcaId] }),
+  index('usuario_marcas_usuario_idx').on(t.usuarioId),
+  index('usuario_marcas_marca_idx').on(t.marcaId),
+])
+
 // ─── CRM: Productos ───────────────────────────────────────────────────────────
 
 export const productos = pgTable('productos', {
@@ -372,6 +396,7 @@ export const productos = pgTable('productos', {
   ivaPct: decimal('iva_pct', { precision: 5, scale: 2 }).notNull().default('21.00'),
   stockMinimo: integer('stock_minimo').notNull().default(0),
   activo: boolean('activo').notNull().default(true),
+  marcaId: uuid('marca_id').notNull().references(() => marcas.id),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
@@ -379,6 +404,7 @@ export const productos = pgTable('productos', {
 }, (t) => [
   index('productos_activo_idx').on(t.activo),
   uniqueIndex('productos_sku_idx').on(t.sku),
+  index('productos_marca_idx').on(t.marcaId),
 ])
 
 // ─── CRM: Pedidos ─────────────────────────────────────────────────────────────

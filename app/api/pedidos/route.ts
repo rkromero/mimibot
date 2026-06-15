@@ -9,6 +9,8 @@ import { notificarPedidoCreado } from '@/lib/whatsapp/notificaciones'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { parsePagination } from '@/lib/api/pagination'
+import { esRolVentas, esRolTipoAgent } from '@/lib/authz/roles'
+import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     if (ctx.role === 'fabrica') {
       // Global scope: no territory or vendor filtering
-    } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    } else if (esRolVentas(ctx.role)) {
       conditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {
@@ -132,6 +134,9 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
+    // Cada producto debe pertenecer a una marca habilitada para el usuario.
+    await assertPuedeCargarProductos(session.user, input.items.map((i) => i.productoId))
+
     let vendedorId: string = session.user.id
     let creadoPor: string | null = null
     let territorioIdImputado: string | null = null
@@ -140,7 +145,7 @@ export async function POST(req: NextRequest) {
     let expresoNombreFinal: string | null = null
     let expresoDireccionFinal: string | null = null
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       const cliente = await db.query.clientes.findFirst({
         where: and(
           eq(clientes.id, input.clienteId),
@@ -153,7 +158,7 @@ export async function POST(req: NextRequest) {
       territorioIdImputado = cliente.territorioId ?? null
 
       // Método de entrega — vendedor queda congelado, NO se activa para ese rol
-      if (ctx.role === 'agent' && input.metodoEntrega) {
+      if (esRolTipoAgent(ctx.role) && input.metodoEntrega) {
         metodoEntregaFinal = input.metodoEntrega
         if (input.metodoEntrega === 'expreso') {
           if (input.expresoNombre && input.expresoDireccion) {
@@ -209,7 +214,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
-    const crearComoPendienteAprobacion = ctx.role === 'agent' || ctx.role === 'vendedor'
+    const crearComoPendienteAprobacion = esRolVentas(ctx.role)
 
     const pedido = await crearPedidoConItems(
       input.clienteId,

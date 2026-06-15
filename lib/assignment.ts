@@ -19,7 +19,7 @@ export async function assignLeadByRule(rng = Math.random): Promise<string | null
 
   const eligibleRows = await db.execute(sql`
     SELECT id FROM users
-    WHERE role IN ('agent', 'vendedor') AND is_active = true
+    WHERE role IN ('agent', 'vendedor', 'rtv') AND is_active = true
     ORDER BY id
   `)
   const eligible = eligibleRows as unknown as Array<{ id: string }>

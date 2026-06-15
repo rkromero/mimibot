@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { stockMovements, productos } from '@/db/schema'
 import { eq, sql, isNull, and, asc, desc, inArray } from 'drizzle-orm'
 import { parsePagination } from '@/lib/api/pagination'
+import { marcaVisibleFilter } from '@/lib/authz/marcas'
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +18,12 @@ export async function GET(req: NextRequest) {
       sortDir: 'asc',
     })
 
-    const whereClause = and(isNull(productos.deletedAt), eq(productos.activo, true))
+    const marcaFilter = await marcaVisibleFilter(session.user)
+    const whereClause = and(
+      isNull(productos.deletedAt),
+      eq(productos.activo, true),
+      ...(marcaFilter ? [marcaFilter] : []),
+    )
 
     const [countRow] = await db
       .select({ total: sql<number>`count(*)::int` })

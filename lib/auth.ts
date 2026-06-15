@@ -97,7 +97,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      let dbUser: { role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'; isActive: boolean; avatarColor: string } | undefined
+      let dbUser: { role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'; isActive: boolean; avatarColor: string } | undefined
       try {
         dbUser = await db.query.users.findFirst({
           where: eq(users.id, token.sub!),
@@ -112,7 +112,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         user: {
           ...session.user,
           id: token.sub!,
-          role: dbUser?.role ?? ((token.role as 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | undefined) ?? 'agent'),
+          role: dbUser?.role ?? ((token.role as 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | undefined) ?? 'agent'),
           avatarColor: dbUser?.avatarColor ?? '#1d4ed8',
           totpPending: (token.totpPending as boolean | undefined) ?? false,
         },
@@ -127,7 +127,7 @@ declare module 'next-auth' {
       id: string
       email: string
       name: string | null
-      role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor'
+      role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
       avatarColor: string
       totpPending?: boolean
     }

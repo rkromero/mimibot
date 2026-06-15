@@ -11,6 +11,8 @@ import DataTable from '@/components/data-table/DataTable'
 
 type Producto = {
   id: string
+  marcaId: string
+  marcaNombre: string | null
   sku: string | null
   nombre: string
   descripcion: string | null
@@ -122,6 +124,15 @@ export default function ProductosListView() {
               {row.descripcion}
             </span>
           )}
+        </span>
+      ),
+    },
+    {
+      key: 'marca',
+      label: 'Marca',
+      render: (row: Producto) => (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+          {row.marcaNombre ?? 'Sin marca'}
         </span>
       ),
     },

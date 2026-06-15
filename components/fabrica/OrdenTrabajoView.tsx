@@ -16,6 +16,7 @@ type OrdenItem = {
   productoId: string
   sku: string | null
   nombre: string
+  marcaNombre: string | null
   unidadVenta: 'unidad' | 'caja_12' | 'caja_24' | 'display'
   cantidadVenta: number
   unidadesIndividuales: number
@@ -117,6 +118,9 @@ export default function OrdenTrabajoView() {
                     Producto
                   </th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">
+                    Marca
+                  </th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">
                     Unidad de venta
                   </th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">
@@ -137,6 +141,11 @@ export default function OrdenTrabajoView() {
                           {item.sku}
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                        {item.marcaNombre ?? 'Sin marca'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {UNIDAD_LABEL[item.unidadVenta]}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { pedidos, pedidoItems, productos } from '@/db/schema'
+import { pedidos, pedidoItems, productos, marcas } from '@/db/schema'
 import { eq, and, isNull, sum, asc, countDistinct } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
 
@@ -33,14 +33,16 @@ export async function GET() {
           sku: productos.sku,
           nombre: productos.nombre,
           unidadVenta: productos.unidadVenta,
+          marcaNombre: marcas.nombre,
           cantidadVenta: sum(pedidoItems.cantidad),
         })
         .from(pedidoItems)
         .innerJoin(pedidos, eq(pedidoItems.pedidoId, pedidos.id))
         .innerJoin(productos, eq(pedidoItems.productoId, productos.id))
+        .leftJoin(marcas, eq(productos.marcaId, marcas.id))
         .where(and(eq(pedidos.estado, 'confirmado'), isNull(pedidos.deletedAt)))
-        .groupBy(productos.id, productos.sku, productos.nombre, productos.unidadVenta)
-        .orderBy(asc(productos.nombre)),
+        .groupBy(productos.id, productos.sku, productos.nombre, productos.unidadVenta, marcas.nombre)
+        .orderBy(asc(marcas.nombre), asc(productos.nombre)),
       db
         .select({ totalPedidos: countDistinct(pedidos.id) })
         .from(pedidos)
@@ -57,6 +59,7 @@ export async function GET() {
         sku: row.sku,
         nombre: row.nombre,
         unidadVenta: row.unidadVenta,
+        marcaNombre: row.marcaNombre ?? null,
         cantidadVenta,
         unidadesIndividuales: cantidadVenta * factor,
       }

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Copy, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MetaFormRow, { type MetaRow, type User, type MetaFormValues } from './MetaFormRow'
 import MetaMobileCard from './MetaMobileCard'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
@@ -178,7 +179,7 @@ export default function MetasAdminView() {
     async function fetchUsers() {
       setLoadingUsers(true)
       try {
-        const res = await fetch('/api/users?role=agent,vendedor')
+        const res = await fetch('/api/users?role=agent,vendedor,rtv')
         if (!res.ok) throw new Error('Error al cargar usuarios')
         const json = await res.json() as { data: User[] }
         setUsers(json.data.filter((u) => u.isActive !== false))
@@ -301,7 +302,7 @@ export default function MetasAdminView() {
   const sourceLabel = `${MESES[prev.mes - 1]} ${prev.anio}`
   const targetLabel = `${MESES[selectedMes - 1]} ${selectedAnio}`
 
-  const agentes = users.filter((u) => u.role === 'agent')
+  const agentes = users.filter((u) => esRolTipoAgent(u.role))
   const vendedores = users.filter((u) => u.role === 'vendedor')
 
   return (

@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import TerritorioDetailView from '@/components/territorios/TerritorioDetailView'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export const metadata = { title: 'Detalle de Territorio' }
 
@@ -11,7 +12,7 @@ export default async function TerritorioDetailPage({
 }) {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user.role === 'agent' || session.user.role === 'vendedor') redirect('/dashboard')
+  if (esRolVentas(session.user.role)) redirect('/dashboard')
 
   const { id } = await params
   return <TerritorioDetailView id={id} role={session.user.role} />

@@ -6,6 +6,7 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { parsePagination } from '@/lib/api/pagination'
+import { esRolVentas } from '@/lib/authz/roles'
 
 // CASE expression for the effective owner of a conversation:
 // - client conversations → clientes.asignado_a
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     const filterConditions: ReturnType<typeof sql>[] = []
 
-    const isRestrictedRole = session.user.role === 'agent' || session.user.role === 'vendedor'
+    const isRestrictedRole = esRolVentas(session.user.role)
 
     if (filter === 'mine' || (filter === 'unassigned' && isRestrictedRole)) {
       // vendedor/agent never see unassigned — clamp to their own conversations

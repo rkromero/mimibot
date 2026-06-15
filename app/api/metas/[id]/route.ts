@@ -10,6 +10,7 @@ import {
   updateMetaFutura,
 } from '@/lib/metas/metas.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -24,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     const meta = await getMetaWithVendedor(id)
     if (!meta) throw new NotFoundError('Meta')
 
-    if ((session.user.role === 'agent' || session.user.role === 'vendedor') && meta.vendedorId !== session.user.id) {
+    if (esRolVentas(session.user.role) && meta.vendedorId !== session.user.id) {
       throw new AuthzError('No tenés acceso a esta meta')
     }
     if (session.user.role === 'gerente') {

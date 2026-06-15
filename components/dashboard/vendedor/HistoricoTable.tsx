@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { History, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MetaAvance, EstadoMeta } from '@/lib/metas/avance.service'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 interface Props {
   role?: string
@@ -50,7 +51,7 @@ function resultBadgeClass(cumplidas: number, total: number): string {
 }
 
 function countCumplidas(avance: MetaAvance, role?: string): { cumplidas: number; total: number } {
-  if (role === 'agent') {
+  if (esRolTipoAgent(role)) {
     const kpis = [avance.clientesNuevos.estado, avance.conversionLeads.estado]
     let cumplidas = kpis.filter((e) => e === 'cumplida').length
     let total = 2
@@ -105,7 +106,7 @@ export default function HistoricoTable({ role }: Props) {
   const [loading, setLoading] = useState(true)
   const [showSinMeta, setShowSinMeta] = useState(false)
 
-  const isAgent = role === 'agent'
+  const isAgent = esRolTipoAgent(role)
   const isVendedor = role === 'vendedor'
 
   const now = new Date()

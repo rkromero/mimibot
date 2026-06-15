@@ -14,6 +14,7 @@ import { getSessionContext } from '@/lib/territorios/context'
 import { db } from '@/db'
 import { territorioGerente, users, clientes } from '@/db/schema'
 import { eq, and, isNull, count } from 'drizzle-orm'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -22,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: RouteCtx) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
+    if (esRolVentas(session.user.role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 

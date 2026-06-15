@@ -5,6 +5,7 @@ import {
 } from '@/db/schema'
 import { AuthzError, NotFoundError, ValidationError } from '@/lib/errors'
 import type { SessionContext } from './context'
+import { esRolVentas } from '@/lib/authz/roles'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export async function listarTerritorios(ctx: SessionContext) {
   if (ctx.role === 'gerente') {
     if (ctx.territoriosGestionados.length === 0) return []
     territorioIds = ctx.territoriosGestionados
-  } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+  } else if (esRolVentas(ctx.role)) {
     if (ctx.territoriosActivos.length === 0) return []
     territorioIds = ctx.territoriosActivos
   }
@@ -95,7 +96,7 @@ export async function getTerritorio(id: string, ctx: SessionContext) {
   if (ctx.role === 'gerente' && !ctx.territoriosGestionados.includes(id)) {
     throw new AuthzError('No tenés acceso a este territorio')
   }
-  if ((ctx.role === 'agent' || ctx.role === 'vendedor') && !ctx.territoriosActivos.includes(id)) {
+  if (esRolVentas(ctx.role) && !ctx.territoriosActivos.includes(id)) {
     throw new AuthzError('No tenés acceso a este territorio')
   }
 
@@ -171,7 +172,7 @@ export async function asignarAgente(territorioId: string, agenteId: string) {
     columns: { id: true, role: true },
   })
   if (!agente) throw new NotFoundError('Usuario')
-  if (agente.role !== 'agent' && agente.role !== 'vendedor') {
+  if (!esRolVentas(agente.role)) {
     throw new ValidationError('Solo se puede asignar un agente o vendedor a un territorio')
   }
 

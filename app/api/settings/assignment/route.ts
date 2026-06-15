@@ -46,7 +46,7 @@ export async function GET() {
       db.query.assignmentConfig.findFirst({ where: eq(assignmentConfig.id, 1) }),
       db.query.users.findMany({
         where: (u, { and, inArray: sqlInArray, eq: sqlEq }) =>
-          and(sqlInArray(u.role, ['agent', 'vendedor']), sqlEq(u.isActive, true)),
+          and(sqlInArray(u.role, ['agent', 'vendedor', 'rtv']), sqlEq(u.isActive, true)),
         columns: { id: true, name: true },
         orderBy: (u, { asc }) => [asc(u.name)],
       }),
@@ -82,7 +82,7 @@ export async function PUT(req: NextRequest) {
       // Fetch active agents for validation
       const activeAgents = await db.query.users.findMany({
         where: (u, { and, inArray: sqlInArray, eq: sqlEq }) =>
-          and(sqlInArray(u.role, ['agent', 'vendedor']), sqlEq(u.isActive, true)),
+          and(sqlInArray(u.role, ['agent', 'vendedor', 'rtv']), sqlEq(u.isActive, true)),
         columns: { id: true },
       })
       const activeIds = new Set(activeAgents.map((a) => a.id))

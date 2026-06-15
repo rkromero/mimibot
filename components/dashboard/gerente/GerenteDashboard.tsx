@@ -9,6 +9,7 @@ import VendedoresGrid from '@/components/dashboard/admin/VendedoresGrid'
 import RankingSection from '@/components/dashboard/admin/RankingSection'
 import VendedorModal from '@/components/dashboard/admin/VendedorModal'
 import type { Session } from 'next-auth'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type User = Session['user']
 
@@ -72,7 +73,7 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
         : []
 
       setAvances(avancesJson.data ?? [])
-      setAgentes(usersJson.data?.filter((u) => u.role === 'agent' || u.role === 'vendedor') ?? [])
+      setAgentes(usersJson.data?.filter((u) => esRolVentas(u.role)) ?? [])
       setTerritorios(territoriosJson)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar datos')

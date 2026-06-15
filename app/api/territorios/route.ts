@@ -6,13 +6,14 @@ import { createTerritorioSchema } from '@/lib/validations/territorios'
 import { listarTerritorios, crearTerritorio } from '@/lib/territorios/territorios.service'
 import { getSessionContext } from '@/lib/territorios/context'
 import { cachedJson } from '@/lib/api/cache'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    if (session.user.role === 'agent' || session.user.role === 'vendedor') {
+    if (esRolVentas(session.user.role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 

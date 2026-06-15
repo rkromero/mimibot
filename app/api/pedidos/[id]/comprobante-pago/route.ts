@@ -9,6 +9,7 @@ import { getSignedUrl } from '@/lib/r2/signed-url'
 import { toApiError, AuthzError, NotFoundError, ValidationError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 const ESTADOS_EDITABLES = new Set(['pendiente', 'pendiente_aprobacion'])
 const ALLOWED_MIME_TYPES = new Set([
@@ -38,7 +39,7 @@ async function resolvePedidoAccess(
 
   if (ctx.role === 'admin') return pedido
 
-  if (ctx.role === 'agent') {
+  if (esRolTipoAgent(ctx.role)) {
     const cliente = await db.query.clientes.findFirst({
       where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
       columns: { id: true },
@@ -109,7 +110,7 @@ export async function POST(
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role !== 'agent' && ctx.role !== 'admin') {
+    if (!esRolTipoAgent(ctx.role) && ctx.role !== 'admin') {
       throw new AuthzError('Solo agentes y administradores pueden adjuntar comprobantes de pago')
     }
 
@@ -188,7 +189,7 @@ export async function DELETE(
 
     const ctx = await getSessionContext(session.user)
 
-    if (ctx.role !== 'agent' && ctx.role !== 'admin') {
+    if (!esRolTipoAgent(ctx.role) && ctx.role !== 'admin') {
       throw new AuthzError('Solo agentes y administradores pueden eliminar comprobantes de pago')
     }
 

@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Genera un slug URL-safe a partir de un texto (sin acentos, minúsculas, guiones)
+export function slugify(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // quita acentos (combining marks)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-') // no-alfanumérico → guión
+    .replace(/^-+|-+$/g, '') // recorta guiones extremos
+}
+
 // Genera un color determinista de una cadena (para avatares)
 export function stringToColor(str: string): string {
   const colors = [

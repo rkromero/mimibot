@@ -11,6 +11,7 @@ import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoM
 import Stepper from '@/components/shared/Stepper'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 type Props = {
   clienteId?: string
@@ -97,7 +98,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const { data: session } = useSession()
   const vendedorName = session?.user?.name ?? null
   // Solo el rol 'agent' tiene el flujo de método de entrega; 'vendedor' queda congelado
-  const isAgent = session?.user?.role === 'agent'
+  const isAgent = esRolTipoAgent(session?.user?.role)
   const confirmStep = isAgent ? 3 : 2
   const stepLabels = isAgent
     ? ['Cliente', 'Productos', 'Entrega', 'Confirmar']

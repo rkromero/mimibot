@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { leads } from '@/db/schema'
 import { AuthzError } from '@/lib/errors'
 import type { Session } from 'next-auth'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type SessionUser = Session['user']
 
@@ -33,7 +34,7 @@ export function requireAdminOrGerente(user: SessionUser): void {
 }
 
 export function requireNotAgent(user: SessionUser): void {
-  if (user.role === 'agent' || user.role === 'vendedor') {
+  if (esRolVentas(user.role)) {
     throw new AuthzError('Acción no permitida para agentes')
   }
 }

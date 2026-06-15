@@ -43,6 +43,9 @@ export async function GET(req: NextRequest) {
           with: {
             producto: {
               columns: { id: true, nombre: true, sku: true },
+              with: {
+                marca: { columns: { id: true, nombre: true } },
+              },
             },
           },
         },

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, ImageIcon, Upload, X } from 'lucide-react'
 import { useToast } from '@/components/shared/ToastProvider'
+import { esRolTipoAgent } from '@/lib/authz/roles'
 
 type Props = {
   pedidoId: string
@@ -19,7 +20,7 @@ export default function ComprobantePago({ pedidoId, role, estado }: Props) {
 
   const canUpload =
     role === 'admin' ||
-    (role === 'agent' && (estado === 'pendiente' || estado === 'pendiente_aprobacion'))
+    (esRolTipoAgent(role) && (estado === 'pendiente' || estado === 'pendiente_aprobacion'))
 
   const { data, isLoading, isError } = useQuery<{ url: string | null; missingComprobante: boolean }>({
     queryKey: ['comprobante-pago', pedidoId],

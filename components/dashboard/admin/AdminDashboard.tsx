@@ -12,7 +12,7 @@ import AdminKPISection from './AdminKPISection'
 import EmbudoSection from './EmbudoSection'
 
 type Territorio = { id: string; nombre: string }
-type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' }
+type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv' }
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
@@ -62,7 +62,7 @@ interface User {
   id: string
   name: string | null
   email: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv'
   avatarColor: string
   isActive: boolean
 }

@@ -5,6 +5,7 @@ import { pedidos, businessConfig, clientes, users } from '@/db/schema'
 import { and, eq, isNull, sql, inArray } from 'drizzle-orm'
 import { getSessionContext } from '@/lib/territorios/context'
 import { parsePagination } from '@/lib/api/pagination'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
       sql`${pedidos.fecha} < NOW() - (${morosoDias}::text || ' days')::interval`,
     ]
 
-    if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    if (esRolVentas(ctx.role)) {
       whereConditions.push(eq(clientes.asignadoA, ctx.userId))
     } else if (ctx.role === 'gerente') {
       if (ctx.territoriosGestionados.length === 0) {

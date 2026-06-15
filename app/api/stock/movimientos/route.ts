@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { stockMovements, productos, users } from '@/db/schema'
 import { eq, sql, and, isNull, desc } from 'drizzle-orm'
 import { requireAdmin } from '@/lib/authz'
+import { assertPuedeVerMarca } from '@/lib/authz/marcas'
 import { toApiError, NotFoundError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
@@ -14,6 +15,14 @@ export async function GET(req: NextRequest) {
 
     const productoId = req.nextUrl.searchParams.get('productoId')
     if (!productoId) return NextResponse.json({ error: 'productoId requerido' }, { status: 400 })
+
+    // Ventas no pueden inspeccionar movimientos de productos de marcas no visibles.
+    const producto = await db.query.productos.findFirst({
+      where: eq(productos.id, productoId),
+      columns: { marcaId: true },
+    })
+    if (!producto) throw new NotFoundError('Producto')
+    await assertPuedeVerMarca(session.user, producto.marcaId)
 
     const rows = await db
       .select({

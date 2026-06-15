@@ -7,6 +7,7 @@ import { getSignedUrl } from '@/lib/r2/signed-url'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { esRolVentas } from '@/lib/authz/roles'
 
 export async function GET(
   _req: NextRequest,
@@ -40,7 +41,7 @@ export async function GET(
     // ── Validar acceso ──────────────────────────────────────────────────────────
     if (ctx.role === 'admin' || ctx.role === 'fabrica') {
       // acceso total
-    } else if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+    } else if (esRolVentas(ctx.role)) {
       const cliente = await db.query.clientes.findFirst({
         where: and(eq(clientes.id, pedido.clienteId), eq(clientes.asignadoA, ctx.userId)),
         columns: { id: true },

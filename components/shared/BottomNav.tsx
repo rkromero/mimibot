@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 import BottomSheet from '@/components/shared/BottomSheet'
+import { esRolVentas } from '@/lib/authz/roles'
 
 type Props = {
   user: Session['user']
@@ -107,7 +108,7 @@ function FieldNav({ user, onNewPedido }: Props) {
   const [masOpen, setMasOpen] = useState(false)
   // Activamos el polling de inbox para ambos roles porque ambos pueden tener
   // mensajes sin leer asignados a ellos.
-  const unreadCount = useUnreadCount(user.role === 'agent' || user.role === 'gerente' || user.role === 'vendedor')
+  const unreadCount = useUnreadCount(esRolVentas(user.role) || user.role === 'gerente')
 
   const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
   const inboxActive = pathname.startsWith('/inbox')

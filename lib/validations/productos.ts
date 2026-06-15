@@ -3,6 +3,7 @@ import { z } from 'zod'
 const UNIDADES_VENTA = ['unidad', 'caja_12', 'caja_24', 'display'] as const
 
 export const createProductoSchema = z.object({
+  marcaId: z.string().uuid('La marca es requerida'),
   sku: z.string().min(1, 'El SKU es requerido').max(50).optional(),
   nombre: z.string().min(1, 'El nombre es requerido').max(200),
   descripcion: z.string().max(1000).optional().nullable(),
@@ -34,6 +35,7 @@ export const createProductoSchema = z.object({
 })
 
 export const updateProductoSchema = z.object({
+  marcaId: z.string().uuid('Marca inválida').optional(),
   sku: z.string().min(1).max(50).optional().nullable(),
   nombre: z.string().min(1).max(200).optional(),
   descripcion: z.string().max(1000).nullable().optional(),

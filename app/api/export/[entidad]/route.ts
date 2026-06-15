@@ -6,6 +6,7 @@ import { and, eq, isNull, gt, asc, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { toApiError } from '@/lib/errors'
 import { todayStrAR } from '@/lib/dates'
+import { marcaVisibleFilter } from '@/lib/authz/marcas'
 
 const BATCH_SIZE = 1000
 const EMPTY_UUID = '00000000-0000-0000-0000-000000000000'
@@ -162,6 +163,9 @@ export async function GET(
     let csvContent = ''
     let filename = `${entidad}_${today}.csv`
 
+    // Marcas visibles: ventas sólo exportan productos de sus marcas habilitadas.
+    const marcaFilter = await marcaVisibleFilter(session.user)
+
     if (entidad === 'productos') {
       const isAdmin = session.user.role === 'admin'
       const headers = isAdmin
@@ -173,7 +177,7 @@ export async function GET(
         const rows = await db
           .select()
           .from(productos)
-          .where(isNull(productos.deletedAt))
+          .where(and(isNull(productos.deletedAt), ...(marcaFilter ? [marcaFilter] : [])))
           .orderBy(productos.nombre)
         body = rows.map((r) => isAdmin
           ? toCsvRow([r.sku, r.nombre, r.categoria, formatMoney(r.precio), formatMoney(r.costo), r.ivaPct, r.unidadVenta, r.stockMinimo, r.activo])
@@ -186,7 +190,7 @@ export async function GET(
           const rows = await db
             .select({ id: productos.id, nombre: productos.nombre, precio: productos.precio, activo: productos.activo })
             .from(productos)
-            .where(isNull(productos.deletedAt))
+            .where(and(isNull(productos.deletedAt), ...(marcaFilter ? [marcaFilter] : [])))
             .orderBy(productos.nombre)
           body = rows.map((r) => isAdmin
             ? toCsvRow(['', r.nombre, '', formatMoney(r.precio), '', '', '', '', r.activo])
@@ -269,7 +273,7 @@ export async function GET(
             LIMIT 1
           )`,
         )
-        .where(and(isNull(productos.deletedAt), eq(productos.activo, true)))
+        .where(and(isNull(productos.deletedAt), eq(productos.activo, true), ...(marcaFilter ? [marcaFilter] : [])))
         .orderBy(productos.nombre)
       const headers = 'SKU,Nombre,Categoria,Unidad,Stock Actual,Stock Minimo,Bajo Minimo,Ultimo Movimiento\n'
       const body = rows.map((r) => {

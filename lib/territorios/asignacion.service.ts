@@ -6,6 +6,7 @@ import {
 import { AuthzError, NotFoundError, ValidationError } from '@/lib/errors'
 import type { SessionContext } from './context'
 import { getAgenteActivo } from './territorios.service'
+import { esRolVentas } from '@/lib/authz/roles'
 
 // ─── Resolver territorio al crear un cliente ──────────────────────────────────
 // Devuelve { territorioId, agenteId } según las reglas de negocio por rol.
@@ -16,7 +17,7 @@ export async function resolverTerritorioPorRol(
   territorioIdSolicitado?: string | null,
 ): Promise<{ territorioId: string | null; agenteId: string | null }> {
 
-  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+  if (esRolVentas(ctx.role)) {
     let territorioId: string | null = null
 
     if (territorioIdSolicitado) {
@@ -179,7 +180,7 @@ export async function sincronizarAgenteEnTerritorioClientes(
 export async function getClienteIdsVisibles(ctx: SessionContext): Promise<string[] | 'all'> {
   if (ctx.role === 'admin') return 'all'
 
-  if (ctx.role === 'agent' || ctx.role === 'vendedor') {
+  if (esRolVentas(ctx.role)) {
     const rows = await db.query.clientes.findMany({
       where: and(
         eq(clientes.asignadoA, ctx.userId),
