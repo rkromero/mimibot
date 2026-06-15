@@ -59,6 +59,10 @@ export default function StockPage() {
   const [entradaError, setEntradaError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [historialProducto, setHistorialProducto] = useState<StockSaldo | null>(null)
+  const [quickAddProducto, setQuickAddProducto] = useState<StockSaldo | null>(null)
+  const [quickQty, setQuickQty] = useState('')
+  const [quickError, setQuickError] = useState<string | null>(null)
+  const [quickSaving, setQuickSaving] = useState(false)
 
   // Products list for the "entrada" dropdown — queried separately from DataTable
   const { data: productosParaEntrada = [] } = useQuery<{ id: string; sku: string | null; nombre: string }[]>({
@@ -132,6 +136,46 @@ export default function StockPage() {
     }
   }
 
+  function openQuickAdd(row: StockSaldo) {
+    setQuickError(null)
+    setQuickQty('')
+    setQuickAddProducto(row)
+  }
+
+  function closeQuickAdd() {
+    setQuickAddProducto(null)
+    setQuickQty('')
+    setQuickError(null)
+  }
+
+  async function handleQuickAdd(e: React.FormEvent) {
+    e.preventDefault()
+    if (!quickAddProducto) return
+    setQuickError(null)
+    const cantidad = parseInt(quickQty, 10)
+    if (isNaN(cantidad) || cantidad <= 0) { setQuickError('La cantidad debe ser mayor a 0'); return }
+    setQuickSaving(true)
+    try {
+      const res = await fetch('/api/stock/movimientos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productoId: quickAddProducto.id, tipo: 'entrada', cantidad, notas: null }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        setQuickError(data.error ?? 'Error al registrar')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['/api/stock/saldos'] })
+      void queryClient.invalidateQueries({ queryKey: ['productos-entrada-select'] })
+      closeQuickAdd()
+    } catch {
+      setQuickError('Error de conexion')
+    } finally {
+      setQuickSaving(false)
+    }
+  }
+
   const columns: DataTableColumn<StockSaldo>[] = [
     {
       key: 'sku',
@@ -193,6 +237,16 @@ export default function StockPage() {
             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
               BAJO
             </span>
+          )}
+          {isAdmin && (
+            <button
+              onClick={(e) => { e.stopPropagation(); openQuickAdd(row) }}
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              title="Agregar stock"
+              aria-label="Agregar stock"
+            >
+              <Plus size={14} />
+            </button>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); setHistorialProducto(row) }}
@@ -369,6 +423,48 @@ export default function StockPage() {
                   {isSaving ? 'Guardando...' : 'Registrar entrada'}
                 </button>
                 <button type="button" onClick={() => setShowEntrada(false)} className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick add modal */}
+      {quickAddProducto && isAdmin && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <button className="absolute inset-0" onClick={closeQuickAdd} aria-label="Cerrar" />
+          <div className="relative bg-card border border-border rounded-lg p-5 w-full max-w-md shadow-xl">
+            <h2 className="text-sm font-semibold text-foreground mb-1">Agregar stock</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              {quickAddProducto.sku ? `[${quickAddProducto.sku}] ` : ''}{quickAddProducto.nombre} — stock actual: <strong>{quickAddProducto.stockActual}</strong>
+            </p>
+            <form onSubmit={handleQuickAdd} className="space-y-3">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Cantidad a agregar *</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  autoFocus
+                  value={quickQty}
+                  onChange={(e) => setQuickQty(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              {quickError && <p className="text-xs text-destructive">{quickError}</p>}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={quickSaving}
+                  className="px-4 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {quickSaving ? 'Guardando...' : 'Agregar'}
+                </button>
+                <button type="button" onClick={closeQuickAdd} className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Cancelar
                 </button>
               </div>
