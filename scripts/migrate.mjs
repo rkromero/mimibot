@@ -21,4 +21,12 @@ console.log('[migrate] Migraciones completadas.')
 await client`ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento numeric(5,2) DEFAULT '0' NOT NULL`
 console.log('[migrate] Fix: pedidos.descuento OK.')
 
+// Garantía extra: el valor 'rtv' del enum user_role puede faltar si la migración
+// 0043 quedó con un timestamp `when` menor al último aplicado en _journal.json y
+// drizzle-kit la saltó (estado corrupto: la marca como aplicada pero el ALTER
+// nunca corrió). ADD VALUE IF NOT EXISTS es idempotente y corre en autocommit
+// (ALTER TYPE ADD VALUE no admite ir dentro de la misma transacción que lo crea).
+await client`ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'rtv'`
+console.log('[migrate] Fix: user_role rtv OK.')
+
 await client.end()
