@@ -244,7 +244,7 @@ export default function ClientesListView() {
           columns={columns}
           extraParams={filterEstado ? { estadoActividad: filterEstado } : {}}
           defaultPageSize={50}
-          searchPlaceholder="Buscar por nombre, email, CUIT..."
+          searchPlaceholder="Buscar por nombre, dirección, email, CUIT..."
           onRowClick={(row) => router.push(`/crm/clientes/${row.id}`)}
           renderMobileCard={(c) => {
             const saldo = c.saldoPendiente ? parseFloat(c.saldoPendiente) : 0

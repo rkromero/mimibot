@@ -71,6 +71,8 @@ export async function GET(req: NextRequest) {
           ilike(clientes.apellido, `%${search}%`),
           ilike(clientes.email, `%${search}%`),
           ilike(clientes.cuit, `%${search}%`),
+          ilike(clientes.direccion, `%${search}%`),
+          ilike(clientes.localidad, `%${search}%`),
         ) as ReturnType<typeof eq>,
       )
     }
