@@ -13,7 +13,7 @@ type EditForm = {
   id: string
   name: string
   email: string
-  role: 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
+  role: 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'
   password: string
 }
 
@@ -25,7 +25,7 @@ export default function TeamManager({ initialUsers }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
 
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion' })
 
   async function toggleActive(userId: string, current: boolean) {
     const res = await fetch(`/api/users/${userId}`, {
@@ -75,7 +75,7 @@ export default function TeamManager({ initialUsers }: Props) {
       id: member.id,
       name: member.name ?? '',
       email: member.email,
-      role: (member.role ?? 'agent') as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv',
+      role: (member.role ?? 'agent') as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion',
       password: '',
     })
     setShowForm(false)
@@ -180,7 +180,7 @@ export default function TeamManager({ initialUsers }: Props) {
               <label className="block text-xs text-muted-foreground mb-1">Rol</label>
               <select
                 value={newUser.role}
-                onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' }))}
+                onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion' }))}
                 className={inputClass}
               >
                 <option value="agent">Agente</option>
@@ -190,6 +190,7 @@ export default function TeamManager({ initialUsers }: Props) {
                 <option value="admin">Admin</option>
                 <option value="fabrica">Fábrica</option>
                 <option value="repartidor">Repartidor</option>
+                <option value="distribucion">Distribución</option>
               </select>
             </div>
           </div>
@@ -259,7 +260,7 @@ export default function TeamManager({ initialUsers }: Props) {
               <label className="block text-xs text-muted-foreground mb-1">Rol</label>
               <select
                 value={editForm.role}
-                onChange={(e) => setEditForm((p) => p ? { ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' } : p)}
+                onChange={(e) => setEditForm((p) => p ? { ...p, role: e.target.value as 'admin' | 'agent' | 'gerente' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion' } : p)}
                 className={inputClass}
               >
                 <option value="agent">Agente</option>
@@ -269,6 +270,7 @@ export default function TeamManager({ initialUsers }: Props) {
                 <option value="admin">Admin</option>
                 <option value="fabrica">Fábrica</option>
                 <option value="repartidor">Repartidor</option>
+                <option value="distribucion">Distribución</option>
               </select>
             </div>
           </div>

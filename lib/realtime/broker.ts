@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm'
 
 type SseClient = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'
   write: (data: string) => void
   close: () => void
 }

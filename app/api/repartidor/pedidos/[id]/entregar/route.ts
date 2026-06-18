@@ -6,6 +6,7 @@ import { eq, and, isNull } from 'drizzle-orm'
 import { toApiError, AuthzError, NotFoundError, ConflictError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
+import { esRolReparto } from '@/lib/authz/roles'
 
 const camionetaSchema = z.object({
   firmaUrl: z.string().min(1),
@@ -40,7 +41,7 @@ export async function PATCH(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
+    if (!esRolReparto(role) && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
       throw new AuthzError('Solo repartidor, fabrica, admin o gerente pueden acceder a este endpoint')
     }
 

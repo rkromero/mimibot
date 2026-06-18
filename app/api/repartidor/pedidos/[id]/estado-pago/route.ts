@@ -6,6 +6,7 @@ import { eq, and, isNull } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { searchApprovedPaymentByExternalRef } from '@/lib/mercadopago/client'
 import { confirmarPagoPedido } from '@/lib/mercadopago/confirmar-pago'
+import { esRolReparto } from '@/lib/authz/roles'
 
 export async function GET(
   _req: NextRequest,
@@ -16,7 +17,7 @@ export async function GET(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
+    if (!esRolReparto(role) && role !== 'admin' && role !== 'gerente') {
       throw new AuthzError('Acceso no permitido')
     }
 

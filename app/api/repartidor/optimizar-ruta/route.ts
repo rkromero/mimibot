@@ -6,6 +6,7 @@ import { eq, and, isNull, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { optimizarRuta, type Parada } from '@/lib/geo/route-optimizer.service'
+import { esRolReparto } from '@/lib/authz/roles'
 
 const bodySchema = z.object({
   lat: z.number().finite().min(-90).max(90),
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
+    if (!esRolReparto(role) && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
       throw new AuthzError('Solo repartidor, fabrica, admin o gerente pueden optimizar la ruta')
     }
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const origen = { lat: parsed.data.lat, lng: parsed.data.lng }
 
     // Repartidor y fábrica solo optimizan sus propios pedidos; admin/gerente, todos.
-    const whereClause = (role === 'repartidor' || role === 'fabrica')
+    const whereClause = (esRolReparto(role) || role === 'fabrica')
       ? and(
           isNull(pedidos.deletedAt),
           eq(pedidos.estado, 'en_reparto'),

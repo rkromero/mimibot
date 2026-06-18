@@ -5,6 +5,7 @@ import { pedidos } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
 import { createPreference } from '@/lib/mercadopago/client'
+import { esRolReparto } from '@/lib/authz/roles'
 import { z } from 'zod'
 
 const APP_URL = 'https://mimibot-production-1c38.up.railway.app'
@@ -26,7 +27,7 @@ export async function POST(
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
+    if (!esRolReparto(role) && role !== 'admin' && role !== 'gerente') {
       throw new AuthzError('Solo repartidor, admin o gerente pueden generar cobros QR')
     }
 

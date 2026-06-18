@@ -2,6 +2,7 @@ import { eq, and, or, inArray, isNotNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/db'
 import { marcas, usuarioMarcas, productos } from '@/db/schema'
 import { AuthzError } from '@/lib/errors'
+import { esRolReparto } from '@/lib/authz/roles'
 import type { Session } from 'next-auth'
 
 type SessionUser = Session['user']
@@ -15,21 +16,21 @@ type SessionUser = Session['user']
  *
  * Reglas:
  *  - admin / gerente / fabrica: ven TODAS las marcas (alcance global).
- *  - repartidor: por ahora también ve TODAS las marcas.
- *    TODO: definir la visibilidad de marcas del repartidor en una fase posterior
- *    (probablemente acotada a las marcas que efectivamente reparte).
+ *  - repartidor / distribucion: por ahora también ven TODAS las marcas.
+ *    TODO: definir la visibilidad de marcas de los roles de reparto en una fase
+ *    posterior (probablemente acotada a las marcas que efectivamente reparten).
  *  - agent / vendedor / rtv: la marca por defecto (Mimi, esDefault=true) + las
  *    asignadas explícitamente en `usuario_marcas`.
  */
 
 /** ¿El rol ve TODAS las marcas, sin filtro? */
 export function veTodasLasMarcas(role: string | null | undefined): boolean {
-  // repartidor incluido a propósito (TODO: acotar en fase posterior).
+  // roles de reparto incluidos a propósito (TODO: acotar en fase posterior).
   return (
     role === 'admin' ||
     role === 'gerente' ||
     role === 'fabrica' ||
-    role === 'repartidor'
+    esRolReparto(role)
   )
 }
 

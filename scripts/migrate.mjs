@@ -29,4 +29,11 @@ console.log('[migrate] Fix: pedidos.descuento OK.')
 await client`ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'rtv'`
 console.log('[migrate] Fix: user_role rtv OK.')
 
+// Garantía extra: el valor 'distribucion' del enum user_role (rol de reparto,
+// clon de 'repartidor' en esta fase). Mismo motivo que 'rtv': los timestamps
+// `when` no-monótonos en _journal.json pueden hacer que drizzle-kit saltee la
+// migración 0045. ADD VALUE IF NOT EXISTS es idempotente y corre en autocommit.
+await client`ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'distribucion'`
+console.log('[migrate] Fix: user_role distribucion OK.')
+
 await client.end()

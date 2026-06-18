@@ -3,9 +3,10 @@ import { auth } from '@/lib/auth'
 import { requireAdminOrGerente } from '@/lib/authz'
 import { db } from '@/db'
 import { pedidos, clientes, users, movimientosCC, rendicionValidaciones } from '@/db/schema'
-import { eq, and, isNull, gte, lte, desc, sql } from 'drizzle-orm'
+import { eq, and, isNull, gte, lte, desc, sql, inArray } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { toApiError } from '@/lib/errors'
+import { ROLES_REPARTO } from '@/lib/authz/roles'
 
 const repartidoresT = alias(users, 'repartidores')
 const cobradoresT = alias(users, 'cobradores')
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
       db
         .select({ id: users.id, name: users.name })
         .from(users)
-        .where(eq(users.role, 'repartidor'))
+        .where(inArray(users.role, [...ROLES_REPARTO]))
         .orderBy(users.name),
 
       db

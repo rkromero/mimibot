@@ -9,6 +9,8 @@
  *   agent    → /dashboard         (personal KPIs + Mi Cartera)
  *   rtv      → /dashboard         (clon de agent en esta fase)
  *   fabrica  → /fabrica           (production/dispatch view)
+ *   repartidor   → /repartidor     (mobile delivery view)
+ *   distribucion → /repartidor     (clon de repartidor en esta fase)
  *   other    → /pipeline          (fallback)
  */
 export function getHomeRouteByRole(role: string | null | undefined): string {
@@ -23,6 +25,7 @@ export function getHomeRouteByRole(role: string | null | undefined): string {
     case 'fabrica':
       return '/fabrica'
     case 'repartidor':
+    case 'distribucion':
       return '/repartidor'
     default:
       return '/pipeline'

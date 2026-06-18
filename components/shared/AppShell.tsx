@@ -11,10 +11,11 @@ import GlobalSearch from '@/components/shared/GlobalSearch'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import Avatar from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
+import { esRolReparto } from '@/lib/authz/roles'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
-type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
+type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'
 
 type Props = {
   user: User
@@ -155,7 +156,7 @@ export default function AppShell({ user, children }: Props) {
     )
   }
 
-  if (user.role === 'repartidor') {
+  if (esRolReparto(user.role)) {
     return (
       <div className="h-dvh bg-background overflow-hidden">
         {children}

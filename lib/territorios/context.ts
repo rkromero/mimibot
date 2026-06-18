@@ -6,7 +6,7 @@ import { esRolVentas } from '@/lib/authz/roles'
 
 export type SessionContext = {
   userId: string
-  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv'
+  role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'
   /** Territorios que gestiona este gerente */
   territoriosGestionados: string[]
   /** Agentes en los territorios del gerente (para scoping de queries) */

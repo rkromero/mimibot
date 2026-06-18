@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { pedidos } from '@/db/schema'
 import { eq, and, isNull, desc } from 'drizzle-orm'
 import { toApiError, AuthzError } from '@/lib/errors'
+import { esRolReparto } from '@/lib/authz/roles'
 
 export async function GET() {
   try {
@@ -11,7 +12,7 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const role = session.user.role
-    if (role !== 'repartidor' && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
+    if (!esRolReparto(role) && role !== 'admin' && role !== 'gerente' && role !== 'fabrica') {
       throw new AuthzError('Solo repartidor, fabrica, admin o gerente pueden acceder a este endpoint')
     }
 

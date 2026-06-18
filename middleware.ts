@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { getHomeRouteByRole } from '@/lib/auth-utils'
+import { esRolReparto } from '@/lib/authz/roles'
 
 // Purely public routes — bypassed without any auth checks
 const PUBLIC_PREFIXES = [
@@ -97,13 +98,14 @@ export async function middleware(req: NextRequest) {
 
     const isRepartidorPath = REPARTIDOR_PREFIXES.some((p) => pathname.startsWith(p))
 
-    // Only repartidor, admin, gerente can access /repartidor routes
-    if (isRepartidorPath && role !== 'repartidor' && role !== 'admin' && role !== 'gerente') {
+    // Only repartidor/distribucion, admin, gerente can access /repartidor routes
+    if (isRepartidorPath && !esRolReparto(role) && role !== 'admin' && role !== 'gerente') {
       return NextResponse.redirect(new URL(homeRoute, req.url))
     }
 
-    // Repartidor role can only access /repartidor routes (not dashboard, pipeline, etc.)
-    if (!isRepartidorPath && !pathname.startsWith('/api/') && role === 'repartidor') {
+    // Reparto roles (repartidor/distribucion) can only access /repartidor routes
+    // (not dashboard, pipeline, etc.)
+    if (!isRepartidorPath && !pathname.startsWith('/api/') && esRolReparto(role)) {
       return NextResponse.redirect(new URL('/repartidor', req.url))
     }
   }

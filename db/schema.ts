@@ -6,7 +6,7 @@ import {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica', 'repartidor', 'rtv'])
+export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'vendedor', 'fabrica', 'repartidor', 'rtv', 'distribucion'])
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
