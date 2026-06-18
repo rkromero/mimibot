@@ -16,5 +16,25 @@ export const updateActividadSchema = z.object({
   asignadoA: z.string().uuid().nullable().optional(),
 })
 
+export const registrarVisitaSchema = z
+  .object({
+    resultado: z.enum(['compro', 'no_compro', 'no_estaba', 'reprogramar']),
+    notas: z.string().max(2000).optional().nullable(),
+    lat: z.number().min(-90).max(90).optional().nullable(),
+    lng: z.number().min(-180).max(180).optional().nullable(),
+    precision: z.number().min(0).optional().nullable(),
+    proximaVisita: z.string().datetime({ offset: true }).optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.resultado === 'reprogramar' && !data.proximaVisita) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['proximaVisita'],
+        message: 'La próxima visita es requerida cuando el resultado es reprogramar',
+      })
+    }
+  })
+
 export type CreateActividadInput = z.infer<typeof createActividadSchema>
 export type UpdateActividadInput = z.infer<typeof updateActividadSchema>
+export type RegistrarVisitaInput = z.infer<typeof registrarVisitaSchema>

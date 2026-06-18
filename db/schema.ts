@@ -261,6 +261,7 @@ export const estadoPagoPedidoEnum = pgEnum('estado_pago_pedido', ['impago', 'par
 export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'credito'])
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
 export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
+export const resultadoVisitaEnum = pgEnum('resultado_visita', ['compro', 'no_compro', 'no_estaba', 'reprogramar'])
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
 export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
 export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
@@ -525,8 +526,12 @@ export const actividadesCliente = pgTable('actividades_cliente', {
   titulo: text('titulo').notNull(),
   notas: text('notas'),
   estado: actividadEstadoEnum('estado').notNull().default('pendiente'),
+  resultado: resultadoVisitaEnum('resultado'),
   fechaProgramada: timestamp('fecha_programada', { mode: 'date' }),
   fechaCompletada: timestamp('fecha_completada', { mode: 'date' }),
+  lat: decimal('lat', { precision: 9, scale: 6 }),
+  lng: decimal('lng', { precision: 9, scale: 6 }),
+  geoPrecision: decimal('geo_precision', { precision: 7, scale: 2 }),
   asignadoA: uuid('asignado_a').references(() => users.id),
   creadoPor: uuid('creado_por').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
