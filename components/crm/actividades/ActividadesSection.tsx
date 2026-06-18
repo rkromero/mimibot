@@ -3,11 +3,21 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, Phone, Mail, MapPin, FileText, CheckSquare, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Phone, Mail, MapPin, FileText, CheckSquare, CheckCircle2, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, isPast, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ActividadModal from './ActividadModal'
+import RegistrarVisitaModal from './RegistrarVisitaModal'
+
+type Resultado = 'compro' | 'no_compro' | 'no_estaba' | 'reprogramar'
+
+const RESULTADO_LABEL: Record<Resultado, string> = {
+  compro: 'Compró',
+  no_compro: 'No compró',
+  no_estaba: 'No estaba',
+  reprogramar: 'Reprogramar',
+}
 
 type Actividad = {
   id: string
@@ -15,8 +25,12 @@ type Actividad = {
   titulo: string
   notas: string | null
   estado: 'pendiente' | 'completada' | 'cancelada'
+  resultado: Resultado | null
   fechaProgramada: string | null
   fechaCompletada: string | null
+  lat: string | null
+  lng: string | null
+  geoPrecision: string | null
   asignadoA: string | null
   asignadoNombre: string | null
   asignadoColor: string | null
@@ -112,6 +126,7 @@ export default function ActividadesSection({ clienteId, asignadoA, agents }: Pro
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [showVisita, setShowVisita] = useState(false)
   const [completing, setCompleting] = useState<string | null>(null)
   const [showHistorial, setShowHistorial] = useState(false)
 
@@ -153,6 +168,11 @@ export default function ActividadesSection({ clienteId, asignadoA, agents }: Pro
     return new Date(a.fechaProgramada).getTime() - new Date(b.fechaProgramada).getTime()
   })
 
+  // Última visita registrada (visita completada más reciente por fechaCompletada)
+  const ultimaVisita = actividades
+    .filter((a) => a.tipo === 'visita' && a.estado === 'completada' && a.fechaCompletada)
+    .sort((a, b) => new Date(b.fechaCompletada!).getTime() - new Date(a.fechaCompletada!).getTime())[0]
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -164,14 +184,46 @@ export default function ActividadesSection({ clienteId, asignadoA, agents }: Pro
             </span>
           )}
         </h2>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 border border-border rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <Plus size={13} />
-          Nueva
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowVisita(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <MapPin size={13} />
+            Registrar visita
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 border border-border rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Plus size={13} />
+            Nueva
+          </button>
+        </div>
       </div>
+
+      {/* Última visita */}
+      {ultimaVisita && (
+        <div className="mb-3 flex items-center gap-2 flex-wrap text-xs">
+          <span className="text-muted-foreground">
+            Última visita: <span className="text-foreground font-medium">
+              {format(new Date(ultimaVisita.fechaCompletada!), "d MMM yyyy", { locale: es })}
+            </span>
+            {ultimaVisita.resultado && ` (${RESULTADO_LABEL[ultimaVisita.resultado]})`}
+          </span>
+          {ultimaVisita.lat && ultimaVisita.lng && (
+            <a
+              href={`https://maps.google.com/?q=${ultimaVisita.lat},${ultimaVisita.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <ExternalLink size={11} />
+              Ver en mapa
+            </a>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground py-4 text-center">Cargando actividades...</div>
@@ -219,6 +271,16 @@ export default function ActividadesSection({ clienteId, asignadoA, agents }: Pro
           defaultAsignadoA={isAdmin ? asignadoA : (session?.user?.id ?? null)}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
+            void queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'actividades'] })
+          }}
+        />
+      )}
+
+      {showVisita && (
+        <RegistrarVisitaModal
+          clienteId={clienteId}
+          onClose={() => setShowVisita(false)}
+          onRegistered={() => {
             void queryClient.invalidateQueries({ queryKey: ['clientes', clienteId, 'actividades'] })
           }}
         />
