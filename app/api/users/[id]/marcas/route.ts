@@ -60,8 +60,8 @@ export async function PUT(
         columns: { id: true, role: true },
       })
       if (!user) throw new NotFoundError('Usuario')
-      if (!esRolVentas(user.role)) {
-        throw new ValidationError('Solo se asignan marcas a usuarios de ventas (agent/vendedor/rtv)')
+      if (!esRolVentas(user.role) && user.role !== 'distribucion') {
+        throw new ValidationError('Solo se asignan marcas a usuarios de ventas (agent/vendedor/rtv) o distribución')
       }
 
       // Solo se persisten marcas activas y NO default: la default (Mimi) es

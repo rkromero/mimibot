@@ -2,7 +2,6 @@ import { eq, and, or, inArray, isNotNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/db'
 import { marcas, usuarioMarcas, productos } from '@/db/schema'
 import { AuthzError } from '@/lib/errors'
-import { esRolReparto } from '@/lib/authz/roles'
 import type { Session } from 'next-auth'
 
 type SessionUser = Session['user']
@@ -15,22 +14,22 @@ type SessionUser = Session['user']
  * un único helper, `getMarcasVisibles`, sirve para ambos casos.
  *
  * Reglas:
- *  - admin / gerente / fabrica: ven TODAS las marcas (alcance global).
- *  - repartidor / distribucion: por ahora también ven TODAS las marcas.
- *    TODO: definir la visibilidad de marcas de los roles de reparto en una fase
- *    posterior (probablemente acotada a las marcas que efectivamente reparten).
+ *  - admin / gerente / fabrica / repartidor: ven TODAS las marcas (alcance global).
+ *  - distribucion: ve SOLO las marcas asignadas explícitamente en `usuario_marcas`
+ *    (sin la marca default). Si no tiene ninguna asignada, no ve ninguna.
  *  - agent / vendedor / rtv: la marca por defecto (Mimi, esDefault=true) + las
  *    asignadas explícitamente en `usuario_marcas`.
  */
 
 /** ¿El rol ve TODAS las marcas, sin filtro? */
 export function veTodasLasMarcas(role: string | null | undefined): boolean {
-  // roles de reparto incluidos a propósito (TODO: acotar en fase posterior).
+  // 'repartidor' sigue con alcance global; 'distribucion' NO: se acota a sus
+  // marcas asignadas (ver getMarcasVisibles).
   return (
     role === 'admin' ||
     role === 'gerente' ||
     role === 'fabrica' ||
-    esRolReparto(role)
+    role === 'repartidor'
   )
 }
 
@@ -45,6 +44,16 @@ export function veTodasLasMarcas(role: string | null | undefined): boolean {
 export async function getMarcasVisibles(user: SessionUser): Promise<string[]> {
   if (veTodasLasMarcas(user.role)) {
     const rows = await db.select({ id: marcas.id }).from(marcas)
+    return rows.map((r) => r.id)
+  }
+
+  // Distribución: SOLO las marcas asignadas explícitamente en usuario_marcas
+  // (sin la marca default). Sin asignaciones → no ve ninguna marca.
+  if (user.role === 'distribucion') {
+    const rows = await db
+      .select({ id: usuarioMarcas.marcaId })
+      .from(usuarioMarcas)
+      .where(eq(usuarioMarcas.usuarioId, user.id))
     return rows.map((r) => r.id)
   }
 

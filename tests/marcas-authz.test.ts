@@ -37,6 +37,7 @@ const gerente = user('gerente', 'g1')
 const fabrica = user('fabrica', 'f1')
 const agent = user('agent', 'ag1')
 const rtv = user('rtv', 'rt1')
+const distribucion = user('distribucion', 'd1')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -54,6 +55,10 @@ describe('veTodasLasMarcas', () => {
     expect(veTodasLasMarcas('agent')).toBe(false)
     expect(veTodasLasMarcas('vendedor')).toBe(false)
     expect(veTodasLasMarcas('rtv')).toBe(false)
+  })
+
+  it('distribucion NO ve todas las marcas (solo las asignadas)', () => {
+    expect(veTodasLasMarcas('distribucion')).toBe(false)
   })
 })
 
@@ -92,6 +97,16 @@ describe('getMarcasVisibles', () => {
     mockSelect.mockReturnValueOnce(chain([{ id: 'mimi' }]))
     await expect(getMarcasVisibles(rtv)).resolves.toEqual(['mimi'])
   })
+
+  it('distribucion recibe SOLO las marcas asignadas (sin default)', async () => {
+    mockSelect.mockReturnValueOnce(chain([{ id: 'mX' }, { id: 'mY' }]))
+    await expect(getMarcasVisibles(distribucion)).resolves.toEqual(['mX', 'mY'])
+  })
+
+  it('distribucion SIN asignación no recibe ninguna marca', async () => {
+    mockSelect.mockReturnValueOnce(chain([]))
+    await expect(getMarcasVisibles(distribucion)).resolves.toEqual([])
+  })
 })
 
 describe('marcaVisibleFilter', () => {
@@ -111,6 +126,18 @@ describe('marcaVisibleFilter', () => {
   it('vendedor sin ninguna marca visible → condición siempre falsa (no ve nada)', async () => {
     mockSelect.mockReturnValueOnce(chain([]))
     const cond = await marcaVisibleFilter(ventas)
+    expect(cond).toBeDefined()
+  })
+
+  it('distribucion sin marcas asignadas → condición siempre falsa (no ve nada)', async () => {
+    mockSelect.mockReturnValueOnce(chain([]))
+    const cond = await marcaVisibleFilter(distribucion)
+    expect(cond).toBeDefined()
+  })
+
+  it('distribucion con marcas asignadas → devuelve una condición (filtra)', async () => {
+    mockSelect.mockReturnValueOnce(chain([{ id: 'mX' }]))
+    const cond = await marcaVisibleFilter(distribucion)
     expect(cond).toBeDefined()
   })
 })

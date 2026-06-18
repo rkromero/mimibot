@@ -10,7 +10,7 @@ export default async function MarcasPage() {
     }),
     db.query.users.findMany({
       where: (u, { and, inArray: inA, eq }) =>
-        and(inA(u.role, ['agent', 'vendedor', 'rtv']), eq(u.isActive, true)),
+        and(inA(u.role, ['agent', 'vendedor', 'rtv', 'distribucion']), eq(u.isActive, true)),
       columns: { id: true, name: true, email: true, role: true },
       orderBy: (u, { asc }) => [asc(u.name)],
     }),

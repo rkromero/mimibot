@@ -19,7 +19,7 @@ const inputClass = cn(
   'transition-colors duration-100',
 )
 
-const ROLE_LABEL: Record<string, string> = { agent: 'Agente', vendedor: 'Vendedor', rtv: 'RTV' }
+const ROLE_LABEL: Record<string, string> = { agent: 'Agente', vendedor: 'Vendedor', rtv: 'RTV', distribucion: 'Distribución' }
 
 export default function MarcasManager({ initialMarcas, ventasUsers, initialAsignaciones }: Props) {
   const [marcas, setMarcas] = useState(initialMarcas)
@@ -255,20 +255,21 @@ function AsignacionSection({
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-md font-semibold">Marcas por vendedor</h2>
+        <h2 className="text-md font-semibold">Marcas por usuario</h2>
         <p className="text-sm text-muted-foreground">
-          Elegí qué marcas puede ver y cargar cada usuario de ventas.
-          {marcaDefault ? ` La marca ${marcaDefault.nombre} está siempre habilitada.` : ''}
+          Elegí qué marcas puede ver y cargar cada usuario.
+          {marcaDefault ? ` Los usuarios de ventas tienen ${marcaDefault.nombre} siempre habilitada; los de distribución ven solo las que les asignes.` : ''}
         </p>
       </div>
 
       {ventasUsers.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No hay usuarios de ventas activos.</p>
+        <p className="text-sm text-muted-foreground">No hay usuarios de ventas o distribución activos.</p>
       ) : (
         <div className="divide-y divide-border rounded-md border border-border">
           {ventasUsers.map((user) => {
             const asignadas = asignaciones[user.id] ?? []
             const isExpanded = expandedId === user.id
+            const esDistribucion = user.role === 'distribucion'
             return (
               <div key={user.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -280,9 +281,13 @@ function AsignacionSection({
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {asignadas.length === 0
-                        ? marcaDefault ? `Solo ${marcaDefault.nombre}` : 'Sin marcas extra'
-                        : `${asignadas.length} marca${asignadas.length === 1 ? '' : 's'} extra`}
+                      {esDistribucion
+                        ? (asignadas.length === 0
+                            ? 'Sin marcas asignadas'
+                            : `${asignadas.length} marca${asignadas.length === 1 ? '' : 's'}`)
+                        : (asignadas.length === 0
+                            ? marcaDefault ? `Solo ${marcaDefault.nombre}` : 'Sin marcas extra'
+                            : `${asignadas.length} marca${asignadas.length === 1 ? '' : 's'} extra`)}
                       {savedId === user.id && <span className="text-emerald-600 ml-2">Guardado ✓</span>}
                     </p>
                   </div>
@@ -296,7 +301,7 @@ function AsignacionSection({
 
                 {isExpanded && (
                   <div className="mt-3 pt-3 border-t border-border space-y-2">
-                    {marcaDefault && (
+                    {!esDistribucion && marcaDefault && (
                       <label className="flex items-center gap-2 text-sm text-muted-foreground">
                         <input type="checkbox" checked disabled className="accent-primary" />
                         {marcaDefault.nombre} <span className="text-xs">(siempre habilitada)</span>
