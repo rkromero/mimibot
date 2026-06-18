@@ -12,6 +12,7 @@ const {
   mockTxSelect,
   mockTxDelete,
   mockRecalcularPagosPedido,
+  mockReconciliarCuentaCliente,
 } = vi.hoisted(() => {
   return {
     mockTransaction: vi.fn(),
@@ -23,6 +24,7 @@ const {
     mockTxSelect: vi.fn(),
     mockTxDelete: vi.fn(),
     mockRecalcularPagosPedido: vi.fn().mockResolvedValue(undefined),
+    mockReconciliarCuentaCliente: vi.fn().mockResolvedValue([]),
   }
 })
 
@@ -54,6 +56,7 @@ vi.mock('@/lib/cuenta-corriente/pago.service', () => ({
   aplicarSaldoAFavorAPedido: vi.fn().mockResolvedValue(undefined),
   calcularDistribucionFIFO: vi.fn(),
   recalcularPagosPedido: mockRecalcularPagosPedido,
+  reconciliarCuentaCliente: mockReconciliarCuentaCliente,
 }))
 
 import { crearPedidoConItems, confirmarPedido, aprobarPedido, revertirPedidoAAprobacion, actualizarItemsPedido } from '@/lib/pedidos/service'

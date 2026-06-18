@@ -46,6 +46,10 @@ function compareDecimals(a: string, b: string): number {
   return parseFloat(a) - parseFloat(b)
 }
 
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
 // ─── Pure FIFO distribution ───────────────────────────────────────────────────
 
 export function calcularDistribucionFIFO(
@@ -136,6 +140,173 @@ export async function recalcularPagosPedido(tx: Db, pedidoId: string): Promise<v
     .where(eq(pedidos.id, pedidoId))
 }
 
+// ─── Reconciliación FIFO de créditos a pedidos ───────────────────────────────
+
+export interface CreditoDisponible {
+  id: string
+  fecha: Date
+  disponible: string // decimal as string
+}
+
+export interface AplicacionReconciliacion {
+  movimientoCreditoId: string
+  pedidoId: string
+  montoAplicado: string // decimal as string
+}
+
+/**
+ * Algoritmo puro: dada una lista de créditos con saldo disponible y una lista
+ * de pedidos con saldo pendiente, imputa los créditos a los pedidos del más
+ * viejo al más nuevo (FIFO en ambos lados).
+ *
+ * Garantías:
+ *   - SUM(montoAplicado) por crédito nunca supera su `disponible`.
+ *   - SUM(montoAplicado) por pedido nunca supera su `saldoPendiente`.
+ *   - No muta los arrays de entrada.
+ *   - Idempotente respecto al estado: si no hay crédito disponible o saldo
+ *     pendiente, devuelve `[]`.
+ */
+export function calcularReconciliacionFIFO(
+  creditos: CreditoDisponible[],
+  pedidosPendientes: PedidoPendiente[],
+): AplicacionReconciliacion[] {
+  const creds = creditos
+    .map((c) => ({ id: c.id, fecha: c.fecha, disponible: round2(parseFloat(c.disponible)) }))
+    .filter((c) => c.disponible > 0.0001)
+    .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+
+  const peds = pedidosPendientes
+    .map((p) => ({ id: p.id, fecha: p.fecha, saldo: round2(parseFloat(p.saldoPendiente)) }))
+    .filter((p) => p.saldo > 0.0001)
+    .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+
+  const aplicaciones: AplicacionReconciliacion[] = []
+  let ci = 0 // índice del crédito disponible más antiguo no agotado
+
+  for (const pedido of peds) {
+    let saldoRestante = pedido.saldo
+
+    while (saldoRestante > 0.0001 && ci < creds.length) {
+      const credito = creds[ci]!
+      if (credito.disponible <= 0.0001) {
+        ci++
+        continue
+      }
+
+      const aAplicar = round2(Math.min(credito.disponible, saldoRestante))
+      if (aAplicar <= 0.0001) {
+        ci++
+        continue
+      }
+
+      aplicaciones.push({
+        movimientoCreditoId: credito.id,
+        pedidoId: pedido.id,
+        montoAplicado: aAplicar.toFixed(2),
+      })
+
+      credito.disponible = round2(credito.disponible - aAplicar)
+      saldoRestante = round2(saldoRestante - aAplicar)
+    }
+  }
+
+  return aplicaciones
+}
+
+/**
+ * Reconciliación completa de la cuenta corriente de un cliente dentro de una
+ * transacción. Imputa todos los créditos con saldo disponible a los pedidos con
+ * saldo pendiente (FIFO, más viejo primero) y recalcula `estadoPago`.
+ *
+ * Debe invocarse SIEMPRE dentro de la misma transacción que el cambio que la
+ * dispara (registro de pago / aprobación de pedido). Es idempotente: ejecutarla
+ * dos veces no duplica aplicaciones ni altera montos, porque parte siempre del
+ * saldo disponible y pendiente vivo.
+ *
+ * Devuelve las aplicaciones insertadas (vacío si no hubo nada que imputar).
+ */
+export async function reconciliarCuentaCliente(
+  tx: Db,
+  clienteId: string,
+): Promise<AplicacionReconciliacion[]> {
+  // 1. Créditos vivos con sus aplicaciones vivas → saldo disponible
+  const creditos = await tx.query.movimientosCC.findMany({
+    where: and(
+      eq(movimientosCC.clienteId, clienteId),
+      eq(movimientosCC.tipo, 'credito'),
+      isNull(movimientosCC.deletedAt),
+    ),
+    columns: { id: true, monto: true, fecha: true },
+    with: {
+      aplicaciones: {
+        columns: { montoAplicado: true },
+        where: (a, ops) => ops.isNull(a.deletedAt),
+      },
+    },
+    orderBy: (m, { asc }) => [asc(m.fecha)],
+  })
+
+  const creditosDisponibles: CreditoDisponible[] = []
+  for (const credito of creditos) {
+    const aplicado = (credito.aplicaciones ?? []).reduce(
+      (sum, a) => sum + parseFloat(a.montoAplicado),
+      0,
+    )
+    const disponible = round2(parseFloat(credito.monto) - aplicado)
+    if (disponible > 0.0001) {
+      creditosDisponibles.push({
+        id: credito.id,
+        fecha: credito.fecha,
+        disponible: disponible.toFixed(2),
+      })
+    }
+  }
+
+  if (creditosDisponibles.length === 0) return []
+
+  // 2. Pedidos con saldo pendiente, del más viejo al más nuevo
+  const pedidosPendientesRows = await tx.query.pedidos.findMany({
+    where: and(
+      eq(pedidos.clienteId, clienteId),
+      gt(pedidos.saldoPendiente, '0'),
+      isNull(pedidos.deletedAt),
+    ),
+    columns: { id: true, fecha: true, saldoPendiente: true },
+    orderBy: (p, { asc }) => [asc(p.fecha)],
+  })
+
+  if (pedidosPendientesRows.length === 0) return []
+
+  // 3. FIFO puro
+  const aplicaciones = calcularReconciliacionFIFO(
+    creditosDisponibles,
+    pedidosPendientesRows.map((p) => ({
+      id: p.id,
+      fecha: p.fecha,
+      saldoPendiente: p.saldoPendiente,
+    })),
+  )
+
+  if (aplicaciones.length === 0) return []
+
+  // 4. Persistir aplicaciones y recalcular cada pedido afectado
+  const pedidosAfectados = new Set<string>()
+  for (const ap of aplicaciones) {
+    await tx.insert(aplicacionesPago).values({
+      movimientoCreditoId: ap.movimientoCreditoId,
+      pedidoId: ap.pedidoId,
+      montoAplicado: ap.montoAplicado,
+    })
+    pedidosAfectados.add(ap.pedidoId)
+  }
+
+  for (const pedidoId of pedidosAfectados) {
+    await recalcularPagosPedido(tx, pedidoId)
+  }
+
+  return aplicaciones
+}
+
 // ─── Register payment (DB transaction) ───────────────────────────────────────
 
 export async function registrarPago(
@@ -162,63 +333,38 @@ export async function registrarPago(
       })
       .returning()
 
-    // 2. Fetch pedidos with saldoPendiente > 0 ordered by fecha ASC
-    const pedidosPendientesRows = await tx.query.pedidos.findMany({
-      where: and(
-        eq(pedidos.clienteId, clienteId),
-        gt(pedidos.saldoPendiente, '0'),
-      ),
-      columns: { id: true, fecha: true, saldoPendiente: true },
-      orderBy: (p, { asc }) => [asc(p.fecha)],
-    })
-
-    const pedidosPendientes: PedidoPendiente[] = pedidosPendientesRows.map(
-      (p) => ({
-        id: p.id,
-        fecha: p.fecha,
-        saldoPendiente: p.saldoPendiente,
-      }),
+    // 2. Reconciliar toda la cuenta del cliente (FIFO, más viejo primero).
+    //    Imputa este crédito y cualquier otro saldo a favor previo a los
+    //    pedidos con saldo pendiente, dentro de la misma transacción.
+    const aplicacionesCreadas = await reconciliarCuentaCliente(
+      tx as unknown as Db,
+      clienteId,
     )
 
-    // 3. Calculate FIFO distribution
-    const distribucion = calcularDistribucionFIFO(monto, pedidosPendientes)
+    // 3. Construir la distribución correspondiente a ESTE crédito para la UI.
+    //    `sobrante` = parte de este pago que quedó como saldo a favor.
+    const deEstePago = aplicacionesCreadas.filter(
+      (a) => a.movimientoCreditoId === movimiento!.id,
+    )
 
-    // 4. Apply each distribution entry
-    for (const aplicacion of distribucion.aplicaciones) {
-      // Insert aplicaciones_pago record
-      await tx.insert(aplicacionesPago).values({
-        movimientoCreditoId: movimiento!.id,
-        pedidoId: aplicacion.pedidoId,
-        montoAplicado: aplicacion.montoAplicado,
-      })
-
-      // Fetch current pedido to update montoPagado
+    const aplicaciones: AplicacionResult[] = []
+    let aplicadoEstePago = 0
+    for (const ap of deEstePago) {
       const pedidoActual = await tx.query.pedidos.findFirst({
-        where: eq(pedidos.id, aplicacion.pedidoId),
-        columns: { montoPagado: true, total: true },
+        where: eq(pedidos.id, ap.pedidoId),
+        columns: { saldoPendiente: true, estadoPago: true },
       })
-
-      if (pedidoActual) {
-        const nuevoMontoPagado = addDecimals(
-          pedidoActual.montoPagado,
-          aplicacion.montoAplicado,
-        )
-        const nuevoSaldo = subtractDecimals(
-          pedidoActual.total,
-          nuevoMontoPagado,
-        )
-
-        await tx
-          .update(pedidos)
-          .set({
-            montoPagado: nuevoMontoPagado,
-            saldoPendiente: nuevoSaldo,
-            estadoPago: aplicacion.estadoPago,
-            updatedAt: new Date(),
-          })
-          .where(eq(pedidos.id, aplicacion.pedidoId))
-      }
+      aplicadoEstePago += parseFloat(ap.montoAplicado)
+      aplicaciones.push({
+        pedidoId: ap.pedidoId,
+        montoAplicado: ap.montoAplicado,
+        saldoRestante: pedidoActual?.saldoPendiente ?? '0.00',
+        estadoPago: pedidoActual?.estadoPago === 'pagado' ? 'pagado' : 'parcial',
+      })
     }
+
+    const sobrante = Math.max(0, parseFloat(monto) - aplicadoEstePago).toFixed(2)
+    const distribucion: DistribucionPago = { aplicaciones, sobrante }
 
     return { movimiento: movimiento!, distribucion }
   })
@@ -318,102 +464,23 @@ export async function registrarPagoPedido(
   })
 }
 
-// ─── Apply existing saldo a favor to a specific new pedido ───────────────────
+// ─── Apply existing saldo a favor to a cliente's pending pedidos ─────────────
 
+/**
+ * Aplica el saldo a favor (créditos sin imputar) del cliente a sus pedidos con
+ * saldo pendiente. Delega en `reconciliarCuentaCliente`, por lo que respeta el
+ * orden FIFO, filtra créditos/aplicaciones borrados y es idempotente.
+ *
+ * `pedidoId` se mantiene por compatibilidad con los llamadores; la
+ * reconciliación abarca toda la cuenta del cliente (que incluye ese pedido).
+ */
 export async function aplicarSaldoAFavorAPedido(
   clienteId: string,
-  pedidoId: string,
+  _pedidoId: string,
   drizzleDb: Db = db,
   _userId?: string,
 ): Promise<void> {
   await drizzleDb.transaction(async (tx) => {
-    // Fetch the target pedido
-    const pedido = await tx.query.pedidos.findFirst({
-      where: eq(pedidos.id, pedidoId),
-      columns: {
-        id: true,
-        fecha: true,
-        saldoPendiente: true,
-        total: true,
-        montoPagado: true,
-      },
-    })
-
-    if (!pedido || parseFloat(pedido.saldoPendiente) <= 0) return
-
-    // Find all credit movimientos for this cliente
-    const creditos = await tx.query.movimientosCC.findMany({
-      where: and(
-        eq(movimientosCC.clienteId, clienteId),
-        eq(movimientosCC.tipo, 'credito'),
-      ),
-      columns: { id: true, monto: true },
-      with: {
-        aplicaciones: {
-          columns: { montoAplicado: true },
-        },
-      },
-    })
-
-    // Build list of creditos that still have available balance
-    const creditosDisponibles: Array<{
-      id: string
-      montoDisponible: string
-    }> = []
-
-    for (const credito of creditos) {
-      const totalAplicado = (credito.aplicaciones ?? []).reduce(
-        (sum, a) => sum + parseFloat(a.montoAplicado),
-        0,
-      )
-      const disponible = parseFloat(credito.monto) - totalAplicado
-      if (disponible > 0.001) {
-        creditosDisponibles.push({
-          id: credito.id,
-          montoDisponible: disponible.toFixed(2),
-        })
-      }
-    }
-
-    if (creditosDisponibles.length === 0) return
-
-    let saldoPedidoRestante = parseFloat(pedido.saldoPendiente)
-    let nuevoMontoPagado = parseFloat(pedido.montoPagado)
-
-    for (const credito of creditosDisponibles) {
-      if (saldoPedidoRestante <= 0) break
-
-      const disponible = parseFloat(credito.montoDisponible)
-      const aAplicar = Math.min(disponible, saldoPedidoRestante)
-
-      await tx.insert(aplicacionesPago).values({
-        movimientoCreditoId: credito.id,
-        pedidoId,
-        montoAplicado: aAplicar.toFixed(2),
-      })
-
-      saldoPedidoRestante -= aAplicar
-      nuevoMontoPagado += aAplicar
-    }
-
-    const nuevoSaldo = Math.max(0, saldoPedidoRestante)
-    let estadoPago: 'impago' | 'parcial' | 'pagado'
-    if (nuevoMontoPagado <= 0) {
-      estadoPago = 'impago'
-    } else if (nuevoSaldo <= 0.001) {
-      estadoPago = 'pagado'
-    } else {
-      estadoPago = 'parcial'
-    }
-
-    await tx
-      .update(pedidos)
-      .set({
-        montoPagado: nuevoMontoPagado.toFixed(2),
-        saldoPendiente: nuevoSaldo.toFixed(2),
-        estadoPago,
-        updatedAt: new Date(),
-      })
-      .where(eq(pedidos.id, pedidoId))
+    await reconciliarCuentaCliente(tx as unknown as Db, clienteId)
   })
 }

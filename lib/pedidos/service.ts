@@ -4,7 +4,7 @@ import {
   pedidos, pedidoItems, productos, movimientosCC, stockMovements, aplicacionesPago,
 } from '@/db/schema'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import { aplicarSaldoAFavorAPedido, recalcularPagosPedido } from '@/lib/cuenta-corriente/pago.service'
+import { aplicarSaldoAFavorAPedido, recalcularPagosPedido, reconciliarCuentaCliente } from '@/lib/cuenta-corriente/pago.service'
 import type { Db } from '@/db'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -362,14 +362,13 @@ export async function aprobarPedido(
     // Sync payment fields from live aplicaciones_pago (preserves any prior payments)
     await recalcularPagosPedido(tx as unknown as Db, pedidoId)
 
+    // Imputar cualquier saldo a favor del cliente (FIFO) dentro de la misma
+    // transacción: un crédito registrado antes de que existiera el pedido se
+    // aplica recién ahora. Si falla, la aprobación entera se revierte.
+    await reconciliarCuentaCliente(tx as unknown as Db, pedido.clienteId)
+
     return updated!
   })
-
-  try {
-    await aplicarSaldoAFavorAPedido(resultado.clienteId, resultado.id, drizzleDb, userId)
-  } catch {
-    console.warn(`[aprobarPedido] No se pudo aplicar saldo a favor al pedido ${pedidoId}`)
-  }
 
   const final = await drizzleDb.query.pedidos.findFirst({
     where: eq(pedidos.id, pedidoId),
