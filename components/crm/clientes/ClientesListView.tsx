@@ -32,6 +32,7 @@ type Cliente = {
   asignadoColor: string | null
   geocodeStatus: string | null
   saldoPendiente?: string | null
+  cantidadPedidos?: number
   createdAt: string
 }
 
@@ -131,15 +132,13 @@ export default function ClientesListView() {
         ),
     },
     {
-      key: 'geocodeStatus',
-      label: 'Ubicación',
-      render: (row: Cliente) =>
-        row.geocodeStatus === 'failed' ? (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 whitespace-nowrap">
-            <AlertTriangle size={11} />
-            Sin ubicación
-          </span>
-        ) : null,
+      key: 'cantidadPedidos',
+      label: 'Pedidos',
+      render: (row: Cliente) => (
+        <span className="font-medium text-foreground tabular-nums">
+          {row.cantidadPedidos ?? 0}
+        </span>
+      ),
     },
     ...(isAdmin
       ? [

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { clientes, users, territorios } from '@/db/schema'
+import { clientes, users, territorios, pedidos } from '@/db/schema'
 import { eq, and, ilike, or, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
 import { createClienteSchema, createClienteAgentSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
 import { toApiError } from '@/lib/errors'
@@ -107,6 +107,11 @@ export async function GET(req: NextRequest) {
           id: territorios.id,
           nombre: territorios.nombre,
         },
+        cantidadPedidos: sql<number>`(
+          select count(*)::int from ${pedidos}
+          where ${pedidos.clienteId} = ${clientes.id}
+            and ${pedidos.deletedAt} is null
+        )`,
       })
       .from(clientes)
       .leftJoin(users, eq(clientes.asignadoA, users.id))
@@ -121,6 +126,7 @@ export async function GET(req: NextRequest) {
       asignadoNombre: r.asignadoAUser?.id ? r.asignadoAUser.name : null,
       asignadoColor: r.asignadoAUser?.id ? r.asignadoAUser.avatarColor : null,
       territorioNombre: r.territorio?.id ? r.territorio.nombre : null,
+      cantidadPedidos: r.cantidadPedidos ?? 0,
     }))
 
     return NextResponse.json({ data, page, limit, total, totalPages })
