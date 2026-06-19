@@ -19,7 +19,7 @@ type Pedido = {
   clienteNombre: string
   clienteApellido: string
   vendedorNombre: string | null
-  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'entregado' | 'cancelado'
+  estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'listo_para_repartir' | 'en_reparto' | 'entregado' | 'cancelado'
   total: string
   estadoPago: 'impago' | 'parcial' | 'pagado'
 }
@@ -28,6 +28,7 @@ const estadoColors: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
   pendiente_aprobacion: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   confirmado: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  listo_para_repartir: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   en_reparto: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   entregado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   cancelado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -43,6 +44,7 @@ const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
   pendiente_aprobacion: 'Pte. Aprobación',
   confirmado: 'Confirmado',
+  listo_para_repartir: 'Listo p/ repartir',
   en_reparto: 'En reparto',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
@@ -323,6 +325,8 @@ export default function PedidosListView() {
             <option value="pendiente_aprobacion">Pte. Aprobación</option>
             <option value="pendiente">Pendiente</option>
             <option value="confirmado">Confirmado</option>
+            <option value="listo_para_repartir">Listo p/ repartir</option>
+            <option value="en_reparto">En reparto</option>
             <option value="entregado">Entregado</option>
             <option value="cancelado">Cancelado</option>
           </select>
