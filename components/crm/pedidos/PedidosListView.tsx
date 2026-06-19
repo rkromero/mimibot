@@ -370,7 +370,7 @@ export default function PedidosListView() {
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Buscar por nombre o CUIT..."
+              placeholder="Buscar por nombre, CUIT o dirección..."
               className="w-full pl-10 pr-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
             />
           </div>

@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     if (estado) conditions.push(eq(pedidos.estado, estado as typeof pedidos.$inferSelect['estado']))
     if (estadoPago) conditions.push(eq(pedidos.estadoPago, estadoPago as typeof pedidos.$inferSelect['estadoPago']))
 
-    // Búsqueda por nombre del cliente o CUIT (tolera CUIT con o sin guiones)
+    // Búsqueda por nombre, CUIT o dirección del cliente (tolera CUIT con o sin guiones)
     if (search) {
       const like = `%${search}%`
       const orParts = [
@@ -67,6 +67,8 @@ export async function GET(req: NextRequest) {
         ilike(clientes.apellido, like),
         ilike(sql`${clientes.nombre} || ' ' || ${clientes.apellido}`, like),
         ilike(clientes.cuit, like),
+        ilike(clientes.direccion, like),
+        ilike(clientes.localidad, like),
       ]
       const digits = search.replace(/\D/g, '')
       if (digits.length >= 3) {
