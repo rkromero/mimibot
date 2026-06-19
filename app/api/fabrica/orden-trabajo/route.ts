@@ -32,6 +32,7 @@ export async function GET() {
           productoId: productos.id,
           sku: productos.sku,
           nombre: productos.nombre,
+          descripcion: productos.descripcion,
           unidadVenta: productos.unidadVenta,
           marcaNombre: marcas.nombre,
           cantidadVenta: sum(pedidoItems.cantidad),
@@ -41,7 +42,7 @@ export async function GET() {
         .innerJoin(productos, eq(pedidoItems.productoId, productos.id))
         .leftJoin(marcas, eq(productos.marcaId, marcas.id))
         .where(and(eq(pedidos.estado, 'confirmado'), isNull(pedidos.deletedAt)))
-        .groupBy(productos.id, productos.sku, productos.nombre, productos.unidadVenta, marcas.nombre)
+        .groupBy(productos.id, productos.sku, productos.nombre, productos.descripcion, productos.unidadVenta, marcas.nombre)
         .orderBy(asc(marcas.nombre), asc(productos.nombre)),
       db
         .select({ totalPedidos: countDistinct(pedidos.id) })
@@ -58,6 +59,7 @@ export async function GET() {
         productoId: row.productoId,
         sku: row.sku,
         nombre: row.nombre,
+        descripcion: row.descripcion,
         unidadVenta: row.unidadVenta,
         marcaNombre: row.marcaNombre ?? null,
         cantidadVenta,

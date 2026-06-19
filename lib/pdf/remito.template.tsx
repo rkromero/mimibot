@@ -16,6 +16,7 @@ export type PedidoData = {
   clienteEmail?: string
   items: Array<{
     productoNombre: string
+    productoDescripcion?: string
     cantidad: number
     precioUnitario: string
     subtotal: string
@@ -187,6 +188,10 @@ export const S = StyleSheet.create({
     padding: 5,
     color: '#222222',
   },
+  itemDescripcion: {
+    fontSize: 8,
+    color: '#888888',
+  },
   tableClosingRule: {
     borderBottomWidth: 2,
     borderBottomColor: '#111111',
@@ -354,7 +359,12 @@ export function RemitoDocument({ data, numero }: Props) {
         </View>
         {data.items.map((item, i) => (
           <View key={i} style={S.tableRow}>
-            <Text style={[S.tableCell, S.colDesc]}>{item.productoNombre}</Text>
+            <Text style={[S.tableCell, S.colDesc]}>
+              {item.productoNombre}
+              {item.productoDescripcion ? (
+                <Text style={S.itemDescripcion}>{'  '}{item.productoDescripcion}</Text>
+              ) : null}
+            </Text>
             <Text style={[S.tableCell, S.colQty]}>{item.cantidad}</Text>
           </View>
         ))}

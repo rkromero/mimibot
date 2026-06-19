@@ -160,7 +160,12 @@ export function ProformaDocument({ data, numero }: Props) {
         </View>
         {data.items.map((item, i) => (
           <View key={i} style={S.tableRow}>
-            <Text style={[S.tableCell, P.colDesc]}>{item.productoNombre}</Text>
+            <Text style={[S.tableCell, P.colDesc]}>
+              {item.productoNombre}
+              {item.productoDescripcion ? (
+                <Text style={S.itemDescripcion}>{'  '}{item.productoDescripcion}</Text>
+              ) : null}
+            </Text>
             <Text style={[S.tableCell, P.colQty]}>{item.cantidad}</Text>
             <Text style={[S.tableCell, P.colPrice]}>{formatCurrency(item.precioUnitario)}</Text>
             <Text style={[S.tableCell, P.colSubtotal]}>{formatCurrency(item.subtotal)}</Text>

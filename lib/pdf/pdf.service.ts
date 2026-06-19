@@ -30,7 +30,7 @@ export async function emitirDocumento(
       vendedor: { columns: { id: true, name: true } },
       items: {
         with: {
-          producto: { columns: { id: true, nombre: true } },
+          producto: { columns: { id: true, nombre: true, descripcion: true } },
         },
       },
     },
@@ -105,6 +105,7 @@ export async function emitirDocumento(
     clienteEmail: pedido.cliente.email ?? undefined,
     items: pedido.items.map((item) => ({
       productoNombre: item.producto?.nombre ?? 'Producto',
+      productoDescripcion: item.producto?.descripcion ?? undefined,
       cantidad: item.cantidad,
       precioUnitario: item.precioUnitario,
       subtotal: item.subtotal,

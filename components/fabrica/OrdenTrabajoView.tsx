@@ -16,6 +16,7 @@ type OrdenItem = {
   productoId: string
   sku: string | null
   nombre: string
+  descripcion: string | null
   marcaNombre: string | null
   unidadVenta: 'unidad' | 'caja_12' | 'caja_24' | 'display'
   cantidadVenta: number
@@ -136,6 +137,11 @@ export default function OrdenTrabajoView() {
                   <tr key={item.productoId} className="hover:bg-accent/40 transition-colors">
                     <td className="px-4 py-3">
                       <span className="font-medium text-foreground">{item.nombre}</span>
+                      {item.descripcion && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {item.descripcion}
+                        </span>
+                      )}
                       {item.sku && (
                         <span className="ml-2 font-mono text-xs text-muted-foreground">
                           {item.sku}
