@@ -254,6 +254,33 @@ describe('GET /api/repartidor/listos', () => {
     expect(body.conUbicacion).toHaveLength(1)
     expect(body.sinUbicacion).toHaveLength(0)
   })
+
+  it('7b. incluye grupo retiro; retiro ausente de camioneta y de la ruta', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('repartidor'))
+    mockPedidosFindMany.mockResolvedValue([
+      { id: UUID_1, esReparto: true, metodoEntrega: null, cliente: { lat: -34, lng: -58, geocodeStatus: 'ok' }, items: [] },
+      { id: UUID_2, esReparto: false, metodoEntrega: 'retiro_fabrica', cliente: { lat: null, lng: null, geocodeStatus: null }, items: [] },
+    ])
+
+    const { GET } = await import('@/app/api/repartidor/listos/route')
+    const res = await GET()
+    const body = await res.json() as {
+      camioneta: Array<{ id: string }>
+      expreso: unknown[]
+      retiro: Array<{ id: string }>
+      conUbicacion: unknown[]
+      sinUbicacion: unknown[]
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.retiro).toHaveLength(1)
+    expect(body.retiro[0]?.id).toBe(UUID_2)
+    // el retiro no entra en camioneta ni en el cálculo de ruta
+    expect(body.camioneta.map((p) => p.id)).not.toContain(UUID_2)
+    expect(body.conUbicacion).toHaveLength(1)
+    expect(body.sinUbicacion).toHaveLength(0)
+    expect(body.expreso).toHaveLength(0)
+  })
 })
 
 // ─── repartidor/pedidos tests ─────────────────────────────────────────────────

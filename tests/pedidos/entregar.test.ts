@@ -9,6 +9,7 @@
  *  5. Camioneta sin settlement → 400
  *  6. Pedido no en estado en_reparto → 409
  *  7. Rol vendedor → 403
+ *  8. Retiro en fábrica (listo_para_repartir): efectivo cobra, a_cuenta deja saldo, exige firma, rechaza fuera de listo_para_repartir
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -220,6 +221,78 @@ describe('PATCH /api/repartidor/pedidos/[id]/entregar — camioneta', () => {
     const { PATCH } = await import('@/app/api/repartidor/pedidos/[id]/entregar/route')
     const res = await PATCH(
       makeRequest({ firmaUrl: 'r2/firma.png' }),
+      { params: Promise.resolve({ id: PEDIDO_UUID }) },
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('PATCH /api/repartidor/pedidos/[id]/entregar — retiro_fabrica', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('retiro en listo_para_repartir + settlement efectivo → 200 + entregado + pago registrado', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('repartidor'))
+    makeSelectChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir', saldoPendiente: '5000.00', metodoEntrega: 'retiro_fabrica' }])
+    makeUpdateChain([{ id: PEDIDO_UUID, estado: 'entregado' }])
+
+    const { PATCH } = await import('@/app/api/repartidor/pedidos/[id]/entregar/route')
+    const res = await PATCH(
+      makeRequest({ firmaUrl: 'r2/firma.png', settlement: { tipo: 'efectivo', monto: 5000 } }),
+      { params: Promise.resolve({ id: PEDIDO_UUID }) },
+    )
+    const body = await res.json() as { data: { estado: string } }
+
+    expect(res.status).toBe(200)
+    expect(body.data.estado).toBe('entregado')
+    expect(mockRegistrarPago).toHaveBeenCalledOnce()
+  })
+
+  it('retiro en listo_para_repartir + settlement a_cuenta → 200 + entregado, sin registrar pago (saldo intacto)', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('repartidor'))
+    makeSelectChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir', saldoPendiente: '5000.00', metodoEntrega: 'retiro_fabrica' }])
+    const { mockSet } = makeUpdateChain([{ id: PEDIDO_UUID, estado: 'entregado' }])
+
+    const { PATCH } = await import('@/app/api/repartidor/pedidos/[id]/entregar/route')
+    const res = await PATCH(
+      makeRequest({ firmaUrl: 'r2/firma.png', settlement: { tipo: 'a_cuenta' } }),
+      { params: Promise.resolve({ id: PEDIDO_UUID }) },
+    )
+
+    expect(res.status).toBe(200)
+    // a_cuenta no registra pago: el saldoPendiente queda intacto (impago/parcial)
+    expect(mockRegistrarPago).not.toHaveBeenCalled()
+    // firma siempre, sin tocar remitoFotoUrl
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      estado: 'entregado',
+      firmaUrl: 'r2/firma.png',
+      entregadoPor: USER_ID,
+    }))
+  })
+
+  it('retiro NO en listo_para_repartir (confirmado) → 409, no actualiza DB', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('repartidor'))
+    makeSelectChain([{ id: PEDIDO_UUID, estado: 'confirmado', saldoPendiente: '5000.00', metodoEntrega: 'retiro_fabrica' }])
+
+    const { PATCH } = await import('@/app/api/repartidor/pedidos/[id]/entregar/route')
+    const res = await PATCH(
+      makeRequest({ firmaUrl: 'r2/firma.png', settlement: { tipo: 'efectivo', monto: 5000 } }),
+      { params: Promise.resolve({ id: PEDIDO_UUID }) },
+    )
+
+    expect(res.status).toBe(409)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(mockRegistrarPago).not.toHaveBeenCalled()
+  })
+
+  it('retiro sin firmaUrl → 400 (firma siempre requerida)', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('repartidor'))
+    makeSelectChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir', saldoPendiente: '5000.00', metodoEntrega: 'retiro_fabrica' }])
+
+    const { PATCH } = await import('@/app/api/repartidor/pedidos/[id]/entregar/route')
+    const res = await PATCH(
+      makeRequest({ settlement: { tipo: 'efectivo', monto: 5000 } }),
       { params: Promise.resolve({ id: PEDIDO_UUID }) },
     )
 

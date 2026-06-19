@@ -34,8 +34,30 @@ type ExpresoPendiente = {
   }>
 }
 
+type RetiroPendiente = {
+  id: string
+  fecha: string
+  total: string
+  saldoPendiente: string
+  metodoEntrega: string | null
+  cliente: {
+    id: string
+    nombre: string
+    apellido: string
+    direccion: string | null
+    localidad: string | null
+    provincia: string | null
+  }
+  items: Array<{
+    id: string
+    cantidad: number
+    producto: { id: string; nombre: string; sku: string }
+  }>
+}
+
 type ListosResponse = {
   expreso: ExpresoPendiente[]
+  retiro: RetiroPendiente[]
 }
 
 type PedidosResponse = {
@@ -219,6 +241,63 @@ function RutaExpresoPedidoCard({ pedido, onDelivered }: { pedido: Pedido; onDeli
   )
 }
 
+function RetiroPendienteCard({ pedido, onDelivered }: { pedido: RetiroPendiente; onDelivered: () => void }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [isDismissing, setIsDismissing] = useState(false)
+
+  function dismissCard() {
+    setIsDismissing(true)
+    setTimeout(() => onDelivered(), 350)
+  }
+
+  const nombre = [pedido.cliente.nombre, pedido.cliente.apellido].filter(Boolean).join(' ')
+  const itemsText = pedido.items.slice(0, 2).map((i) => `${i.cantidad}× ${i.producto.nombre}`).join(' · ')
+  const extraCount = pedido.items.length > 2 ? ` +${pedido.items.length - 2}` : ''
+  const totalStr = Number(pedido.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+
+  return (
+    <>
+      <article className={`bg-card border border-border rounded-2xl p-4 space-y-3 shadow-sm transition-all duration-300 ease-out ${isDismissing ? 'opacity-0 -translate-y-2 scale-95 pointer-events-none' : 'opacity-100'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Package size={14} className="text-amber-500 shrink-0" />
+              <p className="font-bold text-base text-foreground truncate">{nombre}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Retiro en fábrica</p>
+          </div>
+          <p className="font-bold text-foreground shrink-0">{totalStr}</p>
+        </div>
+
+        {pedido.items.length > 0 && (
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Package size={13} className="shrink-0" />
+            <span className="truncate">{itemsText}{extraCount}</span>
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="w-full min-h-[44px] bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.98]"
+        >
+          <CheckCircle2 size={16} /> Marcar retirado
+        </button>
+      </article>
+
+      <EntregarSheet
+        pedidoId={pedido.id}
+        clienteNombre={nombre}
+        saldoPendiente={pedido.saldoPendiente}
+        metodoEntrega="retiro_fabrica"
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onDelivered={dismissCard}
+      />
+    </>
+  )
+}
+
 function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
@@ -232,7 +311,7 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'aceptar' | 'ruta'
+type Tab = 'aceptar' | 'ruta' | 'retiro'
 
 export default function FabricaEntregasPage() {
   const [tab, setTab] = useState<Tab>('aceptar')
@@ -252,6 +331,7 @@ export default function FabricaEntregasPage() {
   })
 
   const expresosPendientes = listosData?.expreso ?? []
+  const retirosPendientes = listosData?.retiro ?? []
   const rutaExpreso = (rutaData?.data ?? []).filter((p) => p.metodoEntrega === 'expreso')
 
   const { mutate: aceptar } = useMutation({
@@ -309,8 +389,8 @@ export default function FabricaEntregasPage() {
       {/* Header */}
       <div className="px-4 pt-4 pb-0 shrink-0">
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-          <Send size={20} className="text-blue-500" />
-          Entregas Expreso
+          <Package size={20} className="text-primary" />
+          Entregas
         </h1>
       </div>
 
@@ -335,6 +415,17 @@ export default function FabricaEntregasPage() {
           {rutaExpreso.length > 0 && (
             <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 text-xs rounded-full bg-blue-600 text-white font-bold">
               {rutaExpreso.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab('retiro')}
+          className={`relative flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${tab === 'retiro' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          Retiros
+          {retirosPendientes.length > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 text-xs rounded-full bg-amber-600 text-white font-bold">
+              {retirosPendientes.length}
             </span>
           )}
         </button>
@@ -368,6 +459,23 @@ export default function FabricaEntregasPage() {
                     pedido={p}
                     onDelivered={() => {
                       void qc.invalidateQueries({ queryKey: ['fabrica-ruta'] })
+                    }}
+                  />
+                ))
+            }
+          </div>
+        )}
+
+        {tab === 'retiro' && (
+          <div className="p-4 space-y-3">
+            {retirosPendientes.length === 0
+              ? <EmptyState icon={<Package size={24} />} text="No hay pedidos para retirar" />
+              : retirosPendientes.map((p) => (
+                  <RetiroPendienteCard
+                    key={p.id}
+                    pedido={p}
+                    onDelivered={() => {
+                      void qc.invalidateQueries({ queryKey: ['fabrica-listos'] })
                     }}
                   />
                 ))

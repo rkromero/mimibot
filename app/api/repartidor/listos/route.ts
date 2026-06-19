@@ -26,6 +26,7 @@ export async function GET() {
         id: true,
         fecha: true,
         total: true,
+        saldoPendiente: true,
         esReparto: true,
         metodoEntrega: true,
         expresoNombre: true,
@@ -57,6 +58,8 @@ export async function GET() {
 
     const camioneta = todos.filter((p) => p.esReparto)
     const expreso = todos.filter((p) => !p.esReparto && p.metodoEntrega === 'expreso')
+    // Retiro en fábrica: el cliente retira, no entra en camioneta ni en el cálculo de ruta
+    const retiro = todos.filter((p) => !p.esReparto && p.metodoEntrega === 'retiro_fabrica')
 
     // conUbicacion / sinUbicacion solo aplican a camioneta (para el cálculo de ruta)
     const conUbicacion = camioneta.filter(
@@ -66,7 +69,7 @@ export async function GET() {
       (p) => p.cliente?.lat == null || p.cliente?.lng == null || p.cliente?.geocodeStatus === 'failed',
     )
 
-    return NextResponse.json({ camioneta, expreso, conUbicacion, sinUbicacion })
+    return NextResponse.json({ camioneta, expreso, retiro, conUbicacion, sinUbicacion })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

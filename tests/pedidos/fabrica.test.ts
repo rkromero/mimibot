@@ -255,16 +255,19 @@ describe('POST /api/pedidos/[id]/listo-para-repartir', () => {
     expect(mockDbUpdate).toHaveBeenCalledTimes(1)
   })
 
-  it('retiro_fabrica (esReparto=false, metodoEntrega=retiro_fabrica) → 409', async () => {
+  it('retiro_fabrica (esReparto=false, metodoEntrega=retiro_fabrica) en confirmado → 200 + listo_para_repartir', async () => {
     mockAuthFn.mockResolvedValue(makeSession('fabrica'))
     mockPedidosFindFirst.mockResolvedValue({ id: PEDIDO_UUID, estado: 'confirmado', esReparto: false, metodoEntrega: 'retiro_fabrica' })
+    makeUpdateChain([{ id: PEDIDO_UUID, estado: 'listo_para_repartir' }])
 
     const { POST } = await import('@/app/api/pedidos/[id]/listo-para-repartir/route')
     const req = new NextRequest(`http://localhost/api/pedidos/${PEDIDO_UUID}/listo-para-repartir`, { method: 'POST' })
     const res = await POST(req, { params: Promise.resolve({ id: PEDIDO_UUID }) })
+    const body = await res.json() as { data: { estado: string } }
 
-    expect(res.status).toBe(409)
-    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    expect(body.data.estado).toBe('listo_para_repartir')
+    expect(mockDbUpdate).toHaveBeenCalledOnce()
   })
 
   it('expreso en estado listo_para_repartir (ya procesado) → 409', async () => {

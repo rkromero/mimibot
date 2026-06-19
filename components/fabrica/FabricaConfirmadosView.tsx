@@ -169,7 +169,17 @@ function ActionCell({
 }: ActionCellProps) {
   const isExpreso = pedido.metodoEntrega === 'expreso'
   const isCamioneta = pedido.esReparto
-  const needsListo = isCamioneta || isExpreso
+  const isRetiro = pedido.metodoEntrega === 'retiro_fabrica' && !pedido.esReparto
+  const needsListo = isCamioneta || isExpreso || isRetiro
+
+  const listoBtnColor = isExpreso
+    ? 'bg-blue-600 text-white hover:bg-blue-700'
+    : isRetiro
+      ? 'bg-amber-600 text-white hover:bg-amber-700'
+      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+  const listoIcon = isExpreso ? <Send size={11} /> : isRetiro ? <Package size={11} /> : <CheckCircle2 size={11} />
+  const listoLabel = isExpreso ? 'Listo expreso' : isRetiro ? 'Listo p/retirar' : 'Listo p/repartir'
+  const esperandoLabel = isRetiro ? 'Esperando retiro' : 'Esperando repartidor'
 
   return (
     <div className="flex items-center gap-1.5 flex-nowrap">
@@ -202,7 +212,7 @@ function ActionCell({
       </button>
 
       {pedido.estado === 'listo_para_repartir' ? (
-        <span className="text-xs text-muted-foreground italic">Esperando repartidor</span>
+        <span className="text-xs text-muted-foreground italic">{esperandoLabel}</span>
       ) : needsListo ? (
         confirmListoId === pedido.id ? (
           <div className="flex items-center gap-1">
@@ -211,9 +221,7 @@ function ActionCell({
               disabled={mutateListoParaRepartir.isPending}
               className={cn(
                 'px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50',
-                isExpreso
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                listoBtnColor,
               )}
             >
               {mutateListoParaRepartir.isPending ? '...' : 'Confirmar'}
@@ -231,13 +239,11 @@ function ActionCell({
             onClick={() => setConfirmListoId(pedido.id)}
             className={cn(
               'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
-              isExpreso
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700',
+              listoBtnColor,
             )}
           >
-            {isExpreso ? <Send size={11} /> : <CheckCircle2 size={11} />}
-            {isExpreso ? 'Listo expreso' : 'Listo p/repartir'}
+            {listoIcon}
+            {listoLabel}
           </button>
         )
       ) : null}
@@ -400,7 +406,21 @@ export default function FabricaConfirmadosView() {
             {pedidos.map((pedido) => {
               const isExpreso = pedido.metodoEntrega === 'expreso'
               const isCamioneta = pedido.esReparto
-              const needsListo = isCamioneta || isExpreso
+              const isRetiro = pedido.metodoEntrega === 'retiro_fabrica' && !pedido.esReparto
+              const needsListo = isCamioneta || isExpreso || isRetiro
+              const listoBtnColor = isExpreso
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : isRetiro
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              const listoIcon = isExpreso ? <Send size={13} /> : isRetiro ? <Package size={13} /> : <CheckCircle2 size={13} />
+              const listoLabel = isExpreso ? 'Listo expreso' : isRetiro ? 'Listo para retirar' : 'Listo para repartir'
+              const confirmQuestion = isExpreso
+                ? '¿Marcar listo expreso?'
+                : isRetiro
+                  ? '¿Marcar listo para retirar?'
+                  : '¿Marcar listo para repartir?'
+              const esperandoLabel = isRetiro ? 'Esperando retiro' : 'Esperando repartidor'
               return (
                 <article key={pedido.id} className="border border-border rounded-lg bg-card overflow-hidden">
 
@@ -496,22 +516,20 @@ export default function FabricaConfirmadosView() {
 
                     {pedido.estado === 'listo_para_repartir' ? (
                       <span className="text-xs text-muted-foreground italic">
-                        Esperando repartidor
+                        {esperandoLabel}
                       </span>
                     ) : needsListo ? (
                       confirmListoId === pedido.id ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">
-                            {isExpreso ? '¿Marcar listo expreso?' : '¿Marcar listo para repartir?'}
+                            {confirmQuestion}
                           </span>
                           <button
                             onClick={() => mutateListoParaRepartir.mutate(pedido.id)}
                             disabled={mutateListoParaRepartir.isPending}
                             className={cn(
                               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-50',
-                              isExpreso
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                              listoBtnColor,
                             )}
                           >
                             {mutateListoParaRepartir.isPending ? 'Procesando...' : 'Confirmar'}
@@ -529,13 +547,11 @@ export default function FabricaConfirmadosView() {
                           onClick={() => setConfirmListoId(pedido.id)}
                           className={cn(
                             'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                            isExpreso
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                            listoBtnColor,
                           )}
                         >
-                          {isExpreso ? <Send size={13} /> : <CheckCircle2 size={13} />}
-                          {isExpreso ? 'Listo expreso' : 'Listo para repartir'}
+                          {listoIcon}
+                          {listoLabel}
                         </button>
                       )
                     ) : null}

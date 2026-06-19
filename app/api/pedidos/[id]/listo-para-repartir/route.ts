@@ -35,9 +35,13 @@ export async function POST(
       )
     }
 
-    if (!current.esReparto && current.metodoEntrega !== 'expreso') {
+    const elegible =
+      current.esReparto ||
+      current.metodoEntrega === 'expreso' ||
+      current.metodoEntrega === 'retiro_fabrica'
+    if (!elegible) {
       throw new ConflictError(
-        'Solo pedidos de camioneta o expreso pueden pasar a listo_para_repartir.',
+        'Solo pedidos de camioneta, expreso o retiro en fábrica pueden pasar a listo_para_repartir.',
       )
     }
 

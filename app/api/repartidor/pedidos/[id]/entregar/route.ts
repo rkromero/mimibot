@@ -61,13 +61,25 @@ export async function PATCH(
       .limit(1)
 
     if (!pedido) throw new NotFoundError('Pedido')
-    if (pedido.estado !== 'en_reparto') {
-      throw new ConflictError('El pedido no está en estado en_reparto')
+
+    const isRetiro = pedido.metodoEntrega === 'retiro_fabrica'
+    // El retiro en fábrica se entrega directo desde listo_para_repartir (no pasa por en_reparto).
+    // El resto (camioneta/expreso) requiere en_reparto, como hasta hoy.
+    const estadoValido =
+      pedido.estado === 'en_reparto' ||
+      (pedido.estado === 'listo_para_repartir' && isRetiro)
+    if (!estadoValido) {
+      throw new ConflictError(
+        isRetiro
+          ? 'El retiro en fábrica solo puede entregarse desde listo_para_repartir'
+          : 'El pedido no está en estado en_reparto',
+      )
     }
 
     const registradoPor = session.user.id ?? null
     if (!registradoPor) throw new AuthzError('Usuario sin ID')
 
+    // retiro_fabrica reusa la rama de camioneta (firmaUrl + settlement), sin foto de remito.
     const isExpreso = pedido.metodoEntrega === 'expreso'
 
     if (isExpreso) {
