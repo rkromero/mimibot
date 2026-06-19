@@ -31,7 +31,7 @@ export async function crearPedidoConItems(
   vendedorId: string,
   fecha: string | null | undefined,
   observaciones: string | null | undefined,
-  items: Array<{ productoId: string; cantidad: number }>,
+  items: Array<{ productoId: string; cantidad: number; precioUnitario?: number }>,
   drizzleDb: Db = db,
   extra?: {
     creadoPor?: string | null
@@ -80,7 +80,8 @@ export async function crearPedidoConItems(
 
     const itemsBase = items.map((item) => {
       const producto = productosMap.get(item.productoId)!
-      const precioUnitario = producto.precio
+      // Precio custom si se envió; si no, el precio actual del producto.
+      const precioUnitario = item.precioUnitario != null ? item.precioUnitario.toFixed(2) : producto.precio
       const subtotal = (parseFloat(precioUnitario) * item.cantidad).toFixed(2)
       return { productoId: item.productoId, cantidad: item.cantidad, precioUnitario, subtotal }
     })
@@ -491,7 +492,7 @@ const ESTADOS_CON_MOVIMIENTOS = new Set(['confirmado', 'listo_para_repartir', 'e
 
 export async function actualizarItemsPedido(
   pedidoId: string,
-  newItems: Array<{ productoId: string; cantidad: number }>,
+  newItems: Array<{ productoId: string; cantidad: number; precioUnitario?: number }>,
   updates: { fecha?: string | null; observaciones?: string | null; descuento?: number },
   userId: string,
   drizzleDb: Db = db,
@@ -518,8 +519,9 @@ export async function actualizarItemsPedido(
     const descuentoPct = updates.descuento ?? parseFloat(pedido.descuento ?? '0')
     const newItemsRows = newItems.map(item => {
       const producto = productosMap.get(item.productoId)!
-      const subtotal = (parseFloat(producto.precio) * item.cantidad).toFixed(2)
-      return { pedidoId, productoId: item.productoId, cantidad: item.cantidad, precioUnitario: producto.precio, subtotal }
+      const precioUnitario = item.precioUnitario != null ? item.precioUnitario.toFixed(2) : producto.precio
+      const subtotal = (parseFloat(precioUnitario) * item.cantidad).toFixed(2)
+      return { pedidoId, productoId: item.productoId, cantidad: item.cantidad, precioUnitario, subtotal }
     })
     const subtotalNuevo = newItemsRows.reduce((s, i) => s + parseFloat(i.subtotal), 0)
     const totalNuevo = (subtotalNuevo - subtotalNuevo * (descuentoPct / 100)).toFixed(2)

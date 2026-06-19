@@ -269,7 +269,14 @@ export default function PedidoDetail({ id }: Props) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: editItems.map(i => ({ productoId: i.productoId, cantidad: i.cantidad })),
+          items: editItems.map(i => {
+            const precio = parseFloat(i.precioUnitario)
+            return {
+              productoId: i.productoId,
+              cantidad: i.cantidad,
+              ...(Number.isFinite(precio) && precio >= 0 ? { precioUnitario: precio } : {}),
+            }
+          }),
           fecha: editFecha || null,
           observaciones: editObservaciones || null,
         }),
@@ -768,7 +775,7 @@ export default function PedidoDetail({ id }: Props) {
                 const sku = editMode ? null : (item as PedidoItem).producto?.sku
                 const precioUnitario = editMode ? (item as SelectedItem).precioUnitario : (item as PedidoItem).precioUnitario
                 const subtotal = editMode
-                  ? (parseFloat((item as SelectedItem).precioUnitario) * (item as SelectedItem).cantidad).toFixed(2)
+                  ? ((parseFloat((item as SelectedItem).precioUnitario) || 0) * (item as SelectedItem).cantidad).toFixed(2)
                   : (item as PedidoItem).subtotal
                 const rowKey = editMode ? `edit-${idx}` : (item as PedidoItem).id
                 return (
@@ -792,7 +799,21 @@ export default function PedidoDetail({ id }: Props) {
                         />
                       ) : (item as PedidoItem).cantidad}
                     </td>
-                    <td className="py-2.5 px-3 text-right text-muted-foreground">{formatMoney(precioUnitario)}</td>
+                    <td className="py-2.5 px-3 text-right text-muted-foreground">
+                  {editMode ? (
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={(item as SelectedItem).precioUnitario}
+                      onChange={e => {
+                        const v = e.target.value
+                        setEditItems(prev => prev.map((it, i) => i === idx ? { ...it, precioUnitario: v } : it))
+                      }}
+                      className="w-24 border border-border rounded px-2 py-0.5 text-sm bg-background text-foreground text-right"
+                    />
+                  ) : formatMoney(precioUnitario)}
+                </td>
                     <td className="py-2.5 px-3 text-right font-medium">{formatMoney(subtotal)}</td>
                     {editMode && (
                       <td className="py-2.5 px-3 text-center">
@@ -812,7 +833,7 @@ export default function PedidoDetail({ id }: Props) {
             <tfoot>
               {(() => {
                 const subtotal = editMode
-                  ? editItems.reduce((s, i) => s + parseFloat(i.precioUnitario) * i.cantidad, 0)
+                  ? editItems.reduce((s, i) => s + (parseFloat(i.precioUnitario) || 0) * i.cantidad, 0)
                   : itemsSubtotal
                 const total = editMode ? subtotal - subtotal * (descuentoPct / 100) : parseFloat(displayTotal)
                 const colSpan = editMode ? 4 : 3

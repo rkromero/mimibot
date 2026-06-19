@@ -134,7 +134,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     .filter(p => !items.some(i => i.productoId === p.id))
 
   // Computed values
-  const subtotal = items.reduce((sum, i) => sum + i.cantidad * parseFloat(i.precioUnitario), 0)
+  const subtotal = items.reduce((sum, i) => sum + i.cantidad * (parseFloat(i.precioUnitario) || 0), 0)
   const descuentoMonto = subtotal * (descuento / 100)
   const total = subtotal - descuentoMonto
   const clienteNombre = clienteData ? `${clienteData.nombre} ${clienteData.apellido}` : ''
@@ -146,6 +146,10 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
         return { ...item, cantidad: Math.max(1, item.cantidad + delta) }
       }),
     )
+  }
+
+  function changePrice(idx: number, value: string) {
+    setItems(prev => prev.map((item, i) => (i === idx ? { ...item, precioUnitario: value } : item)))
   }
 
   function removeItem(idx: number) {
@@ -182,11 +186,15 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           descuento,
           condicionPago,
           fechaEntrega,
-          items: items.map(i => ({
-            productoId: i.productoId,
-            cantidad: i.cantidad,
-            precioUnitario: parseFloat(i.precioUnitario),
-          })),
+          items: items.map(i => {
+            const precio = parseFloat(i.precioUnitario)
+            return {
+              productoId: i.productoId,
+              cantidad: i.cantidad,
+              // Si el precio quedó vacío/ inválido, se omite y el backend usa el del producto
+              ...(Number.isFinite(precio) && precio >= 0 ? { precioUnitario: precio } : {}),
+            }
+          }),
           ...deliveryPayload,
         }),
       })
@@ -422,9 +430,22 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                       return (
                         <div key={item.productoId} className="bg-card border border-border rounded-xl p-4">
                           <div className="flex items-start justify-between gap-2 mb-3">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="font-semibold text-foreground">{item.productoNombre}</p>
-                              <p className="text-sm text-muted-foreground">{formatMoney(price)} c/u</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-sm text-muted-foreground">$</span>
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min={0}
+                                  step="0.01"
+                                  value={item.precioUnitario}
+                                  onChange={e => changePrice(idx, e.target.value)}
+                                  aria-label="Precio unitario"
+                                  className="w-24 text-sm rounded-md border border-border px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                />
+                                <span className="text-sm text-muted-foreground">c/u</span>
+                              </div>
                             </div>
                             <button
                               onClick={() => removeItem(idx)}
@@ -640,10 +661,23 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                     <p className="text-sm font-semibold">Resumen</p>
                     <button onClick={() => setStep(1)} className="text-xs text-primary underline">Editar</button>
                   </div>
-                  {items.map(i => (
-                    <div key={i.productoId} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{i.productoNombre} ×{i.cantidad}</span>
-                      <span>{formatMoney(i.cantidad * parseFloat(i.precioUnitario))}</span>
+                  {items.map((i, idx) => (
+                    <div key={i.productoId} className="flex justify-between items-center gap-2 text-sm">
+                      <span className="text-muted-foreground truncate flex-1 min-w-0">{i.productoNombre} ×{i.cantidad}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-muted-foreground text-xs">$</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="0.01"
+                          value={i.precioUnitario}
+                          onChange={e => changePrice(idx, e.target.value)}
+                          aria-label={`Precio unitario de ${i.productoNombre}`}
+                          className="w-20 text-right text-sm rounded-md border border-border px-1.5 py-0.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                        <span className="w-20 text-right tabular-nums">{formatMoney(i.cantidad * (parseFloat(i.precioUnitario) || 0))}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

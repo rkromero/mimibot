@@ -182,7 +182,7 @@ export default function ProductSheet({
     return localItems.find((i) => i.productoId === productoId)?.cantidad ?? 0
   }
 
-  function handleQuantityConfirm(producto: Producto, qty: number) {
+  function handleQuantityConfirm(producto: Producto, qty: number, precioUnitario: string) {
     setLocalItems((prev) => {
       if (qty <= 0) {
         return prev.filter((i) => i.productoId !== producto.id)
@@ -190,7 +190,7 @@ export default function ProductSheet({
       const existing = prev.findIndex((i) => i.productoId === producto.id)
       if (existing >= 0) {
         return prev.map((item, i) =>
-          i === existing ? { ...item, cantidad: qty } : item,
+          i === existing ? { ...item, cantidad: qty, precioUnitario } : item,
         )
       }
       return [
@@ -199,7 +199,7 @@ export default function ProductSheet({
           productoId: producto.id,
           productoNombre: producto.nombre,
           cantidad: qty,
-          precioUnitario: producto.precio,
+          precioUnitario,
         },
       ]
     })
@@ -397,7 +397,8 @@ export default function ProductSheet({
             stockActual: selectedProduct.stockActual,
           }}
           initialQty={getLocalQty(selectedProduct.id) || 1}
-          onConfirm={(qty) => handleQuantityConfirm(selectedProduct, qty)}
+          initialPrice={localItems.find((i) => i.productoId === selectedProduct.id)?.precioUnitario ?? selectedProduct.precio}
+          onConfirm={(qty, precio) => handleQuantityConfirm(selectedProduct, qty, precio)}
           onClose={() => setSelectedProduct(null)}
         />
       )}

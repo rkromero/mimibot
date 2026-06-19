@@ -13,7 +13,8 @@ type ProductInfo = {
 type Props = {
   produto: ProductInfo
   initialQty?: number
-  onConfirm: (qty: number) => void
+  initialPrice?: string
+  onConfirm: (qty: number, precioUnitario: string) => void
   onClose: () => void
 }
 
@@ -26,13 +27,15 @@ function formatMoney(value: number): string {
 export default function QuantityInput({
   produto,
   initialQty = 1,
+  initialPrice,
   onConfirm,
   onClose,
 }: Props) {
   const [qty, setQty] = useState<number>(Math.max(1, initialQty))
+  const [priceStr, setPriceStr] = useState<string>(initialPrice ?? produto.precio)
   const hiddenInputRef = useRef<HTMLInputElement>(null)
 
-  const pricePerUnit = parseFloat(produto.precio)
+  const pricePerUnit = parseFloat(priceStr) || 0
   const subtotal = qty * pricePerUnit
 
   const decrement = () => setQty((q) => Math.max(1, q - 1))
@@ -149,6 +152,26 @@ export default function QuantityInput({
           Stock disponible: {produto.stockActual}
         </p>
 
+        {/* Precio unitario editable */}
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="precio-unitario" className="text-sm text-muted-foreground">
+            Precio unitario
+          </label>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground">$</span>
+            <input
+              id="precio-unitario"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={priceStr}
+              onChange={(e) => setPriceStr(e.target.value)}
+              className="w-28 text-right text-base font-semibold rounded-lg border border-border px-2 py-2 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+        </div>
+
         {/* Subtotal */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Subtotal</span>
@@ -157,7 +180,11 @@ export default function QuantityInput({
 
         {/* Confirm button */}
         <button
-          onClick={() => onConfirm(qty)}
+          onClick={() => {
+            const parsed = parseFloat(priceStr)
+            const finalPrice = Number.isFinite(parsed) && parsed >= 0 ? parsed.toFixed(2) : produto.precio
+            onConfirm(qty, finalPrice)
+          }}
           className="w-full py-4 bg-primary text-primary-foreground rounded-xl text-base font-semibold active:scale-[0.98] transition-transform"
         >
           Agregar al pedido

@@ -6,6 +6,8 @@ const pedidoItemSchema = z.object({
     .number()
     .int('La cantidad debe ser un entero')
     .positive('La cantidad debe ser mayor a 0'),
+  // Precio unitario opcional: si se omite, el backend usa el precio del producto.
+  precioUnitario: z.number().nonnegative('El precio no puede ser negativo').optional(),
 })
 
 export const createPedidoSchema = z.object({
@@ -34,6 +36,7 @@ export const updatePedidoSchema = z.object({
     .array(z.object({
       productoId: z.string().uuid('ID de producto inválido'),
       cantidad: z.number().int('La cantidad debe ser un entero').positive('La cantidad debe ser mayor a 0'),
+      precioUnitario: z.number().nonnegative('El precio no puede ser negativo').optional(),
     }))
     .min(1, 'El pedido debe tener al menos un ítem')
     .optional(),
