@@ -23,6 +23,8 @@ type Cliente = {
   nombre: string
   apellido: string
   email: string | null
+  direccion: string | null
+  localidad: string | null
   telefono: string | null
   cuit: string | null
   origen: 'manual' | 'convertido_de_lead'
@@ -96,11 +98,16 @@ export default function ClientesListView() {
       ),
     },
     {
-      key: 'email',
-      label: 'Email',
-      render: (row: Cliente) => (
-        <span className="text-muted-foreground">{row.email ?? '—'}</span>
-      ),
+      key: 'direccion',
+      label: 'Dirección',
+      render: (row: Cliente) => {
+        const dir = [row.direccion, row.localidad].filter(Boolean).join(', ')
+        return (
+          <span className="text-muted-foreground block max-w-[260px] truncate" title={dir || undefined}>
+            {dir || '—'}
+          </span>
+        )
+      },
     },
     {
       key: 'telefono',
