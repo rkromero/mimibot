@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye } from 'lucide-react'
+import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatFechaAR } from '@/lib/dates'
 import CreatePedidoModal from './CreatePedidoModal'
@@ -74,6 +74,8 @@ export default function PedidosListView() {
   const [filterEstado, setFilterEstado] = useState('')
   const [filterEstadoPago, setFilterEstadoPago] = useState('')
   const [filterVendedor, setFilterVendedor] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [deletingPedido, setDeletingPedido] = useState<Pedido | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -90,6 +92,12 @@ export default function PedidosListView() {
     if (openMenuId) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openMenuId])
+
+  // Debounce de la búsqueda para no disparar un request por tecla
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
 
   // Vendedores para el filtro rápido (solo admin/gerente)
   const { data: vendedoresData } = useQuery<{ data: Array<{ id: string; name: string | null }> }>({
@@ -191,6 +199,7 @@ export default function PedidosListView() {
   if (filterEstado) extraParams['estado'] = filterEstado
   if (filterEstadoPago) extraParams['estadoPago'] = filterEstadoPago
   if (filterVendedor) extraParams['vendedorId'] = filterVendedor
+  if (debouncedSearch) extraParams['search'] = debouncedSearch
 
   const columns = [
     {
@@ -330,7 +339,7 @@ export default function PedidosListView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className={selectClass}>
             <option value="">Todos los estados</option>
             <option value="pendiente_aprobacion">Pte. Aprobación</option>
@@ -355,6 +364,16 @@ export default function PedidosListView() {
               ))}
             </select>
           )}
+
+          <div className="relative w-full sm:w-auto sm:ml-auto sm:min-w-[260px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar por nombre o CUIT..."
+              className="w-full pl-10 pr-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+            />
+          </div>
         </div>
 
         <DataTable<Pedido>
@@ -362,8 +381,7 @@ export default function PedidosListView() {
           columns={columns}
           extraParams={extraParams}
           defaultPageSize={50}
-          showSearch
-          searchPlaceholder="Buscar por nombre o CUIT..."
+          showSearch={false}
           onRowClick={(row) => router.push(`/crm/pedidos/${row.id}`)}
           renderMobileCard={(p) => (
             <SwipeableListItem
