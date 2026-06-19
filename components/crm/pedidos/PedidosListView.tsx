@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye } from 'lucide-react'
@@ -73,6 +73,7 @@ export default function PedidosListView() {
   const [showCreate, setShowCreate] = useState(false)
   const [filterEstado, setFilterEstado] = useState('')
   const [filterEstadoPago, setFilterEstadoPago] = useState('')
+  const [filterVendedor, setFilterVendedor] = useState('')
   const [deletingPedido, setDeletingPedido] = useState<Pedido | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -89,6 +90,15 @@ export default function PedidosListView() {
     if (openMenuId) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openMenuId])
+
+  // Vendedores para el filtro rápido (solo admin/gerente)
+  const { data: vendedoresData } = useQuery<{ data: Array<{ id: string; name: string | null }> }>({
+    queryKey: ['/api/users', 'vendedores-filtro-pedidos'],
+    queryFn: () => fetch('/api/users?role=agent,vendedor,rtv').then((r) => r.json()),
+    enabled: canApproveOrRevert,
+    staleTime: 5 * 60_000,
+  })
+  const vendedores = vendedoresData?.data ?? []
 
   // Confirmar pedido legacy (pendiente → confirmado)
   const confirmMutation = useMutation({
@@ -180,6 +190,7 @@ export default function PedidosListView() {
   const extraParams: Record<string, string> = {}
   if (filterEstado) extraParams['estado'] = filterEstado
   if (filterEstadoPago) extraParams['estadoPago'] = filterEstadoPago
+  if (filterVendedor) extraParams['vendedorId'] = filterVendedor
 
   const columns = [
     {
@@ -336,6 +347,14 @@ export default function PedidosListView() {
             <option value="parcial">Parcial</option>
             <option value="pagado">Pagado</option>
           </select>
+          {canApproveOrRevert && (
+            <select value={filterVendedor} onChange={(e) => setFilterVendedor(e.target.value)} className={selectClass}>
+              <option value="">Todos los vendedores</option>
+              {vendedores.map((v) => (
+                <option key={v.id} value={v.id}>{v.name ?? '—'}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <DataTable<Pedido>
@@ -343,7 +362,8 @@ export default function PedidosListView() {
           columns={columns}
           extraParams={extraParams}
           defaultPageSize={50}
-          showSearch={false}
+          showSearch
+          searchPlaceholder="Buscar por nombre o CUIT..."
           onRowClick={(row) => router.push(`/crm/pedidos/${row.id}`)}
           renderMobileCard={(p) => (
             <SwipeableListItem

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { pedidos, clientes, users } from '@/db/schema'
-import { eq, and, inArray, isNull, asc, desc, sql } from 'drizzle-orm'
+import { eq, and, inArray, isNull, asc, desc, sql, ilike, or } from 'drizzle-orm'
 import { createPedidoSchema } from '@/lib/validations/pedidos'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { notificarPedidoCreado } from '@/lib/whatsapp/notificaciones'
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const estado = searchParams.get('estado') ?? undefined
     const estadoPago = searchParams.get('estadoPago') ?? undefined
     const filterVendedorId = searchParams.get('vendedorId') ?? undefined
+    const search = searchParams.get('search')?.trim()
 
     const conditions: ReturnType<typeof eq>[] = [
       isNull(pedidos.deletedAt) as ReturnType<typeof eq>,
@@ -50,12 +51,31 @@ export async function GET(req: NextRequest) {
         conditions.push(eq(clientes.asignadoA, filterVendedorId) as ReturnType<typeof eq>)
       }
     } else if (ctx.role === 'admin' && filterVendedorId) {
-      conditions.push(eq(clientes.asignadoA, filterVendedorId) as ReturnType<typeof eq>)
+      // Filtra por el vendedor del pedido (la columna "Vendedor" visible en el listado)
+      conditions.push(eq(pedidos.vendedorId, filterVendedorId) as ReturnType<typeof eq>)
     }
 
     if (clienteId) conditions.push(eq(pedidos.clienteId, clienteId))
     if (estado) conditions.push(eq(pedidos.estado, estado as typeof pedidos.$inferSelect['estado']))
     if (estadoPago) conditions.push(eq(pedidos.estadoPago, estadoPago as typeof pedidos.$inferSelect['estadoPago']))
+
+    // Búsqueda por nombre del cliente o CUIT (tolera CUIT con o sin guiones)
+    if (search) {
+      const like = `%${search}%`
+      const orParts = [
+        ilike(clientes.nombre, like),
+        ilike(clientes.apellido, like),
+        ilike(sql`${clientes.nombre} || ' ' || ${clientes.apellido}`, like),
+        ilike(clientes.cuit, like),
+      ]
+      const digits = search.replace(/\D/g, '')
+      if (digits.length >= 3) {
+        orParts.push(
+          ilike(sql`regexp_replace(coalesce(${clientes.cuit}, ''), '[^0-9]', '', 'g')`, `%${digits}%`),
+        )
+      }
+      conditions.push(or(...orParts) as ReturnType<typeof eq>)
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
