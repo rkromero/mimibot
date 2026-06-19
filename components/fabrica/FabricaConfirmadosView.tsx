@@ -314,7 +314,7 @@ export default function FabricaConfirmadosView() {
   const pedidos = data?.data ?? []
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 w-full">
       <PageHeader
         title="Pedidos Confirmados"
         description={`${pedidos.length} ${pedidos.length === 1 ? 'pedido' : 'pedidos'}`}
@@ -350,7 +350,7 @@ export default function FabricaConfirmadosView() {
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Total</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Entrega</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Estado</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acciones</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -386,7 +386,7 @@ export default function FabricaConfirmadosView() {
                     <td className="px-4 py-3">
                       <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <ActionCell pedido={pedido} {...actionProps} />
                     </td>
                   </tr>
