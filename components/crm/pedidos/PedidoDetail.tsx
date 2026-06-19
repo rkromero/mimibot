@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon, Pencil, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
@@ -294,6 +294,25 @@ export default function PedidoDetail({ id }: Props) {
     },
   })
 
+  // Menú "Acciones" (sólo móvil): cierre por click afuera y tecla Esc
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [menuOpen])
+
   if (isLoading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -315,6 +334,46 @@ export default function PedidoDetail({ id }: Props) {
   const descuentoMonto = itemsSubtotal * (descuentoPct / 100)
   const displayTotal = pedido.total
 
+  // ── Acciones para la barra móvil: acción principal + menú "Acciones" ──
+  type ActionItem = { key: string; label: string; icon: LucideIcon; onClick: () => void; disabled?: boolean; danger?: boolean }
+  const docsAvailable = pedido.estado === 'confirmado' || pedido.estado === 'entregado'
+
+  // Acción "main" del estado actual (independiente del modo edición)
+  let stateMain: ActionItem | null = null
+  if (pedido.estado === 'pendiente') {
+    stateMain = { key: 'confirmar', label: 'Confirmar', icon: CheckCircle, onClick: () => updateEstado('confirmado'), disabled: isUpdating }
+  } else if (pedido.estado === 'pendiente_aprobacion' && canApproveOrRevert) {
+    stateMain = { key: 'aprobar', label: 'Aprobar pedido', icon: CheckCircle, onClick: () => updateEstado('confirmado'), disabled: isUpdating }
+  } else if (pedido.estado === 'confirmado') {
+    stateMain = { key: 'entregar', label: 'Marcar Entregado', icon: Truck, onClick: () => setShowProof(true), disabled: isUpdating }
+  }
+
+  // En edición la acción principal es "Guardar cambios"; si no, la del estado.
+  const primaryAction: ActionItem | null = editMode
+    ? { key: 'save', label: isSaving ? 'Guardando...' : 'Guardar cambios', icon: CheckCircle, onClick: () => saveEdits(), disabled: isSaving || editItems.length === 0 }
+    : stateMain
+  const PrimaryIcon = primaryAction?.icon
+
+  // Resto de acciones aplicables → menú "Acciones"
+  const secondaryActions: ActionItem[] = []
+  if (editMode) {
+    secondaryActions.push({ key: 'cancel-edit', label: 'Cancelar edición', icon: X, onClick: exitEditMode, disabled: isSaving })
+    if (stateMain) secondaryActions.push(stateMain) // en edición, la acción del estado pasa al menú
+  } else if (canEdit) {
+    secondaryActions.push({ key: 'editar', label: 'Editar', icon: Pencil, onClick: enterEditMode })
+  }
+  if (pedido.estado === 'confirmado' && canApproveOrRevert) {
+    secondaryActions.push({ key: 'revertir', label: 'Revertir', icon: RotateCcw, onClick: () => updateEstado('pendiente_aprobacion'), disabled: isUpdating })
+  }
+  if (pedido.estado === 'pendiente' || pedido.estado === 'pendiente_aprobacion') {
+    secondaryActions.push({ key: 'cancelar-pedido', label: 'Cancelar pedido', icon: XCircle, onClick: () => setConfirmCancel(true), disabled: isUpdating, danger: true })
+  }
+  if (docsAvailable) {
+    secondaryActions.push({ key: 'remito', label: isGenerating(id, 'remito') ? 'Generando...' : 'Remito', icon: FileText, onClick: () => void generarDocumento(id, 'remito'), disabled: anyGenerating(id) })
+    secondaryActions.push({ key: 'proforma', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma', icon: Download, onClick: () => void generarDocumento(id, 'proforma'), disabled: anyGenerating(id) })
+    secondaryActions.push({ key: 'etiqueta', label: isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta', icon: Tag, onClick: () => void generarDocumento(id, 'etiqueta'), disabled: anyGenerating(id) })
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -322,8 +381,8 @@ export default function PedidoDetail({ id }: Props) {
         <Link href="/crm/pedidos" className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={16} />
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-xl font-semibold text-foreground">
               Pedido #{id.slice(-8).toUpperCase()}
             </h1>
@@ -339,8 +398,8 @@ export default function PedidoDetail({ id }: Props) {
           </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        {/* Actions (desktop: row inline) */}
+        <div className="hidden sm:flex items-center gap-2">
 
           {/* ── Editar pedido ── */}
           {canEdit && !editMode && (
@@ -516,6 +575,76 @@ export default function PedidoDetail({ id }: Props) {
           )}
         </div>
       </div>
+
+      {/* Actions (mobile: acción principal + menú "Acciones"). Fila propia debajo del header para evitar scroll horizontal. */}
+      <div className="flex sm:hidden items-center justify-end gap-2 -mt-3">
+          {confirmCancel ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">¿Cancelar?</span>
+              <button
+                onClick={() => updateEstado('cancelado')}
+                disabled={isUpdating}
+                className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 transition-colors disabled:opacity-50"
+              >
+                Sí, cancelar
+              </button>
+              <button
+                onClick={() => setConfirmCancel(false)}
+                className="px-2 py-1 text-xs border border-border rounded hover:bg-accent transition-colors"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <>
+              {primaryAction && PrimaryIcon && (
+                <button
+                  onClick={primaryAction.onClick}
+                  disabled={primaryAction.disabled}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  <PrimaryIcon size={14} />
+                  {primaryAction.label}
+                </button>
+              )}
+              {secondaryActions.length > 0 && (
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
+                  >
+                    <MoreVertical size={16} />
+                    Acciones
+                  </button>
+                  {menuOpen && (
+                    <div role="menu" className="absolute right-0 mt-1 w-52 bg-card border border-border rounded-md shadow-lg z-20 py-1">
+                      {secondaryActions.map((item) => {
+                        const Icon = item.icon
+                        return (
+                          <button
+                            key={item.key}
+                            role="menuitem"
+                            disabled={item.disabled}
+                            onClick={() => { setMenuOpen(false); item.onClick() }}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors disabled:opacity-50',
+                              item.danger && 'text-destructive',
+                            )}
+                          >
+                            <Icon size={14} />
+                            {item.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
       {actionError && (
         <div className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">{actionError}</div>
