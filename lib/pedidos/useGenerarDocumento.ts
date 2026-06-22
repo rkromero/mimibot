@@ -59,6 +59,7 @@ function printBlob(url: string) {
 
 export function useGenerarDocumento() {
   const [generating, setGenerating] = useState<Generating>(null)
+  const [bulkGenerating, setBulkGenerating] = useState<DocTipo | null>(null)
   const toast = useToast()
 
   async function generarDocumento(pedidoId: string, tipo: DocTipo) {
@@ -97,6 +98,41 @@ export function useGenerarDocumento() {
     }
   }
 
+  /**
+   * Genera un único PDF con los documentos de varios pedidos (un click) y abre
+   * el diálogo de impresión. El backend combina todos los PDFs en uno solo.
+   */
+  async function generarDocumentosBulk(ids: string[], tipo: DocTipo) {
+    if (bulkGenerating || generating) return
+    if (ids.length === 0) return
+    setBulkGenerating(tipo)
+    try {
+      const res = await fetch('/api/pedidos/documentos-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo, ids }),
+      })
+
+      if (!res.ok) {
+        let errMsg = 'Error al generar los documentos'
+        try {
+          const data = await res.json() as { error?: string }
+          if (data.error) errMsg = data.error
+        } catch { /* non-JSON body */ }
+        toast.error(errMsg)
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      printBlob(url)
+    } catch {
+      toast.error('Error de conexión al generar los documentos')
+    } finally {
+      setBulkGenerating(null)
+    }
+  }
+
   function isGenerating(pedidoId: string, tipo: DocTipo): boolean {
     return generating?.pedidoId === pedidoId && generating.tipo === tipo
   }
@@ -105,5 +141,15 @@ export function useGenerarDocumento() {
     return generating?.pedidoId === pedidoId
   }
 
-  return { generarDocumento, isGenerating, anyGenerating }
+  function isBulkGenerating(tipo?: DocTipo): boolean {
+    return tipo ? bulkGenerating === tipo : bulkGenerating !== null
+  }
+
+  return {
+    generarDocumento,
+    generarDocumentosBulk,
+    isGenerating,
+    anyGenerating,
+    isBulkGenerating,
+  }
 }

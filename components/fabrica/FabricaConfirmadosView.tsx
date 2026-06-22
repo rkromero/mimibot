@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatFechaAR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
@@ -8,7 +8,7 @@ import { useGenerarDocumento, type DocTipo } from '@/lib/pedidos/useGenerarDocum
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
-import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2, Send } from 'lucide-react'
+import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2, Send, X } from 'lucide-react'
 
 type PedidoItemFabrica = {
   id: string
@@ -254,8 +254,10 @@ function ActionCell({
 export default function FabricaConfirmadosView() {
   const qc = useQueryClient()
   const toast = useToast()
-  const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
+  const { generarDocumento, generarDocumentosBulk, isGenerating, anyGenerating, isBulkGenerating } =
+    useGenerarDocumento()
   const [confirmListoId, setConfirmListoId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery<{ data: PedidoFabrica[] }>({
     queryKey: ['fabrica', 'confirmado'],
@@ -263,6 +265,46 @@ export default function FabricaConfirmadosView() {
       fetch('/api/fabrica/pedidos?estado=confirmado,listo_para_repartir').then((r) => r.json()),
     staleTime: 30_000,
   })
+
+  const pedidos = data?.data ?? []
+
+  // Si un pedido seleccionado deja de estar en la lista (p. ej. se marcó listo),
+  // lo quitamos de la selección para no imprimir documentos de pedidos que ya
+  // no se ven.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev
+      const visibles = new Set(pedidos.map((p) => p.id))
+      const next = new Set([...prev].filter((id) => visibles.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [pedidos])
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) =>
+      prev.size === pedidos.length ? new Set() : new Set(pedidos.map((p) => p.id)),
+    )
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
+  const allSelected = pedidos.length > 0 && selectedIds.size === pedidos.length
+  const selectedCount = selectedIds.size
+
+  function imprimirBulk(tipo: DocTipo) {
+    void generarDocumentosBulk([...selectedIds], tipo)
+  }
 
   const mutateListoParaRepartir = useMutation({
     mutationFn: async (id: string) => {
@@ -317,8 +359,6 @@ export default function FabricaConfirmadosView() {
     )
   }
 
-  const pedidos = data?.data ?? []
-
   return (
     <div className="p-4 md:p-6 w-full">
       <PageHeader
@@ -348,6 +388,16 @@ export default function FabricaConfirmadosView() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card border-b border-border">
                 <tr>
+                  <th className="px-4 py-2.5 text-left w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 cursor-pointer accent-primary align-middle"
+                      title="Seleccionar todos"
+                      aria-label="Seleccionar todos"
+                    />
+                  </th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Nº Pedido</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Fecha</th>
@@ -361,7 +411,22 @@ export default function FabricaConfirmadosView() {
               </thead>
               <tbody className="divide-y divide-border">
                 {pedidos.map((pedido) => (
-                  <tr key={pedido.id} className="hover:bg-accent/40 transition-colors">
+                  <tr
+                    key={pedido.id}
+                    className={cn(
+                      'transition-colors',
+                      selectedIds.has(pedido.id) ? 'bg-primary/5' : 'hover:bg-accent/40',
+                    )}
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(pedido.id)}
+                        onChange={() => toggleSelect(pedido.id)}
+                        className="h-4 w-4 cursor-pointer accent-primary align-middle"
+                        aria-label={`Seleccionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
+                      />
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="font-mono text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                         #{pedido.id.slice(-8).toUpperCase()}
@@ -425,8 +490,16 @@ export default function FabricaConfirmadosView() {
                 <article key={pedido.id} className="border border-border rounded-lg bg-card overflow-hidden">
 
                   {/* Header */}
-                  <div className="flex items-start justify-between px-4 py-3 border-b border-border">
-                    <div>
+                  <div className="flex items-start justify-between px-4 py-3 border-b border-border gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(pedido.id)}
+                        onChange={() => toggleSelect(pedido.id)}
+                        className="h-4 w-4 mt-1 shrink-0 cursor-pointer accent-primary"
+                        aria-label="Seleccionar pedido"
+                      />
+                      <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-base font-semibold text-foreground">
                           {pedido.cliente?.nombre} {pedido.cliente?.apellido}
@@ -439,6 +512,7 @@ export default function FabricaConfirmadosView() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {formatFechaAR(new Date(pedido.fecha))}
                       </p>
+                      </div>
                     </div>
                     <span className="text-lg font-semibold text-foreground tabular-nums shrink-0 ml-4">
                       {formatMoney(pedido.total)}
@@ -562,6 +636,50 @@ export default function FabricaConfirmadosView() {
             })}
           </div>
         </>
+      )}
+
+      {selectedCount > 0 && (
+        <div className="sticky bottom-0 z-30 -mx-4 md:-mx-6 mt-4 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-4 md:px-6 py-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <span className="text-sm font-medium text-foreground">
+              {selectedCount} {selectedCount === 1 ? 'pedido seleccionado' : 'pedidos seleccionados'}
+            </span>
+            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+              <button
+                onClick={() => imprimirBulk('remito')}
+                disabled={isBulkGenerating()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-border bg-background hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <FileText size={14} />
+                {isBulkGenerating('remito') ? 'Generando...' : 'Imprimir remitos'}
+              </button>
+              <button
+                onClick={() => imprimirBulk('proforma')}
+                disabled={isBulkGenerating()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-border bg-background hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <Download size={14} />
+                {isBulkGenerating('proforma') ? 'Generando...' : 'Imprimir proformas'}
+              </button>
+              <button
+                onClick={() => imprimirBulk('etiqueta')}
+                disabled={isBulkGenerating()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-border bg-background hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <Tag size={14} />
+                {isBulkGenerating('etiqueta') ? 'Generando...' : 'Imprimir etiquetas'}
+              </button>
+              <button
+                onClick={clearSelection}
+                disabled={isBulkGenerating()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <X size={14} />
+                Limpiar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
