@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { X, AlertTriangle, AlertCircle } from 'lucide-react'
-import { esRolVentas } from '@/lib/authz/roles'
 
 type EstadoMeta = 'en_curso' | 'cumplida' | 'no_cumplida'
 type EstadoCobertura = EstadoMeta | 'na'
@@ -70,18 +69,6 @@ function buildAlertas(
   mes: number,
 ): Alerta[] {
   const alertas: Alerta[] = []
-  const agents = users.filter((u) => esRolVentas(u.role) && u.isActive)
-  const avanceMap = new Map(avances.map((a) => [a.meta.vendedorId, a]))
-
-  // Vendors without a meta
-  const sinMeta = agents.filter((u) => !avanceMap.has(u.id))
-  for (const user of sinMeta) {
-    alertas.push({
-      id: `sin-meta-${user.id}`,
-      tipo: 'warning',
-      mensaje: `${user.name ?? user.email} no tiene meta cargada para este período.`,
-    })
-  }
 
   // Vendors past day 15 with < 50% progress in any metric
   const now = new Date()

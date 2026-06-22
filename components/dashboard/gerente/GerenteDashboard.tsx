@@ -110,21 +110,11 @@ export default function GerenteDashboard({ currentAnio, currentMes }: Props) {
       )
     : []
 
-  // Agents from avances scope that have no meta
-  const agentesConMeta = new Set(avances?.map((a) => a.meta.vendedorId) ?? [])
-  const agentesVisiblesIds = new Set(visibleAgentes.map((u) => u.id))
-  const sinMeta = visibleAgentes.filter((u) => u.isActive && !agentesConMeta.has(u.id))
-
   const allAlertas = [
     ...territoriosSinAgente.map((t) => ({
       id: `sin-agente-${t.id}`,
       tipo: 'warning' as const,
       mensaje: `El territorio "${t.nombre}" no tiene agente asignado.`,
-    })),
-    ...sinMeta.map((u) => ({
-      id: `sin-meta-${u.id}`,
-      tipo: 'warning' as const,
-      mensaje: `${u.name ?? u.email} no tiene meta cargada para este período.`,
     })),
     ...bajoProgreso.map((a) => {
       const u = agentes?.find((u) => u.id === a.meta.vendedorId)
