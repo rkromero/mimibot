@@ -204,7 +204,12 @@ export async function getAdminDashboardStats(
     )
 
   // ── Clientes creados por bucket (en hora AR) ───────────────────────────────
-  const creadoKey = sql<string>`to_char(date_trunc(${sqlTruncUnit(granularidad)}, ${clientes.createdAt} - interval '3 hours'), ${sqlKeyFormat(granularidad)})`
+  // Unidad/formato como literales (sql.raw), no parámetros: así la expresión es
+  // textualmente idéntica en SELECT y GROUP BY (si fueran parámetros, drizzle los
+  // renumera y Postgres exige agrupar created_at). Valores de enum controlado.
+  const truncUnit = sql.raw(`'${sqlTruncUnit(granularidad)}'`)
+  const keyFormat = sql.raw(`'${sqlKeyFormat(granularidad)}'`)
+  const creadoKey = sql<string>`to_char(date_trunc(${truncUnit}, ${clientes.createdAt} - interval '3 hours'), ${keyFormat})`
   const creadosRows = await db
     .select({ key: creadoKey, total: count() })
     .from(clientes)
@@ -218,7 +223,7 @@ export async function getAdminDashboardStats(
     .groupBy(creadoKey)
 
   // Clientes creados con al menos un pedido el mismo día calendario.
-  const conPedidoKey = sql<string>`to_char(date_trunc(${sqlTruncUnit(granularidad)}, ${clientes.createdAt} - interval '3 hours'), ${sqlKeyFormat(granularidad)})`
+  const conPedidoKey = sql<string>`to_char(date_trunc(${truncUnit}, ${clientes.createdAt} - interval '3 hours'), ${keyFormat})`
   const conPedidoRows = await db
     .select({ key: conPedidoKey, conPedido: sql<number>`count(distinct ${clientes.id})::int` })
     .from(clientes)

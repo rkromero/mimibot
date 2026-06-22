@@ -33,7 +33,11 @@ export async function getVisitasStats(granularidad: Granularidad): Promise<Visit
   const buckets = buildBuckets(granularidad, Date.now())
   const startMs = windowStartMs(granularidad, Date.now())
 
-  const truncExpr = sql<string>`to_char(date_trunc(${sqlTruncUnit(granularidad)}, ${actividadesCliente.createdAt} - interval '3 hours'), ${sqlKeyFormat(granularidad)})`
+  // Unidad y formato van como literales (sql.raw) y NO como parámetros: si se
+  // pasan como parámetros, drizzle los renumera distinto en SELECT y GROUP BY y
+  // Postgres deja de reconocer la expresión como idéntica. Son valores de un
+  // enum controlado, sin riesgo de inyección.
+  const truncExpr = sql<string>`to_char(date_trunc(${sql.raw(`'${sqlTruncUnit(granularidad)}'`)}, ${actividadesCliente.createdAt} - interval '3 hours'), ${sql.raw(`'${sqlKeyFormat(granularidad)}'`)})`
 
   const rows = await db
     .select({ key: truncExpr, total: count() })
