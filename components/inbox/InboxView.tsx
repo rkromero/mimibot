@@ -226,14 +226,26 @@ export default function InboxView({ user }: Props) {
             </div>
           ) : (
             items.map((item) => (
-              <button
+              // role="button" sobre un <div> (no <button>) porque adentro hay
+              // <div>/<p>: anidar bloques dentro de <button> es HTML inválido y
+              // rompe la hidratación (React #418).
+              <div
                 key={item.conversationId}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setSelectedConvId(item.conversationId)
                   setMobileView('conversation')
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelectedConvId(item.conversationId)
+                    setMobileView('conversation')
+                  }
+                }}
                 className={cn(
-                  'w-full flex items-start gap-3 px-4 py-3 text-left border-b border-border',
+                  'w-full flex items-start gap-3 px-4 py-3 text-left border-b border-border cursor-pointer',
                   'hover:bg-accent/50 transition-colors duration-100',
                   'min-h-[72px]',
                   selectedConvId === item.conversationId && 'bg-accent',
@@ -280,7 +292,7 @@ export default function InboxView({ user }: Props) {
                     {previewMessage(item)}
                   </p>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>

@@ -117,6 +117,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  // Solo interceptamos requests http(s). Las de extensiones del navegador
+  // (chrome-extension://), data:, blob:, etc. no se pueden guardar en la Cache
+  // API y rompían con "Request scheme 'chrome-extension' is unsupported".
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return
+
   // Repartidor API — always network-only, never cached or queued.
   // Delivery confirmations and fresh order lists must come from the network.
   if (url.pathname.startsWith('/api/repartidor/')) {
