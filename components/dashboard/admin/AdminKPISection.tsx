@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react'
 import ClientesBarChart from './ClientesBarChart'
 import ClientesCreadosLineChart from './ClientesCreadosLineChart'
-import type { AdminDashboardStats } from '@/lib/admin/dashboard.service'
+import type { AdminDashboardStats, Granularidad } from '@/lib/admin/dashboard.service'
 
 interface Props {
-  anio: number
-  mes: number
+  granularidad: Granularidad
   territorioId?: string
   gerenteId?: string
 }
@@ -24,7 +23,7 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-AR').format(value)
 }
 
-export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: Props) {
+export default function AdminKPISection({ granularidad, territorioId, gerenteId }: Props) {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +32,7 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
     setLoading(true)
     setError(null)
     setStats(null)
-    const qs = new URLSearchParams({ anio: String(anio), mes: String(mes) })
+    const qs = new URLSearchParams({ granularidad })
     if (territorioId) qs.set('territorioId', territorioId)
     else if (gerenteId) qs.set('gerenteId', gerenteId)
     fetch(`/api/admin/dashboard-kpis?${qs.toString()}`)
@@ -46,7 +45,7 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
         setError(err instanceof Error ? err.message : 'Error al cargar indicadores'),
       )
       .finally(() => setLoading(false))
-  }, [anio, mes, territorioId, gerenteId])
+  }, [granularidad, territorioId, gerenteId])
 
   if (loading) {
     return (
@@ -84,7 +83,7 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
           <p className="text-3xl font-bold tracking-tight leading-none">
             {formatNumber(stats.productosVendidos)}
           </p>
-          <p className="text-sm text-muted-foreground mt-2">{stats.mesNombre}</p>
+          <p className="text-sm text-muted-foreground mt-2">{stats.rangoLabel}</p>
         </div>
 
         <div className="rounded-lg border border-border bg-card p-5">
@@ -94,14 +93,14 @@ export default function AdminKPISection({ anio, mes, territorioId, gerenteId }: 
           <p className="text-3xl font-bold tracking-tight leading-none">
             {formatCurrency(stats.carteraActiva)}
           </p>
-          <p className="text-sm text-muted-foreground mt-2">{stats.mesNombre}</p>
+          <p className="text-sm text-muted-foreground mt-2">{stats.rangoLabel}</p>
         </div>
       </div>
 
       {/* Charts side by side on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ClientesBarChart data={stats.chartData} mes={stats.mesNombre} />
-        <ClientesCreadosLineChart data={stats.clientesCreadosPorDia} mes={stats.mesNombre} />
+        <ClientesBarChart data={stats.chartData} granularidad={stats.granularidad} rangoLabel={stats.rangoLabel} />
+        <ClientesCreadosLineChart data={stats.clientesCreados} granularidad={stats.granularidad} rangoLabel={stats.rangoLabel} />
       </div>
     </div>
   )

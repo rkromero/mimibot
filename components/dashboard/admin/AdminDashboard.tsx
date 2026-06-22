@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import PeriodoSelector from './PeriodoSelector'
 import EquipoResumen from './EquipoResumen'
 import VendedoresGrid from './VendedoresGrid'
 import RankingSection, { type GerenteEquipo } from './RankingSection'
@@ -11,6 +10,13 @@ import VendedorModal from './VendedorModal'
 import AdminKPISection from './AdminKPISection'
 import EmbudoSection from './EmbudoSection'
 import VisitasCreadasPanel from './VisitasCreadasPanel'
+import type { Granularidad } from '@/lib/admin/dashboard.service'
+
+const GRANULARIDADES: Array<{ value: Granularidad; label: string }> = [
+  { value: 'dia', label: 'Día' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes', label: 'Mes' },
+]
 
 type Territorio = { id: string; nombre: string }
 type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv' }
@@ -84,8 +90,11 @@ export default function AdminDashboard({
   currentAnio,
   currentMes,
 }: AdminDashboardProps) {
-  const [anio, setAnio] = useState(currentAnio)
-  const [mes, setMes] = useState(currentMes)
+  // Las tablas de metas son mensuales: usan siempre el mes actual (del servidor).
+  const anio = currentAnio
+  const mes = currentMes
+  // Filtro global de tiempo para gráficos/KPIs/embudo.
+  const [granularidad, setGranularidad] = useState<Granularidad>('dia')
   const [territorioFiltro, setTerritorioFiltro] = useState('')
   const [gerenteFiltro, setGerenteFiltro] = useState('')
   const [territorios, setTerritorios] = useState<Territorio[]>([])
@@ -139,12 +148,6 @@ export default function AdminDashboard({
     void fetchData(anio, mes, territorioFiltro, gerenteFiltro)
   }, [anio, mes, territorioFiltro, gerenteFiltro, fetchData])
 
-  function handlePeriodoChange(a: number, m: number) {
-    setAnio(a)
-    setMes(m)
-    setSelectedVendedorId(null)
-  }
-
   const showCargarMetas = isLastWeekOfMonth(new Date())
 
   return (
@@ -152,7 +155,23 @@ export default function AdminDashboard({
       {/* Period selector + filters + action button */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <PeriodoSelector anio={anio} mes={mes} onChange={handlePeriodoChange} />
+          {/* Filtro global Día / Semana / Mes */}
+          <div className="inline-flex rounded-md border border-border p-0.5 bg-card">
+            {GRANULARIDADES.map((g) => (
+              <button
+                key={g.value}
+                type="button"
+                onClick={() => setGranularidad(g.value)}
+                className={
+                  granularidad === g.value
+                    ? 'px-3 py-1.5 text-sm font-medium rounded bg-primary text-primary-foreground'
+                    : 'px-3 py-1.5 text-sm font-medium rounded text-muted-foreground hover:text-foreground transition-colors'
+                }
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
           {territorios.length > 0 && (
             <select
               value={territorioFiltro}
@@ -212,24 +231,30 @@ export default function AdminDashboard({
 
       {/* KPI section: products sold, active portfolio, clients bar chart */}
       <AdminKPISection
-        anio={anio}
-        mes={mes}
+        granularidad={granularidad}
         territorioId={territorioFiltro || undefined}
         gerenteId={gerenteFiltro || undefined}
       />
 
-      {/* Visitas creadas por el equipo (ventana móvil: día / semana / mes) */}
-      <VisitasCreadasPanel />
+      {/* Visitas creadas por el equipo (controlado por el filtro global) */}
+      <VisitasCreadasPanel granularidad={granularidad} />
 
       {/* Embudo de apertura: aperturas → conversión → recompras → consolidados */}
       <EmbudoSection
+        granularidad={granularidad}
         territorioId={territorioFiltro || undefined}
         gerenteId={gerenteFiltro || undefined}
       />
 
-      {/* Content */}
-      {!loading && !error && avances !== null && users !== null && (
+      {/* Metas del equipo: objetivos mensuales → solo visibles en vista "Mes". */}
+      {granularidad === 'mes' && !loading && !error && avances !== null && users !== null && (
         <>
+          <div className="pt-2">
+            <h2 className="text-lg font-semibold text-foreground">Metas del equipo</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Objetivos mensuales — mes actual
+            </p>
+          </div>
           <AlertasPanel
             avances={avances}
             users={users}

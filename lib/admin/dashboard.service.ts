@@ -1,19 +1,40 @@
 import { db } from '@/db'
 import { pedidos, pedidoItems, territorioGerente, clientes } from '@/db/schema'
-import { and, gte, lt, isNull, sql, eq, inArray, count } from 'drizzle-orm'
+import { and, gte, isNull, sql, eq, inArray, count } from 'drizzle-orm'
+import {
+  buildBuckets,
+  windowStartMs,
+  bucketKeyFromBusinessDate,
+  sqlTruncUnit,
+  sqlKeyFormat,
+  RANGO_LABEL,
+  type Granularidad,
+  type BucketDef,
+} from './date-buckets'
 
-export interface DayDataPoint {
-  day: number
+export type { Granularidad }
+
+export interface ChartPoint {
+  key: string
+  label: string
   primerPedido: number
   clienteNuevo: number
 }
 
+export interface CreadosPoint {
+  key: string
+  label: string
+  total: number
+  conPedido: number
+}
+
 export interface AdminDashboardStats {
-  chartData: DayDataPoint[]
+  granularidad: Granularidad
+  rangoLabel: string
+  chartData: ChartPoint[]
+  clientesCreados: CreadosPoint[]
   productosVendidos: number
   carteraActiva: number
-  mesNombre: string
-  clientesCreadosPorDia: Array<{ day: number; total: number; conPedido: number }>
 }
 
 export const MESES_NOMBRES = [
@@ -44,41 +65,56 @@ export function buildRankMap(
 }
 
 /**
- * Given a rank map and the current-month paid orders, fills a chartData array
- * (indexed by day - 1) with primerPedido (rank 1) and clienteNuevo (rank 3) counts.
- * Exported for unit testing.
+ * Distribuye los pedidos pagados en los buckets de tiempo, contando primer
+ * pedido (rank 1) y cliente consolidado (rank 3) por cubeta. Pura y testeable.
  */
-export function aggregateChartData(
-  chartData: DayDataPoint[],
-  pedidosMes: Array<{ id: string; fecha: Date | null }>,
+export function aggregateBuckets(
+  buckets: BucketDef[],
+  pedidosWindow: Array<{ id: string; fecha: Date | null }>,
   rankMap: Map<string, number>,
-): void {
-  const diasEnMes = chartData.length
-  for (const p of pedidosMes) {
+  granularidad: Granularidad,
+): ChartPoint[] {
+  const idx = new Map(buckets.map((b, i) => [b.key, i]))
+  const points: ChartPoint[] = buckets.map((b) => ({
+    key: b.key,
+    label: b.label,
+    primerPedido: 0,
+    clienteNuevo: 0,
+  }))
+
+  for (const p of pedidosWindow) {
+    if (!p.fecha) continue
+    const i = idx.get(bucketKeyFromBusinessDate(granularidad, p.fecha))
+    if (i === undefined) continue
     const rank = rankMap.get(p.id)
-    const day = p.fecha?.getDate()
-    if (day == null) continue
-    const idx = day - 1
-    if (idx < 0 || idx >= diasEnMes) continue
-    const point = chartData[idx]
-    if (!point) continue
-    if (rank === 1) point.primerPedido++
-    if (rank === 3) point.clienteNuevo++
+    if (rank === 1) points[i]!.primerPedido++
+    else if (rank === 3) points[i]!.clienteNuevo++
+  }
+
+  return points
+}
+
+function emptyStats(granularidad: Granularidad, buckets: BucketDef[]): AdminDashboardStats {
+  return {
+    granularidad,
+    rangoLabel: RANGO_LABEL[granularidad],
+    chartData: buckets.map((b) => ({ key: b.key, label: b.label, primerPedido: 0, clienteNuevo: 0 })),
+    clientesCreados: buckets.map((b) => ({ key: b.key, label: b.label, total: 0, conPedido: 0 })),
+    productosVendidos: 0,
+    carteraActiva: 0,
   }
 }
 
 export async function getAdminDashboardStats(
-  anio: number,
-  mes: number,
+  granularidad: Granularidad,
   filtros?: { territorioId?: string; gerenteId?: string },
 ): Promise<AdminDashboardStats> {
-  const mesStart = new Date(anio, mes - 1, 1)
-  const mesEnd = new Date(anio, mes, 1)
-  const diasEnMes = new Date(anio, mes, 0).getDate()
+  const now = Date.now()
+  const buckets = buildBuckets(granularidad, now)
+  const desde = new Date(windowStartMs(granularidad, now))
 
-  // Resolve territory filter condition
+  // ── Resolver el filtro de territorio ──────────────────────────────────────
   let territorioIds: string[] | null = null
-
   if (filtros?.territorioId) {
     territorioIds = [filtros.territorioId]
   } else if (filtros?.gerenteId) {
@@ -86,15 +122,7 @@ export async function getAdminDashboardStats(
       .select({ territorioId: territorioGerente.territorioId })
       .from(territorioGerente)
       .where(eq(territorioGerente.gerenteId, filtros.gerenteId))
-    if (rows.length === 0) {
-      return {
-        chartData: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, primerPedido: 0, clienteNuevo: 0 })),
-        productosVendidos: 0,
-        carteraActiva: 0,
-        mesNombre: MESES_NOMBRES[mes - 1] ?? '',
-        clientesCreadosPorDia: Array.from({ length: diasEnMes }, (_, i) => ({ day: i + 1, total: 0, conPedido: 0 })),
-      }
-    }
+    if (rows.length === 0) return emptyStats(granularidad, buckets)
     territorioIds = rows.map((r) => r.territorioId)
   }
 
@@ -112,30 +140,28 @@ export async function getAdminDashboardStats(
         : inArray(clientes.territorioId, territorioIds)
       : undefined
 
-  const chartData: DayDataPoint[] = Array.from({ length: diasEnMes }, (_, i) => ({
-    day: i + 1,
-    primerPedido: 0,
-    clienteNuevo: 0,
-  }))
-
-  // Paid orders this month (filtered by territory when applicable)
-  const pedidosMes = await db
+  // ── Pedidos pagados en la ventana (para primer pedido / cliente nuevo) ─────
+  const pedidosWindow = await db
     .select({ id: pedidos.id, clienteId: pedidos.clienteId, fecha: pedidos.fecha })
     .from(pedidos)
     .where(
       and(
         isNull(pedidos.deletedAt),
         eq(pedidos.estadoPago, 'pagado'),
-        gte(pedidos.fecha, mesStart),
-        lt(pedidos.fecha, mesEnd),
+        gte(pedidos.fecha, desde),
         territorioCondition,
       ),
     )
 
-  if (pedidosMes.length > 0) {
-    const clienteIds = [...new Set(pedidosMes.map((p) => p.clienteId))]
+  let chartData: ChartPoint[] = buckets.map((b) => ({
+    key: b.key,
+    label: b.label,
+    primerPedido: 0,
+    clienteNuevo: 0,
+  }))
 
-    // All paid orders for those clients (all time, global — no territory filter)
+  if (pedidosWindow.length > 0) {
+    const clienteIds = [...new Set(pedidosWindow.map((p) => p.clienteId))]
     const allPaid = await db
       .select({ id: pedidos.id, clienteId: pedidos.clienteId, fecha: pedidos.fecha })
       .from(pedidos)
@@ -146,12 +172,11 @@ export async function getAdminDashboardStats(
           inArray(pedidos.clienteId, clienteIds),
         ),
       )
-
     const rankMap = buildRankMap(allPaid)
-    aggregateChartData(chartData, pedidosMes, rankMap)
+    chartData = aggregateBuckets(buckets, pedidosWindow, rankMap, granularidad)
   }
 
-  // Sum of product units in paid orders this month (filtered by territory)
+  // ── Productos vendidos (unidades) en la ventana ────────────────────────────
   const [productosRow] = await db
     .select({ total: sql<number>`coalesce(sum(${pedidoItems.cantidad}), 0)::int` })
     .from(pedidoItems)
@@ -160,13 +185,12 @@ export async function getAdminDashboardStats(
       and(
         isNull(pedidos.deletedAt),
         eq(pedidos.estadoPago, 'pagado'),
-        gte(pedidos.fecha, mesStart),
-        lt(pedidos.fecha, mesEnd),
+        gte(pedidos.fecha, desde),
         territorioCondition,
       ),
     )
 
-  // Pending receivables (impago + parcial) in orders from this month (filtered by territory)
+  // ── Cartera pendiente (impago + parcial) en la ventana ─────────────────────
   const [carteraRow] = await db
     .select({ total: sql<string>`coalesce(sum(${pedidos.saldoPendiente}::numeric), 0)` })
     .from(pedidos)
@@ -174,64 +198,56 @@ export async function getAdminDashboardStats(
       and(
         isNull(pedidos.deletedAt),
         sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
-        gte(pedidos.fecha, mesStart),
-        lt(pedidos.fecha, mesEnd),
+        gte(pedidos.fecha, desde),
         territorioCondition,
       ),
     )
 
-  // Clients created this month grouped by day (filtered by territory when applicable)
-  const creadosPorDiaRows = await db
-    .select({
-      day: sql<number>`extract(day from ${clientes.createdAt})::int`,
-      total: count(),
-    })
+  // ── Clientes creados por bucket (en hora AR) ───────────────────────────────
+  const creadoKey = sql<string>`to_char(date_trunc(${sqlTruncUnit(granularidad)}, ${clientes.createdAt} - interval '3 hours'), ${sqlKeyFormat(granularidad)})`
+  const creadosRows = await db
+    .select({ key: creadoKey, total: count() })
     .from(clientes)
     .where(
       and(
-        gte(clientes.createdAt, mesStart),
-        lt(clientes.createdAt, mesEnd),
+        gte(clientes.createdAt, desde),
         isNull(clientes.deletedAt),
         territorioConditionClientes,
       ),
     )
-    .groupBy(sql`extract(day from ${clientes.createdAt})`)
+    .groupBy(creadoKey)
 
-  // Clients created this month with at least one non-deleted order placed on the
-  // same calendar day they were created (filtered by territory when applicable)
-  const conPedidoMismoDiaRows = await db
-    .select({
-      day: sql<number>`extract(day from ${clientes.createdAt})::int`,
-      conPedido: sql<number>`count(distinct ${clientes.id})::int`,
-    })
+  // Clientes creados con al menos un pedido el mismo día calendario.
+  const conPedidoKey = sql<string>`to_char(date_trunc(${sqlTruncUnit(granularidad)}, ${clientes.createdAt} - interval '3 hours'), ${sqlKeyFormat(granularidad)})`
+  const conPedidoRows = await db
+    .select({ key: conPedidoKey, conPedido: sql<number>`count(distinct ${clientes.id})::int` })
     .from(clientes)
     .innerJoin(pedidos, eq(pedidos.clienteId, clientes.id))
     .where(
       and(
-        gte(clientes.createdAt, mesStart),
-        lt(clientes.createdAt, mesEnd),
+        gte(clientes.createdAt, desde),
         isNull(clientes.deletedAt),
         isNull(pedidos.deletedAt),
         sql`date(${pedidos.fecha}) = date(${clientes.createdAt})`,
         territorioConditionClientes,
       ),
     )
-    .groupBy(sql`extract(day from ${clientes.createdAt})`)
+    .groupBy(conPedidoKey)
 
-  const creadosMap = new Map(creadosPorDiaRows.map((r) => [r.day, r.total]))
-  const conPedidoMap = new Map(conPedidoMismoDiaRows.map((r) => [r.day, r.conPedido]))
-  const clientesCreadosPorDia = Array.from({ length: diasEnMes }, (_, i) => {
-    const total = creadosMap.get(i + 1) ?? 0
-    // conPedido can never exceed total (clamp defensively)
-    const conPedido = Math.min(conPedidoMap.get(i + 1) ?? 0, total)
-    return { day: i + 1, total, conPedido }
+  const creadosMap = new Map(creadosRows.map((r) => [r.key, Number(r.total)]))
+  const conPedidoMap = new Map(conPedidoRows.map((r) => [r.key, Number(r.conPedido)]))
+  const clientesCreados: CreadosPoint[] = buckets.map((b) => {
+    const total = creadosMap.get(b.key) ?? 0
+    const conPedido = Math.min(conPedidoMap.get(b.key) ?? 0, total)
+    return { key: b.key, label: b.label, total, conPedido }
   })
 
   return {
+    granularidad,
+    rangoLabel: RANGO_LABEL[granularidad],
     chartData,
+    clientesCreados,
     productosVendidos: productosRow?.total ?? 0,
     carteraActiva: Number(carteraRow?.total ?? 0),
-    mesNombre: MESES_NOMBRES[mes - 1] ?? '',
-    clientesCreadosPorDia,
   }
 }

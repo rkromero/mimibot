@@ -16,6 +16,7 @@ import {
 } from './embudoRango'
 
 interface Props {
+  granularidad: Granularidad
   territorioId?: string
   gerenteId?: string
 }
@@ -26,12 +27,6 @@ interface VendedorOption {
   email: string
   role: string
 }
-
-const GRANULARIDADES: { value: Granularidad; label: string }[] = [
-  { value: 'dia', label: 'Día' },
-  { value: 'semana', label: 'Semana' },
-  { value: 'mes', label: 'Mes' },
-]
 
 // ─── Subcomponentes ─────────────────────────────────────────────────────────
 
@@ -246,8 +241,7 @@ function RiesgoBlock({
 
 // ─── Componente principal ───────────────────────────────────────────────────
 
-export default function EmbudoSection({ territorioId, gerenteId }: Props) {
-  const [granularidad, setGranularidad] = useState<Granularidad>('semana')
+export default function EmbudoSection({ granularidad, territorioId, gerenteId }: Props) {
   // Se inicializa en el mount para evitar mismatch de hidratación SSR/CSR.
   const [ancla, setAncla] = useState<Date | null>(null)
   const [vendedorId, setVendedorId] = useState('')
@@ -269,10 +263,11 @@ export default function EmbudoSection({ territorioId, gerenteId }: Props) {
   const [riesgoLoading, setRiesgoLoading] = useState(true)
   const [riesgoError, setRiesgoError] = useState<string | null>(null)
 
-  // Ancla inicial: semana en curso (lunes).
+  // Ancla = período en curso de la granularidad activa. Se reinicia cuando cambia
+  // la granularidad global (día/semana/mes).
   useEffect(() => {
-    setAncla(getRango('semana', new Date()).desde)
-  }, [])
+    setAncla(getRango(granularidad, new Date()).desde)
+  }, [granularidad])
 
   // Lista de vendedores/agentes (una sola vez).
   useEffect(() => {
@@ -400,26 +395,8 @@ export default function EmbudoSection({ territorioId, gerenteId }: Props) {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">Embudo de Apertura</h2>
 
-      {/* Controles: granularidad + navegación + período + vendedor */}
+      {/* Controles: navegación + período + vendedor (la granularidad es global) */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Toggle Día / Semana / Mes */}
-        <div className="inline-flex rounded-md border border-border p-0.5 bg-card">
-          {GRANULARIDADES.map((g) => (
-            <button
-              key={g.value}
-              type="button"
-              onClick={() => setGranularidad(g.value)}
-              className={
-                granularidad === g.value
-                  ? 'px-3 py-1 text-xs font-medium rounded bg-primary text-primary-foreground'
-                  : 'px-3 py-1 text-xs font-medium rounded text-muted-foreground hover:text-foreground transition-colors'
-              }
-            >
-              {g.label}
-            </button>
-          ))}
-        </div>
-
         {/* Navegación de período */}
         <div className="flex items-center gap-1.5">
           <button

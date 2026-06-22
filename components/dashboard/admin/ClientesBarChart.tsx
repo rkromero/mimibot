@@ -1,17 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import type { DayDataPoint } from '@/lib/admin/dashboard.service'
+import type { ChartPoint, Granularidad } from '@/lib/admin/dashboard.service'
 
 interface Props {
-  data: DayDataPoint[]
-  mes: string
+  data: ChartPoint[]
+  granularidad: Granularidad
+  rangoLabel: string
 }
 
 interface TooltipState {
   x: number
   y: number
-  day: number
+  label: string
   primer: number
   nuevo: number
 }
@@ -20,19 +21,19 @@ const BLUE = '#3b82f6'
 const GREEN = '#10b981'
 const CHART_H = 200
 const PADDING_LEFT = 28
-const PADDING_BOTTOM = 20
+const PADDING_BOTTOM = 22
 const PADDING_TOP = 8
 const PADDING_RIGHT = 8
 const VIEWBOX_W = 700
 
-export default function ClientesBarChart({ data, mes }: Props) {
+export default function ClientesBarChart({ data, granularidad, rangoLabel }: Props) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const maxVal = Math.max(1, ...data.map((d) => Math.max(d.primerPedido, d.clienteNuevo)))
   const n = data.length
   const chartW = VIEWBOX_W - PADDING_LEFT - PADDING_RIGHT
   const chartH = CHART_H - PADDING_BOTTOM - PADDING_TOP
-  const groupW = chartW / n
+  const groupW = n > 0 ? chartW / n : chartW
   const GAP = 1
   const barW = Math.max(2, (groupW - GAP * 3) / 2)
 
@@ -41,10 +42,13 @@ export default function ClientesBarChart({ data, mes }: Props) {
     (v, i, arr) => arr.indexOf(v) === i,
   )
 
+  // En vista diaria etiquetamos cada 5 barras; en semana/mes, todas.
+  const showLabel = (i: number) => (granularidad === 'dia' ? i % 5 === 0 || i === n - 1 : true)
+
   return (
     <div className="rounded-lg border border-border bg-card p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h3 className="text-sm font-medium">Clientes por día — {mes}</h3>
+        <h3 className="text-sm font-medium">Clientes — {rangoLabel}</h3>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: BLUE }} />
@@ -57,35 +61,15 @@ export default function ClientesBarChart({ data, mes }: Props) {
         </div>
       </div>
 
-      <div
-        className="relative select-none"
-        onMouseLeave={() => setTooltip(null)}
-      >
-        <svg
-          viewBox={`0 0 ${VIEWBOX_W} ${CHART_H}`}
-          className="w-full"
-          style={{ height: CHART_H }}
-        >
+      <div className="relative select-none" onMouseLeave={() => setTooltip(null)}>
+        <svg viewBox={`0 0 ${VIEWBOX_W} ${CHART_H}`} className="w-full" style={{ height: CHART_H }}>
           {/* Grid lines + Y labels */}
           {yTicks.map((tick) => {
             const y = PADDING_TOP + chartH - toBarH(tick)
             return (
               <g key={tick}>
-                <line
-                  x1={PADDING_LEFT}
-                  y1={y}
-                  x2={VIEWBOX_W - PADDING_RIGHT}
-                  y2={y}
-                  stroke="#e5e7eb"
-                  strokeWidth="1"
-                />
-                <text
-                  x={PADDING_LEFT - 4}
-                  y={y + 4}
-                  textAnchor="end"
-                  fontSize="9"
-                  fill="#9ca3af"
-                >
+                <line x1={PADDING_LEFT} y1={y} x2={VIEWBOX_W - PADDING_RIGHT} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+                <text x={PADDING_LEFT - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#9ca3af">
                   {tick}
                 </text>
               </g>
@@ -103,16 +87,14 @@ export default function ClientesBarChart({ data, mes }: Props) {
 
             return (
               <g
-                key={d.day}
+                key={d.key}
                 onMouseEnter={(e) => {
                   const svg = e.currentTarget.closest('svg')!
                   const rect = svg.getBoundingClientRect()
-                  const scaleX = VIEWBOX_W / rect.width
-                  const scaleY = CHART_H / rect.height
                   setTooltip({
-                    x: (e.clientX - rect.left) * scaleX,
-                    y: (e.clientY - rect.top) * scaleY,
-                    day: d.day,
+                    x: (e.clientX - rect.left) * (VIEWBOX_W / rect.width),
+                    y: (e.clientY - rect.top) * (CHART_H / rect.height),
+                    label: d.label,
                     primer: d.primerPedido,
                     nuevo: d.clienteNuevo,
                   })
@@ -120,59 +102,19 @@ export default function ClientesBarChart({ data, mes }: Props) {
                 onMouseMove={(e) => {
                   const svg = e.currentTarget.closest('svg')!
                   const rect = svg.getBoundingClientRect()
-                  const scaleX = VIEWBOX_W / rect.width
-                  const scaleY = CHART_H / rect.height
                   setTooltip((prev) =>
                     prev
-                      ? {
-                          ...prev,
-                          x: (e.clientX - rect.left) * scaleX,
-                          y: (e.clientY - rect.top) * scaleY,
-                        }
+                      ? { ...prev, x: (e.clientX - rect.left) * (VIEWBOX_W / rect.width), y: (e.clientY - rect.top) * (CHART_H / rect.height) }
                       : null,
                   )
                 }}
               >
-                {/* hover target */}
-                <rect
-                  x={groupX}
-                  y={PADDING_TOP}
-                  width={groupW}
-                  height={chartH}
-                  fill="transparent"
-                />
-                {/* blue bar */}
-                {blueH > 0 && (
-                  <rect
-                    x={blueX}
-                    y={bottomY - blueH}
-                    width={barW}
-                    height={blueH}
-                    fill={BLUE}
-                    rx="2"
-                  />
-                )}
-                {/* green bar */}
-                {greenH > 0 && (
-                  <rect
-                    x={greenX}
-                    y={bottomY - greenH}
-                    width={barW}
-                    height={greenH}
-                    fill={GREEN}
-                    rx="2"
-                  />
-                )}
-                {/* X label every 5 days */}
-                {(d.day === 1 || d.day % 5 === 0) && (
-                  <text
-                    x={groupX + groupW / 2}
-                    y={bottomY + 14}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fill="#9ca3af"
-                  >
-                    {d.day}
+                <rect x={groupX} y={PADDING_TOP} width={groupW} height={chartH} fill="transparent" />
+                {blueH > 0 && <rect x={blueX} y={bottomY - blueH} width={barW} height={blueH} fill={BLUE} rx="2" />}
+                {greenH > 0 && <rect x={greenX} y={bottomY - greenH} width={barW} height={greenH} fill={GREEN} rx="2" />}
+                {showLabel(i) && (
+                  <text x={groupX + groupW / 2} y={bottomY + 14} textAnchor="middle" fontSize="9" fill="#9ca3af">
+                    {d.label}
                   </text>
                 )}
               </g>
@@ -180,27 +122,21 @@ export default function ClientesBarChart({ data, mes }: Props) {
           })}
         </svg>
 
-        {/* Tooltip (absolute, positioned in SVG coordinate space via foreignObject-free approach) */}
         {tooltip && (
           <div
             className="pointer-events-none absolute z-10 rounded-lg border border-border bg-background shadow-lg px-3 py-2 text-sm whitespace-nowrap"
             style={{
               left: `${(tooltip.x / VIEWBOX_W) * 100}%`,
               top: `${(tooltip.y / CHART_H) * 100}%`,
-              transform:
-                tooltip.x > VIEWBOX_W * 0.65
-                  ? 'translate(-110%, -50%)'
-                  : 'translate(8px, -50%)',
+              transform: tooltip.x > VIEWBOX_W * 0.65 ? 'translate(-110%, -50%)' : 'translate(8px, -50%)',
             }}
           >
-            <p className="font-medium mb-1">Día {tooltip.day}</p>
+            <p className="font-medium mb-1">{tooltip.label}</p>
             <p style={{ color: BLUE }}>
-              Primer pedido:{' '}
-              <span className="font-semibold">{tooltip.primer}</span>
+              Primer pedido: <span className="font-semibold">{tooltip.primer}</span>
             </p>
             <p style={{ color: GREEN }}>
-              Cliente nuevo:{' '}
-              <span className="font-semibold">{tooltip.nuevo}</span>
+              Cliente nuevo: <span className="font-semibold">{tooltip.nuevo}</span>
             </p>
           </div>
         )}

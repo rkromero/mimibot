@@ -9,12 +9,6 @@ const RANGO_LABEL: Record<Granularidad, string> = {
   mes: 'últimos 12 meses',
 }
 
-const TABS: Array<{ value: Granularidad; label: string }> = [
-  { value: 'dia', label: 'Día' },
-  { value: 'semana', label: 'Semana' },
-  { value: 'mes', label: 'Mes' },
-]
-
 const BAR_COLOR = '#6366f1'
 const CHART_H = 200
 const PADDING_LEFT = 28
@@ -23,6 +17,10 @@ const PADDING_TOP = 8
 const PADDING_RIGHT = 8
 const VIEWBOX_W = 700
 const GAP = 2
+
+interface Props {
+  granularidad: Granularidad
+}
 
 interface TooltipState {
   x: number
@@ -35,8 +33,7 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-AR').format(value)
 }
 
-export default function VisitasCreadasPanel() {
-  const [granularidad, setGranularidad] = useState<Granularidad>('dia')
+export default function VisitasCreadasPanel({ granularidad }: Props) {
   const [stats, setStats] = useState<VisitasStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,12 +66,7 @@ export default function VisitasCreadasPanel() {
   const xPos = (i: number) => PADDING_LEFT + (i + 0.5) * slotW
   const yTicks = [0, Math.ceil(maxVal / 2), maxVal].filter((v, i, arr) => arr.indexOf(v) === i)
 
-  // En vista diaria etiquetamos cada 5 barras para no amontonar; en semana/mes,
-  // todas las barras llevan etiqueta.
-  function showLabel(i: number): boolean {
-    if (granularidad === 'dia') return i % 5 === 0 || i === n - 1
-    return true
-  }
+  const showLabel = (i: number) => (granularidad === 'dia' ? i % 5 === 0 || i === n - 1 : true)
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 md:p-6">
@@ -82,22 +74,6 @@ export default function VisitasCreadasPanel() {
         <div>
           <h3 className="text-sm font-medium">Visitas creadas</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{RANGO_LABEL[granularidad]}</p>
-        </div>
-        <div className="inline-flex rounded-md border border-border overflow-hidden">
-          {TABS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setGranularidad(t.value)}
-              className={
-                'px-3 py-1.5 text-sm transition-colors ' +
-                (granularidad === t.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:bg-accent')
-              }
-            >
-              {t.label}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -120,7 +96,6 @@ export default function VisitasCreadasPanel() {
 
           <div className="relative select-none" onMouseLeave={() => setTooltip(null)}>
             <svg viewBox={`0 0 ${VIEWBOX_W} ${CHART_H}`} className="w-full" style={{ height: CHART_H }}>
-              {/* Grid + Y labels */}
               {yTicks.map((tick) => {
                 const y = bottomY - (tick / maxVal) * chartH
                 return (
@@ -133,7 +108,6 @@ export default function VisitasCreadasPanel() {
                 )
               })}
 
-              {/* Bars */}
               {data.map((d, i) => {
                 const barH = (d.total / maxVal) * chartH
                 const x = xPos(i) - barW / 2
@@ -142,7 +116,6 @@ export default function VisitasCreadasPanel() {
                     {d.total > 0 && (
                       <rect x={x} y={bottomY - barH} width={barW} height={barH} fill={BAR_COLOR} rx="2" />
                     )}
-                    {/* hover target spanning the whole slot */}
                     <rect
                       x={xPos(i) - slotW / 2}
                       y={PADDING_TOP}
@@ -164,11 +137,7 @@ export default function VisitasCreadasPanel() {
                         const rect = svg.getBoundingClientRect()
                         setTooltip((prev) =>
                           prev
-                            ? {
-                                ...prev,
-                                x: (e.clientX - rect.left) * (VIEWBOX_W / rect.width),
-                                y: (e.clientY - rect.top) * (CHART_H / rect.height),
-                              }
+                            ? { ...prev, x: (e.clientX - rect.left) * (VIEWBOX_W / rect.width), y: (e.clientY - rect.top) * (CHART_H / rect.height) }
                             : null,
                         )
                       }}
