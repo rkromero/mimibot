@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Granularidad, VisitasStats } from '@/lib/admin/visitas-stats.service'
+import { SEGMENTOS, OTRO } from '@/lib/admin/visitas-resultados'
 
 const RANGO_LABEL: Record<Granularidad, string> = {
   dia: 'últimos 30 días',
@@ -9,7 +10,6 @@ const RANGO_LABEL: Record<Granularidad, string> = {
   mes: 'últimos 12 meses',
 }
 
-const BAR_COLOR = '#6366f1'
 const CHART_H = 200
 const PADDING_LEFT = 28
 const PADDING_BOTTOM = 22
@@ -27,10 +27,16 @@ interface TooltipState {
   y: number
   label: string
   total: number
+  porResultado: Record<string, number>
 }
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-AR').format(value)
+}
+
+// Segmentos visibles: los 4 resultados siempre; "Otro" solo si hay alguno.
+function segmentosVisibles(totalPorResultado: Record<string, number>) {
+  return SEGMENTOS.filter((s) => s.value !== OTRO.value || (totalPorResultado[OTRO.value] ?? 0) > 0)
 }
 
 export default function VisitasCreadasPanel({ granularidad }: Props) {
@@ -55,6 +61,8 @@ export default function VisitasCreadasPanel({ granularidad }: Props) {
   }, [granularidad])
 
   const data = stats?.data ?? []
+  const totalPorResultado = stats?.totalPorResultado ?? {}
+  const segmentos = segmentosVisibles(totalPorResultado)
   const n = data.length
   const maxVal = Math.max(1, ...data.map((d) => d.total))
   const chartW = VIEWBOX_W - PADDING_LEFT - PADDING_RIGHT
@@ -72,8 +80,17 @@ export default function VisitasCreadasPanel({ granularidad }: Props) {
     <div className="rounded-lg border border-border bg-card p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-medium">Visitas creadas</h3>
+          <h3 className="text-sm font-medium">Visitas por tipo</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{RANGO_LABEL[granularidad]}</p>
+        </div>
+        {/* Leyenda + total por tipo */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {segmentos.map((s) => (
+            <span key={s.value} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
+              {s.label} <span className="font-semibold text-foreground">{formatNumber(totalPorResultado[s.value] ?? 0)}</span>
+            </span>
+          ))}
         </div>
       </div>
 
@@ -109,13 +126,20 @@ export default function VisitasCreadasPanel({ granularidad }: Props) {
               })}
 
               {data.map((d, i) => {
-                const barH = (d.total / maxVal) * chartH
                 const x = xPos(i) - barW / 2
+                // Barra apilada por resultado.
+                let acc = 0
+                const segs = SEGMENTOS.map((s) => {
+                  const val = d.porResultado[s.value] ?? 0
+                  if (val <= 0) return null
+                  const h = (val / maxVal) * chartH
+                  const yTop = bottomY - (acc / maxVal) * chartH - h
+                  acc += val
+                  return <rect key={s.value} x={x} y={yTop} width={barW} height={h} fill={s.color} />
+                })
                 return (
                   <g key={d.key}>
-                    {d.total > 0 && (
-                      <rect x={x} y={bottomY - barH} width={barW} height={barH} fill={BAR_COLOR} rx="2" />
-                    )}
+                    {segs}
                     <rect
                       x={xPos(i) - slotW / 2}
                       y={PADDING_TOP}
@@ -130,6 +154,7 @@ export default function VisitasCreadasPanel({ granularidad }: Props) {
                           y: (e.clientY - rect.top) * (CHART_H / rect.height),
                           label: d.label,
                           total: d.total,
+                          porResultado: d.porResultado,
                         })
                       }}
                       onMouseMove={(e) => {
@@ -161,10 +186,12 @@ export default function VisitasCreadasPanel({ granularidad }: Props) {
                   transform: tooltip.x > VIEWBOX_W * 0.65 ? 'translate(-110%, -50%)' : 'translate(8px, -50%)',
                 }}
               >
-                <p className="font-medium mb-0.5">{tooltip.label}</p>
-                <p style={{ color: BAR_COLOR }}>
-                  Visitas: <span className="font-semibold">{tooltip.total}</span>
-                </p>
+                <p className="font-medium mb-1">{tooltip.label} — {tooltip.total}</p>
+                {SEGMENTOS.filter((s) => (tooltip.porResultado[s.value] ?? 0) > 0).map((s) => (
+                  <p key={s.value} style={{ color: s.color }}>
+                    {s.label}: <span className="font-semibold">{tooltip.porResultado[s.value]}</span>
+                  </p>
+                ))}
               </div>
             )}
           </div>
