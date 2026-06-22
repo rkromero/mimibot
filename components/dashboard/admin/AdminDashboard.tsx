@@ -10,6 +10,7 @@ import AlertasPanel from './AlertasPanel'
 import VendedorModal from './VendedorModal'
 import AdminKPISection from './AdminKPISection'
 import EmbudoSection from './EmbudoSection'
+import VisitasCreadasPanel from './VisitasCreadasPanel'
 
 type Territorio = { id: string; nombre: string }
 type GerenteUser = { id: string; name: string | null; email: string; role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'rtv' }
@@ -216,6 +217,9 @@ export default function AdminDashboard({
         territorioId={territorioFiltro || undefined}
         gerenteId={gerenteFiltro || undefined}
       />
+
+      {/* Visitas creadas por el equipo (ventana móvil: día / semana / mes) */}
+      <VisitasCreadasPanel />
 
       {/* Embudo de apertura: aperturas → conversión → recompras → consolidados */}
       <EmbudoSection
