@@ -86,9 +86,9 @@ function EstadoBadge({
 }) {
   if (estado === 'listo_para_repartir') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
         <CheckCircle2 size={11} />
-        Listo para repartir
+        Listo p/ reparto
       </span>
     )
   }
