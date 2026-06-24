@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { clientes, users, territorios, pedidos } from '@/db/schema'
+import { clientes, users, territorios, pedidos, movimientosCC } from '@/db/schema'
 import { eq, and, ilike, or, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
 import { createClienteSchema, createClienteAgentSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
 import { toApiError } from '@/lib/errors'
@@ -114,6 +114,19 @@ export async function GET(req: NextRequest) {
           where ${pedidos.clienteId} = ${clientes.id}
             and ${pedidos.deletedAt} is null
         )`,
+        // Balance de cuenta corriente desde la perspectiva del cliente:
+        // crédito - débito → >0 a favor, 0 saldado, <0 debe.
+        balance: sql<number>`(
+          select coalesce(sum(
+            case when ${movimientosCC.tipo} = 'credito'
+              then ${movimientosCC.monto}::numeric
+              else -${movimientosCC.monto}::numeric
+            end
+          ), 0)::float8
+          from ${movimientosCC}
+          where ${movimientosCC.clienteId} = ${clientes.id}
+            and ${movimientosCC.deletedAt} is null
+        )`,
       })
       .from(clientes)
       .leftJoin(users, eq(clientes.asignadoA, users.id))
@@ -129,6 +142,7 @@ export async function GET(req: NextRequest) {
       asignadoColor: r.asignadoAUser?.id ? r.asignadoAUser.avatarColor : null,
       territorioNombre: r.territorio?.id ? r.territorio.nombre : null,
       cantidadPedidos: r.cantidadPedidos ?? 0,
+      balance: r.balance ?? 0,
     }))
 
     return NextResponse.json({ data, page, limit, total, totalPages })

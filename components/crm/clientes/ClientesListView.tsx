@@ -33,9 +33,16 @@ type Cliente = {
   asignadoNombre: string | null
   asignadoColor: string | null
   geocodeStatus: string | null
-  saldoPendiente?: string | null
   cantidadPedidos?: number
+  // Balance de cuenta corriente: >0 a favor, 0 saldado, <0 debe.
+  balance?: number
   createdAt: string
+}
+
+// Formatea un balance con signo y separadores AR: -$1.234,56 / $0,00 / $1.234,56
+function formatBalance(value: number): string {
+  const sign = value < 0 ? '-' : ''
+  return `${sign}$${Math.abs(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 const estadoActividadLabels: Record<string, string> = {
@@ -150,6 +157,25 @@ export default function ClientesListView() {
     ...(isAdmin
       ? [
           {
+            key: 'balance',
+            label: 'Balance',
+            headerClassName: 'text-right',
+            className: 'text-right',
+            render: (row: Cliente) => {
+              const bal = row.balance ?? 0
+              return (
+                <span
+                  className={cn(
+                    'font-medium tabular-nums',
+                    bal < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
+                  )}
+                >
+                  {formatBalance(bal)}
+                </span>
+              )
+            },
+          },
+          {
             key: 'asignadoNombre',
             label: 'Asignado a',
             render: (row: Cliente) =>
@@ -254,7 +280,7 @@ export default function ClientesListView() {
           searchPlaceholder="Buscar por nombre, dirección, email, CUIT..."
           onRowClick={(row) => router.push(`/crm/clientes/${row.id}`)}
           renderMobileCard={(c) => {
-            const saldo = c.saldoPendiente ? parseFloat(c.saldoPendiente) : 0
+            const bal = c.balance ?? 0
             return (
               <div
                 key={c.id}
@@ -287,9 +313,18 @@ export default function ClientesListView() {
                         Sin ubicación
                       </span>
                     )}
-                    {saldo > 0 && (
-                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                        Debe: ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                    {isAdmin && (
+                      <span
+                        className={cn(
+                          'text-xs font-medium',
+                          bal < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
+                        )}
+                      >
+                        {bal < 0
+                          ? `Debe: ${formatBalance(Math.abs(bal))}`
+                          : bal > 0
+                            ? `A favor: ${formatBalance(bal)}`
+                            : 'Saldado'}
                       </span>
                     )}
                   </div>
