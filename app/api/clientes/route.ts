@@ -87,11 +87,33 @@ export async function GET(req: NextRequest) {
     const total = countRow?.total ?? 0
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit)
 
+    // Subconsultas reutilizadas en SELECT y ORDER BY (permiten ordenar por columnas calculadas).
+    const cantidadPedidosSql = sql<number>`(
+      select count(*)::int from ${pedidos}
+      where ${pedidos.clienteId} = ${clientes.id}
+        and ${pedidos.deletedAt} is null
+    )`
+    // Balance de cuenta corriente desde la perspectiva del cliente:
+    // crédito - débito → >0 a favor, 0 saldado, <0 debe.
+    const balanceSql = sql<number>`(
+      select coalesce(sum(
+        case when ${movimientosCC.tipo} = 'credito'
+          then ${movimientosCC.monto}::numeric
+          else -${movimientosCC.monto}::numeric
+        end
+      ), 0)::float8
+      from ${movimientosCC}
+      where ${movimientosCC.clienteId} = ${clientes.id}
+        and ${movimientosCC.deletedAt} is null
+    )`
+
     const sortCol = (() => {
       switch (sortBy) {
         case 'nombre': return clientes.nombre
         case 'apellido': return clientes.apellido
         case 'email': return clientes.email
+        case 'cantidadPedidos': return cantidadPedidosSql
+        case 'balance': return balanceSql
         default: return clientes.createdAt
       }
     })()
@@ -109,24 +131,8 @@ export async function GET(req: NextRequest) {
           id: territorios.id,
           nombre: territorios.nombre,
         },
-        cantidadPedidos: sql<number>`(
-          select count(*)::int from ${pedidos}
-          where ${pedidos.clienteId} = ${clientes.id}
-            and ${pedidos.deletedAt} is null
-        )`,
-        // Balance de cuenta corriente desde la perspectiva del cliente:
-        // crédito - débito → >0 a favor, 0 saldado, <0 debe.
-        balance: sql<number>`(
-          select coalesce(sum(
-            case when ${movimientosCC.tipo} = 'credito'
-              then ${movimientosCC.monto}::numeric
-              else -${movimientosCC.monto}::numeric
-            end
-          ), 0)::float8
-          from ${movimientosCC}
-          where ${movimientosCC.clienteId} = ${clientes.id}
-            and ${movimientosCC.deletedAt} is null
-        )`,
+        cantidadPedidos: cantidadPedidosSql,
+        balance: balanceSql,
       })
       .from(clientes)
       .leftJoin(users, eq(clientes.asignadoA, users.id))

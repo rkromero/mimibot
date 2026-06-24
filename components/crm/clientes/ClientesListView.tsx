@@ -148,6 +148,7 @@ export default function ClientesListView() {
     {
       key: 'cantidadPedidos',
       label: 'Pedidos',
+      sortable: true,
       render: (row: Cliente) => (
         <span className="font-medium text-foreground tabular-nums">
           {row.cantidadPedidos ?? 0}
@@ -159,6 +160,7 @@ export default function ClientesListView() {
           {
             key: 'balance',
             label: 'Balance',
+            sortable: true,
             headerClassName: 'text-right',
             className: 'text-right',
             render: (row: Cliente) => {
