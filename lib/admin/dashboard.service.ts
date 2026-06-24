@@ -35,6 +35,8 @@ export interface AdminDashboardStats {
   clientesCreados: CreadosPoint[]
   productosVendidos: number
   carteraActiva: number
+  // Total histórico pendiente de cobro (impago + parcial), SIN filtro de fecha.
+  saldoPorCobrarTotal: number
 }
 
 export const MESES_NOMBRES = [
@@ -102,6 +104,7 @@ function emptyStats(granularidad: Granularidad, buckets: BucketDef[]): AdminDash
     clientesCreados: buckets.map((b) => ({ key: b.key, label: b.label, total: 0, conPedido: 0 })),
     productosVendidos: 0,
     carteraActiva: 0,
+    saldoPorCobrarTotal: 0,
   }
 }
 
@@ -203,6 +206,19 @@ export async function getAdminDashboardStats(
       ),
     )
 
+  // ── Saldo por cobrar: TODO lo pendiente (impago + parcial), SIN ventana ────
+  // Igual a la cartera pero sin gte(fecha, desde): total histórico por territorio.
+  const [saldoPorCobrarRow] = await db
+    .select({ total: sql<string>`coalesce(sum(${pedidos.saldoPendiente}::numeric), 0)` })
+    .from(pedidos)
+    .where(
+      and(
+        isNull(pedidos.deletedAt),
+        sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
+        territorioCondition,
+      ),
+    )
+
   // ── Clientes creados por bucket (en hora AR) ───────────────────────────────
   // Unidad/formato como literales (sql.raw), no parámetros: así la expresión es
   // textualmente idéntica en SELECT y GROUP BY (si fueran parámetros, drizzle los
@@ -254,5 +270,6 @@ export async function getAdminDashboardStats(
     clientesCreados,
     productosVendidos: productosRow?.total ?? 0,
     carteraActiva: Number(carteraRow?.total ?? 0),
+    saldoPorCobrarTotal: Number(saldoPorCobrarRow?.total ?? 0),
   }
 }

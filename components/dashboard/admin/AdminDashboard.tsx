@@ -86,6 +86,14 @@ function isLastWeekOfMonth(date: Date): boolean {
   return date.getDate() >= lastDay - 6
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
 export default function AdminDashboard({
   currentAnio,
   currentMes,
@@ -106,6 +114,9 @@ export default function AdminDashboard({
   const [selectedVendedorId, setSelectedVendedorId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Saldo por cobrar (total histórico, sin filtro de fecha). Respeta territorio/gerente.
+  const [saldoPorCobrar, setSaldoPorCobrar] = useState<number | null>(null)
+  const [saldoLoading, setSaldoLoading] = useState(true)
 
   // Load static filter options + equipos por gerente (para el toggle "Por gerente")
   useEffect(() => {
@@ -147,6 +158,26 @@ export default function AdminDashboard({
   useEffect(() => {
     void fetchData(anio, mes, territorioFiltro, gerenteFiltro)
   }, [anio, mes, territorioFiltro, gerenteFiltro, fetchData])
+
+  // Saldo por cobrar: total histórico (sin filtro de fecha) → independiente de la
+  // granularidad; solo depende del scope de territorio/gerente. Fetch liviano y
+  // tolerante a fallos (no rompe el header si falla).
+  useEffect(() => {
+    let cancelled = false
+    setSaldoLoading(true)
+    const qs = new URLSearchParams({ granularidad: 'mes' })
+    if (territorioFiltro) qs.set('territorioId', territorioFiltro)
+    else if (gerenteFiltro) qs.set('gerenteId', gerenteFiltro)
+    fetch(`/api/admin/dashboard-kpis?${qs.toString()}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Error al cargar saldo por cobrar')
+        return (await r.json()) as { data: { saldoPorCobrarTotal?: number } }
+      })
+      .then((json) => { if (!cancelled) setSaldoPorCobrar(json.data?.saldoPorCobrarTotal ?? 0) })
+      .catch(() => { if (!cancelled) setSaldoPorCobrar(null) })
+      .finally(() => { if (!cancelled) setSaldoLoading(false) })
+    return () => { cancelled = true }
+  }, [territorioFiltro, gerenteFiltro])
 
   const showCargarMetas = isLastWeekOfMonth(new Date())
 
@@ -197,14 +228,29 @@ export default function AdminDashboard({
             </select>
           )}
         </div>
-        {showCargarMetas && (
-          <Link
-            href="/admin/metas"
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors duration-100"
-          >
-            Cargar metas del próximo mes
-          </Link>
-        )}
+        <div className="flex flex-col items-end gap-2 ml-auto">
+          {/* Saldo por cobrar: total histórico pendiente (impago + parcial) */}
+          <div className="text-right">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Saldo por cobrar
+            </p>
+            {saldoLoading ? (
+              <div className="mt-1 ml-auto h-6 w-28 rounded bg-muted/40 animate-pulse" />
+            ) : (
+              <p className="text-lg font-bold leading-tight text-foreground tabular-nums">
+                {saldoPorCobrar !== null ? formatCurrency(saldoPorCobrar) : '—'}
+              </p>
+            )}
+          </div>
+          {showCargarMetas && (
+            <Link
+              href="/admin/metas"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors duration-100"
+            >
+              Cargar metas del próximo mes
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Error state */}
