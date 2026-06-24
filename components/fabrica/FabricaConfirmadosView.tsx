@@ -182,33 +182,33 @@ function ActionCell({
   const esperandoLabel = isRetiro ? 'Esperando retiro' : 'Esperando repartidor'
 
   return (
-    <div className="flex items-center gap-1.5 flex-nowrap">
+    <div className="flex items-center gap-1 flex-nowrap">
       <button
         onClick={() => void generarDocumento(pedido.id, 'remito')}
         disabled={anyGenerating(pedido.id)}
-        className="flex items-center gap-1 px-2 py-1 border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
+        className="flex items-center justify-center h-7 w-7 shrink-0 border border-border rounded hover:bg-accent transition-colors disabled:opacity-50"
         title="Remito PDF"
+        aria-label="Remito PDF"
       >
-        <FileText size={11} />
-        {isGenerating(pedido.id, 'remito') ? '...' : 'Remito'}
+        {isGenerating(pedido.id, 'remito') ? <RefreshCw size={12} className="animate-spin" /> : <FileText size={13} />}
       </button>
       <button
         onClick={() => void generarDocumento(pedido.id, 'proforma')}
         disabled={anyGenerating(pedido.id)}
-        className="flex items-center gap-1 px-2 py-1 border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
+        className="flex items-center justify-center h-7 w-7 shrink-0 border border-border rounded hover:bg-accent transition-colors disabled:opacity-50"
         title="Proforma PDF"
+        aria-label="Proforma PDF"
       >
-        <Download size={11} />
-        {isGenerating(pedido.id, 'proforma') ? '...' : 'Proforma'}
+        {isGenerating(pedido.id, 'proforma') ? <RefreshCw size={12} className="animate-spin" /> : <Download size={13} />}
       </button>
       <button
         onClick={() => void generarDocumento(pedido.id, 'etiqueta')}
         disabled={anyGenerating(pedido.id)}
-        className="flex items-center gap-1 px-2 py-1 border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
+        className="flex items-center justify-center h-7 w-7 shrink-0 border border-border rounded hover:bg-accent transition-colors disabled:opacity-50"
         title="Etiqueta PDF"
+        aria-label="Etiqueta PDF"
       >
-        <Tag size={11} />
-        {isGenerating(pedido.id, 'etiqueta') ? '...' : 'Etiqueta'}
+        {isGenerating(pedido.id, 'etiqueta') ? <RefreshCw size={12} className="animate-spin" /> : <Tag size={13} />}
       </button>
 
       {pedido.estado === 'listo_para_repartir' ? (
@@ -384,11 +384,11 @@ export default function FabricaConfirmadosView() {
       ) : (
         <>
           {/* Desktop: tabla */}
-          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
+          <div className="hidden lg:block overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card border-b border-border">
                 <tr>
-                  <th className="px-4 py-2.5 text-left w-10">
+                  <th className="px-3 py-2.5 text-left w-10">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -398,15 +398,15 @@ export default function FabricaConfirmadosView() {
                       aria-label="Seleccionar todos"
                     />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Nº Pedido</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Fecha</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Productos</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">Marca</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Total</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Entrega</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">Estado</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Acciones</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Nº Pedido</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Fecha</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Productos</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Marca</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Total</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">Entrega</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">Estado</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -418,7 +418,7 @@ export default function FabricaConfirmadosView() {
                       selectedIds.has(pedido.id) ? 'bg-primary/5' : 'hover:bg-accent/40',
                     )}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(pedido.id)}
@@ -427,37 +427,37 @@ export default function FabricaConfirmadosView() {
                         aria-label={`Seleccionar pedido ${pedido.id.slice(-8).toUpperCase()}`}
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-3 whitespace-nowrap">
                       <span className="font-mono text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                         #{pedido.id.slice(-8).toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
+                    <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
                       {pedido.cliente?.nombre} {pedido.cliente?.apellido}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
                       {formatFechaAR(new Date(pedido.fecha))}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} (${i.producto.marca?.nombre ?? 'Sin marca'}) ×${i.cantidad}`).join(', ')}>
+                    <td className="px-3 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} (${i.producto.marca?.nombre ?? 'Sin marca'}) ×${i.cantidad}`).join(', ')}>
                       {productosResumen(pedido.items)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1">
                         {marcasDistintas(pedido.items).map((m) => (
                           <MarcaTag key={m} nombre={m} />
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
                       {formatMoney(pedido.total)}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap max-w-[140px] truncate" title={entregaLabel(pedido)}>
+                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap max-w-[140px] truncate" title={entregaLabel(pedido)}>
                       {entregaLabel(pedido)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-3 whitespace-nowrap">
                       <ActionCell pedido={pedido} {...actionProps} />
                     </td>
                   </tr>
@@ -466,8 +466,8 @@ export default function FabricaConfirmadosView() {
             </table>
           </div>
 
-          {/* Mobile: tarjetas */}
-          <div className="md:hidden space-y-4">
+          {/* Mobile / tablet: tarjetas */}
+          <div className="lg:hidden space-y-4">
             {pedidos.map((pedido) => {
               const isExpreso = pedido.metodoEntrega === 'expreso'
               const isCamioneta = pedido.esReparto
