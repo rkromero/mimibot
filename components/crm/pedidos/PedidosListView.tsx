@@ -40,6 +40,9 @@ const estadoPagoColors: Record<string, string> = {
   pagado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
 }
 
+// Estilo neutro para cualquier estado no mapeado: la pastilla nunca queda en blanco.
+const estadoFallbackColor = 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+
 const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
   pendiente_aprobacion: 'Pte. Aprobación',
@@ -233,8 +236,8 @@ export default function PedidosListView() {
       key: 'estado',
       label: 'Estado',
       render: (row: Pedido) => (
-        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[row.estado])}>
-          {estadoLabels[row.estado]}
+        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[row.estado] ?? estadoFallbackColor)}>
+          {estadoLabels[row.estado] ?? row.estado}
         </span>
       ),
     },
@@ -430,8 +433,8 @@ export default function PedidosListView() {
                   <p className="text-lg font-bold text-foreground shrink-0">{formatMoney(p.total)}</p>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
-                    {estadoLabels[p.estado]}
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado] ?? estadoFallbackColor)}>
+                    {estadoLabels[p.estado] ?? p.estado}
                   </span>
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
                     {estadoPagoLabels[p.estadoPago]}

@@ -36,4 +36,14 @@ console.log('[migrate] Fix: user_role rtv OK.')
 await client`ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'distribucion'`
 console.log('[migrate] Fix: user_role distribucion OK.')
 
+// Garantía extra: los valores del enum estado_pedido agregados en 0020
+// (en_reparto) y 0030 (listo_para_repartir) pueden faltar si la corrupción de
+// timestamps `when` en _journal.json hace que drizzle-kit saltee esas migraciones
+// (las marca aplicadas pero el ALTER nunca corre). Sin estos valores, los pedidos
+// en esos estados muestran la pastilla "Estado" en blanco en el front.
+// ADD VALUE IF NOT EXISTS es idempotente y corre en autocommit.
+await client`ALTER TYPE "estado_pedido" ADD VALUE IF NOT EXISTS 'en_reparto'`
+await client`ALTER TYPE "estado_pedido" ADD VALUE IF NOT EXISTS 'listo_para_repartir'`
+console.log('[migrate] Fix: estado_pedido en_reparto/listo_para_repartir OK.')
+
 await client.end()

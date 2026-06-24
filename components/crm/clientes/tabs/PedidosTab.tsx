@@ -35,6 +35,9 @@ const estadoPagoColors: Record<string, string> = {
   pagado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
 }
 
+// Estilo neutro para cualquier estado no mapeado: la pastilla nunca queda en blanco.
+const estadoFallbackColor = 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+
 const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
   pendiente_aprobacion: 'Pte. Aprobación',
@@ -101,8 +104,8 @@ export default function PedidosTab({ clienteId }: Props) {
                     {formatFechaAR(p.fecha)}
                   </td>
                   <td className="py-2.5 px-3">
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado])}>
-                      {estadoLabels[p.estado]}
+                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado] ?? estadoFallbackColor)}>
+                      {estadoLabels[p.estado] ?? p.estado}
                     </span>
                   </td>
                   <td className="py-2.5 px-3 text-right font-medium">{formatMoney(p.total)}</td>

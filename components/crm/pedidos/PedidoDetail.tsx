@@ -74,10 +74,15 @@ const estadoColors: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
   pendiente_aprobacion: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   confirmado: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  listo_para_repartir: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   en_reparto: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   entregado: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   cancelado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 }
+
+// Estilo neutro para cualquier estado que no esté mapeado: evita que la pastilla
+// quede en blanco si aparece un valor nuevo en el enum antes de mapearlo acá.
+const estadoFallbackColor = 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
 
 const estadoPagoColors: Record<string, string> = {
   impago: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -89,6 +94,7 @@ const estadoLabels: Record<string, string> = {
   pendiente: 'Pendiente',
   pendiente_aprobacion: 'Pte. Aprobación',
   confirmado: 'Confirmado',
+  listo_para_repartir: 'Listo p/ repartir',
   en_reparto: 'En reparto',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
@@ -393,8 +399,8 @@ export default function PedidoDetail({ id }: Props) {
             <h1 className="text-xl font-semibold text-foreground">
               Pedido #{id.slice(-8).toUpperCase()}
             </h1>
-            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[pedido.estado])}>
-              {estadoLabels[pedido.estado]}
+            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[pedido.estado] ?? estadoFallbackColor)}>
+              {estadoLabels[pedido.estado] ?? pedido.estado}
             </span>
             <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[pedido.estadoPago])}>
               {estadoPagoLabels[pedido.estadoPago]}
