@@ -3,6 +3,7 @@
 
 const ORS_GEOCODE_URL = 'https://api.openrouteservice.org/geocode/search'
 const ORS_GEOCODE_STRUCTURED_URL = 'https://api.openrouteservice.org/geocode/search/structured'
+const ORS_GEOCODE_REVERSE_URL = 'https://api.openrouteservice.org/geocode/reverse'
 
 export function getOrsKey(): string {
   const key = process.env['ORS_API_KEY']
@@ -19,13 +20,14 @@ export function getOrsKey(): string {
 // a nivel país (centroide de Argentina ≈ -34, -64, en el centro del país),
 // haciendo que el GPS y el optimizador de ruta apunten lejísimos del destino real.
 // Normalizamos las variantes conocidas al nombre canónico de Who's on First.
+export const CABA_CANONICAL = 'Ciudad Autónoma de Buenos Aires'
 const REGION_ALIASES: Record<string, string> = {
-  caba: 'Ciudad Autónoma de Buenos Aires',
-  'c.a.b.a': 'Ciudad Autónoma de Buenos Aires',
-  'c.a.b.a.': 'Ciudad Autónoma de Buenos Aires',
-  'capital federal': 'Ciudad Autónoma de Buenos Aires',
-  'ciudad de buenos aires': 'Ciudad Autónoma de Buenos Aires',
-  'ciudad autonoma de buenos aires': 'Ciudad Autónoma de Buenos Aires',
+  caba: CABA_CANONICAL,
+  'c.a.b.a': CABA_CANONICAL,
+  'c.a.b.a.': CABA_CANONICAL,
+  'capital federal': CABA_CANONICAL,
+  'ciudad de buenos aires': CABA_CANONICAL,
+  'ciudad autonoma de buenos aires': CABA_CANONICAL,
 }
 
 export function normalizeRegion(region?: string | null): string | null {
@@ -43,6 +45,19 @@ function regionAlias(value?: string | null): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
   return REGION_ALIASES[trimmed.toLowerCase()] ?? null
+}
+
+/**
+ * ¿El cliente declara CABA? True si la provincia O la localidad es un alias
+ * conocido de CABA ("CABA", "Capital Federal", "Ciudad de Buenos Aires", etc.).
+ * Se usa para acotar el re-geocodificado SOLO a los clientes de CABA, que son los
+ * afectados por el bug histórico (resueltos en otra provincia homónima).
+ */
+export function esRegionCABA(
+  provincia?: string | null,
+  localidad?: string | null,
+): boolean {
+  return regionAlias(provincia) === CABA_CANONICAL || regionAlias(localidad) === CABA_CANONICAL
 }
 
 /**
@@ -221,4 +236,40 @@ export async function geocodeStructured({
   // provincia pedida (si no hay match válido, queda null → cliente failed).
   const fullText = [address, locality, expectedRegion].filter(Boolean).join(', ')
   return geocodeAddress(fullText, expectedRegion)
+}
+
+/**
+ * Reverse-geocodifica un punto (lat/lng) para decidir si cae dentro de la
+ * provincia esperada. Aplica la MISMA comparación de región de Fase 1
+ * (properties.region / region_a, contemplando alias).
+ *
+ * Devuelve:
+ *  - true  → el punto cae en la provincia esperada (coordenadas correctas).
+ *  - false → el punto cae en otra provincia (coordenadas a corregir).
+ *  - null  → no se pudo determinar (error de API o sin región en la respuesta);
+ *            ante la duda, mejor no tocar al cliente.
+ */
+export async function puntoCaeEnRegion(
+  lat: number,
+  lng: number,
+  expectedRegion: string,
+): Promise<boolean | null> {
+  const key = getOrsKey()
+  const url = new URL(ORS_GEOCODE_REVERSE_URL)
+  url.searchParams.set('api_key', key)
+  url.searchParams.set('point.lat', String(lat))
+  url.searchParams.set('point.lon', String(lng))
+  url.searchParams.set('boundary.country', 'AR')
+  url.searchParams.set('size', '1')
+
+  const res = await fetch(url.toString())
+  if (!res.ok) {
+    console.error(`[geocode] ORS reverse error ${res.status} para (${lat}, ${lng})`)
+    return null
+  }
+
+  const json = await res.json() as OrsResponse
+  const props = json.features?.[0]?.properties
+  if (!props || (!props.region && !props.region_a)) return null
+  return regionMatches(expectedRegion, props)
 }

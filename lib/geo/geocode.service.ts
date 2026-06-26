@@ -3,20 +3,25 @@ import { db } from '@/db'
 import { clientes, empresaConfig } from '@/db/schema'
 import { geocodeStructured, resolverRegion } from './ors'
 
+// 'ok'      → se geocodificó y guardó lat/lng.
+// 'failed'  → no se resolvió en la región esperada; queda lat/lng=null (navega por dirección).
+// 'skipped' → no se intentó (cliente inexistente, ya geocodificado sin force, o sin dirección).
+export type GeocodeResultado = 'ok' | 'failed' | 'skipped'
+
 export async function geocodeClienteIfNeeded(
   clienteId: string,
   opts: { force?: boolean } = {},
-): Promise<void> {
+): Promise<GeocodeResultado> {
   const cliente = await db.query.clientes.findFirst({
     where: eq(clientes.id, clienteId),
     columns: { id: true, direccion: true, localidad: true, provincia: true, lat: true, lng: true },
   })
-  if (!cliente) return
+  if (!cliente) return 'skipped'
 
   // Skip if already geocoded and not forced
-  if (!opts.force && cliente.lat !== null && cliente.lng !== null) return
+  if (!opts.force && cliente.lat !== null && cliente.lng !== null) return 'skipped'
 
-  if (!cliente.direccion) return
+  if (!cliente.direccion) return 'skipped'
 
   // Región esperada (provincia, o localidad si la provincia no la define, p.ej. "CABA").
   const expectedRegion = resolverRegion(cliente.provincia, cliente.localidad)
@@ -35,13 +40,14 @@ export async function geocodeClienteIfNeeded(
       .update(clientes)
       .set({ lat: null, lng: null, geocodeStatus: 'failed', geocodedAt: new Date() })
       .where(eq(clientes.id, clienteId))
-    return
+    return 'failed'
   }
 
   await db
     .update(clientes)
     .set({ lat: result.lat, lng: result.lng, geocodeStatus: 'ok', geocodedAt: new Date() })
     .where(eq(clientes.id, clienteId))
+  return 'ok'
 }
 
 export async function geocodeDepot(): Promise<void> {
