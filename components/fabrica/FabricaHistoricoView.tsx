@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { formatFechaAR } from '@/lib/dates'
+import { formatFechaInstanteAR } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
@@ -103,7 +103,7 @@ export default function FabricaHistoricoView() {
     const q = search.toLowerCase()
     return all.filter((p) => {
       const clienteNombre = `${p.cliente?.nombre ?? ''} ${p.cliente?.apellido ?? ''}`.toLowerCase()
-      const fechaStr = formatFechaAR(new Date(p.fecha)).toLowerCase()
+      const fechaStr = formatFechaInstanteAR(p.fecha).toLowerCase()
       const idSuffix = p.id.slice(-8).toLowerCase()
       return clienteNombre.includes(q) || fechaStr.includes(q) || idSuffix.includes(q)
     })
@@ -193,7 +193,7 @@ export default function FabricaHistoricoView() {
                         {pedido.cliente?.nombre} {pedido.cliente?.apellido}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {formatFechaAR(new Date(pedido.fecha))}
+                        {formatFechaInstanteAR(pedido.fecha)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} ×${i.cantidad}`).join(', ')}>
                         {productosResumen(pedido.items)}
@@ -281,7 +281,7 @@ export default function FabricaHistoricoView() {
                         <MetodoBadge metodoEntrega={pedido.metodoEntrega} />
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {formatFechaAR(new Date(pedido.fecha))}
+                        {formatFechaInstanteAR(pedido.fecha)}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">

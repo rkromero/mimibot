@@ -11,6 +11,7 @@ import { requireAdmin } from '@/lib/authz'
 import { deletePedido } from '@/lib/delete/delete.service'
 import { getSessionContext } from '@/lib/territorios/context'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { parseFechaAR, todayStrAR } from '@/lib/dates'
 import { esRolVentas } from '@/lib/authz/roles'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 
@@ -212,7 +213,7 @@ export async function PATCH(
 
     if (estado !== undefined) fieldUpdates.estado = estado
     if (observaciones !== undefined) fieldUpdates.observaciones = observaciones
-    if (fecha !== undefined) fieldUpdates.fecha = fecha ? new Date(fecha) : new Date()
+    if (fecha !== undefined) fieldUpdates.fecha = fecha ? parseFechaAR(fecha.slice(0, 10)) : parseFechaAR(todayStrAR())
 
     const [updated] = await db
       .update(pedidos)

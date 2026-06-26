@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { formatFechaAR } from '@/lib/dates'
+import { formatFechaInstanteAR } from '@/lib/dates'
 
 type Props = {
   clienteId: string
@@ -101,7 +101,7 @@ export default function PedidosTab({ clienteId }: Props) {
                   className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
                 >
                   <td className="py-2.5 px-3 text-foreground">
-                    {formatFechaAR(p.fecha)}
+                    {formatFechaInstanteAR(p.fecha)}
                   </td>
                   <td className="py-2.5 px-3">
                     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado] ?? estadoFallbackColor)}>

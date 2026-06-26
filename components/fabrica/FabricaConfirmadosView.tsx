@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { formatFechaAR } from '@/lib/dates'
+import { formatFechaInstanteAR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento, type DocTipo } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
@@ -436,7 +436,7 @@ export default function FabricaConfirmadosView() {
                       {pedido.cliente?.nombre} {pedido.cliente?.apellido}
                     </td>
                     <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
-                      {formatFechaAR(new Date(pedido.fecha))}
+                      {formatFechaInstanteAR(pedido.fecha)}
                     </td>
                     <td className="px-3 py-3 text-muted-foreground max-w-[220px] truncate" title={pedido.items.map(i => `${i.producto.nombre} (${i.producto.marca?.nombre ?? 'Sin marca'}) ×${i.cantidad}`).join(', ')}>
                       {productosResumen(pedido.items)}
@@ -510,7 +510,7 @@ export default function FabricaConfirmadosView() {
                         <EstadoBadge estado={pedido.estado} esReparto={pedido.esReparto} metodoEntrega={pedido.metodoEntrega} />
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {formatFechaAR(new Date(pedido.fecha))}
+                        {formatFechaInstanteAR(pedido.fecha)}
                       </p>
                       </div>
                     </div>

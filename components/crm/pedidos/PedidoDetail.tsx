@@ -9,7 +9,7 @@ import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { formatFechaAR } from '@/lib/dates'
+import { formatFechaAR, formatFechaInstanteAR, fechaISO_AR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import ProductSheet from './ProductSheet'
@@ -275,7 +275,7 @@ export default function PedidoDetail({ id }: Props) {
 
   function enterEditMode() {
     if (!pedido) return
-    setEditFecha(pedido.fecha ? pedido.fecha.slice(0, 10) : '')
+    setEditFecha(pedido.fecha ? fechaISO_AR(pedido.fecha) : '')
     setEditObservaciones(pedido.observaciones ?? '')
     setEditItems(pedido.items.map(item => ({
       productoId: item.productoId,
@@ -432,7 +432,7 @@ export default function PedidoDetail({ id }: Props) {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {formatFechaAR(pedido.fecha)} — Vendedor: {pedido.vendedorNombre ?? '—'}
+            {formatFechaInstanteAR(pedido.fecha)} — Vendedor: {pedido.vendedorNombre ?? '—'}
           </p>
         </div>
 
@@ -735,7 +735,7 @@ export default function PedidoDetail({ id }: Props) {
                 className="border border-border rounded px-2 py-0.5 text-sm bg-background text-foreground"
               />
             ) : (
-              <span>{formatFechaAR(pedido.fecha)}</span>
+              <span>{formatFechaInstanteAR(pedido.fecha)}</span>
             )}
           </div>
           <div className="flex gap-2 text-sm">

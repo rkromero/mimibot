@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { MapPin, Package, RefreshCw, CheckSquare, Square, Truck, AlertCircle, Send } from 'lucide-react'
 import { useToast } from '@/components/shared/ToastProvider'
+import { formatFechaInstanteAR } from '@/lib/dates'
 
 type PedidoListo = {
   id: string
@@ -99,10 +100,7 @@ function PedidoList({
             .map((i) => `${i.cantidad}× ${i.producto.nombre}`)
             .join(' · ')
           const extra = pedido.items.length > 2 ? ` +${pedido.items.length - 2} más` : ''
-          const fechaStr = new Date(pedido.fecha).toLocaleDateString('es-AR', {
-            day: '2-digit',
-            month: 'short',
-          })
+          const fechaStr = formatFechaInstanteAR(pedido.fecha, true)
 
           return (
             <button

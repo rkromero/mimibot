@@ -5,7 +5,7 @@ import { ArrowLeft, X, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { formatFechaAR, todayStrAR } from '@/lib/dates'
+import { formatFechaInstanteAR, todayStrAR } from '@/lib/dates'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
 
 type Props = {
@@ -156,7 +156,7 @@ export default function RegistrarPagoModal({ clienteId, clienteNombre, clienteTe
                     <div key={ap.pedidoId} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
                       <div>
                         <p className="text-sm font-medium text-foreground">
-                          Pedido {pedido ? formatFechaAR(pedido.fecha, true) : ap.pedidoId.slice(-6)}
+                          Pedido {pedido ? formatFechaInstanteAR(pedido.fecha, true) : ap.pedidoId.slice(-6)}
                         </p>
                         <p className="text-xs text-green-600 dark:text-green-400">Aplicado</p>
                       </div>
@@ -234,7 +234,7 @@ export default function RegistrarPagoModal({ clienteId, clienteNombre, clienteTe
                 <div className="space-y-1.5">
                   {pedidosPendientes.slice(0, 4).map(p => (
                     <div key={p.id} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{formatFechaAR(p.fecha, true)}</span>
+                      <span className="text-muted-foreground">{formatFechaInstanteAR(p.fecha, true)}</span>
                       <div className="flex items-center gap-2">
                         <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
                           p.estadoPago === 'impago'

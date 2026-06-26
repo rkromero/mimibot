@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Phone, MessageCircle, Navigation, CheckCircle, Package } from 'lucide-react'
 import EntregarSheet from './EntregarSheet'
 import { construirMapsUrl } from '@/lib/repartidor/route-ui'
+import { formatFechaInstanteAR } from '@/lib/dates'
 
 type Item = {
   id: string
@@ -78,7 +79,7 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
     .join(' · ')
   const extraCount = items.length > 3 ? ` +${items.length - 3} más` : ''
 
-  const fechaStr = new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+  const fechaStr = formatFechaInstanteAR(fecha, true)
   const totalStr = Number(total).toLocaleString('es-AR', {
     style: 'currency',
     currency: 'ARS',

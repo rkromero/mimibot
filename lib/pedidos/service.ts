@@ -5,6 +5,7 @@ import {
 } from '@/db/schema'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { aplicarSaldoAFavorAPedido, recalcularPagosPedido, reconciliarCuentaCliente } from '@/lib/cuenta-corriente/pago.service'
+import { parseFechaAR, todayStrAR } from '@/lib/dates'
 import type { Db } from '@/db'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -76,7 +77,10 @@ export async function crearPedidoConItems(
       }
     }
 
-    const fechaDate = fecha ? new Date(fecha) : new Date()
+    // Guardar como medianoche AR (no el instante UTC). El instante exacto de
+    // creación queda en createdAt (defaultNow). Así la fecha de negocio del
+    // pedido coincide en todas las pantallas sin desfase de día.
+    const fechaDate = fecha ? parseFechaAR(fecha.slice(0, 10)) : parseFechaAR(todayStrAR())
 
     const itemsBase = items.map((item) => {
       const producto = productosMap.get(item.productoId)!
@@ -539,7 +543,7 @@ export async function actualizarItemsPedido(
       updatedAt: new Date(),
     }
     if (!conMovimientos) pedidoUpdates.saldoPendiente = totalNuevo
-    if (updates.fecha !== undefined) pedidoUpdates.fecha = updates.fecha ? new Date(updates.fecha) : new Date()
+    if (updates.fecha !== undefined) pedidoUpdates.fecha = updates.fecha ? parseFechaAR(updates.fecha.slice(0, 10)) : parseFechaAR(todayStrAR())
     if (updates.observaciones !== undefined) pedidoUpdates.observaciones = updates.observaciones
 
     const [updated] = await tx

@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatFechaAR } from '@/lib/dates'
+import { formatFechaInstanteAR } from '@/lib/dates'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
 
 type Moroso = {
@@ -169,7 +169,7 @@ export default function MorososPage() {
                       <td className="py-2.5 px-3 text-muted-foreground">{m.clienteTelefono ?? '—'}</td>
                       <td className="py-2.5 px-3 text-muted-foreground">{m.vendedorNombre ?? '—'}</td>
                       <td className="py-2.5 px-3 text-muted-foreground">
-                        {m.fecha ? formatFechaAR(m.fecha) : '—'}
+                        {m.fecha ? formatFechaInstanteAR(m.fecha) : '—'}
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <span className={cn(

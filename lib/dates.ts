@@ -60,6 +60,40 @@ export function formatFechaAR(date: Date | string, corto = false): string {
 }
 
 /**
+ * Formats an *instant* (timestamp with a real time-of-day) as a calendar date in
+ * Argentina, in dd/MM/yyyy or dd/MM/yy format.
+ *
+ * Use this for `pedidos.fecha` and any column stored as a real instant
+ * (e.g. created via `new Date()`), NOT for "business date" / midnight-UTC fields
+ * (use {@link formatFechaAR} for those).
+ *
+ * Unlike `formatFechaAR` — which reads the raw UTC date portion — this converts
+ * the instant to the Argentina timezone first. A pedido created at 23:30 AR
+ * (= 02:30 UTC next day) renders as the AR calendar day, not the UTC one, and
+ * does so identically on every device regardless of the device timezone.
+ *
+ * @param value Date instance or ISO string from the API
+ * @param corto true → 2-digit year (dd/MM/yy); false (default) → 4-digit (dd/MM/yyyy)
+ */
+export function formatFechaInstanteAR(value: Date | string, corto = false): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: AR_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: corto ? '2-digit' : 'numeric',
+  }).format(new Date(value))
+}
+
+/**
+ * YYYY-MM-DD of an *instant* expressed in Argentina time. Use to prefill
+ * `<input type="date">` from a stored instant so the prefilled value matches
+ * what {@link formatFechaInstanteAR} renders.
+ */
+export function fechaISO_AR(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: AR_TZ }).format(new Date(value))
+}
+
+/**
  * Parses a date-only string (YYYY-MM-DD) as midnight in Argentina (= 03:00 UTC).
  * Use in API route handlers instead of `new Date(fechaStr)`.
  *
