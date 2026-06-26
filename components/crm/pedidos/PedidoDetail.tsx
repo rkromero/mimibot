@@ -249,6 +249,28 @@ export default function PedidoDetail({ id }: Props) {
     },
   })
 
+  const { mutate: liberarReparto, isPending: isLiberando } = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/pedidos/${id}/liberar-reparto`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(data.error ?? 'No se pudo devolver el pedido al pool')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      setActionError(null)
+      void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
+      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+      void queryClient.invalidateQueries({ queryKey: ['admin-reparto-activo'] })
+      toast.success('Pedido devuelto al pool')
+    },
+    onError: (err: Error) => {
+      setActionError(err.message)
+      toast.error(err.message)
+    },
+  })
+
   const canEdit = isAdmin || (pedido != null && !ESTADOS_BLOQUEADOS.has(pedido.estado))
 
   function enterEditMode() {
@@ -377,6 +399,9 @@ export default function PedidoDetail({ id }: Props) {
   }
   if (pedido.estado === 'confirmado' && canApproveOrRevert) {
     secondaryActions.push({ key: 'revertir', label: 'Revertir', icon: RotateCcw, onClick: () => updateEstado('pendiente_aprobacion'), disabled: isUpdating })
+  }
+  if (pedido.estado === 'en_reparto' && canApproveOrRevert) {
+    secondaryActions.push({ key: 'devolver-pool', label: isLiberando ? 'Devolviendo...' : 'Devolver al pool', icon: RotateCcw, onClick: () => liberarReparto(), disabled: isLiberando })
   }
   if (pedido.estado === 'pendiente' || pedido.estado === 'pendiente_aprobacion') {
     secondaryActions.push({ key: 'cancelar-pedido', label: 'Cancelar pedido', icon: XCircle, onClick: () => setConfirmCancel(true), disabled: isUpdating, danger: true })
@@ -552,6 +577,19 @@ export default function PedidoDetail({ id }: Props) {
                 Marcar Entregado
               </button>
             </>
+          )}
+
+          {/* ── Estado: en_reparto ── */}
+          {pedido.estado === 'en_reparto' && canApproveOrRevert && (
+            <button
+              onClick={() => liberarReparto()}
+              disabled={isLiberando}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+              title="Sacar el pedido del repartidor y devolverlo al pool para que pueda volver a tomarse"
+            >
+              <RotateCcw size={14} />
+              {isLiberando ? 'Devolviendo...' : 'Devolver al pool'}
+            </button>
           )}
 
           {/* Documentos: disponibles cuando confirmado o entregado */}
