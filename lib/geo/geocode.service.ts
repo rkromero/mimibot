@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { clientes, empresaConfig } from '@/db/schema'
-import { geocodeStructured } from './ors'
+import { geocodeStructured, resolverRegion } from './ors'
 
 export async function geocodeClienteIfNeeded(
   clienteId: string,
@@ -18,6 +18,9 @@ export async function geocodeClienteIfNeeded(
 
   if (!cliente.direccion) return
 
+  // Región esperada (provincia, o localidad si la provincia no la define, p.ej. "CABA").
+  const expectedRegion = resolverRegion(cliente.provincia, cliente.localidad)
+
   const result = await geocodeStructured({
     address: cliente.direccion,
     locality: cliente.localidad,
@@ -25,7 +28,9 @@ export async function geocodeClienteIfNeeded(
   })
 
   if (!result) {
-    console.warn(`[geocode] Sin resultado para cliente ${clienteId}: "${cliente.direccion}"`)
+    console.warn(
+      `[geocode] Sin resultado en región "${expectedRegion ?? 'AR'}" para cliente ${clienteId}: "${cliente.direccion}"`,
+    )
     await db
       .update(clientes)
       .set({ lat: null, lng: null, geocodeStatus: 'failed', geocodedAt: new Date() })

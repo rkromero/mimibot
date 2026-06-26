@@ -35,6 +35,35 @@ export function normalizeRegion(region?: string | null): string | null {
   return REGION_ALIASES[trimmed.toLowerCase()] ?? trimmed
 }
 
+// Igual que normalizeRegion pero SOLO devuelve algo si el valor es un alias
+// reconocido (p.ej. "CABA"). No devuelve el texto crudo: así un barrio cualquiera
+// cargado en `localidad` ("Palermo") no se confunde con una provincia.
+function regionAlias(value?: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return REGION_ALIASES[trimmed.toLowerCase()] ?? null
+}
+
+/**
+ * Resuelve la región (provincia) esperada a partir de provincia y localidad.
+ *
+ * Muchos clientes traen la localidad "CABA"/"Capital Federal" pero la provincia
+ * vacía o mal cargada. En ese caso Pelias, sin restricción de provincia, puede
+ * resolver el domicilio en otra provincia homónima (ej. una calle que también
+ * existe en Córdoba). Si la localidad es un alias de provincia conocido, lo
+ * tomamos como autoritativo y forzamos la región canónica; si no, normalizamos
+ * la provincia tal como venga (los clientes bien cargados no cambian).
+ */
+export function resolverRegion(
+  provincia?: string | null,
+  localidad?: string | null,
+): string | null {
+  const desdeLocalidad = regionAlias(localidad)
+  if (desdeLocalidad) return desdeLocalidad
+  return normalizeRegion(provincia)
+}
+
 // Capas de Pelias demasiado gruesas para una parada de reparto: aceptarlas
 // significaría guardar un centroide de provincia/país en vez de la dirección.
 const COARSE_LAYERS = new Set([
@@ -53,6 +82,40 @@ type OrsFeatureProperties = {
   confidence?: number
   match_type?: string
   label?: string
+  region?: string
+  region_a?: string
+}
+
+// Normaliza un nombre de región para comparar: sin acentos, sin puntos,
+// minúsculas y espacios colapsados. Así "Ciudad Autónoma de Buenos Aires",
+// "ciudad autonoma de buenos aires" y "C.A.B.A." se vuelven comparables.
+function canonRegion(value: string): string {
+  return value
+    .normalize('NFD')
+    // tras NFD, las marcas diacríticas y demás no-ASCII se descartan
+    .replace(/[^\x00-\x7F]/g, '')
+    .replace(/\./g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// ¿La feature cae dentro de la región pedida? Compara properties.region y
+// properties.region_a (la abreviatura WOF, p.ej. "CABA") contra la región
+// esperada, contemplando alias. Si no hay match, la feature se descarta.
+function regionMatches(expectedRegion: string, props: OrsFeatureProperties | undefined): boolean {
+  const expected = canonRegion(expectedRegion)
+  if (!expected) return true
+  for (const raw of [props?.region, props?.region_a]) {
+    if (!raw) continue
+    const candidate = canonRegion(raw)
+    if (!candidate) continue
+    if (candidate === expected) return true
+    // p.ej. region_a "CABA" → "Ciudad Autónoma de Buenos Aires"
+    const aliased = REGION_ALIASES[candidate]
+    if (aliased && canonRegion(aliased) === expected) return true
+  }
+  return false
 }
 
 type OrsFeature = {
@@ -68,9 +131,15 @@ type OrsResponse = {
  * Elige la primera feature lo bastante precisa como para ser una dirección real.
  * Descarta resultados gruesos (país/provincia) y de baja confianza, que es lo
  * que Pelias devuelve como fallback cuando no logra resolver el domicilio.
+ *
+ * Si se pasa `expectedRegion`, además descarta toda feature que caiga en otra
+ * provincia: así un domicilio de CABA nunca se acepta resuelto en Córdoba.
  * Devuelve null si ninguna feature es aceptable.
  */
-function pickPreciseCoords(features: OrsFeature[] | undefined): { lat: number; lng: number } | null {
+function pickPreciseCoords(
+  features: OrsFeature[] | undefined,
+  expectedRegion: string | null,
+): { lat: number; lng: number } | null {
   for (const f of features ?? []) {
     const layer = f.properties?.layer
     const confidence = f.properties?.confidence
@@ -78,6 +147,8 @@ function pickPreciseCoords(features: OrsFeature[] | undefined): { lat: number; l
     if (layer && COARSE_LAYERS.has(layer)) continue
     if (matchType === 'fallback') continue
     if (typeof confidence === 'number' && confidence < MIN_CONFIDENCE) continue
+    // Validación por región: si pedimos una provincia, la feature debe estar en ella.
+    if (expectedRegion && !regionMatches(expectedRegion, f.properties)) continue
     const coords = f.geometry?.coordinates
     if (!coords) continue
     // ORS returns [lng, lat]
@@ -86,7 +157,10 @@ function pickPreciseCoords(features: OrsFeature[] | undefined): { lat: number; l
   return null
 }
 
-export async function geocodeAddress(text: string): Promise<{ lat: number; lng: number } | null> {
+export async function geocodeAddress(
+  text: string,
+  expectedRegion: string | null = null,
+): Promise<{ lat: number; lng: number } | null> {
   const key = getOrsKey()
   const url = new URL(ORS_GEOCODE_URL)
   url.searchParams.set('api_key', key)
@@ -101,7 +175,7 @@ export async function geocodeAddress(text: string): Promise<{ lat: number; lng: 
   }
 
   const json = await res.json() as OrsResponse
-  const coords = pickPreciseCoords(json.features)
+  const coords = pickPreciseCoords(json.features, expectedRegion)
   if (!coords) {
     console.warn(`[geocode] sin resultado preciso (free-text) para "${text}"`)
   }
@@ -120,12 +194,15 @@ export async function geocodeStructured({
   country?: string
 }): Promise<{ lat: number; lng: number } | null> {
   const key = getOrsKey()
-  const normalizedRegion = normalizeRegion(region)
+  // Resolvemos la región esperada mirando provincia y, si hace falta, localidad
+  // (p.ej. localidad "CABA" con provincia vacía). La usamos tanto para acotar la
+  // búsqueda como para validar que el resultado caiga realmente en esa provincia.
+  const expectedRegion = resolverRegion(region, locality)
   const url = new URL(ORS_GEOCODE_STRUCTURED_URL)
   url.searchParams.set('api_key', key)
   url.searchParams.set('address', address)
   if (locality) url.searchParams.set('locality', locality)
-  if (normalizedRegion) url.searchParams.set('region', normalizedRegion)
+  if (expectedRegion) url.searchParams.set('region', expectedRegion)
   url.searchParams.set('country', country)
   url.searchParams.set('size', '3')
 
@@ -134,12 +211,14 @@ export async function geocodeStructured({
     console.error(`[geocode] ORS structured error ${res.status} para "${address}"`)
   } else {
     const json = await res.json() as OrsResponse
-    const coords = pickPreciseCoords(json.features)
+    const coords = pickPreciseCoords(json.features, expectedRegion)
     if (coords) return coords
     console.warn(`[geocode] structured sin resultado preciso para "${address}", probando free-text`)
   }
 
-  // Fallback to free-text search with full address string (region ya normalizada).
-  const fullText = [address, locality, normalizedRegion].filter(Boolean).join(', ')
-  return geocodeAddress(fullText)
+  // Fallback a texto libre con la dirección completa. Mantiene boundary.country=AR
+  // y aplica la MISMA validación de región: no se aceptan resultados fuera de la
+  // provincia pedida (si no hay match válido, queda null → cliente failed).
+  const fullText = [address, locality, expectedRegion].filter(Boolean).join(', ')
+  return geocodeAddress(fullText, expectedRegion)
 }
