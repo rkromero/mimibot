@@ -6,7 +6,14 @@ import { Route, Loader2, X, Navigation } from 'lucide-react'
 import { useToast } from '@/components/shared/ToastProvider'
 import { obtenerUbicacion, GeolocationDeniedError } from '@/lib/repartidor/route-ui'
 
-type OptimizarResponse = { data: { ordenados: number; sinUbicacion: number } }
+type OptimizarResponse = {
+  data: {
+    ordenados: number
+    sinUbicacion: number
+    sospechosos: number
+    motor: 'ors' | 'heuristica'
+  }
+}
 
 /**
  * Controles de optimización de ruta para la vista "Mi ruta" del repartidor.
@@ -62,6 +69,13 @@ export default function RutaOptimizer({
         msg += `, ${json.data.sinUbicacion} sin dirección geocodificada al final`
       }
       toast.success(msg)
+      // Paradas con ubicación dudosa (outliers): quedaron al final, hay que revisarlas.
+      if (json.data.sospechosos > 0) {
+        const n = json.data.sospechosos
+        toast.warning(
+          `${n} ${n === 1 ? 'parada con ubicación dudosa quedó' : 'paradas con ubicación dudosa quedaron'} al final, revisá su dirección`,
+        )
+      }
       onDismissSuggestion()
     } finally {
       setLoading(false)

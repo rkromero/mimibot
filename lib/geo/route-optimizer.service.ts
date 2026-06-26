@@ -50,6 +50,77 @@ export function distanciaRuta(origen: Coordenada, paradas: Parada[]): number {
   return total
 }
 
+// ─── Detección de paradas outlier ──────────────────────────────────────────────
+//
+// Una sola coordenada mal geocodificada (ej. un domicilio de CABA que cayó en
+// Córdoba) entra como parada real y, al estar a cientos de km del resto, arruina
+// el orden de TODA la ruta. La separamos antes de optimizar: el grueso de paradas
+// se optimiza normal y las sospechosas se mandan al final para revisión manual.
+
+export type DeteccionOutliers = { normales: Parada[]; sospechosas: Parada[] }
+
+// > este umbral absoluto desde el centro ⇒ sospechosa, sin importar la dispersión.
+const OUTLIER_ABS_KM = 150
+// o si está más de k veces la mediana de distancias (dispersión relativa).
+const OUTLIER_MEDIAN_FACTOR = 5
+// piso absoluto: en un radio chico no marcamos la dispersión urbana normal.
+const OUTLIER_MIN_KM = 25
+// con menos de esto no hay una mayoría estadística confiable para decidir.
+const MIN_PARADAS_DETECCION = 4
+
+function mediana(valores: number[]): number {
+  if (valores.length === 0) return 0
+  const ord = [...valores].sort((a, b) => a - b)
+  const mid = Math.floor(ord.length / 2)
+  return ord.length % 2 === 1 ? ord[mid]! : (ord[mid - 1]! + ord[mid]!) / 2
+}
+
+/**
+ * Centro robusto del conjunto de paradas: mediana por coordenada. A diferencia
+ * del promedio, un punto lejano no lo arrastra, así el centro queda donde está
+ * el grueso de las paradas.
+ */
+function centroRobusto(paradas: Parada[]): Coordenada {
+  return {
+    lat: mediana(paradas.map((p) => p.lat)),
+    lng: mediana(paradas.map((p) => p.lng)),
+  }
+}
+
+/**
+ * Separa las paradas en `normales` y `sospechosas` (outliers de ubicación).
+ * Pura y determinista. Criterio: distancia haversine de cada parada al centro
+ * robusto del conjunto; es sospechosa si supera el umbral absoluto (150 km) o
+ * k veces la mediana de distancias (con un piso de 25 km). Si los "outliers" no
+ * son una minoría clara, no se confía en la detección y se devuelven todas como
+ * normales (evita romper rutas legítimamente dispersas).
+ */
+export function detectarOutliers(origen: Coordenada, paradas: Parada[]): DeteccionOutliers {
+  void origen // el centro se calcula sobre las paradas; el origen se mantiene por simetría de API
+  if (paradas.length < MIN_PARADAS_DETECCION) {
+    return { normales: [...paradas], sospechosas: [] }
+  }
+
+  const centro = centroRobusto(paradas)
+  const distancias = paradas.map((p) => haversineKm(centro, p))
+  const med = mediana(distancias)
+  const umbralRelativo = Math.max(OUTLIER_MIN_KM, OUTLIER_MEDIAN_FACTOR * med)
+
+  const normales: Parada[] = []
+  const sospechosas: Parada[] = []
+  paradas.forEach((p, i) => {
+    const d = distancias[i]!
+    if (d > OUTLIER_ABS_KM || d > umbralRelativo) sospechosas.push(p)
+    else normales.push(p)
+  })
+
+  // Los outliers deben ser minoría: si no, la "anomalía" es en realidad el patrón.
+  if (sospechosas.length * 2 >= paradas.length) {
+    return { normales: [...paradas], sospechosas: [] }
+  }
+  return { normales, sospechosas }
+}
+
 // ─── Heurística: vecino más cercano + 2-opt ────────────────────────────────────
 
 function vecinoMasCercano(origen: Coordenada, paradas: Parada[]): Parada[] {
@@ -154,32 +225,46 @@ export function parseOrsOptimization(
 
 // ─── Entrada pública ───────────────────────────────────────────────────────────
 
+/** Motor que finalmente resolvió el orden: ORS (calles reales) o la heurística local. */
+export type Motor = 'ors' | 'heuristica'
+export type ResultadoOptimizacion = { orden: string[]; motor: Motor }
+
 /**
  * Calcula el orden óptimo de entrega de las paradas partiendo del origen.
  * Intenta ORS y, ante cualquier falla (sin key, error HTTP, timeout, respuesta
  * inválida, demasiadas paradas), cae a la heurística local. Nunca lanza por
  * fallas de ORS: loguea y usa el fallback.
+ *
+ * Devuelve también `motor` ('ors' | 'heuristica') para dar visibilidad de qué
+ * estrategia se usó (clave: detectar en producción que ORS no está activo y se
+ * está cayendo a la heurística de línea recta).
  */
-export async function optimizarRuta(origen: Coordenada, paradas: Parada[]): Promise<string[]> {
-  if (paradas.length === 0) return []
+export async function optimizarRuta(
+  origen: Coordenada,
+  paradas: Parada[],
+): Promise<ResultadoOptimizacion> {
+  if (paradas.length === 0) return { orden: [], motor: 'heuristica' }
   if (paradas.length === 1) {
     const unica = paradas[0]
-    return unica ? [unica.pedidoId] : []
+    return { orden: unica ? [unica.pedidoId] : [], motor: 'heuristica' }
   }
 
   if (paradas.length > MAX_PARADAS_ORS) {
     console.warn(
       `[route-optimizer] ${paradas.length} paradas (> ${MAX_PARADAS_ORS}), usando heurística local`,
     )
-    return optimizarRutaHeuristica(origen, paradas)
+    return { orden: optimizarRutaHeuristica(origen, paradas), motor: 'heuristica' }
   }
 
   let key: string
   try {
     key = getOrsKey()
   } catch {
-    console.warn('[route-optimizer] ORS_API_KEY no configurada, usando heurística local')
-    return optimizarRutaHeuristica(origen, paradas)
+    console.warn(
+      '[route-optimizer] ORS_API_KEY no configurada: ruta por línea recta (heurística). ' +
+        'Seteá ORS_API_KEY en producción para optimizar por calles reales.',
+    )
+    return { orden: optimizarRutaHeuristica(origen, paradas), motor: 'heuristica' }
   }
 
   try {
@@ -207,18 +292,18 @@ export async function optimizarRuta(origen: Coordenada, paradas: Parada[]): Prom
 
     if (!res.ok) {
       console.error(`[route-optimizer] ORS optimization error ${res.status}, usando heurística`)
-      return optimizarRutaHeuristica(origen, paradas)
+      return { orden: optimizarRutaHeuristica(origen, paradas), motor: 'heuristica' }
     }
 
     const json = (await res.json()) as OrsOptimizationResponse
     const orden = parseOrsOptimization(json, paradas)
     if (!orden) {
       console.error('[route-optimizer] respuesta de ORS inválida, usando heurística')
-      return optimizarRutaHeuristica(origen, paradas)
+      return { orden: optimizarRutaHeuristica(origen, paradas), motor: 'heuristica' }
     }
-    return orden
+    return { orden, motor: 'ors' }
   } catch (err) {
     console.error('[route-optimizer] falló la llamada a ORS, usando heurística', err)
-    return optimizarRutaHeuristica(origen, paradas)
+    return { orden: optimizarRutaHeuristica(origen, paradas), motor: 'heuristica' }
   }
 }

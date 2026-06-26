@@ -37,9 +37,12 @@ vi.mock('@/db', () => ({
   },
 }))
 
-vi.mock('@/lib/geo/route-optimizer.service', () => ({
-  optimizarRuta: mockOptimizarRuta,
-}))
+// Sobrescribimos solo optimizarRuta; detectarOutliers (puro) se usa real para
+// ejercitar la separación de outliers en la route.
+vi.mock('@/lib/geo/route-optimizer.service', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/geo/route-optimizer.service')>()
+  return { ...actual, optimizarRuta: mockOptimizarRuta }
+})
 
 vi.mock('@/lib/errors', () => {
   class AuthzError extends Error {
@@ -133,15 +136,17 @@ describe('POST /api/repartidor/optimizar-ruta', () => {
       { id: 'no1', cliente: { lat: null, lng: null } },
     ])
     // El optimizador reordena los geolocalizados (with2 antes que with1).
-    mockOptimizarRuta.mockResolvedValue(['with2', 'with1'])
+    mockOptimizarRuta.mockResolvedValue({ orden: ['with2', 'with1'], motor: 'heuristica' })
     const { updates } = makeTxMock()
 
     const { POST } = await import('@/app/api/repartidor/optimizar-ruta/route')
     const res = await POST(makeReq({ lat: 0, lng: 0 }))
-    const body = await res.json() as { data: { ordenados: number; sinUbicacion: number } }
+    const body = await res.json() as {
+      data: { ordenados: number; sinUbicacion: number; sospechosos: number; motor: string }
+    }
 
     expect(res.status).toBe(200)
-    expect(body.data).toEqual({ ordenados: 2, sinUbicacion: 1 })
+    expect(body.data).toEqual({ ordenados: 2, sinUbicacion: 1, sospechosos: 0, motor: 'heuristica' })
 
     // Persistencia 1-based; el sin-coordenadas continúa la numeración al final.
     expect(updates).toEqual([
@@ -163,7 +168,7 @@ describe('POST /api/repartidor/optimizar-ruta', () => {
   it('(e) un repartidor solo optimiza sus propios pedidos (filtro por repartidorId)', async () => {
     mockAuthFn.mockResolvedValue(makeSession('repartidor', 'repartidor-1'))
     mockPedidosFindMany.mockResolvedValue([])
-    mockOptimizarRuta.mockResolvedValue([])
+    mockOptimizarRuta.mockResolvedValue({ orden: [], motor: 'heuristica' })
     makeTxMock()
 
     const { POST } = await import('@/app/api/repartidor/optimizar-ruta/route')
@@ -179,7 +184,7 @@ describe('POST /api/repartidor/optimizar-ruta', () => {
   it('(e) admin no filtra por repartidorId', async () => {
     mockAuthFn.mockResolvedValue(makeSession('admin', 'admin-1'))
     mockPedidosFindMany.mockResolvedValue([])
-    mockOptimizarRuta.mockResolvedValue([])
+    mockOptimizarRuta.mockResolvedValue({ orden: [], motor: 'heuristica' })
     makeTxMock()
 
     const { POST } = await import('@/app/api/repartidor/optimizar-ruta/route')

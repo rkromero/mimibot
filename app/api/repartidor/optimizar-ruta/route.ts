@@ -5,7 +5,7 @@ import { pedidos } from '@/db/schema'
 import { eq, and, isNull, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { toApiError, AuthzError } from '@/lib/errors'
-import { optimizarRuta, type Parada } from '@/lib/geo/route-optimizer.service'
+import { optimizarRuta, detectarOutliers, type Parada } from '@/lib/geo/route-optimizer.service'
 import { esRolReparto } from '@/lib/authz/roles'
 
 const bodySchema = z.object({
@@ -70,9 +70,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const ordenOptimo = await optimizarRuta(origen, conCoords)
-    // Los pedidos sin ubicación continúan la numeración después de los optimizados.
-    const ordenFinal = [...ordenOptimo, ...sinCoords]
+    // Separar outliers de ubicación (ej. un CABA mal geocodificado en Córdoba): se
+    // optimizan SOLO las paradas normales; las sospechosas no distorsionan el orden.
+    const { normales, sospechosas } = detectarOutliers(origen, conCoords)
+    const sospechososIds = sospechosas.map((p) => p.pedidoId)
+
+    const { orden: ordenOptimo, motor } = await optimizarRuta(origen, normales)
+    // Al final: primero las paradas con ubicación dudosa, luego las sin ubicación.
+    // Ambas conservan su orden actual para revisión manual.
+    const ordenFinal = [...ordenOptimo, ...sospechososIds, ...sinCoords]
 
     // Persistir orden_ruta 1..N en una transacción.
     await db.transaction(async (tx) => {
@@ -87,7 +93,12 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({
-      data: { ordenados: ordenOptimo.length, sinUbicacion: sinCoords.length },
+      data: {
+        ordenados: ordenOptimo.length,
+        sinUbicacion: sinCoords.length,
+        sospechosos: sospechososIds.length,
+        motor,
+      },
     })
   } catch (err) {
     const { message, status } = toApiError(err)
