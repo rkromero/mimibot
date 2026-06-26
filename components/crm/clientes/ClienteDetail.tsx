@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -107,6 +107,8 @@ export default function ClienteDetail({ id }: Props) {
   const [isPurging, setIsPurging] = useState(false)
   const [purgeError, setPurgeError] = useState<string | null>(null)
   const [isOpeningInbox, setIsOpeningInbox] = useState(false)
+  const [showGeoMenu, setShowGeoMenu] = useState(false)
+  const [isGeoLoading, setIsGeoLoading] = useState(false)
 
   const { data: cliente, isLoading, isError } = useQuery<Cliente>({
     queryKey: ['cliente', id],
@@ -280,6 +282,37 @@ export default function ClienteDetail({ id }: Props) {
     }
   }
 
+  async function handleCorregirUbicacion(modo: 'geocode' | 'limpiar') {
+    setIsGeoLoading(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}/regeocodificar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error: string }
+        toast.error(data.error ?? 'No se pudo actualizar la ubicación')
+        return
+      }
+      const { data } = await res.json() as { data: { lat: number | null; lng: number | null; geocodeStatus: string | null } }
+      if (modo === 'limpiar') {
+        toast.success('Ubicación borrada: el repartidor navegará por la dirección')
+      } else if (data.lat != null && data.lng != null) {
+        toast.success('Ubicación actualizada')
+      } else {
+        toast.error('No se pudo geocodificar, quedó por dirección')
+      }
+      void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
+      void queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      setShowGeoMenu(false)
+    } catch {
+      toast.error('Error de conexión')
+    } finally {
+      setIsGeoLoading(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="p-4 md:p-6">
@@ -391,6 +424,48 @@ export default function ClienteDetail({ id }: Props) {
                   <MapPin size={12} />
                   <span className="hidden sm:inline">Llegar</span>
                 </a>
+              )}
+              {isAdmin && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowGeoMenu((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    title="Corregir ubicación del cliente"
+                  >
+                    <LocateFixed size={12} />
+                    <span className="hidden sm:inline">Corregir ubicación</span>
+                  </button>
+                  {showGeoMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => !isGeoLoading && setShowGeoMenu(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-1 z-20 w-60 bg-card border border-border rounded-md shadow-lg p-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleCorregirUbicacion('geocode')}
+                          disabled={isGeoLoading}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
+                        >
+                          Re-geocodificar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleCorregirUbicacion('limpiar')}
+                          disabled={isGeoLoading}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
+                        >
+                          Usar la dirección (quitar GPS)
+                        </button>
+                        {isGeoLoading && (
+                          <p className="px-3 py-1.5 text-xs text-muted-foreground">Procesando…</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}
