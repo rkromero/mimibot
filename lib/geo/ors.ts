@@ -266,11 +266,27 @@ export async function geocodeStructured({
     console.warn(`[geocode] structured sin resultado preciso para "${address}", probando free-text`)
   }
 
-  // Fallback a texto libre con la dirección completa. Mantiene boundary.country=AR
-  // y aplica la MISMA validación de región: no se aceptan resultados fuera de la
-  // provincia pedida (si no hay match válido, queda null → cliente failed).
-  const fullText = [address, locality, expectedRegion].filter(Boolean).join(', ')
-  return geocodeAddress(fullText, expectedRegion)
+  // Fallback 1: texto libre con la dirección completa (incluye la localidad/barrio).
+  // Mantiene boundary.country=AR y la MISMA validación de región: no se aceptan
+  // resultados fuera de la provincia pedida.
+  const conLocalidad = [address, locality, expectedRegion].filter(Boolean).join(', ')
+  const coordsConLocalidad = await geocodeAddress(conLocalidad, expectedRegion)
+  if (coordsConLocalidad) return coordsConLocalidad
+
+  // Fallback 2: cuando la localidad es un BARRIO de CABA (p.ej. "Saavedra", "Palermo",
+  // "Recoleta"), Pelias suele quedarse con el centroide del barrio (layer=neighbourhood)
+  // e ignorar la calle, y ese resultado grueso se descarta. Reintentamos SIN la
+  // localidad —sólo calle + provincia—, que recupera la calle real. La validación de
+  // región sigue activa (region_a "CF"/"C" = CABA), así que una calle homónima en otra
+  // provincia se sigue descartando. Sólo si hay región esperada, para no abrir la puerta
+  // a homónimos cuando no tenemos contra qué validar.
+  if (locality && expectedRegion) {
+    const sinLocalidad = [address, expectedRegion].join(', ')
+    if (sinLocalidad !== conLocalidad) {
+      return geocodeAddress(sinLocalidad, expectedRegion)
+    }
+  }
+  return null
 }
 
 /**

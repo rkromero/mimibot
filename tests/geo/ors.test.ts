@@ -38,6 +38,17 @@ function stubFetchFeatures(...features: unknown[]) {
   return fetchMock
 }
 
+// Mock de fetch que decide las features según la URL pedida (para distinguir
+// la búsqueda CON barrio de la búsqueda SIN barrio).
+function stubFetchByQuery(handler: (url: URL) => unknown[]) {
+  const fetchMock = vi.fn(async (urlStr: string) => ({
+    ok: true,
+    json: async () => ({ features: handler(new URL(urlStr)) }),
+  }))
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 // Coordenadas de referencia (no importan los valores exactos, sólo de qué feature salen).
 const CABA = { lng: -58.4, lat: -34.6 }
 const CORDOBA = { lng: -64.18, lat: -31.42 }
@@ -240,6 +251,32 @@ describe('geocodeStructured (validación por región)', () => {
     const result = await geocodeStructured({ address: 'Calle Inexistente 9999', locality: 'CABA', region: '' })
 
     expect(result).toBeNull()
+  })
+
+  it('reintenta SIN el barrio cuando la localidad secuestra el geocode al centroide del barrio', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    // Con el barrio en el texto ("Saavedra"), Pelias devuelve el centroide del barrio
+    // (layer=neighbourhood, fallback) → se descarta. Sin el barrio, devuelve la calle
+    // real (layer=street, fallback, CABA) → se acepta.
+    stubFetchByQuery((url) => {
+      const text = url.searchParams.get('text') ?? ''
+      if (url.pathname.includes('/structured')) {
+        // structured: sólo un fallback grueso a nivel país → se descarta
+        return [feature(-64, -34, 'Argentina', { layer: 'country', match_type: 'fallback', confidence: 0.1 })]
+      }
+      if (/saavedra/i.test(text)) {
+        return [feature(CABA.lng, CABA.lat, 'Autonomous City of Buenos Aires', {
+          region_a: 'CF', layer: 'neighbourhood', match_type: 'fallback', confidence: 0.6,
+        })]
+      }
+      return [feature(CABA.lng, CABA.lat, 'Autonomous City of Buenos Aires', {
+        region_a: 'CF', layer: 'street', match_type: 'fallback', confidence: 0.8,
+      })]
+    })
+
+    const result = await geocodeStructured({ address: 'Núñez 6349', locality: 'Saavedra', region: 'CABA' })
+
+    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('(d) provincia bien cargada (Córdoba) sigue geocodificando', async () => {
