@@ -141,6 +141,107 @@ describe('geocodeStructured (validación por región)', () => {
     expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
   })
 
+  // ── Variantes REALES que ORS/Pelias devuelve para CABA ───────────────────────
+  // (verificadas contra la API en prod: region en inglés y region_a "CF").
+
+  it('acepta el match exacto real de ORS para CABA (region inglés + region_a "CF")', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    stubFetchFeatures(
+      feature(CABA.lng, CABA.lat, 'Autonomous City of Buenos Aires', {
+        region_a: 'CF',
+        layer: 'address',
+        match_type: 'exact',
+        confidence: 1,
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Av. Córdoba 2621', locality: 'CABA', region: '' })
+
+    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+  })
+
+  it('acepta un fallback a nivel calle dentro de CABA (ORS no tiene la altura exacta)', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    stubFetchFeatures(
+      feature(CABA.lng, CABA.lat, 'Autonomous City of Buenos Aires', {
+        region_a: 'CF',
+        layer: 'street',
+        match_type: 'fallback',
+        confidence: 0.8,
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Sánchez de Bustamante 1646', locality: 'CABA', region: '' })
+
+    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+  })
+
+  it('matchea por region_a "C" (código ISO AR-C) aunque region diga "Buenos Aires"', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    stubFetchFeatures(
+      feature(CABA.lng, CABA.lat, 'Buenos Aires', {
+        region_a: 'C',
+        layer: 'address',
+        match_type: 'exact',
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Florida 100', locality: 'CABA', region: '' })
+
+    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+  })
+
+  it('rechaza un homónimo en la PROVINCIA de Buenos Aires (region_a "BA") para un cliente CABA', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    // Misma calle pero en la provincia de Buenos Aires (BA), no en CABA → debe descartarse.
+    stubFetchFeatures(
+      feature(CORDOBA.lng, CORDOBA.lat, 'Buenos Aires', {
+        region_a: 'BA',
+        layer: 'street',
+        match_type: 'fallback',
+        confidence: 0.8,
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Sánchez de Bustamante 1646', locality: 'CABA', region: '' })
+
+    expect(result).toBeNull()
+  })
+
+  it('descarta un fallback cuando no hay región esperada (evita homónimos)', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    // Sin provincia/localidad reconocible no hay contra qué validar: un fallback a nivel
+    // calle podría ser un homónimo en cualquier provincia, así que no se acepta.
+    stubFetchFeatures(
+      feature(CORDOBA.lng, CORDOBA.lat, 'Córdoba', {
+        region_a: 'X',
+        layer: 'street',
+        match_type: 'fallback',
+        confidence: 0.8,
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Mitre 50', locality: 'Rosario', region: '' })
+
+    expect(result).toBeNull()
+  })
+
+  it('descarta un fallback a nivel localidad aunque caiga en CABA (no es lo bastante preciso)', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    stubFetchFeatures(
+      feature(CABA.lng, CABA.lat, 'Autonomous City of Buenos Aires', {
+        region_a: 'CF',
+        layer: 'locality',
+        match_type: 'fallback',
+        confidence: 0.6,
+      }),
+    )
+
+    const result = await geocodeStructured({ address: 'Calle Inexistente 9999', locality: 'CABA', region: '' })
+
+    expect(result).toBeNull()
+  })
+
   it('(d) provincia bien cargada (Córdoba) sigue geocodificando', async () => {
     process.env['ORS_API_KEY'] = 'test-key'
     stubFetchFeatures(

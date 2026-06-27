@@ -92,6 +92,27 @@ const COARSE_LAYERS = new Set([
 // Confianza mínima para aceptar un resultado (Pelias devuelve 0..1).
 const MIN_CONFIDENCE = 0.3
 
+// Capas con geometría a nivel calle/dirección: precisas para una parada de
+// reparto incluso cuando ORS marca el match como 'fallback' (encontró la calle
+// pero no la altura exacta). Un fallback a nivel localidad/país NO entra acá.
+const PRECISE_LAYERS = new Set(['address', 'street', 'venue'])
+
+// Strings que ORS/Pelias devuelve en properties.region / region_a para CABA.
+// Pelias NO usa el nombre canónico de Who's on First: devuelve el nombre en
+// inglés ("Autonomous City of Buenos Aires"), la sigla histórica WOF "CF"
+// (Capital Federal), el código ISO 3166-2 "C" (AR-C) y, en algunas versiones,
+// "Buenos Aires F.D.". canonRegion() ya les quita acentos, puntos y mayúsculas,
+// así que las guardamos acá en su forma canónica para comparar.
+const CABA_REGION_VALUES = new Set([
+  'ciudad autonoma de buenos aires',
+  'autonomous city of buenos aires',
+  'capital federal',
+  'buenos aires fd',
+  'caba',
+  'cf',
+  'c',
+])
+
 type OrsFeatureProperties = {
   layer?: string
   confidence?: number
@@ -121,12 +142,17 @@ function canonRegion(value: string): string {
 function regionMatches(expectedRegion: string, props: OrsFeatureProperties | undefined): boolean {
   const expected = canonRegion(expectedRegion)
   if (!expected) return true
+  const expectedIsCaba = CABA_REGION_VALUES.has(expected)
   for (const raw of [props?.region, props?.region_a]) {
     if (!raw) continue
     const candidate = canonRegion(raw)
     if (!candidate) continue
     if (candidate === expected) return true
-    // p.ej. region_a "CABA" → "Ciudad Autónoma de Buenos Aires"
+    // CABA aparece con etiquetas muy distintas según el campo y la versión de WOF
+    // (inglés "Autonomous City of Buenos Aires", siglas "CF"/"C", "Buenos Aires F.D.").
+    // Si la provincia esperada es CABA y la feature trae cualquiera de ellas, matchea.
+    if (expectedIsCaba && CABA_REGION_VALUES.has(candidate)) return true
+    // alias genérico de entrada (p.ej. region_a "CABA" → nombre canónico)
     const aliased = REGION_ALIASES[candidate]
     if (aliased && canonRegion(aliased) === expected) return true
   }
@@ -160,10 +186,19 @@ function pickPreciseCoords(
     const confidence = f.properties?.confidence
     const matchType = f.properties?.match_type
     if (layer && COARSE_LAYERS.has(layer)) continue
-    if (matchType === 'fallback') continue
     if (typeof confidence === 'number' && confidence < MIN_CONFIDENCE) continue
     // Validación por región: si pedimos una provincia, la feature debe estar en ella.
     if (expectedRegion && !regionMatches(expectedRegion, f.properties)) continue
+    // Un match 'fallback' significa que ORS no ubicó la altura exacta y devolvió la
+    // calle/zona. Es aceptable SOLO si (a) teníamos una región esperada —ya validada
+    // arriba— y (b) la capa es a nivel calle/dirección: así un domicilio de CABA cuya
+    // altura ORS no tiene cae igual en la calle correcta dentro de CABA. Un fallback
+    // sin región, o a nivel localidad/país (típico centroide de homónimo en otra
+    // provincia), se descarta.
+    if (matchType === 'fallback') {
+      if (!expectedRegion) continue
+      if (!layer || !PRECISE_LAYERS.has(layer)) continue
+    }
     const coords = f.geometry?.coordinates
     if (!coords) continue
     // ORS returns [lng, lat]
