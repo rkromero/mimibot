@@ -330,6 +330,13 @@
       "when": 1781821169226,
       "tag": "0046_cynical_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0047_add_costo_envio",
+      "breakpoints": true
     }
   ]
 }

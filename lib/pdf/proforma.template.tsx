@@ -87,6 +87,11 @@ export function ProformaDocument({ data, numero }: Props) {
   const address = [data.clienteDireccion, data.clienteLocalidad, data.clienteProvincia]
     .filter(Boolean).join(', ') || 'No especificada'
 
+  // El costo de envío ya viene incluido en data.total; lo separamos para mostrarlo
+  // como un concepto aparte y dejar el subtotal solo con los productos.
+  const envio = parseFloat(data.costoEnvio ?? '0') || 0
+  const subtotalProductos = (parseFloat(data.total) - envio).toFixed(2)
+
   return (
     <Document>
       <Page size="A4" style={S.page}>
@@ -177,8 +182,14 @@ export function ProformaDocument({ data, numero }: Props) {
         <View style={P.totalsSection}>
           <View style={P.totalRow}>
             <Text style={P.totalLabel}>Subtotal:</Text>
-            <Text style={P.totalValue}>{formatCurrency(data.total)}</Text>
+            <Text style={P.totalValue}>{formatCurrency(subtotalProductos)}</Text>
           </View>
+          {envio > 0 && (
+            <View style={P.totalRow}>
+              <Text style={P.totalLabel}>Envío:</Text>
+              <Text style={P.totalValue}>{formatCurrency(envio.toFixed(2))}</Text>
+            </View>
+          )}
           <View style={P.totalRow}>
             <Text style={P.totalLabel}>IVA 21%:</Text>
             <Text style={P.totalValue}>$ 0,00</Text>

@@ -22,6 +22,8 @@ export type PedidoData = {
     subtotal: string
   }>
   total: string
+  /** Costo de envío (concepto "Envío"); ya está incluido en `total` */
+  costoEnvio?: string
   vendedorNombre: string
   empresa: {
     nombre: string

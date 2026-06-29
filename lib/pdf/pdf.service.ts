@@ -111,6 +111,7 @@ export async function emitirDocumento(
       subtotal: item.subtotal,
     })),
     total: pedido.total,
+    costoEnvio: pedido.costoEnvio ?? '0',
     vendedorNombre: pedido.vendedor?.name ?? 'Vendedor',
     empresa,
     // Método de entrega (solo pedidos del rol Agente)

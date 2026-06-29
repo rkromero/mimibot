@@ -20,6 +20,8 @@ export const createPedidoSchema = z.object({
   // Gerente cargando en nombre de un agente
   vendedorId: z.string().uuid().optional().nullable(),
   descuento: z.number().min(0).max(100).optional().default(0),
+  // Costo de envío (concepto "Envío") que el agente ingresa al cargar el pedido
+  costoEnvio: z.number().min(0).optional().default(0),
   // Método de entrega — solo aplica al rol Agente; ignorado para Vendedor
   metodoEntrega: z.enum(['retiro_fabrica', 'expreso']).optional().nullable(),
   expresoNombre: z.string().max(200).optional().nullable(),

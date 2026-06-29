@@ -62,6 +62,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const [descuento, setDescuento] = useState(0)
   const [condicionPago, setCondicionPago] = useState<'contado' | '7dias' | '14dias' | '30dias'>('contado')
   const [fechaEntrega, setFechaEntrega] = useState(addDaysStrAR(2))
+  const [costoEnvio, setCostoEnvio] = useState('')
   const [observaciones, setObservaciones] = useState('')
 
   // Delivery method — only for agent role
@@ -136,7 +137,8 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   // Computed values
   const subtotal = items.reduce((sum, i) => sum + i.cantidad * (parseFloat(i.precioUnitario) || 0), 0)
   const descuentoMonto = subtotal * (descuento / 100)
-  const total = subtotal - descuentoMonto
+  const envioMonto = Math.max(0, parseFloat(costoEnvio) || 0)
+  const total = subtotal - descuentoMonto + envioMonto
   const clienteNombre = clienteData ? `${clienteData.nombre} ${clienteData.apellido}` : ''
 
   function changeQty(idx: number, delta: number) {
@@ -186,6 +188,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           descuento,
           condicionPago,
           fechaEntrega,
+          costoEnvio: envioMonto,
           items: items.map(i => {
             const precio = parseFloat(i.precioUnitario)
             return {
@@ -263,6 +266,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                   setDescuento(0)
                   setObservaciones('')
                   setCondicionPago('contado')
+                  setCostoEnvio('')
                   setMetodoEntrega(null)
                   setUsarExpresoGuardado(null)
                   setNuevoExpresoNombre('')
@@ -752,6 +756,28 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                       onChange={e => setFechaEntrega(e.target.value)}
                       className="px-3 py-2.5 rounded-xl border border-border bg-card text-sm min-h-[44px]"
                     />
+                  </div>
+                </div>
+
+                {/* Envío — concepto que se suma al total y aparece en la proforma */}
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-28 shrink-0">Envío</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      value={costoEnvio}
+                      onChange={e => setCostoEnvio(e.target.value)}
+                      placeholder="0"
+                      aria-label="Costo de envío"
+                      className="w-28 text-[16px] border border-border rounded-lg px-2 py-2.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    {envioMonto > 0 && (
+                      <span className="text-sm text-muted-foreground">+{formatMoney(envioMonto)}</span>
+                    )}
                   </div>
                 </div>
 

@@ -49,6 +49,8 @@ export async function crearPedidoConItems(
     esReparto?: boolean
     /** Porcentaje de descuento 0-100 */
     descuento?: number
+    /** Costo de envío (concepto "Envío"); se suma al total del pedido */
+    costoEnvio?: number
   },
 ): Promise<typeof pedidos.$inferSelect & { items: (typeof pedidoItems.$inferSelect)[] }> {
   const registradoPor = extra?.registradoPor ?? extra?.creadoPor ?? vendedorId
@@ -91,7 +93,8 @@ export async function crearPedidoConItems(
     })
     const subtotalCalculado = itemsBase.reduce((sum, item) => sum + parseFloat(item.subtotal), 0)
     const descuentoPct = extra?.descuento ?? 0
-    const totalCalculado = (subtotalCalculado - subtotalCalculado * (descuentoPct / 100)).toFixed(2)
+    const costoEnvio = Math.max(0, extra?.costoEnvio ?? 0)
+    const totalCalculado = (subtotalCalculado - subtotalCalculado * (descuentoPct / 100) + costoEnvio).toFixed(2)
 
     // 2. Insert pedido
     const [pedido] = await tx
@@ -105,6 +108,7 @@ export async function crearPedidoConItems(
         estado: esPendienteAprobacion ? 'pendiente_aprobacion' : 'confirmado',
         total: totalCalculado,
         descuento: descuentoPct.toFixed(2),
+        costoEnvio: costoEnvio.toFixed(2),
         montoPagado: '0',
         saldoPendiente: totalCalculado,
         estadoPago: 'impago',
@@ -214,9 +218,10 @@ export async function confirmarPedido(
       )
     }
 
-    const total = pedido.items.reduce(
-      (sum, item) => addDecimals(sum, item.subtotal),
-      '0.00',
+    // Total = suma de subtotales + costo de envío guardado en el pedido.
+    const total = addDecimals(
+      pedido.items.reduce((sum, item) => addDecimals(sum, item.subtotal), '0.00'),
+      pedido.costoEnvio ?? '0',
     )
 
     const [updated] = await tx
@@ -318,9 +323,10 @@ export async function aprobarPedido(
       )
     }
 
-    const total = pedido.items.reduce(
-      (sum, item) => addDecimals(sum, item.subtotal),
-      '0.00',
+    // Total = suma de subtotales + costo de envío guardado en el pedido.
+    const total = addDecimals(
+      pedido.items.reduce((sum, item) => addDecimals(sum, item.subtotal), '0.00'),
+      pedido.costoEnvio ?? '0',
     )
 
     const [updated] = await tx
@@ -528,7 +534,8 @@ export async function actualizarItemsPedido(
       return { pedidoId, productoId: item.productoId, cantidad: item.cantidad, precioUnitario, subtotal }
     })
     const subtotalNuevo = newItemsRows.reduce((s, i) => s + parseFloat(i.subtotal), 0)
-    const totalNuevo = (subtotalNuevo - subtotalNuevo * (descuentoPct / 100)).toFixed(2)
+    const costoEnvio = Math.max(0, parseFloat(pedido.costoEnvio ?? '0'))
+    const totalNuevo = (subtotalNuevo - subtotalNuevo * (descuentoPct / 100) + costoEnvio).toFixed(2)
 
     const conMovimientos = ESTADOS_CON_MOVIMIENTOS.has(pedido.estado)
 

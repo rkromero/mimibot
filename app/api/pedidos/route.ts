@@ -255,6 +255,7 @@ export async function POST(req: NextRequest) {
         expresoDireccion: expresoDireccionFinal,
         esReparto: ctx.role === 'vendedor',
         descuento: input.descuento ?? 0,
+        costoEnvio: input.costoEnvio ?? 0,
       },
     )
 

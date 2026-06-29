@@ -21,6 +21,11 @@ console.log('[migrate] Migraciones completadas.')
 await client`ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento numeric(5,2) DEFAULT '0' NOT NULL`
 console.log('[migrate] Fix: pedidos.descuento OK.')
 
+// Garantía extra: columna costo_envio (concepto "Envío" del pedido). Mismo
+// motivo que descuento: ADD COLUMN IF NOT EXISTS es idempotente.
+await client`ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_envio numeric(12,2) DEFAULT '0' NOT NULL`
+console.log('[migrate] Fix: pedidos.costo_envio OK.')
+
 // Garantía extra: el valor 'rtv' del enum user_role puede faltar si la migración
 // 0043 quedó con un timestamp `when` menor al último aplicado en _journal.json y
 // drizzle-kit la saltó (estado corrupto: la marca como aplicada pero el ALTER

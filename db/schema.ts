@@ -420,6 +420,9 @@ export const pedidos = pgTable('pedidos', {
   estado: estadoPedidoEnum('estado').notNull().default('pendiente'),
   total: decimal('total', { precision: 12, scale: 2 }).notNull().default('0'),
   descuento: decimal('descuento', { precision: 5, scale: 2 }).notNull().default('0'),
+  // Costo de envío ingresado por el agente al cargar el pedido. Se suma al total
+  // y se muestra como concepto "Envío" en la proforma.
+  costoEnvio: decimal('costo_envio', { precision: 12, scale: 2 }).notNull().default('0'),
   montoPagado: decimal('monto_pagado', { precision: 12, scale: 2 }).notNull().default('0'),
   saldoPendiente: decimal('saldo_pendiente', { precision: 12, scale: 2 }).notNull().default('0'),
   estadoPago: estadoPagoPedidoEnum('estado_pago').notNull().default('impago'),
