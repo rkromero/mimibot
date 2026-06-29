@@ -372,6 +372,11 @@ export default function PedidoDetail({ id }: Props) {
   // ── Acciones para la barra móvil: acción principal + menú "Acciones" ──
   type ActionItem = { key: string; label: string; icon: LucideIcon; onClick: () => void; disabled?: boolean; danger?: boolean }
   const docsAvailable = pedido.estado === 'confirmado' || pedido.estado === 'entregado'
+  // La proforma es un comprobante previo: el agente se la entrega al cliente para
+  // que abone, y el pago es requisito para aprobar el pedido. Por eso debe poder
+  // emitirse antes de la aprobación, en cualquier estado activo (no cancelado).
+  // Remito y etiqueta siguen restringidos a docsAvailable (mercadería lista).
+  const proformaAvailable = pedido.estado !== 'cancelado'
 
   // Acción "main" del estado actual (independiente del modo edición)
   let stateMain: ActionItem | null = null
@@ -408,7 +413,11 @@ export default function PedidoDetail({ id }: Props) {
   }
   if (docsAvailable) {
     secondaryActions.push({ key: 'remito', label: isGenerating(id, 'remito') ? 'Generando...' : 'Remito', icon: FileText, onClick: () => void generarDocumento(id, 'remito'), disabled: anyGenerating(id) })
+  }
+  if (proformaAvailable) {
     secondaryActions.push({ key: 'proforma', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma', icon: Download, onClick: () => void generarDocumento(id, 'proforma'), disabled: anyGenerating(id) })
+  }
+  if (docsAvailable) {
     secondaryActions.push({ key: 'etiqueta', label: isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta', icon: Tag, onClick: () => void generarDocumento(id, 'etiqueta'), disabled: anyGenerating(id) })
   }
 
@@ -592,37 +601,41 @@ export default function PedidoDetail({ id }: Props) {
             </button>
           )}
 
-          {/* Documentos: disponibles cuando confirmado o entregado */}
-          {(pedido.estado === 'confirmado' || pedido.estado === 'entregado') && (
-            <>
-              <button
-                onClick={() => void generarDocumento(id, 'remito')}
-                disabled={anyGenerating(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                title="Descargar remito PDF"
-              >
-                <FileText size={14} />
-                {isGenerating(id, 'remito') ? 'Generando...' : 'Remito'}
-              </button>
-              <button
-                onClick={() => void generarDocumento(id, 'proforma')}
-                disabled={anyGenerating(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                title="Descargar proforma PDF"
-              >
-                <Download size={14} />
-                {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
-              </button>
-              <button
-                onClick={() => void generarDocumento(id, 'etiqueta')}
-                disabled={anyGenerating(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                title="Descargar etiqueta de envío PDF"
-              >
-                <Tag size={14} />
-                {isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
-              </button>
-            </>
+          {/* Remito: solo con mercadería lista (confirmado/entregado) */}
+          {docsAvailable && (
+            <button
+              onClick={() => void generarDocumento(id, 'remito')}
+              disabled={anyGenerating(id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+              title="Descargar remito PDF"
+            >
+              <FileText size={14} />
+              {isGenerating(id, 'remito') ? 'Generando...' : 'Remito'}
+            </button>
+          )}
+          {/* Proforma: comprobante previo — disponible también antes de aprobar */}
+          {proformaAvailable && (
+            <button
+              onClick={() => void generarDocumento(id, 'proforma')}
+              disabled={anyGenerating(id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+              title="Descargar proforma PDF"
+            >
+              <Download size={14} />
+              {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
+            </button>
+          )}
+          {/* Etiqueta: solo con mercadería lista (confirmado/entregado) */}
+          {docsAvailable && (
+            <button
+              onClick={() => void generarDocumento(id, 'etiqueta')}
+              disabled={anyGenerating(id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+              title="Descargar etiqueta de envío PDF"
+            >
+              <Tag size={14} />
+              {isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta'}
+            </button>
           )}
         </div>
       </div>
