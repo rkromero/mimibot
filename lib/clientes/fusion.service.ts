@@ -1,5 +1,5 @@
 import { eq, and, isNull, sql } from 'drizzle-orm'
-import { db } from '@/db'
+import { db, type Db } from '@/db'
 import {
   clientes,
   pedidos,
@@ -10,6 +10,7 @@ import {
   messages,
 } from '@/db/schema'
 import { ValidationError, NotFoundError } from '@/lib/errors'
+import { reconciliarCuentaCliente } from '@/lib/cuenta-corriente/pago.service'
 
 export type FusionResumen = {
   pedidos: number
@@ -19,6 +20,7 @@ export type FusionResumen = {
   mensajesMovidos: number
   conversacionMovida: boolean
   leadCopiado: boolean
+  aplicacionesCreadas: number
 }
 
 export type FusionPreview = {
@@ -66,8 +68,9 @@ export async function resumenFusion(sourceId: string): Promise<FusionPreview> {
 
 // Fusiona el cliente source dentro del target (la base que se conserva):
 // repunta pedidos, cuenta corriente, actividades e historial de territorio,
-// resuelve la conversación (índice único parcial por clienteId) y deja el
-// source soft-deleted. Todo en una única transacción.
+// resuelve la conversación (índice único parcial por clienteId), reconcilia la
+// cuenta corriente unificada (imputación FIFO de créditos disponibles a pedidos
+// pendientes) y deja el source soft-deleted. Todo en una única transacción.
 export async function fusionarClientes(targetId: string, sourceId: string): Promise<FusionResumen> {
   if (targetId === sourceId) {
     throw new ValidationError('El cliente base y el cliente a fusionar deben ser distintos')
@@ -88,8 +91,9 @@ export async function fusionarClientes(targetId: string, sourceId: string): Prom
   return db.transaction(async (tx) => {
     // 1. Repuntar referencias de source → target. Sin filtrar deletedAt: también
     //    las filas soft-deleted pasan a la base para que nada quede colgando del
-    //    cliente dado de baja. Los saldos por pedido no cambian y la cuenta
-    //    corriente del target se recompone sola al sumar los movimientos.
+    //    cliente dado de baja. El repunte solo mueve filas: un crédito con saldo
+    //    disponible de un cliente NO se imputa solo al pedido pendiente del otro;
+    //    eso lo resuelve la reconciliación FIFO del paso 5.
     const pedidosMovidos = await tx
       .update(pedidos)
       .set({ clienteId: targetId, updatedAt: new Date() })
@@ -187,6 +191,12 @@ export async function fusionarClientes(targetId: string, sourceId: string): Prom
       })
       .where(eq(clientes.id, sourceId))
 
+    // 5. Reconciliar la cuenta corriente unificada: tras el repunte, un crédito
+    //    con saldo disponible que era de un cliente puede cubrir un pedido
+    //    pendiente del otro. Imputa FIFO y recalcula estadoPago dentro de la
+    //    misma transacción — si falla, la fusión entera se revierte.
+    const aplicacionesCreadas = await reconciliarCuentaCliente(tx as unknown as Db, targetId)
+
     return {
       pedidos: pedidosMovidos.length,
       movimientosCC: movimientosMovidos.length,
@@ -195,6 +205,7 @@ export async function fusionarClientes(targetId: string, sourceId: string): Prom
       mensajesMovidos,
       conversacionMovida,
       leadCopiado,
+      aplicacionesCreadas: aplicacionesCreadas.length,
     }
   })
 }

@@ -30,7 +30,12 @@ const { mockDb, mockTx, updateCalls, mockAuthFn } = vi.hoisted(() => {
   const updateCalls: { table: unknown; values: Record<string, unknown> }[] = []
   const mockTx = {
     update: vi.fn(),
-    query: { conversations: { findFirst: vi.fn() } },
+    query: {
+      conversations: { findFirst: vi.fn() },
+      // reconciliarCuentaCliente (paso 5 de la fusión) consulta los créditos;
+      // sin créditos disponibles corta ahí y no toca pedidos ni aplicaciones.
+      movimientosCC: { findMany: vi.fn() },
+    },
   }
   const mockDb = {
     query: { clientes: { findFirst: vi.fn() }, conversations: { findFirst: vi.fn() } },
@@ -82,6 +87,7 @@ describe('fusionarClientes', () => {
     vi.clearAllMocks()
     setupTxUpdate(new Map())
     mockTx.query.conversations.findFirst.mockResolvedValue(undefined)
+    mockTx.query.movimientosCC.findMany.mockResolvedValue([])
   })
 
   it('1. target === source → ValidationError sin abrir transacción', async () => {
@@ -118,6 +124,7 @@ describe('fusionarClientes', () => {
       mensajesMovidos: 0,
       conversacionMovida: false,
       leadCopiado: false,
+      aplicacionesCreadas: 0,
     })
 
     // Repunte: todas las tablas apuntan al target
@@ -195,6 +202,7 @@ describe('POST /api/admin/clientes/fusionar — authz', () => {
     vi.clearAllMocks()
     setupTxUpdate(new Map())
     mockTx.query.conversations.findFirst.mockResolvedValue(undefined)
+    mockTx.query.movimientosCC.findMany.mockResolvedValue([])
   })
 
   function makeRequest(body: unknown) {
