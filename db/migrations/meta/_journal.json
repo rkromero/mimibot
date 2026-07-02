@@ -351,6 +351,13 @@
       "when": 1782100000000,
       "tag": "0049_add_barrio_to_clientes",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0050_control_gastos",
+      "breakpoints": true
     }
   ]
 }

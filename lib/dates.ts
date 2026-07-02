@@ -105,3 +105,22 @@ export function parseFechaAR(fechaStr: string): Date {
   // Argentina = UTC-3 → midnight AR = 03:00 UTC
   return new Date(Date.UTC(y!, m! - 1, d!, 3, 0, 0, 0))
 }
+
+/**
+ * Rango [inicio, fin) del mes 'YYYY-MM' en horario argentino, para filtrar
+ * timestamps con `fecha >= desde AND fecha < hasta`. Devuelve null si el
+ * string no es un mes válido.
+ */
+export function rangoMesAR(mes: string): { desde: Date; hasta: Date } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(mes)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return null
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  return {
+    desde: parseFechaAR(`${year}-${String(month).padStart(2, '0')}-01`),
+    hasta: parseFechaAR(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01`),
+  }
+}

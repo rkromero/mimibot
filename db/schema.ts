@@ -725,3 +725,38 @@ export const auditLogMetas = pgTable('audit_log_metas', {
 }, (t) => [
   index('audit_log_metas_meta_idx').on(t.metaId),
 ])
+
+// ─── Control: Gastos ──────────────────────────────────────────────────────────
+
+// costo_directo: insumos que se convierten en producto (materia prima, packaging)
+//   — es lo que después permite calcular margen bruto (CMV).
+// gasto_operativo: estructura del negocio (sueldos, alquiler, servicios, etc.).
+export const tipoCategoriaGastoEnum = pgEnum('tipo_categoria_gasto', ['costo_directo', 'gasto_operativo'])
+
+export const gastoCategorias = pgTable('gasto_categorias', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  tipo: tipoCategoriaGastoEnum('tipo').notNull().default('gasto_operativo'),
+  activo: boolean('activo').notNull().default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('gasto_categorias_nombre_idx').on(t.nombre),
+])
+
+export const gastos = pgTable('gastos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fecha: timestamp('fecha', { mode: 'date' }).notNull(),
+  categoriaId: uuid('categoria_id').notNull().references(() => gastoCategorias.id),
+  monto: decimal('monto', { precision: 12, scale: 2 }).notNull(),
+  descripcion: text('descripcion'),
+  proveedor: text('proveedor'),
+  comprobante: text('comprobante'),
+  metodoPago: metodoPagoEnum('metodo_pago'),
+  registradoPor: uuid('registrado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
+}, (t) => [
+  index('gastos_fecha_idx').on(t.fecha),
+  index('gastos_categoria_idx').on(t.categoriaId),
+])

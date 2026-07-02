@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
   Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
-  ClipboardList, History, ListChecks, Navigation,
+  ClipboardList, History, ListChecks, Navigation, Wallet,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -67,6 +67,12 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
+    ],
+  },
+  {
+    label: 'Control',
+    items: [
+      { href: '/admin/gastos', label: 'Gastos', icon: Wallet, roles: ['admin'] },
     ],
   },
   {
