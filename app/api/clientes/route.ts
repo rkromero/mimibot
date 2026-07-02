@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, users, territorios, pedidos, movimientosCC } from '@/db/schema'
 import { eq, and, ilike, or, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
-import { createClienteSchema, createClienteAgentSchema, clienteFiltersSchema } from '@/lib/validations/clientes'
+import { createClienteSchema, createClienteAgentSchema, clienteFiltersSchema, esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
 import { toApiError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { resolverTerritorioPorRol } from '@/lib/territorios/asignacion.service'
@@ -181,6 +181,14 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
+    // CABA: el barrio es obligatorio; si no vino localidad, se normaliza a la ciudad.
+    if (esProvinciaCABA(input.provincia) && !input.barrio) {
+      return NextResponse.json(
+        { error: 'El barrio es obligatorio para clientes de CABA', field: 'barrio' },
+        { status: 400 },
+      )
+    }
+
     // CUIT único global entre clientes activos (null no colisiona). El schema
     // ya normalizó: trim, vacío → null.
     if (input.cuit) {
@@ -237,9 +245,11 @@ export async function POST(req: NextRequest) {
         email: input.email ?? null,
         telefono: input.telefono ?? null,
         direccion: input.direccion ?? null,
-        localidad: input.localidad ?? null,
+        localidad: input.localidad?.trim()
+          || (esProvinciaCABA(input.provincia) ? LOCALIDAD_CABA : null),
         provincia: input.provincia ?? null,
         codigoPostal: input.codigoPostal ?? null,
+        barrio: input.barrio ?? null,
         cuit: input.cuit ?? null,
         origen: 'manual',
         territorioId,

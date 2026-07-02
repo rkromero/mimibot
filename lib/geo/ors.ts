@@ -120,6 +120,16 @@ type OrsFeatureProperties = {
   label?: string
   region?: string
   region_a?: string
+  neighbourhood?: string
+  postalcode?: string
+}
+
+/** Resultado de geocodificación: coordenadas + barrio/CP de la feature elegida. */
+export type GeocodeResult = {
+  lat: number
+  lng: number
+  neighbourhood: string | null
+  postalcode: string | null
 }
 
 // Normaliza un nombre de región para comparar: sin acentos, sin puntos,
@@ -180,7 +190,7 @@ type OrsResponse = {
 function pickPreciseCoords(
   features: OrsFeature[] | undefined,
   expectedRegion: string | null,
-): { lat: number; lng: number } | null {
+): GeocodeResult | null {
   for (const f of features ?? []) {
     const layer = f.properties?.layer
     const confidence = f.properties?.confidence
@@ -201,8 +211,13 @@ function pickPreciseCoords(
     }
     const coords = f.geometry?.coordinates
     if (!coords) continue
-    // ORS returns [lng, lat]
-    return { lat: coords[1], lng: coords[0] }
+    // ORS returns [lng, lat]. Barrio y CP salen de ESTA misma feature.
+    return {
+      lat: coords[1],
+      lng: coords[0],
+      neighbourhood: f.properties?.neighbourhood?.trim() || null,
+      postalcode: f.properties?.postalcode?.trim() || null,
+    }
   }
   return null
 }
@@ -210,7 +225,7 @@ function pickPreciseCoords(
 export async function geocodeAddress(
   text: string,
   expectedRegion: string | null = null,
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<GeocodeResult | null> {
   const key = getOrsKey()
   const url = new URL(ORS_GEOCODE_URL)
   url.searchParams.set('api_key', key)
@@ -242,7 +257,7 @@ export async function geocodeStructured({
   locality?: string | null
   region?: string | null
   country?: string
-}): Promise<{ lat: number; lng: number } | null> {
+}): Promise<GeocodeResult | null> {
   const key = getOrsKey()
   // Resolvemos la región esperada mirando provincia y, si hace falta, localidad
   // (p.ej. localidad "CABA" con provincia vacía). La usamos tanto para acotar la

@@ -338,6 +338,7 @@ export const clientes = pgTable('clientes', {
   localidad: text('localidad'),
   provincia: text('provincia'),
   codigoPostal: text('codigo_postal'),
+  barrio: text('barrio'),
   expresoNombre: text('expreso_nombre'),
   expresoDireccion: text('expreso_direccion'),
   lat: doublePrecision('lat'),

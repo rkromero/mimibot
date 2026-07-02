@@ -14,7 +14,10 @@ export async function geocodeClienteIfNeeded(
 ): Promise<GeocodeResultado> {
   const cliente = await db.query.clientes.findFirst({
     where: eq(clientes.id, clienteId),
-    columns: { id: true, direccion: true, localidad: true, provincia: true, lat: true, lng: true },
+    columns: {
+      id: true, direccion: true, localidad: true, provincia: true, lat: true, lng: true,
+      barrio: true, codigoPostal: true,
+    },
   })
   if (!cliente) return 'skipped'
 
@@ -43,9 +46,15 @@ export async function geocodeClienteIfNeeded(
     return 'failed'
   }
 
+  // Best-effort: si Pelias trae barrio/CP y el cliente no los tiene cargados,
+  // se completan junto con las coordenadas (nunca se pisan valores existentes).
+  const extras: Partial<typeof clientes.$inferInsert> = {}
+  if (!cliente.barrio?.trim() && result.neighbourhood) extras.barrio = result.neighbourhood
+  if (!cliente.codigoPostal?.trim() && result.postalcode) extras.codigoPostal = result.postalcode
+
   await db
     .update(clientes)
-    .set({ lat: result.lat, lng: result.lng, geocodeStatus: 'ok', geocodedAt: new Date() })
+    .set({ lat: result.lat, lng: result.lng, geocodeStatus: 'ok', geocodedAt: new Date(), ...extras })
     .where(eq(clientes.id, clienteId))
   return 'ok'
 }

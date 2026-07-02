@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { X, ArrowLeft } from 'lucide-react'
+import { X, ArrowLeft, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { esRolTipoAgent } from '@/lib/authz/roles'
+import { esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
 
 type Props = {
   onClose: () => void
@@ -36,7 +37,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   // Cliente existente devuelto por el 409 de CUIT duplicado — permite abrirlo
   const [conflicto, setConflicto] = useState<{ id: string; nombre: string } | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; codigoPostal?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; codigoPostal?: string; barrio?: string }>({})
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -44,11 +45,44 @@ export default function CreateClienteModal({ onClose }: Props) {
     telefono: '',
     direccion: '',
     localidad: '',
+    barrio: '',
     provincia: '',
     codigoPostal: '',
     cuit: '',
     asignadoA: '',
   })
+
+  const esCABA = esProvinciaCABA(form.provincia)
+  const [isSugiriendo, setIsSugiriendo] = useState(false)
+
+  // Best-effort: al salir del campo Dirección en CABA, sugiere barrio y CP vía
+  // geocoder. Solo completa campos vacíos (nunca pisa lo que tipeó el usuario).
+  async function sugerirDesdeDireccion() {
+    const direccion = form.direccion.trim()
+    if (!direccion || !esCABA) return
+    if (form.barrio.trim() && form.codigoPostal.trim()) return
+    setIsSugiriendo(true)
+    try {
+      const params = new URLSearchParams({ direccion })
+      if (form.provincia) params.set('provincia', form.provincia)
+      if (form.localidad.trim()) params.set('localidad', form.localidad.trim())
+      const res = await fetch(`/api/geo/sugerir-direccion?${params.toString()}`)
+      if (!res.ok) return
+      const sug = await res.json() as { barrio: string | null; codigoPostal: string | null }
+      // La condición "campo vacío" se evalúa al llegar la respuesta, así una
+      // respuesta lenta no pisa algo tipeado mientras tanto.
+      setForm((prev) => ({
+        ...prev,
+        barrio: prev.barrio.trim() ? prev.barrio : (sug.barrio ?? prev.barrio),
+        codigoPostal: prev.codigoPostal.trim() ? prev.codigoPostal : (sug.codigoPostal ?? prev.codigoPostal),
+      }))
+      if (sug.barrio) setFieldErrors((p) => ({ ...p, barrio: undefined }))
+    } catch {
+      // best-effort: el usuario completa a mano
+    } finally {
+      setIsSugiriendo(false)
+    }
+  }
 
   const { data: agents = [] } = useQuery<AgentOption[]>({
     queryKey: ['agents-list'],
@@ -81,14 +115,17 @@ export default function CreateClienteModal({ onClose }: Props) {
       return
     }
 
+    const fe: { telefono?: string; codigoPostal?: string; barrio?: string } = {}
     if (isAgent) {
-      const fe: { telefono?: string; codigoPostal?: string } = {}
       if (!form.telefono.trim()) fe.telefono = 'El teléfono es requerido'
       if (!form.codigoPostal.trim()) fe.codigoPostal = 'El código postal es requerido'
-      if (fe.telefono ?? fe.codigoPostal) {
-        setFieldErrors(fe)
-        return
-      }
+    }
+    if (esCABA && !form.barrio.trim()) {
+      fe.barrio = 'El barrio es obligatorio para clientes de CABA'
+    }
+    if (fe.telefono ?? fe.codigoPostal ?? fe.barrio) {
+      setFieldErrors(fe)
+      return
     }
 
     setIsPending(true)
@@ -103,6 +140,7 @@ export default function CreateClienteModal({ onClose }: Props) {
           telefono: form.telefono.trim() || undefined,
           direccion: form.direccion.trim() || undefined,
           localidad: form.localidad.trim() || undefined,
+          barrio: form.barrio.trim() || undefined,
           provincia: form.provincia || undefined,
           codigoPostal: form.codigoPostal.trim() || undefined,
           cuit: form.cuit.trim() || undefined,
@@ -203,19 +241,35 @@ export default function CreateClienteModal({ onClose }: Props) {
               <input
                 value={form.direccion}
                 onChange={(e) => set('direccion', e.target.value)}
+                onBlur={() => void sugerirDesdeDireccion()}
                 placeholder="Calle 123"
                 className={inputClass}
               />
             </div>
 
-            <div>
-              <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Localidad</label>
-              <input
-                value={form.localidad}
-                onChange={(e) => set('localidad', e.target.value)}
-                placeholder="Ciudad / Localidad"
-                className={inputClass}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Localidad</label>
+                <input
+                  value={form.localidad}
+                  onChange={(e) => set('localidad', e.target.value)}
+                  placeholder="Ciudad / Localidad"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-sm md:text-xs text-muted-foreground mb-1.5">
+                  Barrio {esCABA && <span className="text-destructive">*</span>}
+                  {isSugiriendo && <Loader2 size={11} className="animate-spin" />}
+                </label>
+                <input
+                  value={form.barrio}
+                  onChange={(e) => { set('barrio', e.target.value); setFieldErrors((p) => ({ ...p, barrio: undefined })) }}
+                  placeholder={esCABA ? 'Ej: Palermo, Caballito...' : 'Barrio (opcional)'}
+                  className={cn(inputClass, fieldErrors.barrio && 'border-destructive focus:ring-destructive/50')}
+                />
+                {fieldErrors.barrio && <p className="text-xs text-destructive mt-1">{fieldErrors.barrio}</p>}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -223,7 +277,15 @@ export default function CreateClienteModal({ onClose }: Props) {
                 <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Provincia</label>
                 <select
                   value={form.provincia}
-                  onChange={(e) => set('provincia', e.target.value)}
+                  onChange={(e) => {
+                    const provincia = e.target.value
+                    setForm((prev) => ({
+                      ...prev,
+                      provincia,
+                      // CABA: la localidad se autocompleta con la ciudad (editable)
+                      localidad: esProvinciaCABA(provincia) ? LOCALIDAD_CABA : prev.localidad,
+                    }))
+                  }}
                   className={inputClass}
                 >
                   <option value="">Seleccionar provincia</option>
@@ -254,8 +316,9 @@ export default function CreateClienteModal({ onClose }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">
+                <label className="flex items-center gap-1.5 text-sm md:text-xs text-muted-foreground mb-1.5">
                   Código Postal {isAgent && <span className="text-destructive">*</span>}
+                  {isSugiriendo && <Loader2 size={11} className="animate-spin" />}
                 </label>
                 <input
                   inputMode="numeric"

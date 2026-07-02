@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { clientes, pedidos, pedidoItems, productos, users } from '@/db/schema'
 import { eq, and, count, sum, isNull, desc, max, sql, ne } from 'drizzle-orm'
-import { updateClienteSchema } from '@/lib/validations/clientes'
+import { updateClienteSchema, esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
 import { requireAdmin } from '@/lib/authz'
 import { canAccessCliente } from '@/lib/authz/clientes'
 import { esRolVentas } from '@/lib/authz/roles'
@@ -168,6 +168,17 @@ export async function PATCH(
     const current = await db.query.clientes.findFirst({ where: eq(clientes.id, id) })
     if (!current) throw new NotFoundError('Cliente')
 
+    // CABA: se valida sobre el estado EFECTIVO (actual + patch): cubre tanto
+    // pasar la provincia a CABA sin barrio como borrar el barrio siendo CABA.
+    const provinciaEfectiva = parsed.data.provincia !== undefined ? parsed.data.provincia : current.provincia
+    const barrioEfectivo = parsed.data.barrio !== undefined ? parsed.data.barrio : current.barrio
+    if (esProvinciaCABA(provinciaEfectiva) && !barrioEfectivo?.trim()) {
+      return NextResponse.json(
+        { error: 'El barrio es obligatorio para clientes de CABA' },
+        { status: 400 },
+      )
+    }
+
     // CUIT único global entre clientes activos (null no colisiona). El schema
     // ya normalizó: trim, vacío → null. Se excluye el propio cliente.
     if (parsed.data.cuit) {
@@ -203,7 +214,14 @@ export async function PATCH(
     if (parsed.data.localidad !== undefined) updates.localidad = parsed.data.localidad
     if (parsed.data.provincia !== undefined) updates.provincia = parsed.data.provincia
     if (parsed.data.codigoPostal !== undefined) updates.codigoPostal = parsed.data.codigoPostal
+    if (parsed.data.barrio !== undefined) updates.barrio = parsed.data.barrio
     if (parsed.data.cuit !== undefined) updates.cuit = parsed.data.cuit
+
+    // CABA sin localidad → se normaliza a la ciudad
+    const localidadEfectiva = parsed.data.localidad !== undefined ? parsed.data.localidad : current.localidad
+    if (esProvinciaCABA(provinciaEfectiva) && !localidadEfectiva?.trim()) {
+      updates.localidad = LOCALIDAD_CABA
+    }
 
     // Only admins can reassign
     if (parsed.data.asignadoA !== undefined) {

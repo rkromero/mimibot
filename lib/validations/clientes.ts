@@ -12,6 +12,24 @@ export function normalizeCuit(value: string | null | undefined): string | null |
 
 const cuitSchema = z.string().max(20).optional().nullable().transform(normalizeCuit)
 
+// barrio: mismo tratamiento que cuit — trim, vacío → null, undefined se preserva
+const barrioSchema = z.string().max(200).optional().nullable().transform(normalizeCuit)
+
+export const LOCALIDAD_CABA = 'Ciudad Autónoma de Buenos Aires'
+
+// Provincia CABA en cualquiera de sus variantes usuales (case-insensitive,
+// con o sin tildes). Para clientes de CABA el barrio es obligatorio.
+export function esProvinciaCABA(provincia: string | null | undefined): boolean {
+  if (!provincia) return false
+  const p = provincia.trim().toLowerCase()
+  return (
+    p === 'caba' ||
+    p === 'ciudad autónoma de buenos aires' ||
+    p === 'ciudad autonoma de buenos aires' ||
+    p === 'capital federal'
+  )
+}
+
 export const createClienteSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').max(200),
   apellido: z.string().min(1, 'El apellido es requerido').max(200),
@@ -21,6 +39,7 @@ export const createClienteSchema = z.object({
   localidad: z.string().max(200).optional().nullable(),
   provincia: z.string().max(100).optional().nullable(),
   codigoPostal: z.string().max(10).optional().nullable(),
+  barrio: barrioSchema,
   cuit: cuitSchema,
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().optional().nullable(),
@@ -47,6 +66,7 @@ export const updateClienteSchema = z.object({
   localidad: z.string().max(200).nullable().optional(),
   provincia: z.string().max(100).nullable().optional(),
   codigoPostal: z.string().max(10).nullable().optional(),
+  barrio: barrioSchema,
   cuit: cuitSchema,
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().nullable().optional(),

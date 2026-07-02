@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed, Merge } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed, Merge, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
 import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
@@ -26,6 +27,8 @@ type Cliente = {
   direccion: string | null
   localidad: string | null
   provincia: string | null
+  codigoPostal: string | null
+  barrio: string | null
   cuit: string | null
   geocodeStatus: string | null
   origen: 'manual' | 'convertido_de_lead'
@@ -195,9 +198,51 @@ export default function ClienteDetail({ id }: Props) {
     setIsEditing(false)
   }
 
+  const [isSugiriendo, setIsSugiriendo] = useState(false)
+
+  // Best-effort: al salir del campo Dirección en CABA, sugiere barrio y CP vía
+  // geocoder. Solo completa campos vacíos (nunca pisa lo que tipeó el usuario).
+  async function sugerirDesdeDireccion() {
+    const direccion = getField('direccion')?.trim()
+    if (!direccion || !esProvinciaCABA(getField('provincia'))) return
+    if (getField('barrio')?.trim() && getField('codigoPostal')?.trim()) return
+    setIsSugiriendo(true)
+    try {
+      const params = new URLSearchParams({ direccion })
+      const prov = getField('provincia')
+      if (prov) params.set('provincia', prov)
+      const loc = getField('localidad')?.trim()
+      if (loc) params.set('localidad', loc)
+      const res = await fetch(`/api/geo/sugerir-direccion?${params.toString()}`)
+      if (!res.ok) return
+      const sug = await res.json() as { barrio: string | null; codigoPostal: string | null }
+      // La condición "campo vacío" se evalúa al llegar la respuesta, así una
+      // respuesta lenta no pisa algo tipeado mientras tanto.
+      setForm((prev) => {
+        const next = { ...prev }
+        const barrioActual = (prev.barrio !== undefined ? prev.barrio : cliente?.barrio) ?? ''
+        const cpActual = (prev.codigoPostal !== undefined ? prev.codigoPostal : cliente?.codigoPostal) ?? ''
+        if (!barrioActual.trim() && sug.barrio) next.barrio = sug.barrio
+        if (!cpActual.trim() && sug.codigoPostal) next.codigoPostal = sug.codigoPostal
+        return next
+      })
+    } catch {
+      // best-effort: el usuario completa a mano
+    } finally {
+      setIsSugiriendo(false)
+    }
+  }
+
   async function handleSave() {
     setSaveError(null)
     setSaveConflicto(null)
+
+    // CABA: el barrio es obligatorio (el backend también lo valida)
+    if (esProvinciaCABA(getField('provincia')) && !getField('barrio')?.trim()) {
+      setSaveError('El barrio es obligatorio para clientes de CABA')
+      return
+    }
+
     setIsSaving(true)
     try {
       const res = await fetch(`/api/clientes/${id}`, {
@@ -210,7 +255,9 @@ export default function ClienteDetail({ id }: Props) {
           telefono: getField('telefono') || null,
           direccion: getField('direccion') || null,
           localidad: getField('localidad') || null,
+          barrio: getField('barrio') || null,
           provincia: getField('provincia') || null,
+          codigoPostal: getField('codigoPostal') || null,
           cuit: getField('cuit') || null,
           ...(isAdmin && 'asignadoA' in form ? { asignadoA: form.asignadoA ?? null } : {}),
         }),
@@ -415,6 +462,7 @@ export default function ClienteDetail({ id }: Props) {
             <input
               value={getField('direccion') ?? ''}
               onChange={(e) => setField('direccion', e.target.value)}
+              onBlur={() => void sugerirDesdeDireccion()}
               className={inputClass}
             />
           ) : (
@@ -507,11 +555,35 @@ export default function ClienteDetail({ id }: Props) {
           )}
         </div>
         <div>
+          <label className="flex items-center gap-1.5 text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">
+            Barrio {isEditing && esProvinciaCABA(getField('provincia')) && <span className="text-destructive">*</span>}
+            {isEditing && isSugiriendo && <Loader2 size={11} className="animate-spin" />}
+          </label>
+          {isEditing ? (
+            <input
+              value={getField('barrio') ?? ''}
+              onChange={(e) => setField('barrio', e.target.value)}
+              placeholder={esProvinciaCABA(getField('provincia')) ? 'Ej: Palermo, Caballito...' : 'Barrio (opcional)'}
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('barrio') || '—'}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
           <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Provincia</label>
           {isEditing ? (
             <select
               value={getField('provincia') ?? ''}
-              onChange={(e) => setField('provincia', e.target.value || null)}
+              onChange={(e) => {
+                const provincia = e.target.value || null
+                setField('provincia', provincia)
+                // CABA: la localidad se autocompleta con la ciudad (editable)
+                if (esProvinciaCABA(provincia)) setField('localidad', LOCALIDAD_CABA)
+              }}
               className={inputClass}
             >
               <option value="">Seleccionar provincia</option>
@@ -542,6 +614,23 @@ export default function ClienteDetail({ id }: Props) {
             </select>
           ) : (
             <p className={readValueClass}>{getField('provincia') || '—'}</p>
+          )}
+        </div>
+        <div>
+          <label className="flex items-center gap-1.5 text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">
+            Código Postal
+            {isEditing && isSugiriendo && <Loader2 size={11} className="animate-spin" />}
+          </label>
+          {isEditing ? (
+            <input
+              inputMode="numeric"
+              value={getField('codigoPostal') ?? ''}
+              onChange={(e) => setField('codigoPostal', e.target.value)}
+              placeholder="1234"
+              className={inputClass}
+            />
+          ) : (
+            <p className={readValueClass}>{getField('codigoPostal') || '—'}</p>
           )}
         </div>
       </div>

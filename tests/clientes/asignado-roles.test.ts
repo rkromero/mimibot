@@ -102,6 +102,9 @@ vi.mock('@/lib/validations/clientes', () => ({
   clienteFiltersSchema: {
     safeParse: () => ({ success: true, data: {} }),
   },
+  // Las rutas también importan la regla CABA desde este módulo
+  esProvinciaCABA: (p: string | null | undefined) => !!p && p.trim().toLowerCase() === 'caba',
+  LOCALIDAD_CABA: 'Ciudad Autónoma de Buenos Aires',
 }))
 
 vi.mock('@/lib/api/cache', () => ({

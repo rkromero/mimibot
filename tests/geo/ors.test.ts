@@ -99,7 +99,7 @@ describe('geocodeStructured (validación por región)', () => {
       region: '',
     })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('(c) único match en otra provincia (Córdoba) → null (cliente failed)', async () => {
@@ -134,7 +134,7 @@ describe('geocodeStructured (validación por región)', () => {
       region: '',
     })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('matchea por la abreviatura region_a ("CABA")', async () => {
@@ -149,7 +149,7 @@ describe('geocodeStructured (validación por región)', () => {
       region: '',
     })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   // ── Variantes REALES que ORS/Pelias devuelve para CABA ───────────────────────
@@ -168,7 +168,7 @@ describe('geocodeStructured (validación por región)', () => {
 
     const result = await geocodeStructured({ address: 'Av. Córdoba 2621', locality: 'CABA', region: '' })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('acepta un fallback a nivel calle dentro de CABA (ORS no tiene la altura exacta)', async () => {
@@ -184,7 +184,7 @@ describe('geocodeStructured (validación por región)', () => {
 
     const result = await geocodeStructured({ address: 'Sánchez de Bustamante 1646', locality: 'CABA', region: '' })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('matchea por region_a "C" (código ISO AR-C) aunque region diga "Buenos Aires"', async () => {
@@ -199,7 +199,7 @@ describe('geocodeStructured (validación por región)', () => {
 
     const result = await geocodeStructured({ address: 'Florida 100', locality: 'CABA', region: '' })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
   })
 
   it('rechaza un homónimo en la PROVINCIA de Buenos Aires (region_a "BA") para un cliente CABA', async () => {
@@ -276,7 +276,53 @@ describe('geocodeStructured (validación por región)', () => {
 
     const result = await geocodeStructured({ address: 'Núñez 6349', locality: 'Saavedra', region: 'CABA' })
 
-    expect(result).toEqual({ lat: CABA.lat, lng: CABA.lng })
+    expect(result).toMatchObject({ lat: CABA.lat, lng: CABA.lng })
+  })
+
+  it('mapea neighbourhood/postalcode de la MISMA feature elegida (no de una descartada)', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    // La primera feature (Córdoba, con otro barrio/CP) se descarta por región;
+    // barrio y CP deben salir de la segunda, que es la elegida.
+    stubFetchFeatures(
+      feature(CORDOBA.lng, CORDOBA.lat, 'Córdoba', { neighbourhood: 'Alberdi', postalcode: '5000' }),
+      feature(CABA.lng, CABA.lat, 'Ciudad Autónoma de Buenos Aires', {
+        neighbourhood: 'Balvanera',
+        postalcode: '1193',
+      }),
+    )
+
+    const result = await geocodeStructured({
+      address: 'Av. Corrientes 3247',
+      locality: 'CABA',
+      region: '',
+    })
+
+    expect(result).toEqual({
+      lat: CABA.lat,
+      lng: CABA.lng,
+      neighbourhood: 'Balvanera',
+      postalcode: '1193',
+    })
+  })
+
+  it('feature sin neighbourhood/postalcode → null en ambos campos', async () => {
+    process.env['ORS_API_KEY'] = 'test-key'
+    stubFetchFeatures(
+      feature(CABA.lng, CABA.lat, 'Ciudad Autónoma de Buenos Aires'),
+    )
+
+    const result = await geocodeStructured({
+      address: 'Av. Corrientes 1234',
+      locality: 'CABA',
+      region: '',
+    })
+
+    expect(result).toEqual({
+      lat: CABA.lat,
+      lng: CABA.lng,
+      neighbourhood: null,
+      postalcode: null,
+    })
   })
 
   it('(d) provincia bien cargada (Córdoba) sigue geocodificando', async () => {
@@ -291,7 +337,7 @@ describe('geocodeStructured (validación por región)', () => {
       region: 'Córdoba',
     })
 
-    expect(result).toEqual({ lat: CORDOBA.lat, lng: CORDOBA.lng })
+    expect(result).toMatchObject({ lat: CORDOBA.lat, lng: CORDOBA.lng })
   })
 
   it('(d) sin región esperada no se filtra por provincia (comportamiento previo)', async () => {
@@ -307,6 +353,6 @@ describe('geocodeStructured (validación por región)', () => {
       region: '',
     })
 
-    expect(result).toEqual({ lat: CORDOBA.lat, lng: CORDOBA.lng })
+    expect(result).toMatchObject({ lat: CORDOBA.lat, lng: CORDOBA.lng })
   })
 })

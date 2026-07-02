@@ -344,6 +344,13 @@
       "when": 1782000000000,
       "tag": "0048_cuit_unico_parcial",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0049_add_barrio_to_clientes",
+      "breakpoints": true
     }
   ]
 }
