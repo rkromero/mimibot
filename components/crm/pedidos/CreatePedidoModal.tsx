@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Minus, Trash2, CheckCircle, Package, Search, X } from 'lucide-react'
+import { Plus, Minus, Trash2, CheckCircle, Package, Search, X, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { todayStrAR, addDaysStrAR } from '@/lib/dates'
+import { todayStrAR, addDaysStrAR, formatFechaInstanteAR } from '@/lib/dates'
 import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoModal'
 import Stepper from '@/components/shared/Stepper'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
@@ -133,6 +133,57 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   // Habituales that are not already in the cart — so the chip count stays useful
   const habitualesDisponibles: ProductoHabitual[] = (clienteData?.productosHabituales ?? [])
     .filter(p => !items.some(i => i.productoId === p.id))
+
+  // Último pedido no cancelado del cliente — para "Repetir último pedido".
+  // Los ítems se cargan con el precio de lista ACTUAL del producto (igual que
+  // los habituales); los productos dados de baja se omiten.
+  const { data: ultimoPedido } = useQuery({
+    queryKey: ['ultimo-pedido', selectedClienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pedidos?clienteId=${selectedClienteId}&limit=5`)
+      if (!res.ok) return null
+      const json = await res.json() as { data: Array<{ id: string; estado: string }> }
+      const ultimo = json.data.find(p => p.estado !== 'cancelado')
+      if (!ultimo) return null
+
+      const detRes = await fetch(`/api/pedidos/${ultimo.id}`)
+      if (!detRes.ok) return null
+      const det = await detRes.json() as {
+        data: {
+          id: string
+          fecha: string
+          items: Array<{
+            productoId: string
+            cantidad: number
+            producto: { nombre: string; precio: string; deletedAt: string | null } | null
+          }>
+        }
+      }
+      const itemsUltimo: SelectedItem[] = det.data.items
+        .filter(i => i.producto && !i.producto.deletedAt)
+        .map(i => ({
+          productoId: i.productoId,
+          productoNombre: i.producto!.nombre,
+          cantidad: i.cantidad,
+          precioUnitario: i.producto!.precio,
+        }))
+      return itemsUltimo.length > 0 ? { fecha: det.data.fecha, items: itemsUltimo } : null
+    },
+    enabled: !!selectedClienteId,
+    staleTime: 60_000,
+  })
+
+  // Solo los ítems del último pedido que todavía no están en el carrito
+  const itemsUltimoFaltantes = (ultimoPedido?.items ?? [])
+    .filter(i => !items.some(x => x.productoId === i.productoId))
+
+  function repetirUltimoPedido() {
+    if (itemsUltimoFaltantes.length === 0) return
+    setItems(prev => [
+      ...prev,
+      ...itemsUltimoFaltantes.filter(i => !prev.some(x => x.productoId === i.productoId)),
+    ])
+  }
 
   // Computed values
   const subtotal = items.reduce((sum, i) => sum + i.cantidad * (parseFloat(i.precioUnitario) || 0), 0)
@@ -388,6 +439,20 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
           {step === 1 && (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Repetir último pedido — 1 toque carga productos y cantidades */}
+                {itemsUltimoFaltantes.length > 0 && ultimoPedido && (
+                  <button
+                    onClick={repetirUltimoPedido}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-primary/30 bg-primary/5 text-primary font-semibold text-sm active:bg-primary/15 transition-colors"
+                  >
+                    <RotateCcw size={16} />
+                    Repetir último pedido
+                    <span className="font-normal text-muted-foreground">
+                      ({itemsUltimoFaltantes.length} {itemsUltimoFaltantes.length === 1 ? 'producto' : 'productos'} · {formatFechaInstanteAR(ultimoPedido.fecha)})
+                    </span>
+                  </button>
+                )}
+
                 {/* Productos habituales del cliente — 1 toque para sumar */}
                 {habitualesDisponibles.length > 0 && (
                   <div className="space-y-2">
