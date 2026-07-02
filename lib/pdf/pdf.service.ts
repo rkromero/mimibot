@@ -98,6 +98,7 @@ export async function emitirDocumento(
     clienteNombre: pedido.cliente.nombre,
     clienteApellido: pedido.cliente.apellido,
     clienteDireccion: pedido.cliente.direccion ?? undefined,
+    clienteBarrio: pedido.cliente.barrio ?? undefined,
     clienteLocalidad: pedido.cliente.localidad ?? undefined,
     clienteProvincia: pedido.cliente.provincia ?? undefined,
     clienteCuit: pedido.cliente.cuit ?? undefined,

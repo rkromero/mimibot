@@ -9,6 +9,7 @@ export type PedidoData = {
   clienteNombre: string
   clienteApellido: string
   clienteDireccion?: string
+  clienteBarrio?: string
   clienteLocalidad?: string
   clienteProvincia?: string
   clienteCuit?: string
@@ -271,7 +272,7 @@ export function RemitoDocument({ data, numero }: Props) {
     data.empresa.condicionIva,
   ].filter(Boolean).join(' - ')
 
-  const address = [data.clienteDireccion, data.clienteLocalidad, data.clienteProvincia]
+  const address = [data.clienteDireccion, data.clienteBarrio, data.clienteLocalidad, data.clienteProvincia]
     .filter(Boolean).join(', ') || 'No especificada'
 
   return (

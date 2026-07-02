@@ -84,7 +84,7 @@ export function ProformaDocument({ data, numero }: Props) {
     data.empresa.condicionIva,
   ].filter(Boolean).join(' - ')
 
-  const address = [data.clienteDireccion, data.clienteLocalidad, data.clienteProvincia]
+  const address = [data.clienteDireccion, data.clienteBarrio, data.clienteLocalidad, data.clienteProvincia]
     .filter(Boolean).join(', ') || 'No especificada'
 
   // El costo de envío ya viene incluido en data.total; lo separamos para mostrarlo
