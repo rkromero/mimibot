@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -84,16 +85,54 @@ export default function PedidosListView() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  // El menú se renderiza en un portal (document.body) con position: fixed para
+  // que el overflow-hidden de DataTable no lo recorte.
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number; bottom: number; openUp: boolean } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null)
+
+  function toggleMenu(button: HTMLButtonElement, id: string) {
+    if (openMenuId === id) {
+      setOpenMenuId(null)
+      return
+    }
+    const rect = button.getBoundingClientRect()
+    const MENU_WIDTH = 176 // w-44
+    menuTriggerRef.current = button
+    setMenuPos({
+      left: Math.max(8, rect.right - MENU_WIDTH),
+      top: rect.bottom + 4,
+      bottom: window.innerHeight - rect.top + 4,
+      openUp: window.innerHeight - rect.bottom < 200,
+    })
+    setOpenMenuId(id)
+  }
 
   useEffect(() => {
+    if (!openMenuId) return
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null)
-      }
+      const target = e.target as Node
+      if (menuRef.current?.contains(target)) return
+      if (menuTriggerRef.current?.contains(target)) return
+      setOpenMenuId(null)
     }
-    if (openMenuId) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenMenuId(null)
+    }
+    function handleScrollOrResize() {
+      setOpenMenuId(null)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    // capture: true para detectar el scroll de cualquier contenedor, no solo window
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    window.addEventListener('resize', handleScrollOrResize)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      window.removeEventListener('resize', handleScrollOrResize)
+    }
   }, [openMenuId])
 
   // Debounce de la búsqueda para no disparar un request por tecla
@@ -263,22 +302,27 @@ export default function PedidosListView() {
       label: '',
       headerClassName: 'w-10',
       render: (row: Pedido) => (
-        <div
-          className="relative flex justify-end"
-          ref={openMenuId === row.id ? menuRef : undefined}
-        >
+        <div className="flex justify-end">
           <button
             onClick={(e) => {
               e.stopPropagation()
-              setOpenMenuId(openMenuId === row.id ? null : row.id)
+              toggleMenu(e.currentTarget, row.id)
             }}
             className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
             title="Acciones"
           >
             <MoreVertical size={14} />
           </button>
-          {openMenuId === row.id && (
-            <div className="absolute right-0 top-8 z-20 w-44 rounded-md border border-border bg-card shadow-lg py-1">
+          {openMenuId === row.id && menuPos && createPortal(
+            <div
+              ref={menuRef}
+              className="fixed z-50 w-44 rounded-md border border-border bg-card shadow-lg py-1"
+              style={
+                menuPos.openUp
+                  ? { left: menuPos.left, bottom: menuPos.bottom }
+                  : { left: menuPos.left, top: menuPos.top }
+              }
+            >
               <button
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpenMenuId(null); router.push(`/crm/pedidos/${row.id}`) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
@@ -311,7 +355,8 @@ export default function PedidosListView() {
                   </button>
                 </>
               )}
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
       ),
