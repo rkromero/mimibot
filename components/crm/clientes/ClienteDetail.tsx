@@ -200,18 +200,21 @@ export default function ClienteDetail({ id }: Props) {
 
   const [isSugiriendo, setIsSugiriendo] = useState(false)
 
-  // Best-effort: al salir del campo Dirección en CABA, sugiere barrio y CP vía
-  // geocoder. Solo completa campos vacíos (nunca pisa lo que tipeó el usuario).
-  async function sugerirDesdeDireccion() {
+  // Best-effort: sugiere barrio y CP vía geocoder. Se dispara al salir del campo
+  // Dirección con CABA elegida, Y al elegir CABA con la dirección ya cargada
+  // (overrides trae la provincia recién seleccionada, que aún no está en form).
+  // Solo completa campos vacíos (nunca pisa lo que tipeó el usuario).
+  async function sugerirDesdeDireccion(overrides?: { provincia?: string; localidad?: string }) {
+    const provincia = overrides?.provincia ?? getField('provincia')
+    const localidad = overrides?.localidad ?? getField('localidad')
     const direccion = getField('direccion')?.trim()
-    if (!direccion || !esProvinciaCABA(getField('provincia'))) return
+    if (!direccion || !esProvinciaCABA(provincia)) return
     if (getField('barrio')?.trim() && getField('codigoPostal')?.trim()) return
     setIsSugiriendo(true)
     try {
       const params = new URLSearchParams({ direccion })
-      const prov = getField('provincia')
-      if (prov) params.set('provincia', prov)
-      const loc = getField('localidad')?.trim()
+      if (provincia) params.set('provincia', provincia)
+      const loc = localidad?.trim()
       if (loc) params.set('localidad', loc)
       const res = await fetch(`/api/geo/sugerir-direccion?${params.toString()}`)
       if (!res.ok) return
@@ -582,7 +585,11 @@ export default function ClienteDetail({ id }: Props) {
                 const provincia = e.target.value || null
                 setField('provincia', provincia)
                 // CABA: la localidad se autocompleta con la ciudad (editable)
-                if (esProvinciaCABA(provincia)) setField('localidad', LOCALIDAD_CABA)
+                // y, si la dirección ya está cargada, se sugiere barrio/CP ahora
+                if (esProvinciaCABA(provincia)) {
+                  setField('localidad', LOCALIDAD_CABA)
+                  void sugerirDesdeDireccion({ provincia: provincia ?? undefined, localidad: LOCALIDAD_CABA })
+                }
               }}
               className={inputClass}
             >
