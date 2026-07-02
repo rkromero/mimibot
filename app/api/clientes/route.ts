@@ -181,6 +181,24 @@ export async function POST(req: NextRequest) {
 
     const input = parsed.data
 
+    // CUIT único global entre clientes activos (null no colisiona). El schema
+    // ya normalizó: trim, vacío → null.
+    if (input.cuit) {
+      const existente = await db.query.clientes.findFirst({
+        where: and(eq(clientes.cuit, input.cuit), isNull(clientes.deletedAt)),
+        columns: { id: true, nombre: true, apellido: true },
+      })
+      if (existente) {
+        return NextResponse.json(
+          {
+            error: 'Ya existe un cliente con ese CUIT',
+            clienteExistente: { id: existente.id, nombre: `${existente.nombre} ${existente.apellido}`.trim() },
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     const resolved = await resolverTerritorioPorRol(ctx, input.territorioId)
     let territorioId = resolved.territorioId
     const agenteId = resolved.agenteId

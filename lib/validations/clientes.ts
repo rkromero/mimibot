@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+// El CUIT es único global entre clientes activos (índice parcial en migración
+// 0048 + chequeo app-level en POST/PATCH). Trim; vacío o solo espacios → null
+// para que los "" no colisionen entre sí. undefined se preserva (PATCH: no tocar).
+export function normalizeCuit(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+const cuitSchema = z.string().max(20).optional().nullable().transform(normalizeCuit)
+
 export const createClienteSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').max(200),
   apellido: z.string().min(1, 'El apellido es requerido').max(200),
@@ -9,7 +21,7 @@ export const createClienteSchema = z.object({
   localidad: z.string().max(200).optional().nullable(),
   provincia: z.string().max(100).optional().nullable(),
   codigoPostal: z.string().max(10).optional().nullable(),
-  cuit: z.string().max(20).optional().nullable(),
+  cuit: cuitSchema,
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().optional().nullable(),
   // Territory assignment — resolved by role in route handler
@@ -35,7 +47,7 @@ export const updateClienteSchema = z.object({
   localidad: z.string().max(200).nullable().optional(),
   provincia: z.string().max(100).nullable().optional(),
   codigoPostal: z.string().max(10).nullable().optional(),
-  cuit: z.string().max(20).nullable().optional(),
+  cuit: cuitSchema,
   // Only admin can set this field — enforce that check in the route handler
   asignadoA: z.string().uuid().nullable().optional(),
 })

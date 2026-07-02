@@ -51,4 +51,33 @@ await client`ALTER TYPE "estado_pedido" ADD VALUE IF NOT EXISTS 'en_reparto'`
 await client`ALTER TYPE "estado_pedido" ADD VALUE IF NOT EXISTS 'listo_para_repartir'`
 console.log('[migrate] Fix: estado_pedido en_reparto/listo_para_repartir OK.')
 
+// Garantía extra: índice único parcial de CUIT (migración 0048). La migración
+// lo crea solo si no hay CUITs duplicados entre clientes activos; si los había,
+// este reintento idempotente lo crea en un deploy posterior una vez resueltos
+// con la fusión. Mientras haya duplicados solo emite WARNING con la lista.
+await client.unsafe(`DO $$
+DECLARE
+  duplicados text;
+BEGIN
+  SELECT string_agg(format('CUIT %s: %s', d.cuit, d.detalle), E'\\n')
+    INTO duplicados
+  FROM (
+    SELECT c."cuit",
+           string_agg(c."nombre" || ' ' || c."apellido" || ' (id ' || c."id" || ')', ', ' ORDER BY c."created_at") AS detalle
+    FROM "clientes" c
+    WHERE c."cuit" IS NOT NULL AND c."deleted_at" IS NULL
+    GROUP BY c."cuit"
+    HAVING count(*) > 1
+  ) d;
+
+  IF duplicados IS NOT NULL THEN
+    RAISE WARNING 'clientes_cuit_unique_idx NO creado: hay CUITs duplicados entre clientes activos. Resolverlos con la fusión. Lista:%', E'\\n' || duplicados;
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS "clientes_cuit_unique_idx"
+      ON "clientes" ("cuit")
+      WHERE "cuit" IS NOT NULL AND "deleted_at" IS NULL;
+  END IF;
+END $$;`)
+console.log('[migrate] Fix: clientes_cuit_unique_idx OK.')
+
 await client.end()

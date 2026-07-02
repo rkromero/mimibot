@@ -34,6 +34,8 @@ export default function CreateClienteModal({ onClose }: Props) {
 
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Cliente existente devuelto por el 409 de CUIT duplicado — permite abrirlo
+  const [conflicto, setConflicto] = useState<{ id: string; nombre: string } | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; codigoPostal?: string }>({})
   const [form, setForm] = useState({
     nombre: '',
@@ -67,6 +69,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setConflicto(null)
     setFieldErrors({})
 
     if (!form.nombre.trim()) {
@@ -108,8 +111,9 @@ export default function CreateClienteModal({ onClose }: Props) {
       })
 
       if (!res.ok) {
-        const data = await res.json() as { error: string }
+        const data = await res.json() as { error: string; clienteExistente?: { id: string; nombre: string } }
         setError(typeof data.error === 'string' ? data.error : 'Error al crear cliente')
+        setConflicto(data.clienteExistente ?? null)
         return
       }
 
@@ -292,7 +296,23 @@ export default function CreateClienteModal({ onClose }: Props) {
               )}
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive">
+                {error}
+                {conflicto && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/crm/clientes/${conflicto.id}`)}
+                      className="underline font-medium hover:text-destructive/80 transition-colors"
+                    >
+                      Ver {conflicto.nombre}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Footer sticky */}

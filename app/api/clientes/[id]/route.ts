@@ -168,6 +168,28 @@ export async function PATCH(
     const current = await db.query.clientes.findFirst({ where: eq(clientes.id, id) })
     if (!current) throw new NotFoundError('Cliente')
 
+    // CUIT único global entre clientes activos (null no colisiona). El schema
+    // ya normalizó: trim, vacío → null. Se excluye el propio cliente.
+    if (parsed.data.cuit) {
+      const existente = await db.query.clientes.findFirst({
+        where: and(
+          eq(clientes.cuit, parsed.data.cuit),
+          isNull(clientes.deletedAt),
+          ne(clientes.id, id),
+        ),
+        columns: { id: true, nombre: true, apellido: true },
+      })
+      if (existente) {
+        return NextResponse.json(
+          {
+            error: 'Ya existe un cliente con ese CUIT',
+            clienteExistente: { id: existente.id, nombre: `${existente.nombre} ${existente.apellido}`.trim() },
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     const updates: Partial<typeof clientes.$inferInsert> = {
       updatedAt: new Date(),
     }

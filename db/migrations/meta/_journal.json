@@ -337,6 +337,13 @@
       "when": 1781900000000,
       "tag": "0047_add_costo_envio",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0048_cuit_unico_parcial",
+      "breakpoints": true
     }
   ]
 }

@@ -351,6 +351,9 @@ export const clientes = pgTable('clientes', {
   index('clientes_territorio_idx').on(t.territorioId),
   index('clientes_asignado_idx').on(t.asignadoA),
   index('clientes_email_idx').on(t.email),
+  // Además existe clientes_cuit_unique_idx (único parcial: cuit IS NOT NULL AND
+  // deleted_at IS NULL), creado condicionalmente en la migración 0048 según no
+  // haya duplicados — fuera del schema para que drizzle-kit no lo regenere.
   index('clientes_cuit_idx').on(t.cuit),
   index('clientes_lead_idx').on(t.leadId),
   index('clientes_estado_actividad_idx').on(t.estadoActividad),
