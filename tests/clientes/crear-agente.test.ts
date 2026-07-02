@@ -1,15 +1,16 @@
 /**
  * Tests: POST /api/clientes — validación extra para rol 'agent'
  *
- * Cobertura:
+ * Cobertura (codigoPostal es OPCIONAL para todos los roles):
  *  1. Schema: createClienteAgentSchema rechaza telefono vacío
- *  2. Schema: createClienteAgentSchema rechaza codigoPostal vacío
- *  3. Schema: createClienteAgentSchema acepta ambos campos presentes
- *  4. Schema: createClienteSchema base sigue aceptando sin telefono/cp (otros roles)
- *  5. Route: agente SIN telefono → 400 con field=telefono
- *  6. Route: agente SIN codigoPostal → 400 con field=codigoPostal
- *  7. Route: agente CON ambos campos → 201
- *  8. Route: admin SIN telefono/cp → 201 (sigue funcionando)
+ *  2. Schema: createClienteAgentSchema acepta codigoPostal vacío
+ *  3. Schema: telefono vacío reporta solo telefono (no codigoPostal)
+ *  4. Schema: createClienteAgentSchema acepta ambos campos presentes
+ *  5. Schema: createClienteSchema base sigue aceptando sin telefono/cp (otros roles)
+ *  6. Route: agente SIN telefono → 400 con field=telefono
+ *  7. Route: agente SIN codigoPostal → 201
+ *  8. Route: agente CON ambos campos → 201
+ *  9. Route: admin SIN telefono/cp → 201 (sigue funcionando)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -91,20 +92,17 @@ describe('createClienteAgentSchema — validación de campos requeridos', () => 
     expect(issue?.message).toMatch(/teléfono/i)
   })
 
-  it('2. rechaza codigoPostal vacío', () => {
+  it('2. acepta codigoPostal vacío (es opcional)', () => {
     const result = createClienteAgentSchema.safeParse({ ...BASE_CLIENTE, telefono: '+5491112345678', codigoPostal: '' })
-    expect(result.success).toBe(false)
-    const issue = result.error?.issues.find((i) => i.path[0] === 'codigoPostal')
-    expect(issue).toBeDefined()
-    expect(issue?.message).toMatch(/postal/i)
+    expect(result.success).toBe(true)
   })
 
-  it('3. rechaza ambos vacíos y reporta los dos campos', () => {
+  it('3. telefono vacío reporta solo telefono (codigoPostal ya no es requerido)', () => {
     const result = createClienteAgentSchema.safeParse({ ...BASE_CLIENTE, telefono: '', codigoPostal: '' })
     expect(result.success).toBe(false)
     const paths = result.error?.issues.map((i) => i.path[0])
     expect(paths).toContain('telefono')
-    expect(paths).toContain('codigoPostal')
+    expect(paths).not.toContain('codigoPostal')
   })
 
   it('4. acepta cuando ambos están presentes', () => {
@@ -142,17 +140,17 @@ describe('POST /api/clientes — rol agent', () => {
     expect(body.error).toMatch(/teléfono/i)
   })
 
-  it('7. agente sin codigoPostal → 400 con field=codigoPostal', async () => {
+  it('7. agente sin codigoPostal → 201 (es opcional)', async () => {
     mockAuthFn.mockResolvedValue(makeAgentSession())
     mockGetCtx.mockResolvedValue(makeAgentCtx())
+    makeInsertChain([{ id: 'new-cliente-3', ...BASE_CLIENTE, telefono: '+5491112345678' }])
 
     const { POST } = await import('@/app/api/clientes/route')
     const res = await POST(makeRequest({ ...BASE_CLIENTE, telefono: '+5491112345678' }))
 
-    expect(res.status).toBe(400)
-    const body = await res.json() as { error: string; field?: string }
-    expect(body.field).toBe('codigoPostal')
-    expect(body.error).toMatch(/postal/i)
+    expect(res.status).toBe(201)
+    const body = await res.json() as { data: { id: string } }
+    expect(body.data.id).toBe('new-cliente-3')
   })
 
   it('8. agente con ambos campos → 201', async () => {

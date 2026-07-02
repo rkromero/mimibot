@@ -37,7 +37,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   // Cliente existente devuelto por el 409 de CUIT duplicado — permite abrirlo
   const [conflicto, setConflicto] = useState<{ id: string; nombre: string } | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; codigoPostal?: string; barrio?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{ telefono?: string; barrio?: string }>({})
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -119,15 +119,14 @@ export default function CreateClienteModal({ onClose }: Props) {
       return
     }
 
-    const fe: { telefono?: string; codigoPostal?: string; barrio?: string } = {}
-    if (isAgent) {
-      if (!form.telefono.trim()) fe.telefono = 'El teléfono es requerido'
-      if (!form.codigoPostal.trim()) fe.codigoPostal = 'El código postal es requerido'
+    const fe: { telefono?: string; barrio?: string } = {}
+    if (isAgent && !form.telefono.trim()) {
+      fe.telefono = 'El teléfono es requerido'
     }
     if (esCABA && !form.barrio.trim()) {
       fe.barrio = 'El barrio es obligatorio para clientes de CABA'
     }
-    if (fe.telefono ?? fe.codigoPostal ?? fe.barrio) {
+    if (fe.telefono ?? fe.barrio) {
       setFieldErrors(fe)
       return
     }
@@ -325,17 +324,16 @@ export default function CreateClienteModal({ onClose }: Props) {
               </div>
               <div>
                 <label className="flex items-center gap-1.5 text-sm md:text-xs text-muted-foreground mb-1.5">
-                  Código Postal {isAgent && <span className="text-destructive">*</span>}
+                  Código Postal
                   {isSugiriendo && <Loader2 size={11} className="animate-spin" />}
                 </label>
                 <input
                   inputMode="numeric"
                   value={form.codigoPostal}
-                  onChange={(e) => { set('codigoPostal', e.target.value); setFieldErrors((p) => ({ ...p, codigoPostal: undefined })) }}
-                  placeholder="1234"
-                  className={cn(inputClass, fieldErrors.codigoPostal && 'border-destructive focus:ring-destructive/50')}
+                  onChange={(e) => set('codigoPostal', e.target.value)}
+                  placeholder="1234 (opcional)"
+                  className={inputClass}
                 />
-                {fieldErrors.codigoPostal && <p className="text-xs text-destructive mt-1">{fieldErrors.codigoPostal}</p>}
               </div>
             </div>
 
@@ -390,7 +388,7 @@ export default function CreateClienteModal({ onClose }: Props) {
           <div className="p-4 border-t border-border bg-card shrink-0">
             <button
               type="submit"
-              disabled={isPending || (isAgent && (!form.telefono.trim() || !form.codigoPostal.trim()))}
+              disabled={isPending || (isAgent && !form.telefono.trim())}
               className="w-full py-3 md:py-2 bg-primary text-primary-foreground rounded-lg md:rounded-md text-base md:text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? 'Guardando...' : 'Crear Cliente'}
