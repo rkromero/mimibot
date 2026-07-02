@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { clientes, empresaConfig } from '@/db/schema'
-import { geocodeStructured, resolverRegion, esRegionCABA } from './ors'
+import { geocodeStructured, resolverRegion } from './ors'
+import { esProvinciaCABA } from '@/lib/validations/clientes'
 import { obtenerBarrioOficialCABA } from './usig'
 
 // 'ok'      → se geocodificó y guardó lat/lng.
@@ -53,7 +54,8 @@ export async function geocodeClienteIfNeeded(
   // OSM); si USIG no responde, se usa el de la feature de Pelias.
   const extras: Partial<typeof clientes.$inferInsert> = {}
   if (!cliente.barrio?.trim()) {
-    const barrioOficial = esRegionCABA(cliente.provincia, cliente.localidad)
+    // CABA se identifica por el campo provincia (regla de negocio)
+    const barrioOficial = esProvinciaCABA(cliente.provincia)
       ? await obtenerBarrioOficialCABA(cliente.direccion)
       : null
     const barrio = barrioOficial ?? result.neighbourhood

@@ -28,6 +28,7 @@ const REGION_ALIASES: Record<string, string> = {
   'capital federal': CABA_CANONICAL,
   'ciudad de buenos aires': CABA_CANONICAL,
   'ciudad autonoma de buenos aires': CABA_CANONICAL,
+  'ciudad autónoma de buenos aires': CABA_CANONICAL,
 }
 
 export function normalizeRegion(region?: string | null): string | null {

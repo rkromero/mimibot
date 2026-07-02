@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { geocodeStructured, esRegionCABA } from '@/lib/geo/ors'
+import { geocodeStructured } from '@/lib/geo/ors'
+import { esProvinciaCABA } from '@/lib/validations/clientes'
 import { obtenerBarrioOficialCABA } from '@/lib/geo/usig'
 
 // Sugerencia best-effort de barrio y código postal a partir de la dirección.
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
   // Cada fuente falla por separado sin arrastrar a la otra (p.ej. ORS sin API
   // key no debe descartar el barrio que USIG sí resolvió).
   const [barrioOficial, ors] = await Promise.all([
-    esRegionCABA(provincia, localidad)
+    // CABA se identifica por el campo provincia (regla de negocio)
+    esProvinciaCABA(provincia)
       ? obtenerBarrioOficialCABA(direccion)
       : Promise.resolve(null),
     (async () => {
