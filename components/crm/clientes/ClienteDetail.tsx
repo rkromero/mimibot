@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed } from 'lucide-react'
+import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed, Merge } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PedidosTab from './tabs/PedidosTab'
@@ -12,6 +12,7 @@ import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
+import UnificarClienteModal from './UnificarClienteModal'
 import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
@@ -97,6 +98,8 @@ export default function ClienteDetail({ id }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Cliente existente devuelto por el 409 de CUIT duplicado — permite abrirlo
+  const [saveConflicto, setSaveConflicto] = useState<{ id: string; nombre: string } | null>(null)
   const [form, setForm] = useState<Partial<Cliente>>({})
   const [showCreatePedido, setShowCreatePedido] = useState(false)
   const [showRegistrarPago, setShowRegistrarPago] = useState(false)
@@ -106,6 +109,7 @@ export default function ClienteDetail({ id }: Props) {
   const [showPurgeModal, setShowPurgeModal] = useState(false)
   const [isPurging, setIsPurging] = useState(false)
   const [purgeError, setPurgeError] = useState<string | null>(null)
+  const [showUnificar, setShowUnificar] = useState(false)
   const [isOpeningInbox, setIsOpeningInbox] = useState(false)
   const [showGeoMenu, setShowGeoMenu] = useState(false)
   const [isGeoLoading, setIsGeoLoading] = useState(false)
@@ -187,11 +191,13 @@ export default function ClienteDetail({ id }: Props) {
   function handleCancelEdit() {
     setForm({})
     setSaveError(null)
+    setSaveConflicto(null)
     setIsEditing(false)
   }
 
   async function handleSave() {
     setSaveError(null)
+    setSaveConflicto(null)
     setIsSaving(true)
     try {
       const res = await fetch(`/api/clientes/${id}`, {
@@ -210,8 +216,9 @@ export default function ClienteDetail({ id }: Props) {
         }),
       })
       if (!res.ok) {
-        const data = await res.json() as { error: string }
+        const data = await res.json() as { error: string; clienteExistente?: { id: string; nombre: string } }
         setSaveError(data.error ?? 'Error al guardar')
+        setSaveConflicto(data.clienteExistente ?? null)
         return
       }
       void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
@@ -570,7 +577,23 @@ export default function ClienteDetail({ id }: Props) {
         </div>
       )}
 
-      {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+      {saveError && (
+        <p className="text-xs text-destructive">
+          {saveError}
+          {saveConflicto && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => router.push(`/crm/clientes/${saveConflicto.id}`)}
+                className="underline font-medium hover:text-destructive/80 transition-colors"
+              >
+                Ver {saveConflicto.nombre}
+              </button>
+            </>
+          )}
+        </p>
+      )}
 
       {/* Desktop inline save/cancel buttons */}
       {isEditing && (
@@ -751,6 +774,17 @@ export default function ClienteDetail({ id }: Props) {
             </button>
           )}
 
+          {/* Unificar cliente — solo admin */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowUnificar(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl text-sm font-medium text-foreground bg-card active:bg-accent/70 transition-colors"
+            >
+              <Merge size={16} />
+              Unificar cliente
+            </button>
+          )}
+
           {/* Eliminar definitivamente — solo admin */}
           {isAdmin && (
             <button
@@ -847,6 +881,16 @@ export default function ClienteDetail({ id }: Props) {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button
+                onClick={() => setShowUnificar(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                title="Unificar otro cliente dentro de éste"
+              >
+                <Merge size={14} />
+                Unificar cliente
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 onClick={() => { setDeleteError(null); setShowDeleteModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-destructive/50 text-destructive rounded-md text-sm font-medium hover:bg-destructive/10 transition-colors"
                 title="Eliminar cliente (soft)"
@@ -940,7 +984,23 @@ export default function ClienteDetail({ id }: Props) {
       {/* Mobile sticky bottom bar when editing */}
       {isEditing && (
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-4 pb-safe flex flex-col gap-2 md:hidden z-50">
-          {saveError && <p className="text-xs text-destructive text-center">{saveError}</p>}
+          {saveError && (
+            <p className="text-xs text-destructive text-center">
+              {saveError}
+              {saveConflicto && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/crm/clientes/${saveConflicto.id}`)}
+                    className="underline font-medium hover:text-destructive/80 transition-colors"
+                  >
+                    Ver {saveConflicto.nombre}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           <div className="flex gap-3">
             <button
               onClick={handleSave}
@@ -964,6 +1024,18 @@ export default function ClienteDetail({ id }: Props) {
         <CreatePedidoModal
           clienteId={id}
           onClose={() => setShowCreatePedido(false)}
+        />
+      )}
+
+      {showUnificar && cliente && (
+        <UnificarClienteModal
+          target={{ id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido, telefono: cliente.telefono }}
+          onClose={() => setShowUnificar(false)}
+          onSuccess={() => {
+            // La ficha, la lista y los tabs (pedidos/cc usan prefijo 'clientes')
+            void queryClient.invalidateQueries({ queryKey: ['cliente', id] })
+            void queryClient.invalidateQueries({ queryKey: ['clientes'] })
+          }}
         />
       )}
 
