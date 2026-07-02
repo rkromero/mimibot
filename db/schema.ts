@@ -743,13 +743,30 @@ export const gastoCategorias = pgTable('gasto_categorias', {
   uniqueIndex('gasto_categorias_nombre_idx').on(t.nombre),
 ])
 
+// Los proveedores se dan de baja con activo=false (no se borran) para que los
+// gastos históricos conserven la referencia.
+export const proveedores = pgTable('proveedores', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  cuit: text('cuit'),
+  telefono: text('telefono'),
+  email: text('email'),
+  direccion: text('direccion'),
+  notas: text('notas'),
+  activo: boolean('activo').notNull().default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('proveedores_nombre_idx').on(t.nombre),
+])
+
 export const gastos = pgTable('gastos', {
   id: uuid('id').defaultRandom().primaryKey(),
   fecha: timestamp('fecha', { mode: 'date' }).notNull(),
   categoriaId: uuid('categoria_id').notNull().references(() => gastoCategorias.id),
   monto: decimal('monto', { precision: 12, scale: 2 }).notNull(),
   descripcion: text('descripcion'),
-  proveedor: text('proveedor'),
+  proveedorId: uuid('proveedor_id').references(() => proveedores.id),
   comprobante: text('comprobante'),
   metodoPago: metodoPagoEnum('metodo_pago'),
   registradoPor: uuid('registrado_por').notNull().references(() => users.id),

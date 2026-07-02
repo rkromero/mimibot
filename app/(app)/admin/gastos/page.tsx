@@ -23,10 +23,16 @@ type Gasto = {
   categoriaTipo: 'costo_directo' | 'gasto_operativo'
   monto: string
   descripcion: string | null
-  proveedor: string | null
+  proveedorId: string | null
+  proveedorNombre: string | null
   comprobante: string | null
   metodoPago: 'efectivo' | 'transferencia' | 'mercadopago' | null
   registradoPorNombre: string | null
+}
+
+type Proveedor = {
+  id: string
+  nombre: string
 }
 
 type Resumen = {
@@ -42,7 +48,7 @@ type GastoForm = {
   categoriaId: string
   monto: string
   descripcion: string
-  proveedor: string
+  proveedorId: string
   comprobante: string
   metodoPago: string
 }
@@ -69,7 +75,7 @@ function emptyForm(): GastoForm {
     categoriaId: '',
     monto: '',
     descripcion: '',
-    proveedor: '',
+    proveedorId: '',
     comprobante: '',
     metodoPago: '',
   }
@@ -93,6 +99,10 @@ export default function GastosPage() {
   const [showNuevaCategoria, setShowNuevaCategoria] = useState(false)
   const [nuevaCategoria, setNuevaCategoria] = useState({ nombre: '', tipo: 'gasto_operativo' })
   const [isSavingCategoria, setIsSavingCategoria] = useState(false)
+  // Alta rápida de proveedor dentro del modal
+  const [showNuevoProveedor, setShowNuevoProveedor] = useState(false)
+  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('')
+  const [isSavingProveedor, setIsSavingProveedor] = useState(false)
 
   const { data: categorias = [] } = useQuery<Categoria[]>({
     queryKey: ['gasto-categorias'],
@@ -100,6 +110,17 @@ export default function GastosPage() {
       const res = await fetch('/api/admin/gastos/categorias')
       if (!res.ok) return []
       const json = await res.json() as { data: Categoria[] }
+      return json.data
+    },
+    staleTime: 60_000,
+  })
+
+  const { data: proveedoresList = [] } = useQuery<Proveedor[]>({
+    queryKey: ['proveedores-select'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/proveedores?limit=200&sortBy=nombre&sortDir=asc')
+      if (!res.ok) return []
+      const json = await res.json() as { data: Proveedor[] }
       return json.data
     },
     staleTime: 60_000,
@@ -125,6 +146,7 @@ export default function GastosPage() {
     setForm(emptyForm())
     setFormError(null)
     setShowNuevaCategoria(false)
+    setShowNuevoProveedor(false)
     setShowModal(true)
   }
 
@@ -135,12 +157,13 @@ export default function GastosPage() {
       categoriaId: gasto.categoriaId,
       monto: gasto.monto,
       descripcion: gasto.descripcion ?? '',
-      proveedor: gasto.proveedor ?? '',
+      proveedorId: gasto.proveedorId ?? '',
       comprobante: gasto.comprobante ?? '',
       metodoPago: gasto.metodoPago ?? '',
     })
     setFormError(null)
     setShowNuevaCategoria(false)
+    setShowNuevoProveedor(false)
     setShowModal(true)
   }
 
@@ -158,7 +181,7 @@ export default function GastosPage() {
         categoriaId: form.categoriaId,
         monto,
         descripcion: form.descripcion.trim() || null,
-        proveedor: form.proveedor.trim() || null,
+        proveedorId: form.proveedorId || null,
         comprobante: form.comprobante.trim() || null,
         metodoPago: form.metodoPago || null,
       }
@@ -208,6 +231,33 @@ export default function GastosPage() {
       setFormError('Error de conexión')
     } finally {
       setIsSavingCategoria(false)
+    }
+  }
+
+  async function handleCrearProveedor() {
+    if (!nuevoProveedorNombre.trim()) return
+    setIsSavingProveedor(true)
+    try {
+      const res = await fetch('/api/admin/proveedores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nuevoProveedorNombre.trim() }),
+      })
+      const json = await res.json() as { data?: Proveedor; error?: string }
+      if (!res.ok || !json.data) {
+        setFormError(json.error ?? 'Error al crear el proveedor')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['proveedores-select'] })
+      void queryClient.invalidateQueries({ queryKey: ['/api/admin/proveedores'] })
+      setForm((f) => ({ ...f, proveedorId: json.data!.id }))
+      setShowNuevoProveedor(false)
+      setNuevoProveedorNombre('')
+      setFormError(null)
+    } catch {
+      setFormError('Error de conexión')
+    } finally {
+      setIsSavingProveedor(false)
     }
   }
 
@@ -267,7 +317,7 @@ export default function GastosPage() {
       render: (row) => (
         <div className="max-w-[260px]">
           <span className="text-muted-foreground truncate block">{row.descripcion || '—'}</span>
-          {row.proveedor && <span className="text-xs text-muted-foreground/70">{row.proveedor}</span>}
+          {row.proveedorNombre && <span className="text-xs text-muted-foreground/70">{row.proveedorNombre}</span>}
         </div>
       ),
     },
@@ -408,7 +458,7 @@ export default function GastosPage() {
                 <div className="min-w-0">
                   <p className="font-semibold text-foreground">{g.categoriaNombre}</p>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {formatFechaInstanteAR(g.fecha)}{g.proveedor ? ` · ${g.proveedor}` : ''}
+                    {formatFechaInstanteAR(g.fecha)}{g.proveedorNombre ? ` · ${g.proveedorNombre}` : ''}
                   </p>
                   {g.descripcion && <p className="text-sm text-muted-foreground mt-1 truncate">{g.descripcion}</p>}
                 </div>
@@ -544,25 +594,67 @@ export default function GastosPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Proveedor</label>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Proveedor</label>
+                <select
+                  value={form.proveedorId}
+                  onChange={(e) => {
+                    if (e.target.value === '__nuevo__') {
+                      setShowNuevoProveedor(true)
+                      return
+                    }
+                    setForm((f) => ({ ...f, proveedorId: e.target.value }))
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Sin proveedor</option>
+                  {proveedoresList.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                  <option value="__nuevo__">+ Crear proveedor nuevo...</option>
+                </select>
+              </div>
+
+              {showNuevoProveedor && (
+                <div className="border border-border rounded-md p-3 space-y-2 bg-muted/40">
+                  <p className="text-xs font-medium text-foreground">Nuevo proveedor</p>
                   <input
-                    value={form.proveedor}
-                    onChange={(e) => setForm((f) => ({ ...f, proveedor: e.target.value }))}
-                    placeholder="Opcional"
+                    value={nuevoProveedorNombre}
+                    onChange={(e) => setNuevoProveedorNombre(e.target.value)}
+                    placeholder="Nombre del proveedor"
                     className={inputClass}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    Los demás datos (CUIT, teléfono, etc.) se completan después en Control → Proveedores.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCrearProveedor()}
+                      disabled={isSavingProveedor || !nuevoProveedorNombre.trim()}
+                      className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                    >
+                      {isSavingProveedor ? 'Creando...' : 'Crear'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowNuevoProveedor(false)}
+                      className="px-3 py-1 text-xs text-muted-foreground"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Comprobante</label>
-                  <input
-                    value={form.comprobante}
-                    onChange={(e) => setForm((f) => ({ ...f, comprobante: e.target.value }))}
-                    placeholder="Nº factura (opcional)"
-                    className={inputClass}
-                  />
-                </div>
+              )}
+
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Comprobante</label>
+                <input
+                  value={form.comprobante}
+                  onChange={(e) => setForm((f) => ({ ...f, comprobante: e.target.value }))}
+                  placeholder="Nº factura (opcional)"
+                  className={inputClass}
+                />
               </div>
 
               <div>

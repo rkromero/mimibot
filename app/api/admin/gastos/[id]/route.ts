@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { gastos, gastoCategorias } from '@/db/schema'
+import { gastos, gastoCategorias, proveedores } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
@@ -46,12 +46,22 @@ export async function PATCH(
       }
     }
 
+    if (input.proveedorId !== undefined && input.proveedorId !== null) {
+      const proveedor = await db.query.proveedores.findFirst({
+        where: and(eq(proveedores.id, input.proveedorId), eq(proveedores.activo, true)),
+        columns: { id: true },
+      })
+      if (!proveedor) {
+        return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 400 })
+      }
+    }
+
     const updates: Partial<typeof gastos.$inferInsert> = { updatedAt: new Date() }
     if (input.fecha !== undefined) updates.fecha = parseFechaAR(input.fecha)
     if (input.categoriaId !== undefined) updates.categoriaId = input.categoriaId
     if (input.monto !== undefined) updates.monto = input.monto.toFixed(2)
     if (input.descripcion !== undefined) updates.descripcion = input.descripcion
-    if (input.proveedor !== undefined) updates.proveedor = input.proveedor
+    if (input.proveedorId !== undefined) updates.proveedorId = input.proveedorId
     if (input.comprobante !== undefined) updates.comprobante = input.comprobante
     if (input.metodoPago !== undefined) updates.metodoPago = input.metodoPago
 

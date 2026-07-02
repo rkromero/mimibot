@@ -11,7 +11,7 @@ export const createGastoSchema = z.object({
     .positive('El monto debe ser mayor a 0')
     .max(999_999_999, 'Monto demasiado grande'),
   descripcion: textoOpcional(500),
-  proveedor: textoOpcional(200),
+  proveedorId: z.string().uuid('Proveedor inválido').optional().nullable(),
   comprobante: textoOpcional(100),
   metodoPago: z.enum(['efectivo', 'transferencia', 'mercadopago']).optional().nullable(),
 })
@@ -23,6 +23,19 @@ export const createGastoCategoriaSchema = z.object({
   tipo: z.enum(['costo_directo', 'gasto_operativo'], {
     errorMap: () => ({ message: 'Tipo inválido' }),
   }),
+})
+
+export const createProveedorSchema = z.object({
+  nombre: z.string().min(1, 'El nombre es requerido').max(200).transform((v) => v.trim()),
+  cuit: textoOpcional(20),
+  telefono: textoOpcional(30),
+  email: z.string().email('Email inválido').optional().nullable().or(z.literal('').transform(() => null)),
+  direccion: textoOpcional(500),
+  notas: textoOpcional(500),
+})
+
+export const updateProveedorSchema = createProveedorSchema.partial().extend({
+  activo: z.boolean().optional(),
 })
 
 export type CreateGastoInput = z.infer<typeof createGastoSchema>

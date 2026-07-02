@@ -5,11 +5,15 @@
  *  1-2. rangoMesAR: límites del mes en horario AR; mes inválido → null
  *  3.   GET sin sesión → 401
  *  4.   POST con rol gerente → 403 (requireAdmin real)
- *  5.   POST admin válido → 201; inserta monto formateado, fecha AR y registradoPor
+ *  5.   POST admin válido → 201; inserta monto formateado, fecha AR, proveedor y registradoPor
  *  6.   POST monto inválido (<= 0) → 400
  *  7.   POST categoría inexistente/inactiva → 400
  *  8.   POST categoría duplicada → 409
  *  9.   DELETE → soft-delete (deletedAt), 200
+ *  10.  POST gasto con proveedor inexistente/inactivo → 400
+ *  11.  POST proveedor → 201
+ *  12.  POST proveedor duplicado activo → 409
+ *  13.  DELETE proveedor → baja lógica (activo=false), 200
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -24,6 +28,7 @@ const { mockAuthFn, mockDbInsert, mockDbUpdate, mockDbQuery } = vi.hoisted(() =>
   mockDbQuery: {
     gastoCategorias: { findFirst: vi.fn(), findMany: vi.fn() },
     gastos: { findFirst: vi.fn() },
+    proveedores: { findFirst: vi.fn() },
   },
 }))
 
@@ -41,6 +46,7 @@ vi.mock('@/db', () => ({
 
 const CATEGORIA_ID = '11111111-1111-4111-8111-111111111111'
 const GASTO_ID = '22222222-2222-4222-8222-222222222222'
+const PROVEEDOR_ID = '33333333-3333-4333-8333-333333333333'
 
 function makeSession(role: string) {
   return { user: { id: 'user-1', role, name: 'U', email: 'u@b.com', avatarColor: '#aaa' } }
@@ -73,7 +79,7 @@ const GASTO_VALIDO = {
   categoriaId: CATEGORIA_ID,
   monto: 1234.5,
   descripcion: '25 kg chocolate semiamargo',
-  proveedor: 'Distribuidora Cacao',
+  proveedorId: PROVEEDOR_ID,
   metodoPago: 'transferencia',
 }
 
@@ -124,9 +130,10 @@ describe('/api/admin/gastos — authz y CRUD', () => {
     expect(mockDbInsert).not.toHaveBeenCalled()
   })
 
-  it('5. POST admin válido → 201 con monto formateado, fecha AR y registradoPor', async () => {
+  it('5. POST admin válido → 201 con monto formateado, fecha AR, proveedor y registradoPor', async () => {
     mockAuthFn.mockResolvedValue(makeSession('admin'))
     mockDbQuery.gastoCategorias.findFirst.mockResolvedValue({ id: CATEGORIA_ID })
+    mockDbQuery.proveedores.findFirst.mockResolvedValue({ id: PROVEEDOR_ID })
     const mockValues = makeInsertChain()
 
     const { POST } = await import('@/app/api/admin/gastos/route')
@@ -137,7 +144,7 @@ describe('/api/admin/gastos — authz y CRUD', () => {
       categoriaId: CATEGORIA_ID,
       monto: '1234.50',
       descripcion: '25 kg chocolate semiamargo',
-      proveedor: 'Distribuidora Cacao',
+      proveedorId: PROVEEDOR_ID,
       metodoPago: 'transferencia',
       registradoPor: 'user-1',
     }))
@@ -196,5 +203,75 @@ describe('/api/admin/gastos — authz y CRUD', () => {
 
     expect(res.status).toBe(200)
     expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ deletedAt: expect.any(Date) }))
+  })
+
+  it('10. POST gasto con proveedor inexistente/inactivo → 400', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('admin'))
+    mockDbQuery.gastoCategorias.findFirst.mockResolvedValue({ id: CATEGORIA_ID })
+    mockDbQuery.proveedores.findFirst.mockResolvedValue(undefined)
+    makeInsertChain()
+
+    const { POST } = await import('@/app/api/admin/gastos/route')
+    const res = await POST(makePostRequest('http://localhost/api/admin/gastos', GASTO_VALIDO))
+
+    expect(res.status).toBe(400)
+    const body = await res.json() as { error: string }
+    expect(body.error).toMatch(/proveedor/i)
+    expect(mockDbInsert).not.toHaveBeenCalled()
+  })
+})
+
+// ─── Proveedores ──────────────────────────────────────────────────────────────
+
+describe('/api/admin/proveedores', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('11. POST proveedor válido → 201', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('admin'))
+    mockDbQuery.proveedores.findFirst.mockResolvedValue(undefined)
+    const mockValues = makeInsertChain()
+
+    const { POST } = await import('@/app/api/admin/proveedores/route')
+    const res = await POST(makePostRequest('http://localhost/api/admin/proveedores', {
+      nombre: '  Distribuidora Cacao SA  ',
+      cuit: '30-12345678-9',
+    }))
+
+    expect(res.status).toBe(201)
+    expect(mockValues).toHaveBeenCalledWith(expect.objectContaining({
+      nombre: 'Distribuidora Cacao SA',
+      cuit: '30-12345678-9',
+    }))
+  })
+
+  it('12. POST proveedor con nombre duplicado activo → 409', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('admin'))
+    mockDbQuery.proveedores.findFirst.mockResolvedValue({ id: PROVEEDOR_ID, activo: true })
+    makeInsertChain()
+
+    const { POST } = await import('@/app/api/admin/proveedores/route')
+    const res = await POST(makePostRequest('http://localhost/api/admin/proveedores', {
+      nombre: 'Distribuidora Cacao SA',
+    }))
+
+    expect(res.status).toBe(409)
+    expect(mockDbInsert).not.toHaveBeenCalled()
+  })
+
+  it('13. DELETE proveedor → baja lógica (activo=false)', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('admin'))
+    mockDbQuery.proveedores.findFirst.mockResolvedValue({ id: PROVEEDOR_ID })
+    const mockSet = makeUpdateChain()
+
+    const { DELETE } = await import('@/app/api/admin/proveedores/[id]/route')
+    const res = await DELETE(
+      new NextRequest(`http://localhost/api/admin/proveedores/${PROVEEDOR_ID}`, { method: 'DELETE' }),
+      { params: Promise.resolve({ id: PROVEEDOR_ID }) },
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ activo: false }))
   })
 })

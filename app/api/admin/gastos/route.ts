@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { gastos, gastoCategorias, users } from '@/db/schema'
+import { gastos, gastoCategorias, proveedores, users } from '@/db/schema'
 import { eq, and, isNull, gte, lt, asc, desc, sql } from 'drizzle-orm'
 import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
@@ -54,10 +54,12 @@ export async function GET(req: NextRequest) {
         gasto: gastos,
         categoriaNombre: gastoCategorias.nombre,
         categoriaTipo: gastoCategorias.tipo,
+        proveedorNombre: proveedores.nombre,
         registradoPorNombre: users.name,
       })
       .from(gastos)
       .innerJoin(gastoCategorias, eq(gastos.categoriaId, gastoCategorias.id))
+      .leftJoin(proveedores, eq(gastos.proveedorId, proveedores.id))
       .leftJoin(users, eq(gastos.registradoPor, users.id))
       .where(whereClause)
       .orderBy(orderFn(sortCol), desc(gastos.createdAt))
@@ -68,6 +70,7 @@ export async function GET(req: NextRequest) {
       ...r.gasto,
       categoriaNombre: r.categoriaNombre,
       categoriaTipo: r.categoriaTipo,
+      proveedorNombre: r.proveedorNombre ?? null,
       registradoPorNombre: r.registradoPorNombre ?? null,
     }))
 
@@ -100,6 +103,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Categoría no encontrada' }, { status: 400 })
     }
 
+    if (input.proveedorId) {
+      const proveedor = await db.query.proveedores.findFirst({
+        where: and(eq(proveedores.id, input.proveedorId), eq(proveedores.activo, true)),
+        columns: { id: true },
+      })
+      if (!proveedor) {
+        return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 400 })
+      }
+    }
+
     const [gasto] = await db
       .insert(gastos)
       .values({
@@ -107,7 +120,7 @@ export async function POST(req: NextRequest) {
         categoriaId: input.categoriaId,
         monto: input.monto.toFixed(2),
         descripcion: input.descripcion ?? null,
-        proveedor: input.proveedor ?? null,
+        proveedorId: input.proveedorId ?? null,
         comprobante: input.comprobante ?? null,
         metodoPago: input.metodoPago ?? null,
         registradoPor: session.user.id,
