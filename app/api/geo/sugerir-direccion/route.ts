@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { geocodeStructured } from '@/lib/geo/ors'
+import { geocodeStructured, esRegionCABA } from '@/lib/geo/ors'
+import { obtenerBarrioOficialCABA } from '@/lib/geo/usig'
 
 // Sugerencia best-effort de barrio y código postal a partir de la dirección.
-// Nunca responde 500: si el geocoder falla o no trae datos, devuelve nulls y
-// el usuario completa a mano.
+// Para CABA el barrio sale de USIG (fuente oficial del GCBA); el código postal
+// y el barrio fuera de CABA salen del geocoder ORS/OSM cuando el dato existe.
+// Nunca responde 500: si los geocoders fallan, devuelve nulls y el usuario
+// completa a mano.
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -17,21 +20,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ barrio: null, codigoPostal: null })
   }
 
-  try {
-    const result = await geocodeStructured({
-      address: direccion,
-      locality: localidad,
-      region: provincia,
-    })
-    return NextResponse.json({
-      barrio: result?.neighbourhood ?? null,
-      codigoPostal: result?.postalcode ?? null,
-    })
-  } catch (err) {
-    console.warn(
-      '[geo] sugerir-direccion falló:',
-      err instanceof Error ? err.message : err,
-    )
-    return NextResponse.json({ barrio: null, codigoPostal: null })
-  }
+  // Cada fuente falla por separado sin arrastrar a la otra (p.ej. ORS sin API
+  // key no debe descartar el barrio que USIG sí resolvió).
+  const [barrioOficial, ors] = await Promise.all([
+    esRegionCABA(provincia, localidad)
+      ? obtenerBarrioOficialCABA(direccion)
+      : Promise.resolve(null),
+    (async () => {
+      try {
+        return await geocodeStructured({ address: direccion, locality: localidad, region: provincia })
+      } catch (err) {
+        console.warn('[geo] sugerir-direccion (ORS) falló:', err instanceof Error ? err.message : err)
+        return null
+      }
+    })(),
+  ])
+
+  return NextResponse.json({
+    barrio: barrioOficial ?? ors?.neighbourhood ?? null,
+    codigoPostal: ors?.postalcode ?? null,
+  })
 }

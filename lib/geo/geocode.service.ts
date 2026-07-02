@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { clientes, empresaConfig } from '@/db/schema'
-import { geocodeStructured, resolverRegion } from './ors'
+import { geocodeStructured, resolverRegion, esRegionCABA } from './ors'
+import { obtenerBarrioOficialCABA } from './usig'
 
 // 'ok'      → se geocodificó y guardó lat/lng.
 // 'failed'  → no se resolvió en la región esperada; queda lat/lng=null (navega por dirección).
@@ -46,10 +47,18 @@ export async function geocodeClienteIfNeeded(
     return 'failed'
   }
 
-  // Best-effort: si Pelias trae barrio/CP y el cliente no los tiene cargados,
-  // se completan junto con las coordenadas (nunca se pisan valores existentes).
+  // Best-effort: si el cliente no tiene barrio/CP cargados, se completan junto
+  // con las coordenadas (nunca se pisan valores existentes). Para CABA el barrio
+  // sale de USIG (fuente oficial del GCBA, más precisa que el neighbourhood de
+  // OSM); si USIG no responde, se usa el de la feature de Pelias.
   const extras: Partial<typeof clientes.$inferInsert> = {}
-  if (!cliente.barrio?.trim() && result.neighbourhood) extras.barrio = result.neighbourhood
+  if (!cliente.barrio?.trim()) {
+    const barrioOficial = esRegionCABA(cliente.provincia, cliente.localidad)
+      ? await obtenerBarrioOficialCABA(cliente.direccion)
+      : null
+    const barrio = barrioOficial ?? result.neighbourhood
+    if (barrio) extras.barrio = barrio
+  }
   if (!cliente.codigoPostal?.trim() && result.postalcode) extras.codigoPostal = result.postalcode
 
   await db

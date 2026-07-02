@@ -124,6 +124,65 @@ describe('GET /api/geo/sugerir-direccion', () => {
     expect(await res.json()).toEqual({ barrio: null, codigoPostal: null })
   })
 
+  it('7. CABA: el barrio oficial de USIG pisa al neighbourhood de OSM; el CP viene de ORS', async () => {
+    // USIG resuelve "Velez Sarsfield" (oficial); ORS trae "Flores" (OSM) + CP.
+    const fetchMock = vi.fn(async (urlStr: string) => {
+      const url = new URL(urlStr)
+      if (url.pathname.includes('normalizar')) {
+        return {
+          ok: true,
+          json: async () => ({
+            direccionesNormalizadas: [{ coordenadas: { srid: 4326, x: '-58.488835', y: '-34.629700' } }],
+          }),
+        }
+      }
+      if (url.pathname.includes('datos_utiles')) {
+        return { ok: true, json: async () => ({ barrio: 'Velez Sarsfield' }) }
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          features: [feature(CABA.lng, CABA.lat, 'Ciudad Autónoma de Buenos Aires', {
+            neighbourhood: 'Flores',
+            postalcode: '1407',
+          })],
+        }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { GET } = await import('@/app/api/geo/sugerir-direccion/route')
+    const res = await GET(makeRequest({ direccion: 'Aranguren 4261', provincia: 'CABA' }))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ barrio: 'Velez Sarsfield', codigoPostal: '1407' })
+  })
+
+  it('8. USIG caído → fallback al neighbourhood de ORS', async () => {
+    const fetchMock = vi.fn(async (urlStr: string) => {
+      const url = new URL(urlStr)
+      if (url.pathname.includes('normalizar') || url.pathname.includes('datos_utiles')) {
+        throw new Error('USIG down')
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          features: [feature(CABA.lng, CABA.lat, 'Ciudad Autónoma de Buenos Aires', {
+            neighbourhood: 'Flores',
+            postalcode: '1407',
+          })],
+        }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { GET } = await import('@/app/api/geo/sugerir-direccion/route')
+    const res = await GET(makeRequest({ direccion: 'Aranguren 4261', provincia: 'CABA' }))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ barrio: 'Flores', codigoPostal: '1407' })
+  })
+
   it('6. sin direccion → 200 con nulls, sin llamar al geocoder', async () => {
     const fetchMock = stubFetchFeatures()
 
