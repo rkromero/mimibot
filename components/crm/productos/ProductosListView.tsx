@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, PowerOff, Trash2, Download } from 'lucide-react'
+import { Plus, Pencil, PowerOff, Trash2, Download, Copy } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import ProductoModal from './ProductoModal'
@@ -40,11 +40,42 @@ function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
+// "MIM-003" → "MIM-004" (conserva el padding). Sin número final → vacío,
+// para que el backend genere el SKU automáticamente.
+function incrementSku(sku: string | null): string {
+  if (!sku) return ''
+  const match = /^(.*?)(\d+)$/.exec(sku)
+  if (!match) return ''
+  const [, prefix, num] = match
+  const next = String(parseInt(num!, 10) + 1).padStart(num!.length, '0')
+  return `${prefix}${next}`
+}
+
+// Copia para duplicar: todos los campos menos id, con SKU incrementado.
+function buildDuplicate(row: Producto): Partial<Producto> {
+  return {
+    marcaId: row.marcaId,
+    sku: incrementSku(row.sku),
+    nombre: row.nombre,
+    descripcion: row.descripcion,
+    precio: row.precio,
+    costo: row.costo,
+    categoria: row.categoria,
+    imagenUrl: row.imagenUrl,
+    unidadVenta: row.unidadVenta,
+    pesoG: row.pesoG,
+    ivaPct: row.ivaPct,
+    stockMinimo: row.stockMinimo,
+  }
+}
+
 export default function ProductosListView() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const queryClient = useQueryClient()
-  const [modalMode, setModalMode] = useState<null | 'create' | { mode: 'edit'; producto: Producto }>(null)
+  const [modalMode, setModalMode] = useState<
+    null | 'create' | { mode: 'edit'; producto: Producto } | { mode: 'duplicate'; producto: Partial<Producto> }
+  >(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingProducto, setDeletingProducto] = useState<Producto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -213,6 +244,13 @@ export default function ProductosListView() {
                   title="Editar"
                 >
                   <Pencil size={13} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setModalMode({ mode: 'duplicate', producto: buildDuplicate(row) }) }}
+                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Duplicar"
+                >
+                  <Copy size={13} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); void handleToggleActivo(row) }}
