@@ -201,6 +201,14 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     )
   }
 
+  // Edición directa de cantidad: permite vaciar el campo mientras se tipea
+  // (cantidad 0 se muestra vacío y se normaliza a 1 al salir del campo).
+  function changeQtyDirect(idx: number, raw: string) {
+    const parsed = parseInt(raw, 10)
+    const next = Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+    setItems(prev => prev.map((item, i) => (i === idx ? { ...item, cantidad: next } : item)))
+  }
+
   function changePrice(idx: number, value: string) {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, precioUnitario: value } : item)))
   }
@@ -532,7 +540,17 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
                               >
                                 <Minus size={18} />
                               </button>
-                              <span className="w-8 text-center text-lg font-bold text-foreground">{qty}</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                value={qty === 0 ? '' : qty}
+                                onChange={(e) => changeQtyDirect(idx, e.target.value)}
+                                onFocus={(e) => e.target.select()}
+                                onBlur={() => { if (qty < 1) changeQtyDirect(idx, '1') }}
+                                aria-label="Cantidad"
+                                className="w-16 text-center text-lg font-bold text-foreground rounded-lg border border-border bg-background px-1 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
                               <button
                                 onClick={() => changeQty(idx, 1)}
                                 className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:bg-primary/80 transition-colors"

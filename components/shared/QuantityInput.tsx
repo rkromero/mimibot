@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { X, Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,28 +31,21 @@ export default function QuantityInput({
   onConfirm,
   onClose,
 }: Props) {
-  const [qty, setQty] = useState<number>(Math.max(1, initialQty))
+  // La cantidad vive como string para permitir borrar/tipear libre;
+  // qty es el valor numérico ya validado (1..stock).
+  const [qtyStr, setQtyStr] = useState<string>(String(Math.max(1, initialQty)))
   const [priceStr, setPriceStr] = useState<string>(initialPrice ?? produto.precio)
-  const hiddenInputRef = useRef<HTMLInputElement>(null)
+
+  const clamp = (n: number) => Math.max(1, Math.min(produto.stockActual, n))
+  const parsedQty = parseInt(qtyStr, 10)
+  const qty = Number.isFinite(parsedQty) ? clamp(parsedQty) : 1
 
   const pricePerUnit = parseFloat(priceStr) || 0
   const subtotal = qty * pricePerUnit
 
-  const decrement = () => setQty((q) => Math.max(1, q - 1))
-  const increment = () => setQty((q) => Math.min(produto.stockActual, q + 1))
-
-  const handleQtyTap = () => {
-    hiddenInputRef.current?.focus()
-  }
-
-  const handleHiddenInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = parseInt(e.target.value, 10)
-    if (!isNaN(parsed) && parsed >= 1) {
-      setQty(Math.min(produto.stockActual, parsed))
-    } else if (e.target.value === '') {
-      setQty(1)
-    }
-  }
+  const setQtyValue = (n: number) => setQtyStr(String(clamp(n)))
+  const decrement = () => setQtyValue(qty - 1)
+  const increment = () => setQtyValue(qty + 1)
 
   return (
     <div
@@ -91,26 +84,17 @@ export default function QuantityInput({
             <Minus size={20} />
           </button>
 
-          <button
-            onClick={handleQtyTap}
-            className="min-w-[64px] text-center text-3xl font-bold text-foreground tabular-nums"
-            aria-label="Cantidad actual, toca para editar"
-          >
-            {qty}
-          </button>
-
-          {/* Hidden native input for direct typing */}
           <input
-            ref={hiddenInputRef}
             type="number"
             inputMode="numeric"
             min={1}
             max={produto.stockActual}
-            value={qty}
-            onChange={handleHiddenInput}
-            className="sr-only"
-            aria-hidden="true"
-            tabIndex={-1}
+            value={qtyStr}
+            onChange={(e) => setQtyStr(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => setQtyStr(String(qty))}
+            aria-label="Cantidad"
+            className="w-28 text-center text-3xl font-bold text-foreground tabular-nums rounded-xl border border-border bg-background px-2 py-2 focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
 
           <button
@@ -131,7 +115,7 @@ export default function QuantityInput({
             return (
               <button
                 key={chip}
-                onClick={() => !isDisabled && setQty(chip)}
+                onClick={() => !isDisabled && setQtyValue(chip)}
                 disabled={isDisabled}
                 className={cn(
                   'px-4 py-2 rounded-lg border text-sm font-medium transition-colors min-h-[44px]',
