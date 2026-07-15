@@ -36,6 +36,13 @@ export async function GET(req: NextRequest) {
       conditions.push(ilike(productos.nombre, `%${search}%`) as ReturnType<typeof eq>)
     }
 
+    // Filtro explícito por marca (uuid válido, si no se ignora para evitar
+    // errores de cast en Postgres).
+    const marcaIdParam = searchParams.get('marcaId')
+    if (marcaIdParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(marcaIdParam)) {
+      conditions.push(eq(productos.marcaId, marcaIdParam))
+    }
+
     // Filtro de marcas visibles: ventas sólo ven Mimi (default) + sus marcas
     // asignadas; admin/gerente/fabrica/repartidor ven todas (filtro = undefined).
     const marcaFilter = await marcaVisibleFilter(session.user)

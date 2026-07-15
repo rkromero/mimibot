@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, PowerOff, Trash2, Download } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -27,6 +27,8 @@ type Producto = {
   activo: boolean
 }
 
+type Marca = { id: string; nombre: string; slug: string; activo: boolean; esDefault: boolean }
+
 const UNIDAD_LABELS: Record<string, string> = {
   unidad: 'Unidad',
   caja_12: 'Caja x12',
@@ -49,6 +51,18 @@ export default function ProductosListView() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [includeInactive, setIncludeInactive] = useState(false)
+  const [marcaFilter, setMarcaFilter] = useState('')
+
+  const { data: marcasList = [] } = useQuery<Marca[]>({
+    queryKey: ['marcas', 'activas'],
+    queryFn: async () => {
+      const res = await fetch('/api/marcas?soloActivas=true')
+      if (!res.ok) return []
+      const json = await res.json() as { data: Marca[] }
+      return json.data
+    },
+    enabled: isAdmin,
+  })
 
   async function handleDeleteProducto() {
     if (!deletingProducto) return
@@ -103,6 +117,7 @@ export default function ProductosListView() {
 
   const extraParams: Record<string, string> = {}
   if (isAdmin && includeInactive) extraParams['includeInactive'] = 'true'
+  if (isAdmin && marcaFilter) extraParams['marcaId'] = marcaFilter
 
   const columns = [
     {
@@ -256,6 +271,31 @@ export default function ProductosListView() {
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-2 mb-4">
+          <select
+            value={marcaFilter}
+            onChange={(e) => setMarcaFilter(e.target.value)}
+            className="border border-border rounded-lg px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">Todas las marcas</option>
+            {marcasList.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nombre}
+              </option>
+            ))}
+          </select>
+          {marcaFilter && (
+            <button
+              onClick={() => setMarcaFilter('')}
+              className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
 
       <DataTable<Producto>
         endpoint="/api/productos"
