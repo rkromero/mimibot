@@ -149,7 +149,7 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
         return
       }
 
-      void queryClient.invalidateQueries({ queryKey: ['productos'] })
+      void queryClient.invalidateQueries({ queryKey: ['/api/productos'] })
       onClose()
     } catch {
       setError('Error de conexión')
