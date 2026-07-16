@@ -43,6 +43,15 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
           telefono: true,
         },
       },
+      items: {
+        columns: { id: true },
+        with: {
+          producto: {
+            columns: { id: true },
+            with: { marca: { columns: { nombre: true } } },
+          },
+        },
+      },
     },
   })
 
@@ -59,6 +68,13 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     pedido.cliente,
   )
 
+  // Marcas únicas de los productos del pedido, en orden de aparición.
+  const marcaNombres = [...new Set(
+    pedido.items
+      .map((item) => item.producto?.marca?.nombre)
+      .filter((n): n is string => !!n),
+  )]
+
   const data: EtiquetaData = {
     pedidoId: pedido.id,
     clienteNombre: pedido.cliente.nombre,
@@ -66,6 +82,7 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     clienteTelefono: pedido.cliente.telefono ?? undefined,
     entregaLineas,
     empresa: { nombre: config?.nombre ?? '' },
+    marcaTitulo: marcaNombres.length > 0 ? marcaNombres.join(' + ') : undefined,
     observaciones: pedido.observaciones ?? undefined,
   }
 

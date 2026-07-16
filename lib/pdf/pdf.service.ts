@@ -30,7 +30,10 @@ export async function emitirDocumento(
       vendedor: { columns: { id: true, name: true } },
       items: {
         with: {
-          producto: { columns: { id: true, nombre: true, descripcion: true } },
+          producto: {
+            columns: { id: true, nombre: true, descripcion: true },
+            with: { marca: { columns: { nombre: true } } },
+          },
         },
       },
     },
@@ -92,6 +95,13 @@ export async function emitirDocumento(
   })
 
   // 4. Build PedidoData
+  // Marcas únicas de los productos del pedido, en orden de aparición.
+  const marcaNombres = [...new Set(
+    pedido.items
+      .map((item) => item.producto?.marca?.nombre)
+      .filter((n): n is string => !!n),
+  )]
+
   const pedidoData = {
     id: pedido.id,
     fecha: pedido.fecha,
@@ -113,6 +123,7 @@ export async function emitirDocumento(
     })),
     total: pedido.total,
     costoEnvio: pedido.costoEnvio ?? '0',
+    marcaTitulo: marcaNombres.length > 0 ? marcaNombres.join(' + ') : undefined,
     vendedorNombre: pedido.vendedor?.name ?? 'Vendedor',
     empresa,
     // Método de entrega (solo pedidos del rol Agente)

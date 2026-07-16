@@ -25,6 +25,9 @@ export type PedidoData = {
   total: string
   /** Costo de envío (concepto "Envío"); ya está incluido en `total` */
   costoEnvio?: string
+  /** Marca(s) de los productos del pedido, ej. "Mimi" o "Mimi + CDA".
+   *  Si está, reemplaza al nombre de empresa como título del documento. */
+  marcaTitulo?: string
   vendedorNombre: string
   empresa: {
     nombre: string
@@ -282,7 +285,7 @@ export function RemitoDocument({ data, numero }: Props) {
         {/* ── Encabezado ──────────────────────────────────────────────────── */}
         <View style={S.header}>
           <View style={{ flex: 1, marginRight: 20 }}>
-            <Text style={S.empresaNombre}>{data.empresa.nombre || 'Empresa'}</Text>
+            <Text style={S.empresaNombre}>{data.marcaTitulo || data.empresa.nombre || 'Empresa'}</Text>
             {data.empresa.cuit && (
               <Text style={S.empresaMeta}>CUIT: {data.empresa.cuit}</Text>
             )}

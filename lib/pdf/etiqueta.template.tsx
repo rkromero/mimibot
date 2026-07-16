@@ -9,6 +9,8 @@ export type EtiquetaData = {
   /** Resolved delivery address lines (ready to display) */
   entregaLineas: string[]
   empresa: { nombre: string }
+  /** Marca(s) de los productos del pedido; si está, reemplaza al nombre de empresa como remitente */
+  marcaTitulo?: string
   observaciones?: string
 }
 
@@ -101,7 +103,7 @@ export function EtiquetaDocument({ data }: { data: EtiquetaData }) {
 
         {/* Remitente */}
         <Text style={styles.remitente}>
-          De: {data.empresa.nombre || 'Empresa'}
+          De: {data.marcaTitulo || data.empresa.nombre || 'Empresa'}
         </Text>
 
         {/* Destinatario */}

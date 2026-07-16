@@ -99,7 +99,7 @@ export function ProformaDocument({ data, numero }: Props) {
         {/* ── Encabezado ──────────────────────────────────────────────────── */}
         <View style={S.header}>
           <View style={{ flex: 1, marginRight: 20 }}>
-            <Text style={S.empresaNombre}>{data.empresa.nombre || 'Empresa'}</Text>
+            <Text style={S.empresaNombre}>{data.marcaTitulo || data.empresa.nombre || 'Empresa'}</Text>
             {data.empresa.cuit && (
               <Text style={S.empresaMeta}>CUIT: {data.empresa.cuit}</Text>
             )}
