@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, X, LogOut } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import Sidebar, { filterGroups } from '@/components/shared/Sidebar'
+import BrandLogo from '@/components/shared/BrandLogo'
 import BottomNav from '@/components/shared/BottomNav'
 import GlobalSearch from '@/components/shared/GlobalSearch'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
@@ -64,8 +65,8 @@ export default function AppShell({ user, children }: Props) {
               >
                 <Menu size={20} />
               </button>
-              <span className="flex-1 text-center text-sm font-semibold text-foreground">
-                Mimi Alfajores
+              <span className="flex-1 flex justify-center">
+                <BrandLogo className="h-4 w-auto text-primary dark:text-white" />
               </span>
               <span className="w-7" aria-hidden />
             </header>
@@ -86,7 +87,9 @@ export default function AppShell({ user, children }: Props) {
             />
             <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-card border-r border-border flex flex-col md:hidden">
               <div className="h-12 flex items-center px-4 border-b border-border shrink-0">
-                <span className="flex-1 text-sm font-semibold text-foreground">Mimi Alfajores</span>
+                <span className="flex-1">
+                  <BrandLogo className="h-4 w-auto text-primary dark:text-white" />
+                </span>
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(false)}
@@ -183,8 +186,8 @@ export default function AppShell({ user, children }: Props) {
             >
               <Menu size={20} />
             </button>
-            <span className="flex-1 text-center text-sm font-semibold text-foreground">
-              Mimi Alfajores
+            <span className="flex-1 flex justify-center">
+              <BrandLogo className="h-4 w-auto text-primary dark:text-white" />
             </span>
             {/* Spacer to keep title centered */}
             <span className="w-7" aria-hidden />
@@ -211,7 +214,9 @@ export default function AppShell({ user, children }: Props) {
           {/* Drawer panel */}
           <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-card border-r border-border flex flex-col md:hidden">
             <div className="h-12 flex items-center px-4 border-b border-border shrink-0">
-              <span className="flex-1 text-sm font-semibold text-foreground">Mimi Alfajores</span>
+              <span className="flex-1">
+                <BrandLogo className="h-4 w-auto text-primary dark:text-white" />
+              </span>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}

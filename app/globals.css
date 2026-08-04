@@ -5,12 +5,12 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 218 9% 18%;      /* Carbón ALIPRO #2B2E33 */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 218 9% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 221 83% 53%;        /* azul oscuro — blue-600 */
+    --popover-foreground: 218 9% 18%;
+    --primary: 350 85% 42%;        /* Rojo ALIPRO #C8102E */
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -22,7 +22,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 221 83% 53%;
+    --ring: 350 85% 42%;
     --radius: 0.375rem;
   }
 
@@ -33,7 +33,7 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 5.5%;
     --popover-foreground: 0 0% 98%;
-    --primary: 217 91% 60%;
+    --primary: 350 75% 52%;        /* Rojo ALIPRO aclarado para fondo oscuro */
     --primary-foreground: 0 0% 100%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
@@ -45,7 +45,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 217 91% 60%;
+    --ring: 350 75% 52%;
   }
 }
 
@@ -56,6 +56,11 @@
   body {
     @apply bg-background text-foreground text-base;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Manual de marca ALIPRO: titulares en Montserrat, cuerpo en Inter */
+  h1, h2, h3, h4 {
+    font-family: var(--font-montserrat), Montserrat, Arial, sans-serif;
   }
 
   /* Scrollbar sutil */

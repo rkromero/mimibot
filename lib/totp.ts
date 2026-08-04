@@ -8,7 +8,7 @@ const totp = new TOTP({
 export { generateSecret }
 
 export async function generateTotpUri(secret: string, email: string): Promise<string> {
-  return totp.toURI({ secret, label: email, issuer: 'Mimi CRM' })
+  return totp.toURI({ secret, label: email, issuer: 'ALIPRO CRM' })
 }
 
 export async function verifyTotpCode(code: string, secret: string): Promise<boolean> {

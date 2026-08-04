@@ -1,11 +1,11 @@
 {
-  "name": "Mimi CRM",
-  "short_name": "Mimi",
+  "name": "ALIPRO CRM",
+  "short_name": "ALIPRO",
   "description": "CRM de ventas para equipos de campo",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#92400e",
+  "theme_color": "#C8102E",
   "orientation": "portrait-primary",
   "categories": ["business", "productivity"],
   "icons": [

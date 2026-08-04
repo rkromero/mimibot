@@ -67,6 +67,7 @@ export function formatCurrency(value: string): string {
 
 // ─── Shared styles (exported for proforma to reuse) ───────────────────────────
 
+// Paleta ALIPRO (manual de marca v2.2): rojo #C8102E, carbón #2B2E33
 export const S = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
@@ -75,7 +76,7 @@ export const S = StyleSheet.create({
     paddingBottom: 130,
     paddingLeft: 40,
     paddingRight: 40,
-    color: '#111111',
+    color: '#2B2E33',
   },
   // Header: 2-column layout
   header: {
@@ -121,7 +122,7 @@ export const S = StyleSheet.create({
   },
   thickRule: {
     borderBottomWidth: 2,
-    borderBottomColor: '#111111',
+    borderBottomColor: '#C8102E',
     marginBottom: 14,
   },
   // Client box
@@ -134,7 +135,7 @@ export const S = StyleSheet.create({
     borderRightColor: '#e5e7eb',
     borderBottomColor: '#e5e7eb',
     borderLeftWidth: 3,
-    borderLeftColor: '#111111',
+    borderLeftColor: '#C8102E',
     borderRadius: 4,
     padding: 10,
     marginBottom: 14,
@@ -200,7 +201,7 @@ export const S = StyleSheet.create({
   },
   tableClosingRule: {
     borderBottomWidth: 2,
-    borderBottomColor: '#111111',
+    borderBottomColor: '#2B2E33',
     marginBottom: 10,
   },
   // Remito column widths (2 columns)

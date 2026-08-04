@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Cookie } from 'lucide-react'
+import BrandLogo from '@/components/shared/BrandLogo'
 import LoginForm from './LoginForm'
 
 export default function LoginPage() {
@@ -8,13 +8,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo centrado arriba */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-sm">
-            <Cookie size={28} strokeWidth={1.75} className="text-primary-foreground" />
-          </div>
-          <h1 className="mt-4 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Mimi Alfajores
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">CRM</p>
+          <BrandLogo className="h-8 w-auto text-primary dark:text-white" />
+          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">CRM</p>
         </div>
 
         {/* Tarjeta del formulario */}
@@ -33,7 +28,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
-          © Mimi Alfajores
+          © ALIPRO
         </p>
       </div>
     </div>

@@ -1,5 +1,7 @@
-const CACHE_NAME = 'mimi-crm-v3'
-const API_CACHE = 'mimi-api-v3'
+// Bump de caches por rebranding ALIPRO: purga assets viejos (iconos Mimi).
+// QUEUE_DB NO se renombra: contiene acciones offline encoladas de usuarios.
+const CACHE_NAME = 'alipro-crm-v1'
+const API_CACHE = 'alipro-api-v1'
 const QUEUE_DB = 'mimi-offline-queue'
 const QUEUE_STORE = 'actions'
 

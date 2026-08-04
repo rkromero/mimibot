@@ -140,22 +140,22 @@ export async function POST(req: NextRequest) {
 
     const htmlBody = `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1d4ed8; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+        <h2 style="color: #C8102E; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
           Resumen de Alertas — ${format(new Date(), 'dd/MM/yyyy HH:mm')}
         </h2>
         <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          ${alertas.map((a) => `<div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border-left: 3px solid #1d4ed8;">${a}</div>`).join('')}
+          ${alertas.map((a) => `<div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border-left: 3px solid #C8102E;">${a}</div>`).join('')}
         </div>
         <p style="color: #6b7280; font-size: 12px;">
-          Este email fue enviado automáticamente por el CRM de Mimi Alfajores.
+          Este email fue enviado automáticamente por el CRM de ALIPRO.
         </p>
       </div>
     `
 
     await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? 'CRM Mimi Alfajores <noreply@mimi.com.ar>',
+      from: process.env.RESEND_FROM_EMAIL ?? 'CRM ALIPRO <noreply@mimi.com.ar>',
       to: admins.map((a) => a.email),
-      subject: `[Mimi CRM] ${alertas.length} alerta${alertas.length !== 1 ? 's' : ''} — ${format(new Date(), 'dd/MM/yyyy')}`,
+      subject: `[ALIPRO CRM] ${alertas.length} alerta${alertas.length !== 1 ? 's' : ''} — ${format(new Date(), 'dd/MM/yyyy')}`,
       html: htmlBody,
     })
 

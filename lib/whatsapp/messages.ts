@@ -4,7 +4,7 @@
  *
  * Reglas de estilo acordadas con el usuario:
  *   1. Tuteo profesional (vos, te, escribime)
- *   2. Firma "— <nombre del vendedor>, Mimi Alfajores"
+ *   2. Firma "— <nombre del vendedor>, ALIPRO"
  *   3. Sin emojis
  *   4. Sin datos de empresa al pie
  *   5. Un mensaje específico por tipo de acción (pedido, cobro, recordatorio, reenvío)
@@ -15,7 +15,7 @@
 
 import { format } from 'date-fns'
 
-const COMPANY_NAME = 'Mimi Alfajores'
+const COMPANY_NAME = 'ALIPRO'
 
 // ─── Phone normalization ─────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ function signature(vendedorName: string | null | undefined): string {
   const v = (vendedorName ?? '').trim()
   if (!v) return `— ${COMPANY_NAME}`
   // Si el vendedor tiene nombre y apellido, dejamos solo el primer nombre para
-  // que la firma quede informal pero profesional ("— Nico, Mimi Alfajores").
+  // que la firma quede informal pero profesional ("— Nico, ALIPRO").
   return `— ${firstName(v)}, ${COMPANY_NAME}`
 }
 

@@ -35,7 +35,7 @@ const P = StyleSheet.create({
   totalDivider: {
     width: 165,
     borderBottomWidth: 1,
-    borderBottomColor: '#111111',
+    borderBottomColor: '#2B2E33',
     marginBottom: 4,
   },
   totalFinalLabel: {
@@ -51,11 +51,11 @@ const P = StyleSheet.create({
     textAlign: 'right',
     minWidth: 80,
   },
-  // Información Fiscal box
+  // Información Fiscal box — gris claro + carbón (paleta ALIPRO)
   infoBox: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#F2F2F0',
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: '#e4e6e8',
     borderRadius: 4,
     padding: 10,
     marginBottom: 14,
@@ -63,12 +63,12 @@ const P = StyleSheet.create({
   infoTitle: {
     fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: '#1e40af',
+    color: '#2B2E33',
     marginBottom: 5,
   },
   infoBullet: {
     fontSize: 8,
-    color: '#1e40af',
+    color: '#6A7076',
     marginBottom: 2,
   },
 })

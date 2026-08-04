@@ -11,6 +11,7 @@ import {
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
+import BrandLogo from '@/components/shared/BrandLogo'
 import type { Session } from 'next-auth'
 
 type User = Session['user']
@@ -141,7 +142,9 @@ export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOp
   return (
     <aside className="hidden md:flex flex-col w-52 border-r border-border bg-card shrink-0">
       <div className="h-12 flex items-center px-4 border-b border-border shrink-0">
-        <span className="text-md font-semibold text-foreground flex-1">Mimi Alfajores</span>
+        <span className="flex-1">
+          <BrandLogo className="h-5 w-auto text-primary dark:text-white" />
+        </span>
         <button
           onClick={onSearchOpen}
           className="p-1 text-muted-foreground hover:text-foreground transition-colors"

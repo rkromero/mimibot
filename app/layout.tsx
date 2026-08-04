@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Inter, Montserrat } from 'next/font/google'
 import QueryProvider from '@/components/shared/QueryProvider'
 import './globals.css'
 
-const geistSans = Geist({
+const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-geist-sans',
+  variable: '--font-inter',
 })
 
-const geistMono = Geist_Mono({
+const montserrat = Montserrat({
   subsets: ['latin'],
-  variable: '--font-geist-mono',
+  variable: '--font-montserrat',
 })
 
 export const viewport: Viewport = {
@@ -22,13 +22,13 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Mimi CRM',
+  title: 'ALIPRO CRM',
   description: 'CRM de ventas para equipos de campo',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Mimi',
+    title: 'ALIPRO',
   },
 }
 
@@ -36,12 +36,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#C8102E" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${montserrat.variable} antialiased`}>
         <QueryProvider>{children}</QueryProvider>
         <script
           dangerouslySetInnerHTML={{
