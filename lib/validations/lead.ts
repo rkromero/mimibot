@@ -23,13 +23,112 @@ export const updateLeadSchema = z.object({
   customFields: z.record(z.unknown()).optional(),
 })
 
-export const intakeSchema = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email().optional().nullable(),
-  phone: z.string().max(20).optional().nullable(),
-  message: z.string().max(2000).optional(),
-  source: z.string().max(100).optional(),
-})
+// ─── Intake público (formularios de landings) ─────────────────────────────────
+// Cada landing manda un payload distinto: la de ALIPRO usa claves en español
+// (nombre/whatsapp/origen + campos de calificación), la de Compañía de
+// Alfajores manda nombre/telefono/producto/volumen, y el shape original
+// (name/phone/source) se sigue aceptando. El schema tolera todos los alias y
+// normalizeIntake() los reduce a un único shape.
+
+const vacioAUndefined = (v: unknown) =>
+  typeof v === 'string' && v.trim() === '' ? undefined : v
+
+const texto = (max: number) => z.preprocess(vacioAUndefined, z.string().max(max).optional())
+
+export const intakeSchema = z
+  .object({
+    name: texto(200),
+    email: z.preprocess(vacioAUndefined, z.string().email().optional()),
+    phone: texto(30),
+    message: texto(5000),
+    source: texto(100),
+    // alias en español
+    nombre: texto(200),
+    whatsapp: texto(30),
+    telefono: texto(30),
+    mensaje: texto(5000),
+    origen: texto(100),
+    // extras estructurados que enriquecen el lead
+    empresa: texto(200),
+    producto: texto(200),
+  })
+  .passthrough()
+  .refine((d) => Boolean(d.name ?? d.nombre), { message: 'Falta el nombre' })
+
+export type IntakeNormalized = {
+  name: string
+  email: string | null
+  phone: string | null
+  message: string | null
+  source: string
+  empresa: string | null
+  producto: string | null
+  extras: Record<string, unknown>
+}
+
+// claves ya normalizadas (o irrelevantes) que no van a extras
+const CAMPOS_BASE = new Set([
+  'name', 'nombre', 'email', 'phone', 'whatsapp', 'telefono',
+  'message', 'mensaje', 'source', 'origen', 'empresa', 'producto',
+  'empresa_web', 'fecha',
+])
+
+export function normalizeIntake(data: z.infer<typeof intakeSchema>): IntakeNormalized {
+  const extras: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (CAMPOS_BASE.has(k) || v == null || v === '') continue
+    extras[k] = v
+  }
+  return {
+    name: (data.name ?? data.nombre ?? '').trim(),
+    email: data.email ?? null,
+    phone: data.phone ?? data.whatsapp ?? data.telefono ?? null,
+    message: data.message ?? data.mensaje ?? null,
+    source: (data.source ?? data.origen ?? 'landing').trim(),
+    empresa: data.empresa ?? null,
+    producto: data.producto ?? null,
+    extras,
+  }
+}
+
+// Orden y etiquetas del resumen que se inserta como mensaje en el inbox.
+// Pares (clave, etiqueta): claves distintas pueden compartir etiqueta porque
+// las landings nombran igual a lo mismo (cantidad/volumen).
+const ETIQUETAS_RESUMEN: Array<[string, string]> = [
+  ['empresa', 'Empresa'],
+  ['marca', 'Marca registrada'],
+  ['provincia', 'Provincia'],
+  ['producto', 'Producto'],
+  ['cantidad', 'Volumen mensual'],
+  ['volumen', 'Volumen mensual'],
+  ['envasado', 'Envasado'],
+  ['packaging', 'Packaging'],
+  ['acepta_inversion_bobina', 'Acepta inversión en bobina'],
+  ['inversionEstimada', 'Inversión estimada'],
+  ['plazo', 'Plazo'],
+  ['canal', 'Canal de venta'],
+  ['situacion', 'Situación'],
+  ['segmento', 'Segmento'],
+  ['lead_grade', 'Calificación'],
+  ['lead_score', 'Puntaje'],
+]
+
+export function buildIntakeResumen(d: IntakeNormalized): string {
+  const campos: Record<string, unknown> = { ...d.extras }
+  if (d.empresa) campos['empresa'] = d.empresa
+  if (d.producto) campos['producto'] = d.producto
+
+  const lineas: string[] = [`Nueva consulta desde ${d.source}`, '']
+  const vistas = new Set<string>()
+  for (const [clave, etiqueta] of ETIQUETAS_RESUMEN) {
+    const v = campos[clave]
+    if (v == null || v === '' || vistas.has(etiqueta)) continue
+    vistas.add(etiqueta)
+    lineas.push(`${etiqueta}: ${String(v)}`)
+  }
+  if (d.message) lineas.push('', `Mensaje: ${d.message}`)
+  return lineas.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
 
 export const leadFiltersSchema = z.object({
   agentId: z.string().uuid().optional(),
