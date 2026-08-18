@@ -7,7 +7,7 @@ import type { LeadWithContact } from '@/types/db'
 
 type Props = { lead: LeadWithContact }
 
-type EditableField = 'budget' | 'productInterest' | 'notes'
+type EditableField = 'budget' | 'productInterest' | 'notes' | 'direccion' | 'localidad'
 
 export default function LeadDetails({ lead }: Props) {
   const queryClient = useQueryClient()
@@ -16,6 +16,8 @@ export default function LeadDetails({ lead }: Props) {
     budget: lead.budget ?? '',
     productInterest: lead.productInterest ?? '',
     notes: lead.notes ?? '',
+    direccion: lead.direccion ?? '',
+    localidad: lead.localidad ?? '',
   })
 
   async function save(field: EditableField) {
@@ -59,6 +61,27 @@ export default function LeadDetails({ lead }: Props) {
           onEdit={() => setEditing('productInterest')}
           onChange={(v) => setValues((p) => ({ ...p, productInterest: v }))}
           onSave={() => save('productInterest')}
+          onCancel={() => setEditing(null)}
+        />
+      </Section>
+
+      <Section label="Dirección">
+        <InlineEdit
+          label="Calle y nº"
+          value={values.direccion}
+          isEditing={editing === 'direccion'}
+          onEdit={() => setEditing('direccion')}
+          onChange={(v) => setValues((p) => ({ ...p, direccion: v }))}
+          onSave={() => save('direccion')}
+          onCancel={() => setEditing(null)}
+        />
+        <InlineEdit
+          label="Localidad"
+          value={values.localidad}
+          isEditing={editing === 'localidad'}
+          onEdit={() => setEditing('localidad')}
+          onChange={(v) => setValues((p) => ({ ...p, localidad: v }))}
+          onSave={() => save('localidad')}
           onCancel={() => setEditing(null)}
         />
       </Section>

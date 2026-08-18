@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
         .set({
           notes: openLead.notes ? `${openLead.notes}\n\n---\n${resumen}` : resumen,
           productInterest: openLead.productInterest ?? data.producto,
+          direccion: openLead.direccion ?? data.direccion,
+          localidad: openLead.localidad ?? data.localidad,
           updatedAt: new Date(),
         })
         .where(eq(leads.id, leadId))
@@ -137,6 +139,8 @@ export async function POST(req: NextRequest) {
           stageId: firstStage.id,
           source: 'landing',
           productInterest: data.producto,
+          direccion: data.direccion,
+          localidad: data.localidad,
           notes: resumen,
           customFields: custom,
           botEnabled: true,

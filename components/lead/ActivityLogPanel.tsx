@@ -15,6 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
   lead_created: 'Lead creado',
   tag_added: 'Tag agregado',
   tag_removed: 'Tag eliminado',
+  muestra_creada: 'Pedido de muestra creado',
 }
 
 export default function ActivityLogPanel({ leadId }: { leadId: string }) {

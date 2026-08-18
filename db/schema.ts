@@ -18,6 +18,7 @@ export const activityActionEnum = pgEnum('activity_action', [
   'bot_handoff', 'bot_enabled', 'bot_disabled',
   'lead_created', 'tag_added', 'tag_removed',
   'follow_up_scheduled', 'follow_up_sent', 'follow_up_cancelled',
+  'muestra_creada',
 ])
 export const followUpStatusEnum = pgEnum('follow_up_status', ['pending', 'sent', 'cancelled', 'failed'])
 export const followUpScenarioEnum = pgEnum('follow_up_scenario', ['no_response', 'stalling', 'manual'])
@@ -116,6 +117,9 @@ export const leads = pgTable('leads', {
   budget: decimal('budget', { precision: 12, scale: 2 }),
   productInterest: text('product_interest'),
   notes: text('notes'),
+  // Dirección del lead (para envío de muestras); se copia al cliente al convertir
+  direccion: text('direccion'),
+  localidad: text('localidad'),
   customFields: jsonb('custom_fields').notNull().default('{}'),
   botEnabled: boolean('bot_enabled').notNull().default(true),
   botQualified: boolean('bot_qualified').notNull().default(false),

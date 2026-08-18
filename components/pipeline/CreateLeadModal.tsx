@@ -30,6 +30,8 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
     budget: '',
     productInterest: '',
     notes: '',
+    direccion: '',
+    localidad: '',
     source: 'manual' as const,
   })
 
@@ -75,6 +77,8 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
           budget: form.budget ? Number(form.budget) : undefined,
           productInterest: form.productInterest.trim() || undefined,
           notes: form.notes.trim() || undefined,
+          direccion: form.direccion.trim() || undefined,
+          localidad: form.localidad.trim() || undefined,
           source: form.source,
         }),
       })
@@ -193,6 +197,27 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
                 value={form.productInterest}
                 onChange={(e) => set('productInterest', e.target.value)}
                 placeholder="Ej: Plan Pro"
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Dirección</label>
+              <input
+                value={form.direccion}
+                onChange={(e) => set('direccion', e.target.value)}
+                placeholder="Calle y nº"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Localidad</label>
+              <input
+                value={form.localidad}
+                onChange={(e) => set('localidad', e.target.value)}
+                placeholder="Ciudad / localidad"
                 className={inputClass}
               />
             </div>

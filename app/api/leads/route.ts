@@ -335,6 +335,8 @@ export async function POST(req: NextRequest) {
         budget: input.budget ?? null,
         productInterest: input.productInterest ?? null,
         notes: input.notes ?? null,
+        direccion: input.direccion ?? null,
+        localidad: input.localidad ?? null,
         isOpen: !stage.isTerminal,
       })
       .returning()

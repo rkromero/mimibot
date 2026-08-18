@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag } from 'lucide-react'
+import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import Avatar from '@/components/shared/Avatar'
@@ -152,6 +153,44 @@ export default function LeadPanel({
   })
 
   const effectiveConvId = conversationId ?? lead?.conversation?.id ?? null
+
+  // ── Muestra CDA ──────────────────────────────────────────────────────────────
+  // Habilitado para leads de las landings de CDA y ALIPRO (misma muestra CDA).
+  // El GET /api/leads/[id] devuelve lead.tags como filas de lead_tags con el
+  // tag anidado; el shape plano (Tag[]) se contempla por compatibilidad.
+  const TAGS_MUESTRA = ['landing-cda', 'web-alipro']
+  const muestraHabilitada = (lead?.tags ?? []).some((t) => {
+    const raw = t as { name?: string; tag?: { name?: string } }
+    return TAGS_MUESTRA.includes(raw.name ?? '') || TAGS_MUESTRA.includes(raw.tag?.name ?? '')
+  })
+
+  const [muestra, setMuestra] = useState<{ loading: boolean; pedidoId: string | null; error: string | null }>({
+    loading: false,
+    pedidoId: null,
+    error: null,
+  })
+
+  useEffect(() => {
+    setMuestra({ loading: false, pedidoId: null, error: null })
+  }, [leadId])
+
+  async function enviarMuestra() {
+    if (!leadId || muestra.loading) return
+    setMuestra({ loading: true, pedidoId: null, error: null })
+    try {
+      const res = await fetch(`/api/leads/${leadId}/muestra`, { method: 'POST' })
+      const json = await res.json() as { data?: { pedidoId: string }; error?: string }
+      if (!res.ok || !json.data) {
+        setMuestra({ loading: false, pedidoId: null, error: json.error ?? 'Error al crear el pedido de muestra' })
+        return
+      }
+      setMuestra({ loading: false, pedidoId: json.data.pedidoId, error: null })
+      void queryClient.invalidateQueries({ queryKey: ['activity', leadId] })
+      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+    } catch {
+      setMuestra({ loading: false, pedidoId: null, error: 'Error de red al crear el pedido' })
+    }
+  }
 
   async function toggleBot() {
     if (!lead || !leadId) return
@@ -420,6 +459,30 @@ export default function LeadPanel({
             />
           </button>
         </div>
+
+        {muestraHabilitada && (
+          <div className="px-4 py-2.5 border-b border-border">
+            {muestra.pedidoId ? (
+              <Link
+                href={`/crm/pedidos/${muestra.pedidoId}`}
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <ExternalLink size={12} />
+                Muestra cargada — ver pedido
+              </Link>
+            ) : (
+              <button
+                onClick={enviarMuestra}
+                disabled={muestra.loading}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                <Package size={13} />
+                {muestra.loading ? 'Creando pedido...' : 'Enviar muestra CDA'}
+              </button>
+            )}
+            {muestra.error && <p className="mt-1.5 text-xs text-destructive">{muestra.error}</p>}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           <LeadDetails lead={lead} />

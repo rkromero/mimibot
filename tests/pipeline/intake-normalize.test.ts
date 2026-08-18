@@ -62,6 +62,37 @@ describe('intakeSchema + normalizeIntake', () => {
     expect(d.source).toBe('landing')
   })
 
+  it('normaliza direccion y ciudad a campos propios (no van a extras)', () => {
+    const parsed = intakeSchema.safeParse({
+      nombre: 'Ana', telefono: '1155556666', origen: 'landing-cda',
+      direccion: 'Av. Siempreviva 742', ciudad: 'Lanús',
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+
+    const d = normalizeIntake(parsed.data)
+    expect(d.direccion).toBe('Av. Siempreviva 742')
+    expect(d.localidad).toBe('Lanús')
+    expect(d.extras['direccion']).toBeUndefined()
+    expect(d.extras['ciudad']).toBeUndefined()
+
+    const resumen = buildIntakeResumen(d)
+    expect(resumen).toContain('Dirección: Av. Siempreviva 742')
+    expect(resumen).toContain('Localidad: Lanús')
+  })
+
+  it('acepta los alias domicilio/localidad', () => {
+    const parsed = intakeSchema.safeParse({
+      nombre: 'Beto', domicilio: 'Mitre 100', localidad: 'Avellaneda',
+    })
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+
+    const d = normalizeIntake(parsed.data)
+    expect(d.direccion).toBe('Mitre 100')
+    expect(d.localidad).toBe('Avellaneda')
+  })
+
   it('tolera email vacío y aplica source por defecto', () => {
     const parsed = intakeSchema.safeParse({ nombre: 'Sin Mail', email: '' })
     expect(parsed.success).toBe(true)

@@ -76,6 +76,8 @@ export async function PATCH(
     if (parsed.data.budget !== undefined) updates.budget = parsed.data.budget
     if (parsed.data.productInterest !== undefined) updates.productInterest = parsed.data.productInterest
     if (parsed.data.notes !== undefined) updates.notes = parsed.data.notes
+    if (parsed.data.direccion !== undefined) updates.direccion = parsed.data.direccion
+    if (parsed.data.localidad !== undefined) updates.localidad = parsed.data.localidad
     if (parsed.data.botEnabled !== undefined) updates.botEnabled = parsed.data.botEnabled
     if (parsed.data.customFields !== undefined) updates.customFields = parsed.data.customFields
 

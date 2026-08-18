@@ -10,6 +10,8 @@ export const createLeadSchema = z.object({
   budget: z.string().optional().nullable(),
   productInterest: z.string().max(500).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  direccion: z.string().max(300).optional().nullable(),
+  localidad: z.string().max(120).optional().nullable(),
   tags: z.array(z.string().uuid()).optional(),
 })
 
@@ -19,6 +21,8 @@ export const updateLeadSchema = z.object({
   budget: z.string().nullable().optional(),
   productInterest: z.string().max(500).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  direccion: z.string().max(300).nullable().optional(),
+  localidad: z.string().max(120).nullable().optional(),
   botEnabled: z.boolean().optional(),
   customFields: z.record(z.unknown()).optional(),
 })
@@ -51,6 +55,11 @@ export const intakeSchema = z
     // extras estructurados que enriquecen el lead
     empresa: texto(200),
     producto: texto(200),
+    // dirección (para envío de muestras); ciudad/localidad son sinónimos
+    direccion: texto(300),
+    domicilio: texto(300),
+    ciudad: texto(120),
+    localidad: texto(120),
   })
   .passthrough()
   .refine((d) => Boolean(d.name ?? d.nombre), { message: 'Falta el nombre' })
@@ -63,6 +72,8 @@ export type IntakeNormalized = {
   source: string
   empresa: string | null
   producto: string | null
+  direccion: string | null
+  localidad: string | null
   extras: Record<string, unknown>
 }
 
@@ -70,6 +81,7 @@ export type IntakeNormalized = {
 const CAMPOS_BASE = new Set([
   'name', 'nombre', 'email', 'phone', 'whatsapp', 'telefono',
   'message', 'mensaje', 'source', 'origen', 'empresa', 'producto',
+  'direccion', 'domicilio', 'ciudad', 'localidad',
   'empresa_web', 'fecha',
 ])
 
@@ -87,6 +99,8 @@ export function normalizeIntake(data: z.infer<typeof intakeSchema>): IntakeNorma
     source: (data.source ?? data.origen ?? 'landing').trim(),
     empresa: data.empresa ?? null,
     producto: data.producto ?? null,
+    direccion: data.direccion ?? data.domicilio ?? null,
+    localidad: data.ciudad ?? data.localidad ?? null,
     extras,
   }
 }
@@ -97,6 +111,8 @@ export function normalizeIntake(data: z.infer<typeof intakeSchema>): IntakeNorma
 const ETIQUETAS_RESUMEN: Array<[string, string]> = [
   ['empresa', 'Empresa'],
   ['marca', 'Marca registrada'],
+  ['direccion', 'Dirección'],
+  ['localidad', 'Localidad'],
   ['provincia', 'Provincia'],
   ['producto', 'Producto'],
   ['cantidad', 'Volumen mensual'],
@@ -117,6 +133,8 @@ export function buildIntakeResumen(d: IntakeNormalized): string {
   const campos: Record<string, unknown> = { ...d.extras }
   if (d.empresa) campos['empresa'] = d.empresa
   if (d.producto) campos['producto'] = d.producto
+  if (d.direccion) campos['direccion'] = d.direccion
+  if (d.localidad) campos['localidad'] = d.localidad
 
   const lineas: string[] = [`Nueva consulta desde ${d.source}`, '']
   const vistas = new Set<string>()
