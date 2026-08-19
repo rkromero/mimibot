@@ -185,16 +185,16 @@ describe('assignLeadByRule', () => {
       mockExecute.mockImplementation(() => {
         const even = call++ % 2 === 0
         return Promise.resolve(
-          (even
+          even
             ? [W_CONFIG]
-            : [{ id: 'agent-a' }, { id: 'agent-b' }]) as never,
-        )
+            : [{ id: 'agent-a' }, { id: 'agent-b' }],
+        ) as never
       })
 
       const counts: Record<string, number> = { 'agent-a': 0, 'agent-b': 0 }
       for (let i = 0; i < 1000; i++) {
         const result = await assignLeadByRule(Math.random)
-        counts[result!]++
+        counts[result!] = (counts[result!] ?? 0) + 1
       }
 
       expect(counts['agent-a']).toBeGreaterThan(720) // > 72%

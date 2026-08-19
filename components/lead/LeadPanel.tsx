@@ -11,10 +11,15 @@ import ActivityLogPanel from './ActivityLogPanel'
 import ChatFeed from '@/components/chat/ChatFeed'
 import ChatComposer from '@/components/chat/ChatComposer'
 import TagBadge from '@/components/shared/TagBadge'
-import type { LeadWithContact } from '@/types/db'
+import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { Session } from 'next-auth'
 
-type LeadWithConversation = LeadWithContact & { conversation?: { id: string } }
+// GET /api/leads/[id] devuelve tags como filas de lead_tags con el tag anidado
+// (LeadTagRow[]); el shape plano (Tag[]) se contempla por compatibilidad.
+type LeadWithConversation = Omit<LeadWithContact, 'tags'> & {
+  tags: Tag[] | LeadTagRow[]
+  conversation?: { id: string }
+}
 
 type ClienteDetail = {
   id: string
@@ -154,15 +159,13 @@ export default function LeadPanel({
 
   const effectiveConvId = conversationId ?? lead?.conversation?.id ?? null
 
+  // Tags normalizados a Tag[] sin importar el shape (plano o anidado)
+  const tagList: Tag[] = (lead?.tags ?? []).map((t) => ('tag' in t ? t.tag : t))
+
   // ── Muestra CDA ──────────────────────────────────────────────────────────────
   // Habilitado para leads de las landings de CDA y ALIPRO (misma muestra CDA).
-  // El GET /api/leads/[id] devuelve lead.tags como filas de lead_tags con el
-  // tag anidado; el shape plano (Tag[]) se contempla por compatibilidad.
   const TAGS_MUESTRA = ['landing-cda', 'web-alipro']
-  const muestraHabilitada = (lead?.tags ?? []).some((t) => {
-    const raw = t as { name?: string; tag?: { name?: string } }
-    return TAGS_MUESTRA.includes(raw.name ?? '') || TAGS_MUESTRA.includes(raw.tag?.name ?? '')
-  })
+  const muestraHabilitada = tagList.some((t) => TAGS_MUESTRA.includes(t.name))
 
   const [muestra, setMuestra] = useState<{ loading: boolean; pedidoId: string | null; error: string | null }>({
     loading: false,
@@ -229,6 +232,9 @@ export default function LeadPanel({
     }
     return (
       <div className="flex flex-col w-full h-full min-h-0">
+        {muestraHabilitada && (
+          <MuestraCda muestra={muestra} onEnviar={enviarMuestra} mobile />
+        )}
         {effectiveConvId ? (
           <>
             <ChatFeed conversationId={effectiveConvId} />
@@ -431,9 +437,9 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {lead.tags.length > 0 && (
+        {tagList.length > 0 && (
           <div className="flex flex-wrap gap-1 px-4 py-2 border-b border-border">
-            {lead.tags.map((tag) => (
+            {tagList.map((tag) => (
               <TagBadge key={tag.id} tag={tag} />
             ))}
           </div>
@@ -460,32 +466,10 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {muestraHabilitada && (
-          <div className="px-4 py-2.5 border-b border-border">
-            {muestra.pedidoId ? (
-              <Link
-                href={`/crm/pedidos/${muestra.pedidoId}`}
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-              >
-                <ExternalLink size={12} />
-                Muestra cargada — ver pedido
-              </Link>
-            ) : (
-              <button
-                onClick={enviarMuestra}
-                disabled={muestra.loading}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                <Package size={13} />
-                {muestra.loading ? 'Creando pedido...' : 'Enviar muestra CDA'}
-              </button>
-            )}
-            {muestra.error && <p className="mt-1.5 text-xs text-destructive">{muestra.error}</p>}
-          </div>
-        )}
+        {muestraHabilitada && <MuestraCda muestra={muestra} onEnviar={enviarMuestra} />}
 
         <div className="flex-1 overflow-y-auto">
-          <LeadDetails lead={lead} />
+          <LeadDetails lead={{ ...lead, tags: tagList }} />
           <ActivityLogPanel leadId={leadId!} />
         </div>
       </div>
@@ -535,6 +519,46 @@ export default function LeadPanel({
       <div className="relative flex ml-auto w-[780px] max-w-full h-full bg-background border-l border-border shadow-md">
         {leadInner}
       </div>
+    </div>
+  )
+}
+
+function MuestraCda({
+  muestra,
+  onEnviar,
+  mobile,
+}: {
+  muestra: { loading: boolean; pedidoId: string | null; error: string | null }
+  onEnviar: () => void
+  mobile?: boolean
+}) {
+  return (
+    <div className={cn('px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
+      {muestra.pedidoId ? (
+        <Link
+          href={`/crm/pedidos/${muestra.pedidoId}`}
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs text-primary hover:underline',
+            mobile && 'min-h-[44px] w-full justify-center',
+          )}
+        >
+          <ExternalLink size={12} />
+          Muestra cargada — ver pedido
+        </Link>
+      ) : (
+        <button
+          onClick={onEnviar}
+          disabled={muestra.loading}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50',
+            mobile && 'min-h-[44px] w-full justify-center text-sm',
+          )}
+        >
+          <Package size={13} />
+          {muestra.loading ? 'Creando pedido...' : 'Enviar muestra CDA'}
+        </button>
+      )}
+      {muestra.error && <p className="mt-1.5 text-xs text-destructive">{muestra.error}</p>}
     </div>
   )
 }

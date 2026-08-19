@@ -688,7 +688,9 @@ describe('actualizarItemsPedido', () => {
     mockTxQueryPedidosFindFirst.mockResolvedValue(fakePedido('pendiente'))
     mockTxQueryProductosFindMany.mockResolvedValue([fakeProductoA]) // precio 100.00
 
-    let capturedUpdate: Record<string, unknown> | null = null
+    // `as` en el inicializador evita que TS lo estreche a `null` (la asignación
+    // ocurre dentro del callback del mock y el control flow no la ve)
+    let capturedUpdate = null as Record<string, unknown> | null
     mockTxUpdate.mockReturnValue({
       set: vi.fn((data: Record<string, unknown>) => {
         capturedUpdate = data

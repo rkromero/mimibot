@@ -1,6 +1,6 @@
 import type {
   users, leads, contacts, conversations, messages,
-  pipelineStages, tags, activityLog, attachments, botConfig,
+  pipelineStages, tags, leadTags, activityLog, attachments, botConfig,
   followUpTemplates, followUpConfig, whatsappConfig, whatsappTemplates,
 } from '@/db/schema'
 
@@ -24,6 +24,10 @@ export type TemplateParameter = {
   source: 'contact.name' | 'lead.productInterest' | 'lead.notes' | 'custom'
   value?: string
 }
+
+// Fila de lead_tags con el tag anidado, como la devuelve GET /api/leads/[id]
+// (tags: { with: { tag: true } } en Drizzle)
+export type LeadTagRow = typeof leadTags.$inferSelect & { tag: Tag }
 
 // Tipos compuestos para queries frecuentes
 export type LeadWithContact = Lead & {
