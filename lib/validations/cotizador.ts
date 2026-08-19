@@ -47,9 +47,10 @@ export const updateRecetaSchema = z.object({
 })
 
 export const cotizadorConfigSchema = z.object({
+  // Margen SOBRE VENTA: 100% implicaría precio = costo / 0 (división por cero)
   margenPct: z.number({ invalid_type_error: 'El margen debe ser un número' })
     .min(0, 'El margen no puede ser negativo')
-    .max(999, 'Margen demasiado grande'),
+    .lt(100, 'El margen sobre venta debe ser menor a 100% (100% divide por cero)'),
   cargoSetupPersonalizado: z.number({ invalid_type_error: 'El cargo debe ser un número' })
     .min(0, 'El cargo no puede ser negativo')
     .max(999_999_999, 'Cargo demasiado grande'),

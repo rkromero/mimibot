@@ -33,6 +33,18 @@ type ConfigForm = {
 
 type EscalonDraft = { cantidadMin: string; cantidadMax: string; descuentoPct: string }
 
+// Ayuda en vivo: margen sobre venta m ↔ markup sobre costo m/(1−m)
+function MarkupEquivalente({ margenPct }: { margenPct: string }) {
+  const m = Number(margenPct)
+  if (!Number.isFinite(m) || m < 0 || m >= 100) return null
+  const markup = (m / (100 - m)) * 100
+  return (
+    <p className="mt-1 text-[11px] text-muted-foreground">
+      Equivale a un markup de {markup.toLocaleString('es-AR', { maximumFractionDigits: 1 })}% sobre el costo.
+    </p>
+  )
+}
+
 export default function ConfigSection() {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -156,13 +168,14 @@ export default function ConfigSection() {
       <form onSubmit={handleSaveConfig} className="space-y-3">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Margen (%)</label>
+            <label className="block text-xs text-muted-foreground mb-1">Margen sobre venta (%)</label>
             <input
-              type="number" inputMode="decimal" min="0" step="0.01" required
+              type="number" inputMode="decimal" min="0" max="99.99" step="0.01" required
               value={form.margenPct}
               onChange={(e) => setForm((f) => f && { ...f, margenPct: e.target.value })}
               className={inputClass}
             />
+            <MarkupEquivalente margenPct={form.margenPct} />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Setup personalizado ($)</label>

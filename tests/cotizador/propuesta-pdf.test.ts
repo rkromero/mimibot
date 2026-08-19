@@ -173,4 +173,24 @@ describe('armarDatosPropuestaPdf — solo del snapshot congelado', () => {
     expect(data.vigenteHasta).toBe('2026-09-02')
     expect(data.numero).toBe(42)
   })
+
+  it('los datos internos (costo/margen) no pasan al PDF: zod los descarta', () => {
+    // El resultado congelado en la db lleva costoInsumosUnitario (para la
+    // vista interna del vendedor); el armado del PDF debe filtrarlo
+    const conCosto = {
+      ...PROPUESTA,
+      resultado: {
+        escenarios: [{ ...RESULTADO_CONGELADO.escenarios[0]!, costoInsumosUnitario: 327.18 }],
+      },
+    } as PropuestaRow
+    const data = armarDatosPropuestaPdf(
+      conCosto,
+      { name: 'Cliente Test', phone: null, email: null },
+      null,
+      'Vendedor Test',
+      { nombre: 'ALIPRO', cuit: null, direccion: null, telefono: null, email: null },
+    )
+    expect(data.escenarios[0]).not.toHaveProperty('costoInsumosUnitario')
+    expect(JSON.stringify(data)).not.toContain('costoInsumosUnitario')
+  })
 })

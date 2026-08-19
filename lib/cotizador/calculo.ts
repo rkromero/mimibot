@@ -6,6 +6,14 @@ import { ValidationError } from '@/lib/errors'
 
 export const IVA_PCT = 21
 
+// Versión de la fórmula de margen congelada en cada snapshot:
+//  - v1 (snapshots viejos, sin el campo): markup sobre costo → costo × (1 + m)
+//  - v2 (snapshots nuevos): margen sobre venta → costo / (1 − m)
+// Las dos ramas conviven porque los snapshots guardados se calcularon con v1
+// y deben reproducirse idénticos; reinterpretarlos con v2 cambiaría importes
+// ya cotizados.
+export const COTIZADOR_FORMULA_VERSION = 2
+
 export type PackagingCotizacion = 'cristal' | 'personalizado'
 
 export type EscalonSnapshot = {
@@ -21,6 +29,9 @@ export type RecetaSnapshotItem = {
 }
 
 export type CotizadorSnapshot = {
+  /** Ausente en snapshots viejos = v1 (markup); ver COTIZADOR_FORMULA_VERSION */
+  formulaVersion?: number
+  /** v2: margen sobre venta (0 ≤ x < 100); v1: markup sobre costo */
   margenPct: number
   cargoSetupPersonalizado: number
   alfajoresPorCaja: number
@@ -111,9 +122,19 @@ export function calcularCotizacion(
   const escalonAplicado = buscarEscalon(snapshot.escalones, cantidad)
   const descEscalonPct = escalonAplicado?.descuentoPct ?? 0
 
+  // v1 vs v2: los snapshots guardados sin formulaVersion se calcularon con
+  // markup y deben reproducirse tal cual; los nuevos usan margen sobre venta.
+  const esFormulaV2 = (snapshot.formulaVersion ?? 1) >= COTIZADOR_FORMULA_VERSION
+  if (esFormulaV2 && snapshot.margenPct >= 100) {
+    throw new ValidationError('El margen sobre venta debe ser menor a 100% (100% divide por cero)')
+  }
+  const factorMargen = esFormulaV2
+    ? 1 / (1 - snapshot.margenPct / 100)
+    : 1 + snapshot.margenPct / 100
+
   const precioUnitNeto = round2(
     costoInsumosUnitario *
-    (1 + snapshot.margenPct / 100) *
+    factorMargen *
     (1 - descEscalonPct / 100) *
     (1 - descuentoManualPct / 100),
   )

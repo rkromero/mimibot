@@ -2,7 +2,11 @@ import { eq, asc } from 'drizzle-orm'
 import { db } from '@/db'
 import { insumos, recetas, cotizadorConfig, escalonesVolumen } from '@/db/schema'
 import { ValidationError } from '@/lib/errors'
-import type { CotizadorSnapshot, RecetaSnapshotItem } from '@/lib/cotizador/calculo'
+import {
+  COTIZADOR_FORMULA_VERSION,
+  type CotizadorSnapshot,
+  type RecetaSnapshotItem,
+} from '@/lib/cotizador/calculo'
 
 // Defaults cuando el singleton cotizador_config todavía no fue guardado
 export const COTIZADOR_CONFIG_DEFAULTS = {
@@ -60,6 +64,7 @@ export async function armarSnapshotCotizador(): Promise<CotizadorSnapshot> {
     .orderBy(asc(escalonesVolumen.orden))
 
   return {
+    formulaVersion: COTIZADOR_FORMULA_VERSION,
     margenPct: config ? Number(config.margenPct) : COTIZADOR_CONFIG_DEFAULTS.margenPct,
     cargoSetupPersonalizado: config
       ? Number(config.cargoSetupPersonalizado)

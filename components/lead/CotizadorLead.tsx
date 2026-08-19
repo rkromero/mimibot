@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calculator, AlertTriangle, X, Download, MessageCircle, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ type Packaging = 'cristal' | 'personalizado'
 type Escenario = {
   cantidad: number
   elegido: boolean
+  costoInsumosUnitario: number
   precioUnitNeto: number
   neto: number
   setup: number
@@ -24,6 +25,21 @@ type PreviewData = {
   requiereAprobacion: boolean
   topeDescuentoPct: number
   validezDias: number
+  margenObjetivoPct: number
+}
+
+// Rentabilidad interna del vendedor (nunca sale en el PDF ni al cliente)
+function margenRealPct(esc: Escenario): number {
+  if (esc.precioUnitNeto <= 0) return 0
+  return ((esc.precioUnitNeto - esc.costoInsumosUnitario) / esc.precioUnitNeto) * 100
+}
+
+// Verde: hasta 10 puntos debajo del margen configurado · Ámbar: más abajo ·
+// Rojo: margen real menor al 10%
+function margenColorClass(margenReal: number, objetivoPct: number): string {
+  if (margenReal < 10) return 'text-red-600 dark:text-red-400'
+  if (margenReal < objetivoPct - 10) return 'text-amber-600 dark:text-amber-400'
+  return 'text-green-600 dark:text-green-400'
 }
 
 type PropuestaResumen = {
@@ -265,24 +281,33 @@ function CotizarModal({ leadId, onClose }: { leadId: string; onClose: () => void
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.escenarios.map((esc) => (
-                      <tr
-                        key={esc.cantidad}
-                        className={cn(
-                          'border-b border-border/60 last:border-0',
-                          esc.elegido && 'bg-primary/5 font-medium text-foreground',
-                        )}
-                      >
-                        <td className="py-1.5 pr-2 tabular-nums">
-                          {esc.cantidad.toLocaleString('es-AR')}
-                          {esc.elegido && <span className="ml-1 text-[10px] text-primary">●</span>}
-                        </td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{fmt(esc.precioUnitNeto)}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{fmt(esc.neto)}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{fmt(esc.iva)}</td>
-                        <td className="py-1.5 text-right tabular-nums">{fmt(esc.total)}</td>
-                      </tr>
-                    ))}
+                    {preview.escenarios.map((esc) => {
+                      const margenReal = margenRealPct(esc)
+                      const ganancia = esc.precioUnitNeto - esc.costoInsumosUnitario
+                      return (
+                        <Fragment key={esc.cantidad}>
+                          <tr className={cn(esc.elegido && 'bg-primary/5 font-medium text-foreground')}>
+                            <td className="pt-1.5 pr-2 tabular-nums">
+                              {esc.cantidad.toLocaleString('es-AR')}
+                              {esc.elegido && <span className="ml-1 text-[10px] text-primary">●</span>}
+                            </td>
+                            <td className="pt-1.5 pr-2 text-right tabular-nums">{fmt(esc.precioUnitNeto)}</td>
+                            <td className="pt-1.5 pr-2 text-right tabular-nums">{fmt(esc.neto)}</td>
+                            <td className="pt-1.5 pr-2 text-right tabular-nums">{fmt(esc.iva)}</td>
+                            <td className="pt-1.5 text-right tabular-nums">{fmt(esc.total)}</td>
+                          </tr>
+                          {/* Rentabilidad interna del vendedor: no viaja al PDF */}
+                          <tr className={cn('border-b border-border/60', esc.elegido && 'bg-primary/5')}>
+                            <td colSpan={5} className="pb-1.5 text-[10px] text-muted-foreground">
+                              Interno · costo {fmt(esc.costoInsumosUnitario)}/u · ganancia {fmt(ganancia)}/u ·{' '}
+                              <span className={cn('font-medium', margenColorClass(margenReal, preview.margenObjetivoPct))}>
+                                margen {margenReal.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                              </span>
+                            </td>
+                          </tr>
+                        </Fragment>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
         requiereAprobacion: parsed.data.descuentoManualPct > snapshot.topeDescuentoPct,
         topeDescuentoPct: snapshot.topeDescuentoPct,
         validezDias: snapshot.validezDias,
+        // Margen configurado, para el semáforo de rentabilidad del vendedor.
+        // Dato interno: solo viaja por esta API autenticada, nunca al PDF.
+        margenObjetivoPct: snapshot.margenPct,
       },
     })
   } catch (err) {
