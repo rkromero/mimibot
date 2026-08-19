@@ -61,7 +61,7 @@ export const cotizadorConfigSchema = z.object({
     .positive('La validez debe ser mayor a 0')
     .max(365, 'Validez demasiado larga'),
   topeDescuentoPct: pctSchema,
-  condicionesComerciales: z.string().max(2000, 'Condiciones demasiado largas')
+  condicionesComerciales: z.string().max(4000, 'Condiciones demasiado largas')
     .optional().nullable()
     .transform((v) => (v === undefined ? undefined : (v?.trim() || null))),
 })

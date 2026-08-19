@@ -149,6 +149,52 @@ describe('calcularCotizacion', () => {
     })
   })
 
+  describe('coherencia de redondeo: el documento cierra multiplicado a mano', () => {
+    // Snapshot con precios "sucios" que generan unitarios con más de 2
+    // decimales antes de redondear
+    const SUCIO: CotizadorSnapshot = {
+      margenPct: 32.5,
+      cargoSetupPersonalizado: 150_000.55,
+      alfajoresPorCaja: 12,
+      topeDescuentoPct: 100,
+      validezDias: 7,
+      precioBobinaUnit: 37.33,
+      precioCajaUnit: 613.99,
+      recetas: {
+        55: [{ gramos: 25.5, precioPorKg: 6_123.45 }, { gramos: 18.75, precioPorKg: 4_567.89 }],
+        60: [{ gramos: 27.33, precioPorKg: 6_123.45 }, { gramos: 21.5, precioPorKg: 4_567.89 }],
+        80: [{ gramos: 36.25, precioPorKg: 6_123.45 }, { gramos: 28.4, precioPorKg: 9_876.54 }],
+      },
+      escalones: [
+        { cantidadMin: 1, cantidadMax: 999, descuentoPct: 0 },
+        { cantidadMin: 1000, cantidadMax: 4999, descuentoPct: 5.5 },
+        { cantidadMin: 5000, cantidadMax: null, descuentoPct: 11.25 },
+      ],
+    }
+
+    const COMBOS = [
+      { cantidad: 1000, gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 },
+      { cantidad: 999, gramaje: 55, packaging: 'cristal', descuentoManualPct: 3.33 },
+      { cantidad: 5000, gramaje: 80, packaging: 'personalizado', descuentoManualPct: 0 },
+      { cantidad: 123_457, gramaje: 60, packaging: 'personalizado', descuentoManualPct: 7.77 },
+      { cantidad: 7, gramaje: 55, packaging: 'cristal', descuentoManualPct: 0 },
+      { cantidad: 999_999, gramaje: 80, packaging: 'personalizado', descuentoManualPct: 12.5 },
+    ] as const
+
+    it.each(COMBOS)('%o', (input) => {
+      const r = calcularCotizacion(input, SUCIO)
+      const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+      // El unitario ya viene redondeado a 2 decimales
+      expect(r.precioUnitNeto).toBe(round2(r.precioUnitNeto))
+      // Multiplicar a mano el unitario impreso reproduce el neto exacto
+      expect(r.neto).toBe(round2(r.precioUnitNeto * input.cantidad + r.setup))
+      // IVA y total se derivan de ese neto
+      expect(r.iva).toBe(round2(r.neto * 0.21))
+      expect(r.total).toBe(round2(r.neto + r.iva))
+    })
+  })
+
   describe('entradas inválidas', () => {
     it('rechaza cantidades no positivas o no enteras', () => {
       expect(() => calcularCotizacion({ ...BASE, cantidad: 0 }, SNAPSHOT)).toThrow(ValidationError)

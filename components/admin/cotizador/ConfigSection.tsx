@@ -202,14 +202,30 @@ export default function ConfigSection() {
           </div>
         </div>
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Condiciones comerciales</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-muted-foreground">Condiciones comerciales</label>
+            <span className={cn(
+              'text-[11px] tabular-nums',
+              form.condicionesComerciales.length > 2500
+                ? 'text-amber-600 dark:text-amber-400 font-medium'
+                : 'text-muted-foreground',
+            )}>
+              {form.condicionesComerciales.length.toLocaleString('es-AR')} / 2.500
+            </span>
+          </div>
           <textarea
-            rows={3}
+            rows={15}
             value={form.condicionesComerciales}
             onChange={(e) => setForm((f) => f && { ...f, condicionesComerciales: e.target.value })}
-            placeholder="Ej: Precios sin IVA. Entrega en fábrica. Seña 50% al confirmar."
-            className={cn(inputClass, 'resize-none')}
+            placeholder={'Cláusulas separadas por una línea en blanco. El título de cada una (hasta el primer punto) sale en negrita en el PDF.\n\nEj:\n1. FORMA DE PAGO. Seña del 50% al confirmar...'}
+            className={cn(inputClass, 'resize-y font-mono text-xs leading-relaxed')}
           />
+          {form.condicionesComerciales.length > 2500 && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              Superaste los 2.500 caracteres: el bloque de condiciones puede no entrar en la única
+              hoja A4 de la propuesta. Acortá el texto o verificá el PDF antes de enviarlo.
+            </p>
+          )}
         </div>
 
         {configError && <p className="text-xs text-destructive">{configError}</p>}

@@ -81,6 +81,34 @@ export function formatNumeroPropuesta(n: number): string {
   return `PROP-${String(n).padStart(5, '0')}`
 }
 
+export type CondicionClausula = {
+  /** Numeración + texto hasta el primer punto (va en negrita); '' si no hay punto */
+  titulo: string
+  resto: string
+}
+
+// Parsea el texto de condiciones comerciales: cláusulas separadas por línea en
+// blanco, con el título en negrita hasta el primer punto (salteando la
+// numeración inicial "1." / "1)" para no cortar ahí). Si la primera línea es
+// "CONDICIONES COMERCIALES" se descarta: el bloque ya tiene su encabezado.
+export function parseCondiciones(texto: string): CondicionClausula[] {
+  const limpio = texto.trim().replace(/^condiciones comerciales:?[ \t]*(\r?\n+|$)/i, '')
+  return limpio
+    .split(/\r?\n[ \t]*\r?\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((parrafo) => {
+      const numeracion = /^(\d+[.)][ \t]*)/.exec(parrafo)?.[1] ?? ''
+      const cuerpo = parrafo.slice(numeracion.length)
+      const punto = cuerpo.indexOf('.')
+      if (punto === -1) return { titulo: '', resto: parrafo }
+      return {
+        titulo: numeracion + cuerpo.slice(0, punto + 1),
+        resto: cuerpo.slice(punto + 1).trim(),
+      }
+    })
+}
+
 function money(n: number): string {
   return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 })
 }
@@ -190,7 +218,9 @@ const E = StyleSheet.create({
     marginTop: 16,
   },
   condTitle: { fontSize: 8.5, fontWeight: 'bold', color: CARBON, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
-  condText: { fontSize: 8, color: GRIS, lineHeight: 1.5 },
+  condText: { fontSize: 7.5, color: GRIS, lineHeight: 1.4, marginBottom: 3 },
+  condClausulaTitulo: { fontWeight: 'bold', color: CARBON },
+  condValidez: { fontSize: 7.5, color: GRIS, lineHeight: 1.4, marginTop: 1 },
 
   // Pie
   footer: {
@@ -301,10 +331,15 @@ export function PropuestaDocument({ data }: { data: PropuestaPdfData }) {
         {/* 5 ── Condiciones comerciales */}
         <View style={E.condBox}>
           <Text style={E.condTitle}>Condiciones comerciales</Text>
-          {data.condicionesComerciales ? (
-            <Text style={E.condText}>{data.condicionesComerciales}</Text>
-          ) : null}
-          <Text style={E.condText}>
+          {parseCondiciones(data.condicionesComerciales ?? '').map((clausula, i) => (
+            <Text key={i} style={E.condText}>
+              {clausula.titulo ? (
+                <Text style={E.condClausulaTitulo}>{clausula.titulo}{clausula.resto ? ' ' : ''}</Text>
+              ) : null}
+              {clausula.resto}
+            </Text>
+          ))}
+          <Text style={E.condValidez}>
             Propuesta válida por {data.validezDias} días desde su emisión (hasta el {fechaCorta(data.vigenteHasta)}).
           </Text>
         </View>

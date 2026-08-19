@@ -93,8 +93,9 @@ export function calcularCotizacion(
     throw new ValidationError(`No hay receta activa para el gramaje de ${gramaje} g`)
   }
 
-  // Todo el cálculo se hace con precisión completa; se redondea recién al
-  // armar el desglose para no acumular error de float.
+  // El costo unitario se calcula con precisión completa, pero el precio
+  // unitario se redondea a 2 decimales ANTES de multiplicar: el documento
+  // tiene que cerrar si el cliente hace precioUnit × cantidad a mano.
   const costoComponentes = items.reduce(
     (acc, item) => acc + item.gramos * (item.precioPorKg / 1000),
     0,
@@ -107,22 +108,25 @@ export function calcularCotizacion(
   const escalonAplicado = buscarEscalon(snapshot.escalones, cantidad)
   const descEscalonPct = escalonAplicado?.descuentoPct ?? 0
 
-  const precioUnitNeto =
+  const precioUnitNeto = round2(
     costoInsumosUnitario *
     (1 + snapshot.margenPct / 100) *
     (1 - descEscalonPct / 100) *
-    (1 - descuentoManualPct / 100)
+    (1 - descuentoManualPct / 100),
+  )
 
-  const setup = packaging === 'personalizado' ? snapshot.cargoSetupPersonalizado : 0
+  const setup = round2(packaging === 'personalizado' ? snapshot.cargoSetupPersonalizado : 0)
+  // precioUnitNeto y setup ya tienen 2 decimales y cantidad es entera: el
+  // round2 solo normaliza la representación binaria del float, no el valor.
   const neto = round2(precioUnitNeto * cantidad + setup)
   const iva = round2(neto * (IVA_PCT / 100))
 
   return {
     costoInsumosUnitario: round2(costoInsumosUnitario),
-    precioUnitNeto: round2(precioUnitNeto),
+    precioUnitNeto,
     escalonAplicado,
     neto,
-    setup: round2(setup),
+    setup,
     iva,
     total: round2(neto + iva),
   }

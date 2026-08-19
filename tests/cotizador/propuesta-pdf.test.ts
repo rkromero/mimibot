@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import { PDFDocument } from 'pdf-lib'
-import { PropuestaDocument, type PropuestaPdfData } from '@/lib/pdf/propuesta.template'
+import { PropuestaDocument, parseCondiciones, type PropuestaPdfData } from '@/lib/pdf/propuesta.template'
 import { armarDatosPropuestaPdf } from '@/lib/pdf/propuesta.service'
 import type { propuestas } from '@/db/schema'
 
@@ -10,6 +10,29 @@ import type { propuestas } from '@/db/schema'
 vi.mock('@/db', () => ({ db: {} }))
 
 type PropuestaRow = typeof propuestas.$inferSelect
+
+// Texto realista (~1.100 caracteres): cláusulas numeradas separadas por línea
+// en blanco, encabezado propio que el bloque no debe duplicar
+const CONDICIONES_1100 = `CONDICIONES COMERCIALES
+
+1. VALIDEZ DE LA OFERTA. Los precios cotizados mantienen su validez por el plazo indicado en el presente documento y quedan sujetos a revisión ante variaciones significativas en el costo de las materias primas o del tipo de cambio oficial.
+
+2. FORMA DE PAGO. Seña del cincuenta por ciento (50%) del total a la confirmación de la orden de compra y saldo restante contra aviso de mercadería lista para despacho, mediante transferencia bancaria a la cuenta informada en la factura.
+
+3. PLAZO DE PRODUCCION. El plazo de elaboración es de quince (15) días hábiles contados desde la acreditación de la seña y, para packaging personalizado, desde la aprobación final del arte gráfico por parte del cliente.
+
+4. ENTREGA. La mercadería se entrega en planta ALIPRO. El flete y el seguro corren por cuenta y riesgo del comprador, salvo acuerdo expreso en contrario formalizado por escrito.
+
+5. IMPUESTOS. Todos los importes se expresan en pesos argentinos y no incluyen IVA, que se discriminará en la factura correspondiente según la condición fiscal del comprador.`
+
+function condiciones2500(): string {
+  let texto = CONDICIONES_1100 +
+    '\n\n6. CONFIDENCIALIDAD. Las partes se comprometen a mantener estricta reserva sobre los términos de la presente propuesta.'
+  while (texto.length < 2500) {
+    texto += ' La información intercambiada no podrá divulgarse a terceros sin consentimiento previo y por escrito de la otra parte.'
+  }
+  return texto.slice(0, 2500)
+}
 
 // Datos de estrés: empresa y contacto largos, cantidades de 6 cifras,
 // importes de 9 dígitos, condiciones extensas y setup de personalizado.
@@ -31,11 +54,7 @@ const DATA_ESTRES: PropuestaPdfData = {
     { cantidad: 500_000, precioUnitNeto: 1415.26, neto: 707_780_000, iva: 148_633_800, total: 856_413_800, setup: 150_000, elegido: false },
     { cantidad: 999_999, precioUnitNeto: 1340.78, neto: 1_340_778_659, iva: 281_563_518.39, total: 1_622_342_177.39, setup: 150_000, elegido: false },
   ],
-  condicionesComerciales:
-    'Precios expresados en pesos argentinos, netos de IVA. Entrega en planta ALIPRO, Parque Industrial. ' +
-    'Seña del 50% a la confirmación de la orden de compra y saldo contra aviso de despacho. ' +
-    'El plazo de producción es de 15 días hábiles desde la aprobación del arte de packaging. ' +
-    'Los precios pueden revisarse ante variaciones significativas del costo de materias primas.',
+  condicionesComerciales: CONDICIONES_1100,
   validezDias: 7,
   vendedorNombre: 'Juan Ignacio Rodríguez Saá',
   empresa: {
@@ -62,6 +81,50 @@ describe('PropuestaDocument (PDF)', () => {
     expect(Math.round(page.getWidth())).toBe(595)
     expect(Math.round(page.getHeight())).toBe(842)
   }, 30_000)
+
+  it('sigue entrando en una hoja con condiciones de 2.500 caracteres', async () => {
+    const texto = condiciones2500()
+    expect(texto.length).toBe(2500)
+
+    const data: PropuestaPdfData = { ...DATA_ESTRES, condicionesComerciales: texto }
+    const element = React.createElement(PropuestaDocument, { data }) as React.ReactElement<DocumentProps>
+    const buffer = await renderToBuffer(element)
+
+    const doc = await PDFDocument.load(new Uint8Array(buffer))
+    expect(doc.getPageCount()).toBe(1)
+  }, 30_000)
+})
+
+describe('parseCondiciones', () => {
+  it('separa cláusulas por línea en blanco y pone en negrita hasta el primer punto', () => {
+    const clausulas = parseCondiciones(CONDICIONES_1100)
+    expect(clausulas).toHaveLength(5)
+    // La numeración no corta el título: negrita hasta el punto DESPUÉS del número
+    expect(clausulas[0]!.titulo).toBe('1. VALIDEZ DE LA OFERTA.')
+    expect(clausulas[0]!.resto.startsWith('Los precios cotizados')).toBe(true)
+    expect(clausulas[1]!.titulo).toBe('2. FORMA DE PAGO.')
+    expect(clausulas[4]!.titulo).toBe('5. IMPUESTOS.')
+  })
+
+  it('descarta la línea "CONDICIONES COMERCIALES" para no duplicar el encabezado', () => {
+    const clausulas = parseCondiciones(CONDICIONES_1100)
+    expect(clausulas.some((c) => /condiciones comerciales/i.test(c.titulo + c.resto))).toBe(false)
+
+    const sinHeader = parseCondiciones('1. PAGO. Al contado.')
+    expect(sinHeader).toHaveLength(1)
+    expect(sinHeader[0]!.titulo).toBe('1. PAGO.')
+  })
+
+  it('cláusula sin punto queda completa sin negrita', () => {
+    const clausulas = parseCondiciones('Texto suelto sin punto final')
+    expect(clausulas).toEqual([{ titulo: '', resto: 'Texto suelto sin punto final' }])
+  })
+
+  it('conserva los saltos de línea simples dentro de una cláusula', () => {
+    const clausulas = parseCondiciones('1. ITEM. Línea uno.\nLínea dos.\n\n2. OTRO. Cuerpo.')
+    expect(clausulas).toHaveLength(2)
+    expect(clausulas[0]!.resto).toBe('Línea uno.\nLínea dos.')
+  })
 })
 
 describe('armarDatosPropuestaPdf — solo del snapshot congelado', () => {
