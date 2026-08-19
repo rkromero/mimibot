@@ -25,6 +25,7 @@ const SNAPSHOT_CONGELADO: CotizadorSnapshot = {
   topeDescuentoPct: 10,
   validezDias: 7,
   condicionesComerciales: 'Condiciones congeladas al cotizar.',
+  condicionesPackagingPersonalizado: 'Packaging personalizado congelado.',
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: {

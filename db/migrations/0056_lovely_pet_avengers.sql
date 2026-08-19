@@ -1,0 +1,1 @@
+ALTER TABLE "cotizador_config" ADD COLUMN "condiciones_packaging_personalizado" text;

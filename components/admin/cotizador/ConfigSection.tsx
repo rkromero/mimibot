@@ -14,6 +14,7 @@ type Config = {
   validezDias: number
   topeDescuentoPct: string
   condicionesComerciales: string | null
+  condicionesPackagingPersonalizado: string | null
 }
 
 type Escalon = {
@@ -29,6 +30,7 @@ type ConfigForm = {
   validezDias: string
   topeDescuentoPct: string
   condicionesComerciales: string
+  condicionesPackagingPersonalizado: string
 }
 
 type EscalonDraft = { cantidadMin: string; cantidadMax: string; descuentoPct: string }
@@ -75,6 +77,7 @@ export default function ConfigSection() {
       validezDias: String(data.config.validezDias),
       topeDescuentoPct: data.config.topeDescuentoPct,
       condicionesComerciales: data.config.condicionesComerciales ?? '',
+      condicionesPackagingPersonalizado: data.config.condicionesPackagingPersonalizado ?? '',
     })
     setEscalones(
       data.escalones.map((e) => ({
@@ -101,6 +104,7 @@ export default function ConfigSection() {
           validezDias: Number(form.validezDias),
           topeDescuentoPct: Number(form.topeDescuentoPct),
           condicionesComerciales: form.condicionesComerciales.trim() || null,
+          condicionesPackagingPersonalizado: form.condicionesPackagingPersonalizado.trim() || null,
         }),
       })
       if (!res.ok) {
@@ -239,6 +243,21 @@ export default function ConfigSection() {
               hoja A4 de la propuesta. Acortá el texto o verificá el PDF antes de enviarlo.
             </p>
           )}
+        </div>
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1">
+            Condiciones de packaging personalizado
+          </label>
+          <p className="text-[11px] text-muted-foreground mb-1">
+            Se agrega a las condiciones solo cuando la propuesta es con packaging personalizado.
+          </p>
+          <textarea
+            rows={5}
+            value={form.condicionesPackagingPersonalizado}
+            onChange={(e) => setForm((f) => f && { ...f, condicionesPackagingPersonalizado: e.target.value })}
+            placeholder="Ej: Packaging personalizado. La bobina impresa la provee el cliente..."
+            className={cn(inputClass, 'resize-y font-mono text-xs leading-relaxed')}
+          />
         </div>
 
         {configError && <p className="text-xs text-destructive">{configError}</p>}

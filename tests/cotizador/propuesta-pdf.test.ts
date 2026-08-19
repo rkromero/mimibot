@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import { PDFDocument } from 'pdf-lib'
-import { PropuestaDocument, parseCondiciones, type PropuestaPdfData } from '@/lib/pdf/propuesta.template'
+import {
+  PropuestaDocument,
+  parseCondiciones,
+  numerarCondiciones,
+  type PropuestaPdfData,
+} from '@/lib/pdf/propuesta.template'
 import { armarDatosPropuestaPdf } from '@/lib/pdf/propuesta.service'
 import type { propuestas } from '@/db/schema'
 
@@ -55,6 +60,9 @@ const DATA_ESTRES: PropuestaPdfData = {
     { cantidad: 999_999, precioUnitNeto: 1340.78, neto: 1_340_778_659, iva: 281_563_518.39, total: 1_622_342_177.39, setup: 150_000, elegido: false },
   ],
   condicionesComerciales: CONDICIONES_1100,
+  condicionesPackagingPersonalizado:
+    'Packaging personalizado. La bobina de flowpack impresa es provista por el cliente, quien define el arte, ' +
+    'contrata la impresión y asume su costo. El material debe encontrarse en planta antes del inicio de la producción.',
   validezDias: 7,
   vendedorNombre: 'Juan Ignacio Rodríguez Saá',
   empresa: {
@@ -96,14 +104,14 @@ describe('PropuestaDocument (PDF)', () => {
 })
 
 describe('parseCondiciones', () => {
-  it('separa cláusulas por línea en blanco y pone en negrita hasta el primer punto', () => {
+  it('separa cláusulas por línea en blanco, descarta la numeración original y corta el título en el primer punto', () => {
     const clausulas = parseCondiciones(CONDICIONES_1100)
     expect(clausulas).toHaveLength(5)
-    // La numeración no corta el título: negrita hasta el punto DESPUÉS del número
-    expect(clausulas[0]!.titulo).toBe('1. VALIDEZ DE LA OFERTA.')
+    // El número del texto solo señala el inicio de cláusula: se descarta
+    expect(clausulas[0]!.titulo).toBe('VALIDEZ DE LA OFERTA.')
     expect(clausulas[0]!.resto.startsWith('Los precios cotizados')).toBe(true)
-    expect(clausulas[1]!.titulo).toBe('2. FORMA DE PAGO.')
-    expect(clausulas[4]!.titulo).toBe('5. IMPUESTOS.')
+    expect(clausulas[1]!.titulo).toBe('FORMA DE PAGO.')
+    expect(clausulas[4]!.titulo).toBe('IMPUESTOS.')
   })
 
   it('descarta la línea "CONDICIONES COMERCIALES" para no duplicar el encabezado', () => {
@@ -112,7 +120,7 @@ describe('parseCondiciones', () => {
 
     const sinHeader = parseCondiciones('1. PAGO. Al contado.')
     expect(sinHeader).toHaveLength(1)
-    expect(sinHeader[0]!.titulo).toBe('1. PAGO.')
+    expect(sinHeader[0]!.titulo).toBe('PAGO.')
   })
 
   it('cláusula sin punto queda completa sin negrita', () => {
@@ -124,6 +132,32 @@ describe('parseCondiciones', () => {
     const clausulas = parseCondiciones('1. ITEM. Línea uno.\nLínea dos.\n\n2. OTRO. Cuerpo.')
     expect(clausulas).toHaveLength(2)
     expect(clausulas[0]!.resto).toBe('Línea uno.\nLínea dos.')
+  })
+})
+
+describe('numerarCondiciones', () => {
+  it('renumera correlativo: cláusulas que vienen 1, 2, 5, 9 salen 1, 2, 3, 4', () => {
+    const texto = '1. PRIMERA. Cuerpo uno.\n\n2. SEGUNDA. Cuerpo dos.\n\n5. TERCERA. Cuerpo tres.\n\n9. CUARTA. Cuerpo cuatro.'
+    const clausulas = numerarCondiciones([texto])
+    expect(clausulas.map((c) => c.numero)).toEqual([1, 2, 3, 4])
+    expect(clausulas.map((c) => c.titulo)).toEqual(['PRIMERA.', 'SEGUNDA.', 'TERCERA.', 'CUARTA.'])
+  })
+
+  it('la cláusula de packaging continúa la numeración solo cuando se incluye', () => {
+    const general = '1. PAGO. Al contado.\n\n2. ENTREGA. En planta.'
+    const condPackaging = 'Packaging personalizado. La bobina la provee el cliente.'
+
+    // Así llama el template cuando packaging === 'personalizado'
+    const personalizado = numerarCondiciones([general, condPackaging])
+    expect(personalizado.map((c) => c.numero)).toEqual([1, 2, 3])
+    expect(personalizado[2]!.titulo).toBe('Packaging personalizado.')
+
+    // Y así cuando es cristal: la cláusula no entra y no queda hueco
+    const cristal = numerarCondiciones([general, null])
+    expect(cristal.map((c) => c.numero)).toEqual([1, 2])
+
+    // Campo vacío tampoco agrega nada
+    expect(numerarCondiciones([general, ''])).toHaveLength(2)
   })
 })
 
@@ -145,7 +179,11 @@ describe('armarDatosPropuestaPdf — solo del snapshot congelado', () => {
     gramaje: 60,
     packaging: 'cristal',
     descuentoManualPct: '0.00',
-    snapshot: { validezDias: 14, condicionesComerciales: 'Condiciones congeladas al cotizar.' },
+    snapshot: {
+      validezDias: 14,
+      condicionesComerciales: 'Condiciones congeladas al cotizar.',
+      condicionesPackagingPersonalizado: 'Packaging personalizado congelado.',
+    },
     resultado: RESULTADO_CONGELADO,
     estado: 'aprobada',
     vigenteHasta: '2026-09-02',
@@ -169,6 +207,7 @@ describe('armarDatosPropuestaPdf — solo del snapshot congelado', () => {
     expect(data.escenarios).toEqual(RESULTADO_CONGELADO.escenarios)
     // Condiciones y validez del snapshot congelado, no de cotizador_config
     expect(data.condicionesComerciales).toBe('Condiciones congeladas al cotizar.')
+    expect(data.condicionesPackagingPersonalizado).toBe('Packaging personalizado congelado.')
     expect(data.validezDias).toBe(14)
     expect(data.vigenteHasta).toBe('2026-09-02')
     expect(data.numero).toBe(42)

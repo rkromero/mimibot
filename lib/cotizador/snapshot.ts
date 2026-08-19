@@ -16,6 +16,7 @@ export const COTIZADOR_CONFIG_DEFAULTS = {
   validezDias: 7,
   topeDescuentoPct: 0,
   condicionesComerciales: null as string | null,
+  condicionesPackagingPersonalizado: null as string | null,
 }
 
 // Arma el snapshot de parámetros que consume calcularCotizacion(). Congela
@@ -77,6 +78,9 @@ export async function armarSnapshotCotizador(): Promise<CotizadorSnapshot> {
     condicionesComerciales: config
       ? config.condicionesComerciales
       : COTIZADOR_CONFIG_DEFAULTS.condicionesComerciales,
+    condicionesPackagingPersonalizado: config
+      ? config.condicionesPackagingPersonalizado
+      : COTIZADOR_CONFIG_DEFAULTS.condicionesPackagingPersonalizado,
     precioBobinaUnit: Number(bobina.precio),
     precioCajaUnit: Number(caja.precio),
     recetas: recetasPorGramaje,

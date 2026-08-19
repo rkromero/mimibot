@@ -66,6 +66,8 @@ export type PropuestaPdfData = {
   packaging: 'cristal' | 'personalizado'
   escenarios: PropuestaEscenarioPdf[]
   condicionesComerciales: string | null
+  /** Cláusula extra; solo se renderiza si packaging === 'personalizado' */
+  condicionesPackagingPersonalizado: string | null
   validezDias: number
   vendedorNombre: string
   empresa: {
@@ -82,14 +84,18 @@ export function formatNumeroPropuesta(n: number): string {
 }
 
 export type CondicionClausula = {
-  /** Numeración + texto hasta el primer punto (va en negrita); '' si no hay punto */
+  /** Texto hasta el primer punto, SIN la numeración original (va en negrita);
+   *  '' si la cláusula no tiene punto */
   titulo: string
   resto: string
 }
 
+export type CondicionNumerada = CondicionClausula & { numero: number }
+
 // Parsea el texto de condiciones comerciales: cláusulas separadas por línea en
-// blanco, con el título en negrita hasta el primer punto (salteando la
-// numeración inicial "1." / "1)" para no cortar ahí). Si la primera línea es
+// blanco. La numeración que traiga el texto ("1." / "1)") solo marca dónde
+// empieza una cláusula y se DESCARTA: la numeración final la asigna
+// numerarCondiciones de forma correlativa. Si la primera línea es
 // "CONDICIONES COMERCIALES" se descarta: el bloque ya tiene su encabezado.
 export function parseCondiciones(texto: string): CondicionClausula[] {
   const limpio = texto.trim().replace(/^condiciones comerciales:?[ \t]*(\r?\n+|$)/i, '')
@@ -101,12 +107,24 @@ export function parseCondiciones(texto: string): CondicionClausula[] {
       const numeracion = /^(\d+[.)][ \t]*)/.exec(parrafo)?.[1] ?? ''
       const cuerpo = parrafo.slice(numeracion.length)
       const punto = cuerpo.indexOf('.')
-      if (punto === -1) return { titulo: '', resto: parrafo }
+      if (punto === -1) return { titulo: '', resto: cuerpo }
       return {
-        titulo: numeracion + cuerpo.slice(0, punto + 1),
+        titulo: cuerpo.slice(0, punto + 1),
         resto: cuerpo.slice(punto + 1).trim(),
       }
     })
+}
+
+// Une uno o más textos de condiciones (el general + los condicionales que
+// apliquen) y renumera las cláusulas 1, 2, 3... de corrido, sin importar la
+// numeración que traiga cada texto. Así agregar una cláusula al final nunca
+// rompe la secuencia.
+export function numerarCondiciones(textos: Array<string | null | undefined>): CondicionNumerada[] {
+  const juntos = textos
+    .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+    .join('\n\n')
+  if (!juntos) return []
+  return parseCondiciones(juntos).map((clausula, i) => ({ ...clausula, numero: i + 1 }))
 }
 
 function money(n: number): string {
@@ -328,14 +346,17 @@ export function PropuestaDocument({ data }: { data: PropuestaPdfData }) {
             : ''}
         </Text>
 
-        {/* 5 ── Condiciones comerciales */}
+        {/* 5 ── Condiciones comerciales (la cláusula de packaging solo si es personalizado) */}
         <View style={E.condBox}>
           <Text style={E.condTitle}>Condiciones comerciales</Text>
-          {parseCondiciones(data.condicionesComerciales ?? '').map((clausula, i) => (
-            <Text key={i} style={E.condText}>
-              {clausula.titulo ? (
-                <Text style={E.condClausulaTitulo}>{clausula.titulo}{clausula.resto ? ' ' : ''}</Text>
-              ) : null}
+          {numerarCondiciones([
+            data.condicionesComerciales,
+            data.packaging === 'personalizado' ? data.condicionesPackagingPersonalizado : null,
+          ]).map((clausula) => (
+            <Text key={clausula.numero} style={E.condText}>
+              <Text style={E.condClausulaTitulo}>
+                {clausula.numero}. {clausula.titulo}{clausula.titulo && clausula.resto ? ' ' : ''}
+              </Text>
               {clausula.resto}
             </Text>
           ))}

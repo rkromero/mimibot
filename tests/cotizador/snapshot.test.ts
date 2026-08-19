@@ -29,6 +29,7 @@ const CONFIG_ROW = {
   validezDias: 10,
   topeDescuentoPct: '8.00',
   condicionesComerciales: CONDICIONES,
+  condicionesPackagingPersonalizado: 'Packaging personalizado. Bobina del cliente.',
   updatedBy: null,
   updatedAt: new Date(),
 }
@@ -61,6 +62,7 @@ describe('armarSnapshotCotizador', () => {
     const snap = await armarSnapshotCotizador()
 
     expect(snap.condicionesComerciales).toBe(CONDICIONES)
+    expect(snap.condicionesPackagingPersonalizado).toBe('Packaging personalizado. Bobina del cliente.')
     expect(snap.validezDias).toBe(10)
     expect(snap.margenPct).toBe(35)
     expect(snap.topeDescuentoPct).toBe(8)
@@ -74,6 +76,7 @@ describe('armarSnapshotCotizador', () => {
     const snap = await armarSnapshotCotizador()
 
     expect(snap.condicionesComerciales).toBeNull()
+    expect(snap.condicionesPackagingPersonalizado).toBeNull()
     expect(snap.validezDias).toBe(7)
   })
 })

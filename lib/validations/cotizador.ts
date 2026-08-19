@@ -65,6 +65,9 @@ export const cotizadorConfigSchema = z.object({
   condicionesComerciales: z.string().max(4000, 'Condiciones demasiado largas')
     .optional().nullable()
     .transform((v) => (v === undefined ? undefined : (v?.trim() || null))),
+  condicionesPackagingPersonalizado: z.string().max(4000, 'Condiciones demasiado largas')
+    .optional().nullable()
+    .transform((v) => (v === undefined ? undefined : (v?.trim() || null))),
 })
 
 export const escalonesSchema = z.object({
@@ -110,6 +113,7 @@ export const updatePropuestaSchema = z.object({
 export const propuestaSnapshotPdfSchema = z.object({
   validezDias: z.number().int().positive().default(7),
   condicionesComerciales: z.string().nullish().default(null).transform((v) => v ?? null),
+  condicionesPackagingPersonalizado: z.string().nullish().default(null).transform((v) => v ?? null),
 })
 
 const escenarioPropuestaSchema = z.object({
@@ -129,6 +133,7 @@ export const propuestaResultadoSchema = z.object({
 export const PROPUESTA_SNAPSHOT_PDF_DEFAULTS: PropuestaSnapshotPdf = {
   validezDias: 7,
   condicionesComerciales: null,
+  condicionesPackagingPersonalizado: null,
 }
 
 export type PropuestaSnapshotPdf = z.infer<typeof propuestaSnapshotPdfSchema>

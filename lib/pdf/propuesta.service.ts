@@ -71,6 +71,7 @@ export function armarDatosPropuestaPdf(
     packaging: propuesta.packaging,
     escenarios: resultado.escenarios,
     condicionesComerciales: snapshot.condicionesComerciales,
+    condicionesPackagingPersonalizado: snapshot.condicionesPackagingPersonalizado,
     validezDias: snapshot.validezDias,
     vendedorNombre,
     empresa,

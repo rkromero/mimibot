@@ -14,6 +14,7 @@ const SNAPSHOT: CotizadorSnapshot = {
   topeDescuentoPct: 10,
   validezDias: 7,
   condicionesComerciales: null,
+  condicionesPackagingPersonalizado: null,
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: {
@@ -81,12 +82,15 @@ describe('calcularCotizacion', () => {
       expect(r.neto).toBe(140_000)
     })
 
-    it('personalizado suma el cargo de setup al neto (antes de IVA)', () => {
+    it('personalizado suma el setup y excluye la bobina del costo (la provee el cliente)', () => {
       const r = calcularCotizacion({ ...BASE, cantidad: 100, packaging: 'personalizado' }, SNAPSHOT)
+      // Costo sin bobina: 700 − 50 = 650 → precio base 650 / 0,5 = 1300
+      expect(r.costoInsumosUnitario).toBe(650)
+      expect(r.precioUnitNeto).toBe(1300)
       expect(r.setup).toBe(50_000)
-      expect(r.neto).toBe(190_000)
-      expect(r.iva).toBe(39_900)
-      expect(r.total).toBe(229_900)
+      expect(r.neto).toBe(180_000)
+      expect(r.iva).toBe(37_800)
+      expect(r.total).toBe(217_800)
     })
   })
 
@@ -138,6 +142,7 @@ describe('calcularCotizacion', () => {
         topeDescuentoPct: 0,
         validezDias: 7,
         condicionesComerciales: null,
+        condicionesPackagingPersonalizado: null,
         precioBobinaUnit: 0.1,
         precioCajaUnit: 1,
         recetas: { 55: [{ gramos: 18.52, precioPorKg: 5400 }] },
@@ -165,6 +170,7 @@ describe('calcularCotizacion', () => {
       topeDescuentoPct: 100,
       validezDias: 7,
       condicionesComerciales: null,
+      condicionesPackagingPersonalizado: null,
       precioBobinaUnit: 37.33,
       precioCajaUnit: 613.99,
       recetas: {
@@ -213,6 +219,7 @@ describe('calcularCotizacion', () => {
       topeDescuentoPct: 100,
       validezDias: 7,
       condicionesComerciales: null,
+      condicionesPackagingPersonalizado: null,
       precioBobinaUnit: 30,
       precioCajaUnit: 350,
       recetas: {
@@ -226,11 +233,21 @@ describe('calcularCotizacion', () => {
     }
     const INPUT_REAL = { gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 } as const
 
-    it('costo $327,18 y precio unitario $545,31 con margen sobre venta 40%', () => {
-      // 327,1833 / (1 − 0,40) = 545,3055… → $545,31
+    it('cristal: costo $327,18 y precio unitario $545,31 (bobina incluida)', () => {
+      // 282,60 + 30 + 14,5833 = 327,1833 / (1 − 0,40) = 545,3055… → $545,31
       const r = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, SNAPSHOT_REAL)
       expect(r.costoInsumosUnitario).toBe(327.18)
       expect(r.precioUnitNeto).toBe(545.31)
+    })
+
+    it('personalizado: costo $297,18 y precio $495,31 (bobina del cliente, excluida)', () => {
+      // 282,60 + 14,5833 = 297,1833 / (1 − 0,40) = 495,3055… → $495,31
+      const r = calcularCotizacion(
+        { ...INPUT_REAL, cantidad: 100, packaging: 'personalizado' },
+        SNAPSHOT_REAL,
+      )
+      expect(r.costoInsumosUnitario).toBe(297.18)
+      expect(r.precioUnitNeto).toBe(495.31)
     })
 
     it('con escalón del 15% el unitario da $463,51 y el neto cierra exacto', () => {

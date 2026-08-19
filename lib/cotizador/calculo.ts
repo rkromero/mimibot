@@ -43,7 +43,11 @@ export type CotizadorSnapshot = {
   /** Texto de condiciones comerciales; no participa del cálculo, pero viaja
    *  en el snapshot para que el PDF lo renderice congelado */
   condicionesComerciales: string | null
-  /** Precio de la bobina por alfajor */
+  /** Cláusula extra congelada que el PDF agrega solo si el packaging es
+   *  personalizado; tampoco participa del cálculo */
+  condicionesPackagingPersonalizado: string | null
+  /** Precio de la bobina por alfajor. Solo entra al costo con packaging
+   *  cristal: en personalizado la bobina la provee el cliente */
   precioBobinaUnit: number
   /** Precio de la caja (se prorratea por alfajoresPorCaja) */
   precioCajaUnit: number
@@ -114,9 +118,11 @@ export function calcularCotizacion(
     (acc, item) => acc + item.gramos * (item.precioPorKg / 1000),
     0,
   )
+  // Con packaging personalizado la bobina la provee el cliente: no es costo
+  const costoBobina = packaging === 'cristal' ? snapshot.precioBobinaUnit : 0
   const costoInsumosUnitario =
     costoComponentes +
-    snapshot.precioBobinaUnit +
+    costoBobina +
     snapshot.precioCajaUnit / snapshot.alfajoresPorCaja
 
   const escalonAplicado = buscarEscalon(snapshot.escalones, cantidad)

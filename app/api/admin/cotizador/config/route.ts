@@ -35,6 +35,7 @@ export async function GET() {
           validezDias: COTIZADOR_CONFIG_DEFAULTS.validezDias,
           topeDescuentoPct: COTIZADOR_CONFIG_DEFAULTS.topeDescuentoPct.toFixed(2),
           condicionesComerciales: COTIZADOR_CONFIG_DEFAULTS.condicionesComerciales,
+          condicionesPackagingPersonalizado: COTIZADOR_CONFIG_DEFAULTS.condicionesPackagingPersonalizado,
         },
         escalones,
       },
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest) {
       topeDescuentoPct: input.topeDescuentoPct.toFixed(2),
       ...(input.condicionesComerciales !== undefined
         ? { condicionesComerciales: input.condicionesComerciales }
+        : {}),
+      ...(input.condicionesPackagingPersonalizado !== undefined
+        ? { condicionesPackagingPersonalizado: input.condicionesPackagingPersonalizado }
         : {}),
       updatedBy: session.user.id,
       updatedAt: new Date(),

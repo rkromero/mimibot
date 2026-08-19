@@ -3,9 +3,9 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from '../schema'
 import * as relations from '../relations'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 
-const { insumos, recetas, recetaItems } = schema
+const { insumos, recetas, recetaItems, cotizadorConfig } = schema
 
 const client = postgres(process.env['DATABASE_URL']!)
 const db = drizzle(client, { schema: { ...schema, ...relations } })
@@ -27,6 +27,15 @@ const RECETAS: Record<number, { galletita: number; dulce_de_leche: number; choco
   70: { galletita: 32, dulce_de_leche: 24, chocolate: 14 },
   80: { galletita: 36, dulce_de_leche: 28, chocolate: 16 },
 }
+
+// Cláusula que el PDF agrega solo en propuestas con packaging personalizado
+const CONDICIONES_PACKAGING_PERSONALIZADO =
+  'Packaging personalizado. La bobina de flowpack impresa es provista por el cliente, ' +
+  'quien define el arte, contrata la impresión y asume su costo. ALIPRO puede facilitar ' +
+  'contactos de proveedores de impresión y las especificaciones técnicas del material ' +
+  '(ancho de bobina, espesor y tipo de film) para asegurar la compatibilidad con nuestra ' +
+  'envasadora. El material debe encontrarse en planta antes del inicio de la producción; ' +
+  'las demoras en su entrega desplazan el plazo de producción.'
 
 async function seed() {
   console.log('Seeding insumos...')
@@ -56,6 +65,19 @@ async function seed() {
     await db.insert(recetaItems).values(items)
     console.log(`  + receta ${gramaje}g`)
   }
+
+  console.log('Seeding condiciones de packaging personalizado...')
+  // Solo completa el campo si está vacío: no pisa lo que el admin haya editado
+  await db
+    .insert(cotizadorConfig)
+    .values({ id: 1, condicionesPackagingPersonalizado: CONDICIONES_PACKAGING_PERSONALIZADO })
+    .onConflictDoNothing()
+  const actualizadas = await db
+    .update(cotizadorConfig)
+    .set({ condicionesPackagingPersonalizado: CONDICIONES_PACKAGING_PERSONALIZADO })
+    .where(and(eq(cotizadorConfig.id, 1), isNull(cotizadorConfig.condicionesPackagingPersonalizado)))
+    .returning({ id: cotizadorConfig.id })
+  console.log(actualizadas.length > 0 ? '  + texto default cargado' : '  ~ ya tenía texto, no se pisa')
 
   console.log('Done.')
   await client.end()

@@ -31,6 +31,7 @@ const SNAPSHOT: CotizadorSnapshot = {
   topeDescuentoPct: 10,
   validezDias: 7,
   condicionesComerciales: CONDICIONES,
+  condicionesPackagingPersonalizado: 'Packaging personalizado. La bobina la provee el cliente.',
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: { 60: [{ gramos: 60, precioPorKg: 10_000 }] },
@@ -132,9 +133,13 @@ describe('crearPropuesta', () => {
       'user-1',
     )
 
-    // 1) El jsonb persistido contiene el texto de condiciones congelado
+    // 1) El jsonb persistido contiene los textos de condiciones congelados,
+    //    incluida la cláusula condicional de packaging
     const persistido = capturas.propuesta?.snapshot as CotizadorSnapshot
     expect(persistido.condicionesComerciales).toBe(CONDICIONES)
+    expect(persistido.condicionesPackagingPersonalizado).toBe(
+      'Packaging personalizado. La bobina la provee el cliente.',
+    )
 
     // 2) El armado del PDF desde esa fila las recibe y el parser ve las 5
     //    cláusulas con su título en negrita
@@ -156,7 +161,8 @@ describe('crearPropuesta', () => {
     expect(data.condicionesComerciales).toBe(CONDICIONES)
     const clausulas = parseCondiciones(data.condicionesComerciales!)
     expect(clausulas).toHaveLength(5)
-    expect(clausulas[0]!.titulo).toBe('1. VALIDEZ.')
-    expect(clausulas[4]!.titulo).toBe('5. IMPUESTOS.')
+    // La numeración original se descarta: la asigna numerarCondiciones al render
+    expect(clausulas[0]!.titulo).toBe('VALIDEZ.')
+    expect(clausulas[4]!.titulo).toBe('IMPUESTOS.')
   })
 })

@@ -813,6 +813,8 @@ export const cotizadorConfig = pgTable('cotizador_config', {
   validezDias: integer('validez_dias').notNull().default(7),
   topeDescuentoPct: decimal('tope_descuento_pct', { precision: 5, scale: 2 }).notNull().default('0'),
   condicionesComerciales: text('condiciones_comerciales'),
+  // Cláusula extra que solo se agrega al PDF cuando el packaging es personalizado
+  condicionesPackagingPersonalizado: text('condiciones_packaging_personalizado'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
