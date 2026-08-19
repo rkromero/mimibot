@@ -90,4 +90,28 @@ describe('generarPropuestaPdf', () => {
     // Una sola consulta select: empresa_config (footer). Nada del cotizador.
     expect(mockSelect).toHaveBeenCalledTimes(1)
   }, 30_000)
+
+  it('snapshot viejo sin condicionesComerciales genera el PDF sin lanzar', async () => {
+    mockFindFirst.mockResolvedValue({
+      ...PROPUESTA_BASE,
+      // Shape de las propuestas creadas antes del fix: sin condiciones
+      snapshot: { validezDias: 7 },
+      creadoPor: { name: 'Vendedor Test' },
+    })
+
+    const result = await generarPropuestaPdf('prop-1')
+    expect(result.buffer.subarray(0, 5).toString()).toBe('%PDF-')
+  }, 30_000)
+
+  it('snapshot y resultado corruptos degradan a defaults sin lanzar', async () => {
+    mockFindFirst.mockResolvedValue({
+      ...PROPUESTA_BASE,
+      snapshot: 'jsonb inesperado',
+      resultado: 42,
+      creadoPor: { name: 'Vendedor Test' },
+    })
+
+    const result = await generarPropuestaPdf('prop-1')
+    expect(result.buffer.subarray(0, 5).toString()).toBe('%PDF-')
+  }, 30_000)
 })

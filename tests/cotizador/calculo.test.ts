@@ -11,6 +11,7 @@ const SNAPSHOT: CotizadorSnapshot = {
   alfajoresPorCaja: 12,
   topeDescuentoPct: 10,
   validezDias: 7,
+  condicionesComerciales: null,
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: {
@@ -133,6 +134,7 @@ describe('calcularCotizacion', () => {
         alfajoresPorCaja: 12,
         topeDescuentoPct: 0,
         validezDias: 7,
+        condicionesComerciales: null,
         precioBobinaUnit: 0.1,
         precioCajaUnit: 1,
         recetas: { 55: [{ gramos: 18.52, precioPorKg: 5400 }] },
@@ -158,6 +160,7 @@ describe('calcularCotizacion', () => {
       alfajoresPorCaja: 12,
       topeDescuentoPct: 100,
       validezDias: 7,
+      condicionesComerciales: null,
       precioBobinaUnit: 37.33,
       precioCajaUnit: 613.99,
       recetas: {

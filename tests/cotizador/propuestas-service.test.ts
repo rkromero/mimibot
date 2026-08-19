@@ -11,6 +11,17 @@ vi.mock('@/db', () => ({ db: { transaction: mockTransaction } }))
 vi.mock('@/lib/cotizador/snapshot', () => ({ armarSnapshotCotizador: mockArmarSnapshot }))
 
 import { crearPropuesta } from '@/lib/cotizador/propuestas.service'
+import { armarDatosPropuestaPdf } from '@/lib/pdf/propuesta.service'
+import { parseCondiciones } from '@/lib/pdf/propuesta.template'
+import type { propuestas as propuestasTable } from '@/db/schema'
+
+const CONDICIONES = [
+  '1. VALIDEZ. Siete días corridos.',
+  '2. PAGO. Seña del 50% al confirmar.',
+  '3. PRODUCCION. Quince días hábiles.',
+  '4. ENTREGA. En planta ALIPRO.',
+  '5. IMPUESTOS. Importes netos de IVA.',
+].join('\n\n')
 
 const SNAPSHOT: CotizadorSnapshot = {
   margenPct: 50,
@@ -18,6 +29,7 @@ const SNAPSHOT: CotizadorSnapshot = {
   alfajoresPorCaja: 12,
   topeDescuentoPct: 10,
   validezDias: 7,
+  condicionesComerciales: CONDICIONES,
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: { 60: [{ gramos: 60, precioPorKg: 10_000 }] },
@@ -107,5 +119,43 @@ describe('crearPropuesta', () => {
     expect(resultado.escenarios[0]?.setup).toBe(50_000)
     expect(p?.vigenteHasta).toMatch(/^\d{4}-\d{2}-\d{2}$/) // hoy + validezDias
     expect(p?.creadoPor).toBe('user-1')
+  })
+
+  it('regresión: el snapshot persistido lleva las condiciones y el PDF las recibe', async () => {
+    const capturas: { propuesta: InsertValues | null } = { propuesta: null }
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(makeTx(capturas)))
+
+    await crearPropuesta(
+      'lead-1',
+      { cantidad: 1000, gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 },
+      'user-1',
+    )
+
+    // 1) El jsonb persistido contiene el texto de condiciones congelado
+    const persistido = capturas.propuesta?.snapshot as CotizadorSnapshot
+    expect(persistido.condicionesComerciales).toBe(CONDICIONES)
+
+    // 2) El armado del PDF desde esa fila las recibe y el parser ve las 5
+    //    cláusulas con su título en negrita
+    const fila = {
+      id: 'prop-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      aprobadoPor: null,
+      ...capturas.propuesta,
+    } as typeof propuestasTable.$inferSelect
+    const data = armarDatosPropuestaPdf(
+      fila,
+      { name: 'Cliente', phone: null, email: null },
+      null,
+      'Vendedor',
+      { nombre: 'ALIPRO', cuit: null, direccion: null, telefono: null, email: null },
+    )
+    expect(data.condicionesComerciales).toBe(CONDICIONES)
+    const clausulas = parseCondiciones(data.condicionesComerciales!)
+    expect(clausulas).toHaveLength(5)
+    expect(clausulas[0]!.titulo).toBe('1. VALIDEZ.')
+    expect(clausulas[4]!.titulo).toBe('5. IMPUESTOS.')
   })
 })

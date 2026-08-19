@@ -29,6 +29,9 @@ export type CotizadorSnapshot = {
   topeDescuentoPct: number
   /** Días de vigencia de la propuesta desde su creación */
   validezDias: number
+  /** Texto de condiciones comerciales; no participa del cálculo, pero viaja
+   *  en el snapshot para que el PDF lo renderice congelado */
+  condicionesComerciales: string | null
   /** Precio de la bobina por alfajor */
   precioBobinaUnit: number
   /** Precio de la caja (se prorratea por alfajoresPorCaja) */

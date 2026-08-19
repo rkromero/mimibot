@@ -23,6 +23,7 @@ const SNAPSHOT_CONGELADO: CotizadorSnapshot = {
   alfajoresPorCaja: 12,
   topeDescuentoPct: 10,
   validezDias: 7,
+  condicionesComerciales: 'Condiciones congeladas al cotizar.',
   precioBobinaUnit: 50,
   precioCajaUnit: 600,
   recetas: {

@@ -5,10 +5,14 @@ import { propuestas, empresaConfig } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { NotFoundError, ConflictError } from '@/lib/errors'
 import {
+  propuestaSnapshotPdfSchema,
+  propuestaResultadoSchema,
+  PROPUESTA_SNAPSHOT_PDF_DEFAULTS,
+} from '@/lib/validations/cotizador'
+import {
   PropuestaDocument,
   formatNumeroPropuesta,
   type PropuestaPdfData,
-  type PropuestaEscenarioPdf,
 } from './propuesta.template'
 
 type PropuestaRow = typeof propuestas.$inferSelect
@@ -37,6 +41,8 @@ export type GenerarPropuestaPdfResult = {
 
 // Arma los datos del PDF EXCLUSIVAMENTE desde el snapshot y el resultado
 // congelados en la propuesta — nunca desde la config vigente del cotizador.
+// Los jsonb se leen validados con zod: un snapshot viejo (sin
+// condicionesComerciales) o inesperado degrada a defaults sin reventar.
 // Exportada para poder testear esa garantía en aislamiento.
 export function armarDatosPropuestaPdf(
   propuesta: PropuestaRow,
@@ -45,8 +51,10 @@ export function armarDatosPropuestaPdf(
   vendedorNombre: string,
   empresa: EmpresaInfo,
 ): PropuestaPdfData {
-  const snapshot = propuesta.snapshot as { validezDias?: number; condicionesComerciales?: string | null }
-  const resultado = propuesta.resultado as { escenarios?: PropuestaEscenarioPdf[] }
+  const snapParsed = propuestaSnapshotPdfSchema.safeParse(propuesta.snapshot)
+  const snapshot = snapParsed.success ? snapParsed.data : PROPUESTA_SNAPSHOT_PDF_DEFAULTS
+  const resParsed = propuestaResultadoSchema.safeParse(propuesta.resultado)
+  const resultado = resParsed.success ? resParsed.data : { escenarios: [] }
 
   return {
     numero: propuesta.numero,
@@ -61,9 +69,9 @@ export function armarDatosPropuestaPdf(
     cantidad: propuesta.cantidad,
     gramaje: propuesta.gramaje,
     packaging: propuesta.packaging,
-    escenarios: resultado.escenarios ?? [],
-    condicionesComerciales: snapshot.condicionesComerciales ?? null,
-    validezDias: snapshot.validezDias ?? 7,
+    escenarios: resultado.escenarios,
+    condicionesComerciales: snapshot.condicionesComerciales,
+    validezDias: snapshot.validezDias,
     vendedorNombre,
     empresa,
   }

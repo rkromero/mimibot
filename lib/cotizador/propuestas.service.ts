@@ -2,7 +2,8 @@ import { sql, eq, and, isNull, desc } from 'drizzle-orm'
 import { db } from '@/db'
 import { documentCounters, propuestas } from '@/db/schema'
 import { armarSnapshotCotizador } from '@/lib/cotizador/snapshot'
-import { calcularEscenarios, type EscenarioCotizacion } from '@/lib/cotizador/escenarios'
+import { calcularEscenarios } from '@/lib/cotizador/escenarios'
+import { propuestaResultadoSchema } from '@/lib/validations/cotizador'
 import { addDaysStrAR } from '@/lib/dates'
 import type { CotizacionInput } from '@/lib/cotizador/calculo'
 
@@ -83,9 +84,11 @@ export async function listarPropuestas(leadId: string): Promise<PropuestaResumen
     .orderBy(desc(propuestas.numero))
 
   return rows.map((r) => {
-    // El total sale del resultado congelado, nunca de la config actual
-    const resultado = r.resultado as { escenarios?: EscenarioCotizacion[] }
-    const elegido = resultado.escenarios?.find((e) => e.elegido)
+    // El total sale del resultado congelado, nunca de la config actual;
+    // se lee validado con zod (un resultado inesperado degrada a total 0)
+    const parsed = propuestaResultadoSchema.safeParse(r.resultado)
+    const escenarios = parsed.success ? parsed.data.escenarios : []
+    const elegido = escenarios.find((e) => e.elegido)
     return {
       id: r.id,
       numero: r.numero,

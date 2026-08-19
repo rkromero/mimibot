@@ -69,6 +69,9 @@ export async function armarSnapshotCotizador(): Promise<CotizadorSnapshot> {
       ? Number(config.topeDescuentoPct)
       : COTIZADOR_CONFIG_DEFAULTS.topeDescuentoPct,
     validezDias: config?.validezDias ?? COTIZADOR_CONFIG_DEFAULTS.validezDias,
+    condicionesComerciales: config
+      ? config.condicionesComerciales
+      : COTIZADOR_CONFIG_DEFAULTS.condicionesComerciales,
     precioBobinaUnit: Number(bobina.precio),
     precioCajaUnit: Number(caja.precio),
     recetas: recetasPorGramaje,

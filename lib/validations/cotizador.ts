@@ -100,6 +100,39 @@ export const updatePropuestaSchema = z.object({
   }),
 })
 
+// ── Lectura tipada de los jsonb congelados de una propuesta ──────────────────
+// Validan solo lo que los consumidores necesitan (el snapshot guarda más
+// campos y el objeto no es estricto). Los snapshots viejos sin
+// condicionesComerciales validan igual y toman el default; ante un jsonb
+// inesperado el caller usa defaults en vez de reventar.
+
+export const propuestaSnapshotPdfSchema = z.object({
+  validezDias: z.number().int().positive().default(7),
+  condicionesComerciales: z.string().nullish().default(null).transform((v) => v ?? null),
+})
+
+const escenarioPropuestaSchema = z.object({
+  cantidad: z.number(),
+  precioUnitNeto: z.number(),
+  neto: z.number(),
+  iva: z.number(),
+  total: z.number(),
+  setup: z.number().default(0),
+  elegido: z.boolean().default(false),
+})
+
+export const propuestaResultadoSchema = z.object({
+  escenarios: z.array(escenarioPropuestaSchema).default([]),
+})
+
+export const PROPUESTA_SNAPSHOT_PDF_DEFAULTS: PropuestaSnapshotPdf = {
+  validezDias: 7,
+  condicionesComerciales: null,
+}
+
+export type PropuestaSnapshotPdf = z.infer<typeof propuestaSnapshotPdfSchema>
+export type PropuestaResultado = z.infer<typeof propuestaResultadoSchema>
+
 export type CreateInsumoInput = z.infer<typeof createInsumoSchema>
 export type UpdateInsumoInput = z.infer<typeof updateInsumoSchema>
 export type CotizadorConfigInput = z.infer<typeof cotizadorConfigSchema>
