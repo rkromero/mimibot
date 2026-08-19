@@ -18,7 +18,7 @@ const INPUT: CotizacionInput = {
 
 // Snapshot vigente al momento de crear la propuesta
 const SNAPSHOT_CONGELADO: CotizadorSnapshot = {
-  formulaVersion: 2,
+  formulaVersion: 3,
   margenPct: 50,
   cargoSetupPersonalizado: 50_000,
   alfajoresPorCaja: 12,

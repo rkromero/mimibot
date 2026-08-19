@@ -6,13 +6,14 @@ import { ValidationError } from '@/lib/errors'
 
 export const IVA_PCT = 21
 
-// Versión de la fórmula de margen congelada en cada snapshot:
+// Versión de la fórmula congelada en cada snapshot:
 //  - v1 (snapshots viejos, sin el campo): markup sobre costo → costo × (1 + m)
-//  - v2 (snapshots nuevos): margen sobre venta → costo / (1 − m)
-// Las dos ramas conviven porque los snapshots guardados se calcularon con v1
-// y deben reproducirse idénticos; reinterpretarlos con v2 cambiaría importes
-// ya cotizados.
-export const COTIZADOR_FORMULA_VERSION = 2
+//  - v2: margen sobre venta → costo / (1 − m), con la bobina dentro del costo
+//  - v3 (snapshots nuevos): margen sobre venta con la bobina como costo
+//    pass-through — se suma entera al final, sin margen ni descuentos
+// Las ramas conviven porque los snapshots guardados deben reproducirse
+// idénticos; reinterpretarlos con otra fórmula cambiaría importes ya cotizados.
+export const COTIZADOR_FORMULA_VERSION = 3
 
 export type PackagingCotizacion = 'cristal' | 'personalizado'
 
@@ -118,32 +119,39 @@ export function calcularCotizacion(
     (acc, item) => acc + item.gramos * (item.precioPorKg / 1000),
     0,
   )
+  const costoCaja = snapshot.precioCajaUnit / snapshot.alfajoresPorCaja
   // Con packaging personalizado la bobina la provee el cliente: no es costo
-  const costoBobina = packaging === 'cristal' ? snapshot.precioBobinaUnit : 0
-  const costoInsumosUnitario =
-    costoComponentes +
-    costoBobina +
-    snapshot.precioCajaUnit / snapshot.alfajoresPorCaja
+  const bobinaUnit = packaging === 'cristal' ? snapshot.precioBobinaUnit : 0
 
   const escalonAplicado = buscarEscalon(snapshot.escalones, cantidad)
   const descEscalonPct = escalonAplicado?.descuentoPct ?? 0
 
-  // v1 vs v2: los snapshots guardados sin formulaVersion se calcularon con
-  // markup y deben reproducirse tal cual; los nuevos usan margen sobre venta.
-  const esFormulaV2 = (snapshot.formulaVersion ?? 1) >= COTIZADOR_FORMULA_VERSION
-  if (esFormulaV2 && snapshot.margenPct >= 100) {
+  // Cada snapshot se reproduce con la fórmula de su versión (ver comentario
+  // de COTIZADOR_FORMULA_VERSION): los importes ya cotizados no cambian.
+  const version = snapshot.formulaVersion ?? 1
+  const usaMargenSobreVenta = version >= 2
+  if (usaMargenSobreVenta && snapshot.margenPct >= 100) {
     throw new ValidationError('El margen sobre venta debe ser menor a 100% (100% divide por cero)')
   }
-  const factorMargen = esFormulaV2
+  const factorMargen = usaMargenSobreVenta
     ? 1 / (1 - snapshot.margenPct / 100)
     : 1 + snapshot.margenPct / 100
+  const factorDescuentos = (1 - descEscalonPct / 100) * (1 - descuentoManualPct / 100)
 
-  const precioUnitNeto = round2(
-    costoInsumosUnitario *
-    factorMargen *
-    (1 - descEscalonPct / 100) *
-    (1 - descuentoManualPct / 100),
-  )
+  let costoInsumosUnitario: number
+  let precioUnitNeto: number
+  if (version >= 3) {
+    // v3: la bobina es pass-through — fuera de la base del margen y sin
+    // descuentos, se suma entera al final. El costo reportado (para los
+    // internos de rentabilidad) sí es el completo: base + bobina.
+    const costoBase = costoComponentes + costoCaja
+    costoInsumosUnitario = costoBase + bobinaUnit
+    precioUnitNeto = round2(costoBase * factorMargen * factorDescuentos + bobinaUnit)
+  } else {
+    // v1/v2: la bobina forma parte del costo, margen y descuentos la afectan
+    costoInsumosUnitario = costoComponentes + bobinaUnit + costoCaja
+    precioUnitNeto = round2(costoInsumosUnitario * factorMargen * factorDescuentos)
+  }
 
   const setup = round2(packaging === 'personalizado' ? snapshot.cargoSetupPersonalizado : 0)
   // precioUnitNeto y setup ya tienen 2 decimales y cantidad es entera: el

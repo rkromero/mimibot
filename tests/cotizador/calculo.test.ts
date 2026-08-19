@@ -4,10 +4,11 @@ import { cotizadorConfigSchema } from '@/lib/validations/cotizador'
 import { ValidationError } from '@/lib/errors'
 
 // Receta 60 g: 30 g × $10/g + 20 g × $5/g + 10 g × $20/g = $600
-// + bobina $50 + caja $600/12 = $50 → costo insumos unitario $700
-// margen sobre venta 50% (fórmula v2) → precio base 700 / 0,5 = $1400
+// + caja $600/12 = $50 → costo base $650 (la bobina $50 va aparte)
+// margen sobre venta 50% (fórmula v3) → precio base 650 / 0,5 = $1300,
+// y en cristal la bobina se suma pass-through al final: $1350
 const SNAPSHOT: CotizadorSnapshot = {
-  formulaVersion: 2,
+  formulaVersion: 3,
   margenPct: 50,
   cargoSetupPersonalizado: 50_000,
   alfajoresPorCaja: 12,
@@ -36,55 +37,57 @@ const BASE = { gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 } as con
 describe('calcularCotizacion', () => {
   it('calcula el desglose completo del caso base', () => {
     const r = calcularCotizacion({ ...BASE, cantidad: 100 }, SNAPSHOT)
+    // Costo reportado completo: base 650 + bobina 50
     expect(r.costoInsumosUnitario).toBe(700)
-    expect(r.precioUnitNeto).toBe(1400)
+    expect(r.precioUnitNeto).toBe(1350)
     expect(r.setup).toBe(0)
-    expect(r.neto).toBe(140_000)
-    expect(r.iva).toBe(29_400)
-    expect(r.total).toBe(169_400)
+    expect(r.neto).toBe(135_000)
+    expect(r.iva).toBe(28_350)
+    expect(r.total).toBe(163_350)
   })
 
   describe('escalones por volumen', () => {
-    it('aplica el escalón que corresponde a la cantidad', () => {
+    it('aplica el escalón sobre la base marginada; la bobina se suma después', () => {
       const r500 = calcularCotizacion({ ...BASE, cantidad: 500 }, SNAPSHOT)
       expect(r500.escalonAplicado?.descuentoPct).toBe(0)
-      expect(r500.precioUnitNeto).toBe(1400)
+      expect(r500.precioUnitNeto).toBe(1350)
 
+      // 1300 × 0,95 + 50 = 1285 (el descuento no toca la bobina)
       const r1000 = calcularCotizacion({ ...BASE, cantidad: 1000 }, SNAPSHOT)
       expect(r1000.escalonAplicado?.descuentoPct).toBe(5)
-      expect(r1000.precioUnitNeto).toBe(1330)
+      expect(r1000.precioUnitNeto).toBe(1285)
 
       const r4999 = calcularCotizacion({ ...BASE, cantidad: 4999 }, SNAPSHOT)
       expect(r4999.escalonAplicado?.descuentoPct).toBe(5)
 
+      // 1300 × 0,90 + 50 = 1220
       const r5000 = calcularCotizacion({ ...BASE, cantidad: 5000 }, SNAPSHOT)
       expect(r5000.escalonAplicado?.descuentoPct).toBe(10)
-      expect(r5000.precioUnitNeto).toBe(1260)
+      expect(r5000.precioUnitNeto).toBe(1220)
     })
 
     it('cantidadMax null = sin tope: alcanza cualquier cantidad grande', () => {
       const r = calcularCotizacion({ ...BASE, cantidad: 1_000_000 }, SNAPSHOT)
       expect(r.escalonAplicado).toEqual({ cantidadMin: 5000, cantidadMax: null, descuentoPct: 10 })
-      expect(r.precioUnitNeto).toBe(1260)
+      expect(r.precioUnitNeto).toBe(1220)
     })
 
     it('sin escalón aplicable no descuenta y devuelve escalonAplicado null', () => {
       const r = calcularCotizacion({ ...BASE, cantidad: 50 }, SNAPSHOT)
       expect(r.escalonAplicado).toBeNull()
-      expect(r.precioUnitNeto).toBe(1400)
+      expect(r.precioUnitNeto).toBe(1350)
     })
   })
 
   describe('packaging', () => {
-    it('cristal no suma cargo de setup', () => {
+    it('cristal suma la bobina pass-through y no suma cargo de setup', () => {
       const r = calcularCotizacion({ ...BASE, cantidad: 100, packaging: 'cristal' }, SNAPSHOT)
       expect(r.setup).toBe(0)
-      expect(r.neto).toBe(140_000)
+      expect(r.neto).toBe(135_000)
     })
 
-    it('personalizado suma el setup y excluye la bobina del costo (la provee el cliente)', () => {
+    it('personalizado suma el setup y no lleva bobina (la provee el cliente)', () => {
       const r = calcularCotizacion({ ...BASE, cantidad: 100, packaging: 'personalizado' }, SNAPSHOT)
-      // Costo sin bobina: 700 − 50 = 650 → precio base 650 / 0,5 = 1300
       expect(r.costoInsumosUnitario).toBe(650)
       expect(r.precioUnitNeto).toBe(1300)
       expect(r.setup).toBe(50_000)
@@ -95,22 +98,23 @@ describe('calcularCotizacion', () => {
   })
 
   describe('descuento manual', () => {
-    it('se aplica multiplicativo sobre el precio unitario', () => {
+    it('se aplica sobre la base marginada, no sobre la bobina', () => {
+      // 1300 × 0,90 + 50 = 1220
       const r = calcularCotizacion({ ...BASE, cantidad: 100, descuentoManualPct: 10 }, SNAPSHOT)
-      expect(r.precioUnitNeto).toBe(1260)
-      expect(r.neto).toBe(126_000)
+      expect(r.precioUnitNeto).toBe(1220)
+      expect(r.neto).toBe(122_000)
     })
 
     it('se combina con el descuento por escalón', () => {
-      // 1400 × 0.95 (escalón) × 0.9 (manual) = 1197
+      // 1300 × 0.95 (escalón) × 0.9 (manual) + 50 = 1161.5
       const r = calcularCotizacion({ ...BASE, cantidad: 1000, descuentoManualPct: 10 }, SNAPSHOT)
-      expect(r.precioUnitNeto).toBe(1197)
+      expect(r.precioUnitNeto).toBe(1161.5)
     })
 
     it('sobre el tope calcula igual (la aprobación la decide la capa de negocio)', () => {
-      // 1400 × (1 − 0.15) = 1190 — el tope (10%) no frena el cálculo
+      // 1300 × (1 − 0.15) + 50 = 1155 — el tope (10%) no frena el cálculo
       const r = calcularCotizacion({ ...BASE, cantidad: 100, descuentoManualPct: 15 }, SNAPSHOT)
-      expect(r.precioUnitNeto).toBe(1190)
+      expect(r.precioUnitNeto).toBe(1155)
     })
 
     it('rechaza descuentos fuera del rango 0-100', () => {
@@ -135,7 +139,7 @@ describe('calcularCotizacion', () => {
     it('redondea a 2 decimales solo al final, sin arrastrar error de float', () => {
       // 18.52 g × $5.40/g = 100.008 + bobina 0.10 + caja 1/12 = 100.19133...
       const snapshot: CotizadorSnapshot = {
-        formulaVersion: 2,
+        formulaVersion: 3,
         margenPct: 0,
         cargoSetupPersonalizado: 0,
         alfajoresPorCaja: 12,
@@ -163,7 +167,7 @@ describe('calcularCotizacion', () => {
     // Snapshot con precios "sucios" que generan unitarios con más de 2
     // decimales antes de redondear
     const SUCIO: CotizadorSnapshot = {
-      formulaVersion: 2,
+      formulaVersion: 3,
       margenPct: 32.5,
       cargoSetupPersonalizado: 150_000.55,
       alfajoresPorCaja: 12,
@@ -208,11 +212,11 @@ describe('calcularCotizacion', () => {
     })
   })
 
-  describe('margen sobre venta (fórmula v2) — valores reales', () => {
+  describe('bobina pass-through (fórmula v3) — valores reales', () => {
     // Receta 60 g: 18 g × $3/g + 30 g × $3,7/g + 12 g × $9,8/g = $282,60
-    // + bobina $30 + caja $350/24 = $14,5833 → costo unitario $327,1833
+    // + caja $350/24 = $14,5833 → costo BASE $297,1833 (sin la bobina de $30)
     const SNAPSHOT_REAL: CotizadorSnapshot = {
-      formulaVersion: 2,
+      formulaVersion: 3,
       margenPct: 40,
       cargoSetupPersonalizado: 0,
       alfajoresPorCaja: 24,
@@ -229,44 +233,112 @@ describe('calcularCotizacion', () => {
           { gramos: 12, precioPorKg: 9_800 },
         ],
       },
-      escalones: [{ cantidadMin: 1000, cantidadMax: null, descuentoPct: 15 }],
+      escalones: [
+        { cantidadMin: 1000, cantidadMax: 4999, descuentoPct: 3 },
+        { cantidadMin: 5000, cantidadMax: null, descuentoPct: 15 },
+      ],
     }
     const INPUT_REAL = { gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 } as const
 
-    it('cristal: costo $327,18 y precio unitario $545,31 (bobina incluida)', () => {
-      // 282,60 + 30 + 14,5833 = 327,1833 / (1 − 0,40) = 545,3055… → $545,31
-      const r = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, SNAPSHOT_REAL)
-      expect(r.costoInsumosUnitario).toBe(327.18)
-      expect(r.precioUnitNeto).toBe(545.31)
-    })
-
-    it('personalizado: costo $297,18 y precio $495,31 (bobina del cliente, excluida)', () => {
-      // 282,60 + 14,5833 = 297,1833 / (1 − 0,40) = 495,3055… → $495,31
+    it('costo base $297,1833 y precio base $495,3056 (sin bobina)', () => {
+      const costoBase = 18 * 3 + 30 * 3.7 + 12 * 9.8 + 350 / 24
+      expect(costoBase).toBeCloseTo(297.1833, 4)
+      expect(costoBase / (1 - 0.4)).toBeCloseTo(495.3056, 4)
+      // El motor lo refleja en personalizado (sin bobina): costo 297,18
       const r = calcularCotizacion(
         { ...INPUT_REAL, cantidad: 100, packaging: 'personalizado' },
         SNAPSHOT_REAL,
       )
       expect(r.costoInsumosUnitario).toBe(297.18)
-      expect(r.precioUnitNeto).toBe(495.31)
     })
 
-    it('con escalón del 15% el unitario da $463,51 y el neto cierra exacto', () => {
-      // 545,3055… × 0,85 = 463,5097… → $463,51
-      const r = calcularCotizacion({ ...INPUT_REAL, cantidad: 1000 }, SNAPSHOT_REAL)
-      expect(r.precioUnitNeto).toBe(463.51)
-      expect(r.neto).toBe(463_510)
-      expect(r.neto).toBe(Math.round(r.precioUnitNeto * 1000 * 100) / 100)
+    it('sin descuento: cristal $525,31 y personalizado $495,31 — diferencia exacta $30', () => {
+      // 495,3056 + 30 (bobina pass-through, sin margen) = 525,3056 → $525,31
+      const cristal = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, SNAPSHOT_REAL)
+      const personalizado = calcularCotizacion(
+        { ...INPUT_REAL, cantidad: 100, packaging: 'personalizado' },
+        SNAPSHOT_REAL,
+      )
+      expect(cristal.precioUnitNeto).toBe(525.31)
+      expect(personalizado.precioUnitNeto).toBe(495.31)
+      expect(cristal.precioUnitNeto - personalizado.precioUnitNeto).toBeCloseTo(30, 2)
     })
 
-    it('un snapshot sin formulaVersion sigue con la fórmula vieja: $458,06', () => {
-      // Las propuestas ya emitidas se congelaron con markup: 327,1833 × 1,4
+    it('escalón del 3%: cristal $510,45 y personalizado $480,45 — el descuento no toca la bobina', () => {
+      // 495,3056 × 0,97 = 480,4464; cristal suma la bobina ENTERA después: +30
+      const cristal = calcularCotizacion({ ...INPUT_REAL, cantidad: 1000 }, SNAPSHOT_REAL)
+      const personalizado = calcularCotizacion(
+        { ...INPUT_REAL, cantidad: 1000, packaging: 'personalizado' },
+        SNAPSHOT_REAL,
+      )
+      expect(cristal.escalonAplicado?.descuentoPct).toBe(3)
+      expect(cristal.precioUnitNeto).toBe(510.45)
+      expect(personalizado.precioUnitNeto).toBe(480.45)
+      expect(cristal.precioUnitNeto - personalizado.precioUnitNeto).toBeCloseTo(30, 2)
+      // neto = unitario redondeado × cantidad, exacto
+      expect(cristal.neto).toBe(510_450)
+    })
+
+    // cantidad 100 → sin escalón; 1000 → 3%; 5000 → 15%
+    const COMBOS_DIFERENCIA = [
+      { cantidad: 100, descuentoManualPct: 0 },
+      { cantidad: 100, descuentoManualPct: 5 },
+      { cantidad: 100, descuentoManualPct: 12.5 },
+      { cantidad: 1000, descuentoManualPct: 0 },
+      { cantidad: 1000, descuentoManualPct: 5 },
+      { cantidad: 1000, descuentoManualPct: 12.5 },
+      { cantidad: 5000, descuentoManualPct: 0 },
+      { cantidad: 5000, descuentoManualPct: 5 },
+      { cantidad: 5000, descuentoManualPct: 12.5 },
+    ] as const
+
+    it.each(COMBOS_DIFERENCIA)(
+      'cristal − personalizado = bobina con cualquier descuento: %o',
+      ({ cantidad, descuentoManualPct }) => {
+        const base = { gramaje: 60, cantidad, descuentoManualPct } as const
+        const cristal = calcularCotizacion({ ...base, packaging: 'cristal' }, SNAPSHOT_REAL)
+        const personalizado = calcularCotizacion({ ...base, packaging: 'personalizado' }, SNAPSHOT_REAL)
+        // La bobina se traslada tal cual: la diferencia es siempre $30
+        // (tolerancia de un centavo por el redondeo de cada precio)
+        expect(Math.abs(cristal.precioUnitNeto - personalizado.precioUnitNeto - 30))
+          .toBeLessThanOrEqual(0.01)
+      },
+    )
+
+    it('internos: costo $327,18 / margen 37,72% en cristal; $297,18 / 40,00% en personalizado', () => {
+      // Mismo cálculo de margen real que hace el modal del vendedor
+      const margenReal = (r: { precioUnitNeto: number; costoInsumosUnitario: number }) =>
+        ((r.precioUnitNeto - r.costoInsumosUnitario) / r.precioUnitNeto) * 100
+
+      const cristal = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, SNAPSHOT_REAL)
+      expect(cristal.costoInsumosUnitario).toBe(327.18)
+      expect(margenReal(cristal)).toBeCloseTo(37.72, 2)
+
+      const personalizado = calcularCotizacion(
+        { ...INPUT_REAL, cantidad: 100, packaging: 'personalizado' },
+        SNAPSHOT_REAL,
+      )
+      expect(personalizado.costoInsumosUnitario).toBe(297.18)
+      expect(margenReal(personalizado)).toBeCloseTo(40.0, 2)
+    })
+
+    it('un snapshot v2 sigue devolviendo $545,31 en cristal, sin cambios', () => {
+      // v2: la bobina dentro del costo → 327,1833 / 0,6 = 545,3055…
+      const v2 = { ...SNAPSHOT_REAL, formulaVersion: 2 }
+      const r = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, v2)
+      expect(r.costoInsumosUnitario).toBe(327.18)
+      expect(r.precioUnitNeto).toBe(545.31)
+    })
+
+    it('un snapshot sin formulaVersion sigue con la fórmula v1 (markup): $458,06', () => {
+      // Las propuestas más viejas se congelaron con markup: 327,1833 × 1,4
       const legacy: CotizadorSnapshot = { ...SNAPSHOT_REAL }
       delete legacy.formulaVersion
       const r = calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, legacy)
       expect(r.precioUnitNeto).toBe(458.06)
     })
 
-    it('margen 100 en fórmula v2 es rechazado por el motor (división por cero)', () => {
+    it('margen 100 es rechazado por el motor (división por cero)', () => {
       const snapshot = { ...SNAPSHOT_REAL, margenPct: 100 }
       expect(() => calcularCotizacion({ ...INPUT_REAL, cantidad: 100 }, snapshot)).toThrow(ValidationError)
     })

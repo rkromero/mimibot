@@ -24,7 +24,7 @@ const CONDICIONES = [
 ].join('\n\n')
 
 const SNAPSHOT: CotizadorSnapshot = {
-  formulaVersion: 2,
+  formulaVersion: 3,
   margenPct: 50,
   cargoSetupPersonalizado: 50_000,
   alfajoresPorCaja: 12,

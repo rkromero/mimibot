@@ -66,8 +66,8 @@ describe('armarSnapshotCotizador', () => {
     expect(snap.validezDias).toBe(10)
     expect(snap.margenPct).toBe(35)
     expect(snap.topeDescuentoPct).toBe(8)
-    // Los snapshots nuevos nacen con la fórmula de margen sobre venta
-    expect(snap.formulaVersion).toBe(2)
+    // Los snapshots nuevos nacen con la fórmula v3 (bobina pass-through)
+    expect(snap.formulaVersion).toBe(3)
   })
 
   it('sin fila de config cae a los defaults (condiciones null, validez 7)', async () => {
