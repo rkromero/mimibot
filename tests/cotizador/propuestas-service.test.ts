@@ -40,8 +40,10 @@ const SNAPSHOT: CotizadorSnapshot = {
 
 type InsertValues = Record<string, unknown>
 
-// tx mock: distingue las tablas por identidad (schema real, sin mockear)
-function makeTx(capturas: { propuesta: InsertValues | null }) {
+// tx mock: distingue las tablas por identidad (schema real, sin mockear).
+// No expone select ni count: si la numeración dependiera de contar filas
+// vivas, el mock explotaría.
+function makeTx(capturas: { propuesta: InsertValues | null }, lastNumber = 3) {
   return {
     execute: vi.fn().mockResolvedValue([]),
     insert: vi.fn((table: unknown) => {
@@ -49,7 +51,7 @@ function makeTx(capturas: { propuesta: InsertValues | null }) {
         return {
           values: () => ({
             onConflictDoUpdate: () => ({
-              returning: () => Promise.resolve([{ tipo: 'propuesta', lastNumber: 3 }]),
+              returning: () => Promise.resolve([{ tipo: 'propuesta', lastNumber }]),
             }),
           }),
         }
@@ -121,6 +123,22 @@ describe('crearPropuesta', () => {
     expect(resultado.escenarios[0]?.setup).toBe(50_000)
     expect(p?.vigenteHasta).toMatch(/^\d{4}-\d{2}-\d{2}$/) // hoy + validezDias
     expect(p?.creadoPor).toBe('user-1')
+  })
+
+  it('el correlativo sale de document_counters: borrar la última no lo reutiliza', async () => {
+    // Escenario: se creó la propuesta 5 y se borró (soft delete). El contador
+    // sigue en 5, así que la próxima es la 6 — la numeración nunca cuenta
+    // filas vivas (el tx mock ni siquiera permite consultar propuestas).
+    const capturas: { propuesta: InsertValues | null } = { propuesta: null }
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(makeTx(capturas, 5)))
+
+    await crearPropuesta(
+      'lead-1',
+      { cantidad: 1000, gramaje: 60, packaging: 'cristal', descuentoManualPct: 0 },
+      'user-1',
+    )
+
+    expect(capturas.propuesta?.numero).toBe(6)
   })
 
   it('regresión: el snapshot persistido lleva las condiciones y el PDF las recibe', async () => {

@@ -2,9 +2,10 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calculator, AlertTriangle, X, Download, MessageCircle, Mail } from 'lucide-react'
+import { Calculator, AlertTriangle, X, Download, MessageCircle, Mail, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatFechaAR, formatFechaInstanteAR } from '@/lib/dates'
+import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { useToast } from '@/components/shared/ToastProvider'
 
 type Packaging = 'cristal' | 'personalizado'
@@ -81,6 +82,12 @@ const inputClass = cn(
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
+}
+
+// Mismo formato que el PDF (no se importa del template para no arrastrar
+// @react-pdf/renderer al bundle del cliente)
+function numeroPropuestaFmt(n: number): string {
+  return `PROP-${String(n).padStart(5, '0')}`
 }
 
 // Botón "Cotizar" + modal. Única definición del JSX: se instancia tanto en la
@@ -348,10 +355,13 @@ function CotizarModal({ leadId, onClose }: { leadId: string; onClose: () => void
   )
 }
 
-export function PropuestasList({ leadId }: { leadId: string }) {
+export function PropuestasList({ leadId, mobile }: { leadId: string; mobile?: boolean }) {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [enviando, setEnviando] = useState<string | null>(null)
+  const [eliminando, setEliminando] = useState<PropuestaResumen | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: propuestas = [], isLoading } = useQuery<PropuestaResumen[]>({
     queryKey: ['lead-propuestas', leadId],
@@ -395,6 +405,29 @@ export function PropuestasList({ leadId }: { leadId: string }) {
     void registrarEnvio(p.id, 'descarga')
   }
 
+  async function handleDelete() {
+    if (!eliminando) return
+    setDeleteError(null)
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/propuestas/${eliminando.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json() as { error?: string }
+        // Un 403 (o cualquier error) se muestra dentro del modal, sin cerrarlo
+        setDeleteError(json.error ?? 'Error al eliminar la propuesta')
+        return
+      }
+      void queryClient.invalidateQueries({ queryKey: ['lead-propuestas', leadId] })
+      void queryClient.invalidateQueries({ queryKey: ['activity', leadId] })
+      toast.success(`Propuesta ${numeroPropuestaFmt(eliminando.numero)} eliminada`)
+      setEliminando(null)
+    } catch {
+      setDeleteError('Error de conexión')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (isLoading || propuestas.length === 0) return null
 
   return (
@@ -409,6 +442,7 @@ export function PropuestasList({ leadId }: { leadId: string }) {
           const accionClass = cn(
             'p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
             'disabled:opacity-40 disabled:pointer-events-none',
+            mobile && 'min-h-[44px] min-w-[44px] flex items-center justify-center',
           )
           return (
             <div key={p.id} className="flex flex-col gap-0.5 p-2 rounded-md border border-border">
@@ -455,11 +489,35 @@ export function PropuestasList({ leadId }: { leadId: string }) {
                   <Mail size={13} />
                 </button>
                 {busy && <span className="text-[10px] text-muted-foreground">Enviando...</span>}
+                <button
+                  onClick={() => { setDeleteError(null); setEliminando(p) }}
+                  disabled={busy || isDeleting}
+                  aria-label="Eliminar propuesta"
+                  title="Eliminar propuesta"
+                  className={cn(
+                    'ml-auto p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors',
+                    'disabled:opacity-40 disabled:pointer-events-none',
+                    mobile && 'min-h-[44px] min-w-[44px] flex items-center justify-center',
+                  )}
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
           )
         })}
       </div>
+
+      {eliminando && (
+        <ConfirmDeleteModal
+          title="Eliminar propuesta"
+          description={`¿Eliminar la propuesta ${numeroPropuestaFmt(eliminando.numero)}? Esta acción no se puede deshacer.`}
+          warning={deleteError ?? undefined}
+          onConfirm={() => { void handleDelete() }}
+          onClose={() => { setEliminando(null); setDeleteError(null) }}
+          isPending={isDeleting}
+        />
+      )}
     </div>
   )
 }

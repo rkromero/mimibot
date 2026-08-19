@@ -237,6 +237,11 @@ export default function LeadPanel({
           <MuestraCda muestra={muestra} onEnviar={enviarMuestra} mobile />
         )}
         {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
+        {!isClienteMode && leadId && (
+          <div className="max-h-56 overflow-y-auto shrink-0">
+            <PropuestasList leadId={leadId} mobile />
+          </div>
+        )}
         {effectiveConvId ? (
           <>
             <ChatFeed conversationId={effectiveConvId} />

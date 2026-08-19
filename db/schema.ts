@@ -18,7 +18,7 @@ export const activityActionEnum = pgEnum('activity_action', [
   'bot_handoff', 'bot_enabled', 'bot_disabled',
   'lead_created', 'tag_added', 'tag_removed',
   'follow_up_scheduled', 'follow_up_sent', 'follow_up_cancelled',
-  'muestra_creada', 'propuesta_enviada',
+  'muestra_creada', 'propuesta_enviada', 'propuesta_eliminada',
 ])
 export const followUpStatusEnum = pgEnum('follow_up_status', ['pending', 'sent', 'cancelled', 'failed'])
 export const followUpScenarioEnum = pgEnum('follow_up_scenario', ['no_response', 'stalling', 'manual'])
