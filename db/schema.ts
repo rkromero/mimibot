@@ -18,7 +18,7 @@ export const activityActionEnum = pgEnum('activity_action', [
   'bot_handoff', 'bot_enabled', 'bot_disabled',
   'lead_created', 'tag_added', 'tag_removed',
   'follow_up_scheduled', 'follow_up_sent', 'follow_up_cancelled',
-  'muestra_creada',
+  'muestra_creada', 'propuesta_enviada',
 ])
 export const followUpStatusEnum = pgEnum('follow_up_status', ['pending', 'sent', 'cancelled', 'failed'])
 export const followUpScenarioEnum = pgEnum('follow_up_scenario', ['no_response', 'stalling', 'manual'])
@@ -266,7 +266,7 @@ export const tipoMovimientoCCEnum = pgEnum('tipo_movimiento_cc', ['debito', 'cre
 export const actividadTipoEnum = pgEnum('actividad_tipo', ['visita', 'llamada', 'email', 'nota', 'tarea'])
 export const actividadEstadoEnum = pgEnum('actividad_estado', ['pendiente', 'completada', 'cancelada'])
 export const resultadoVisitaEnum = pgEnum('resultado_visita', ['compro', 'no_compro', 'no_estaba', 'reprogramar'])
-export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma'])
+export const tipoDocumentoEnum = pgEnum('tipo_documento', ['remito', 'proforma', 'propuesta'])
 export const estadoActividadEnum = pgEnum('estado_actividad', ['activo', 'inactivo', 'perdido'])
 export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caja_24', 'display'])
 export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
@@ -762,6 +762,104 @@ export const proveedores = pgTable('proveedores', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('proveedores_nombre_idx').on(t.nombre),
+])
+
+// ─── Cotizador: insumos, recetas y parámetros ─────────────────────────────────
+
+export const tipoInsumoEnum = pgEnum('tipo_insumo', ['galletita', 'dulce_de_leche', 'chocolate', 'bobina', 'caja', 'otro'])
+export const unidadInsumoEnum = pgEnum('unidad_insumo', ['kg', 'unidad'])
+
+// precio es por kg o por unidad según `unidad`
+export const insumos = pgTable('insumos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  tipo: tipoInsumoEnum('tipo').notNull(),
+  unidad: unidadInsumoEnum('unidad').notNull(),
+  precio: decimal('precio', { precision: 12, scale: 2 }).notNull(),
+  activo: boolean('activo').notNull().default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('insumos_nombre_idx').on(t.nombre),
+  index('insumos_activo_idx').on(t.activo),
+])
+
+export const recetas = pgTable('recetas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  gramaje: integer('gramaje').notNull().unique(),
+  activo: boolean('activo').notNull().default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+// Solo aplica a insumos con unidad 'kg' (los de unidad 'unidad' entran
+// directo en la fórmula: bobina por alfajor, caja prorrateada)
+export const recetaItems = pgTable('receta_items', {
+  recetaId: uuid('receta_id').notNull().references(() => recetas.id, { onDelete: 'cascade' }),
+  insumoId: uuid('insumo_id').notNull().references(() => insumos.id),
+  gramos: decimal('gramos', { precision: 8, scale: 2 }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.recetaId, t.insumoId] }),
+  index('receta_items_insumo_idx').on(t.insumoId),
+])
+
+// Parámetros del cotizador (singleton). Los pct se guardan como porcentaje
+// (ej: 35.00 = 35%), no como fracción.
+export const cotizadorConfig = pgTable('cotizador_config', {
+  id: integer('id').primaryKey().default(1),
+  margenPct: decimal('margen_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+  cargoSetupPersonalizado: decimal('cargo_setup_personalizado', { precision: 12, scale: 2 }).notNull().default('0'),
+  alfajoresPorCaja: integer('alfajores_por_caja').notNull().default(12),
+  validezDias: integer('validez_dias').notNull().default(7),
+  topeDescuentoPct: decimal('tope_descuento_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+  condicionesComerciales: text('condiciones_comerciales'),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+// cantidadMax null = sin tope (último escalón abierto)
+export const escalonesVolumen = pgTable('escalones_volumen', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  cantidadMin: integer('cantidad_min').notNull(),
+  cantidadMax: integer('cantidad_max'),
+  descuentoPct: decimal('descuento_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+  orden: integer('orden').notNull(),
+}, (t) => [
+  index('escalones_volumen_orden_idx').on(t.orden),
+])
+
+// ─── Cotizador: propuestas ────────────────────────────────────────────────────
+
+export const packagingPropuestaEnum = pgEnum('packaging_propuesta', ['cristal', 'personalizado'])
+export const estadoPropuestaEnum = pgEnum('estado_propuesta', [
+  'borrador', 'pendiente_aprobacion', 'aprobada', 'enviada', 'aceptada', 'rechazada', 'vencida',
+])
+
+// snapshot congela los parámetros vigentes al cotizar (precios de insumos,
+// receta, margen, escalones, setup, validez) y resultado el desglose calculado
+// con sus 3 escenarios. Una propuesta se reconstruye siempre desde su snapshot,
+// nunca desde la config actual. numero sale de document_counters ('propuesta').
+export const propuestas = pgTable('propuestas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  numero: integer('numero').notNull(),
+  leadId: uuid('lead_id').notNull().references(() => leads.id),
+  cantidad: integer('cantidad').notNull(),
+  gramaje: integer('gramaje').notNull(),
+  packaging: packagingPropuestaEnum('packaging').notNull(),
+  descuentoManualPct: decimal('descuento_manual_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+  snapshot: jsonb('snapshot').notNull(),
+  resultado: jsonb('resultado').notNull(),
+  estado: estadoPropuestaEnum('estado').notNull().default('borrador'),
+  vigenteHasta: date('vigente_hasta').notNull(),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  aprobadoPor: uuid('aprobado_por').references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
+}, (t) => [
+  uniqueIndex('propuestas_numero_idx').on(t.numero),
+  index('propuestas_lead_idx').on(t.leadId),
+  index('propuestas_estado_idx').on(t.estado),
 ])
 
 export const gastos = pgTable('gastos', {

@@ -11,6 +11,7 @@ import ActivityLogPanel from './ActivityLogPanel'
 import ChatFeed from '@/components/chat/ChatFeed'
 import ChatComposer from '@/components/chat/ChatComposer'
 import TagBadge from '@/components/shared/TagBadge'
+import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { Session } from 'next-auth'
 
@@ -235,6 +236,7 @@ export default function LeadPanel({
         {muestraHabilitada && (
           <MuestraCda muestra={muestra} onEnviar={enviarMuestra} mobile />
         )}
+        {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
         {effectiveConvId ? (
           <>
             <ChatFeed conversationId={effectiveConvId} />
@@ -467,6 +469,9 @@ export default function LeadPanel({
         </div>
 
         {muestraHabilitada && <MuestraCda muestra={muestra} onEnviar={enviarMuestra} />}
+
+        <CotizadorLead leadId={leadId!} />
+        <PropuestasList leadId={leadId!} />
 
         <div className="flex-1 overflow-y-auto">
           <LeadDetails lead={{ ...lead, tags: tagList }} />

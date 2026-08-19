@@ -7,6 +7,7 @@ import {
   actividadesCliente, metas, auditLogMetas,
   territorios, territorioAgente, territorioGerente, historialTeritorioCliente,
   marcas, usuarioMarcas,
+  insumos, recetas, recetaItems, propuestas,
 } from './schema'
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -212,4 +213,25 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   producto: one(productos, { fields: [stockMovements.productoId], references: [productos.id] }),
   pedido: one(pedidos, { fields: [stockMovements.pedidoId], references: [pedidos.id] }),
   registradoPor: one(users, { fields: [stockMovements.registradoPor], references: [users.id] }),
+}))
+
+// ─── Cotizador Relations ──────────────────────────────────────────────────────
+
+export const insumosRelations = relations(insumos, ({ many }) => ({
+  recetaItems: many(recetaItems),
+}))
+
+export const recetasRelations = relations(recetas, ({ many }) => ({
+  items: many(recetaItems),
+}))
+
+export const recetaItemsRelations = relations(recetaItems, ({ one }) => ({
+  receta: one(recetas, { fields: [recetaItems.recetaId], references: [recetas.id] }),
+  insumo: one(insumos, { fields: [recetaItems.insumoId], references: [insumos.id] }),
+}))
+
+export const propuestasRelations = relations(propuestas, ({ one }) => ({
+  lead: one(leads, { fields: [propuestas.leadId], references: [leads.id] }),
+  creadoPor: one(users, { fields: [propuestas.creadoPor], references: [users.id], relationName: 'propuestasCreadas' }),
+  aprobadoPor: one(users, { fields: [propuestas.aprobadoPor], references: [users.id], relationName: 'propuestasAprobadas' }),
 }))
