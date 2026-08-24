@@ -93,7 +93,8 @@ export default function MuestraModal({ leadId, onClose, onCreated }: Props) {
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
           <p className="text-sm text-muted-foreground">
             Se va a crear un pedido de <span className="font-medium text-foreground">muestra CDA</span> (1 unidad)
-            que queda <span className="font-medium text-foreground">pendiente de aprobación</span>.
+            que queda <span className="font-medium text-foreground">pendiente de aprobación</span>. El precio
+            simbólico de la muestra se salda automáticamente, así el cliente no queda con deuda.
           </p>
           <MetodoEntregaStep form={form} onChange={setForm} expresoGuardado={expresoGuardado} />
         </div>

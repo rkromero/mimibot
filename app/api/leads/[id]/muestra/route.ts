@@ -11,6 +11,7 @@ import { obtenerOCrearClienteDesdeLead } from '@/lib/clientes/conversion'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { muestraLeadSchema } from '@/lib/validations/lead'
 import { moverLeadAMuestraEnviada } from '@/lib/leads/muestra-enviada'
+import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 
 // Tags de origen habilitados para el envío de muestras (ver intake). Ambos
 // reciben el mismo producto muestra de la marca CDA.
@@ -63,6 +64,11 @@ export async function GET(
  *
  * Al crearlo, el lead pasa automáticamente a la etapa "Muestra enviada"
  * (slug `muestra-enviada`) del pipeline.
+ *
+ * La muestra tiene un precio simbólico (hoy $1). Para que el cliente no quede
+ * con saldo deudor por una muestra bonificada, se registra en el mismo acto
+ * un pago por el total del pedido, imputado a ese pedido: la CC queda en cero
+ * y el pedido "pagado". Esto aplica SOLO a las muestras cargadas con este botón.
  */
 export async function POST(
   req: NextRequest,
@@ -188,6 +194,21 @@ export async function POST(
       },
     )
 
+    // Pago simbólico por el total (precio de la muestra) para que la cuenta
+    // corriente del cliente quede saldada. Si la muestra vale $0, no hay nada
+    // que registrar.
+    let pagoSimbolico: string | null = null
+    if (parseFloat(pedido.total) > 0) {
+      const pago = await registrarPagoPedido({
+        pedidoId: pedido.id,
+        monto: pedido.total,
+        metodoPago: null,
+        registradoPor: session.user.id,
+        descripcion: 'Muestra CDA bonificada — pago simbólico automático',
+      })
+      pagoSimbolico = pago.movimiento.monto
+    }
+
     await db.insert(activityLog).values({
       leadId: lead.id,
       userId: session.user.id,
@@ -200,6 +221,7 @@ export async function POST(
         producto: productoMuestra.nombre,
         metodoEntrega: input.metodoEntrega,
         expresoNombre,
+        pagoSimbolico,
       },
     })
 
@@ -216,6 +238,7 @@ export async function POST(
           metodoEntrega: input.metodoEntrega,
           expresoNombre,
           etapaMuestraEnviada: etapa.movido,
+          pagoSimbolico,
         },
       },
       { status: 201 },

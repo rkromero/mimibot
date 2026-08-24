@@ -29,8 +29,10 @@ const {
   mockCrearPedidoConItems,
   mockObtenerOCrearCliente,
   mockMoverEtapa,
+  mockRegistrarPagoPedido,
 } = vi.hoisted(() => ({
   mockMoverEtapa: vi.fn(),
+  mockRegistrarPagoPedido: vi.fn(),
   mockAuthFn: vi.fn(),
   mockFindLead: vi.fn(),
   mockFindMarca: vi.fn(),
@@ -83,6 +85,7 @@ vi.mock('@/lib/api/validate-params', () => ({ validateUuidParam: vi.fn().mockRet
 vi.mock('@/lib/clientes/conversion', () => ({ obtenerOCrearClienteDesdeLead: mockObtenerOCrearCliente }))
 vi.mock('@/lib/pedidos/service', () => ({ crearPedidoConItems: mockCrearPedidoConItems }))
 vi.mock('@/lib/leads/muestra-enviada', () => ({ moverLeadAMuestraEnviada: mockMoverEtapa }))
+vi.mock('@/lib/cuenta-corriente/pago.service', () => ({ registrarPagoPedido: mockRegistrarPagoPedido }))
 
 vi.mock('@/lib/errors', () => {
   class AuthzError extends Error {
@@ -150,8 +153,13 @@ beforeEach(() => {
   mockFindMarca.mockResolvedValue({ id: 'marca-cda', slug: 'cda' })
   mockFindProducto.mockResolvedValue({ id: PRODUCTO_ID, nombre: 'Muestras' })
   mockTxFindCliente.mockResolvedValue(clienteBase())
-  mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '0.00' })
+  mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '1.00' })
   mockMoverEtapa.mockResolvedValue({ movido: true, stageId: 'stage-muestra' })
+  mockRegistrarPagoPedido.mockResolvedValue({
+    movimiento: { id: 'mov-1', monto: '1.00' },
+    pedidoActualizado: { id: 'pedido-1', montoPagado: '1.00', saldoPendiente: '0.00', estadoPago: 'pagado' },
+    sobrante: '0.00',
+  })
 })
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -278,10 +286,46 @@ describe('POST /api/leads/[id]/muestra', () => {
     expect(mockCrearPedidoConItems.mock.invocationCallOrder[0]!).toBeLessThan(mockMoverEtapa.mock.invocationCallOrder[0]!)
   })
 
-  it('si falla la validación no toca la etapa del lead', async () => {
+  it('si falla la validación no toca la etapa del lead ni registra pagos', async () => {
     const { POST } = await loadRoute()
     await POST(postReq({ metodoEntrega: 'expreso' }), { params })
     expect(mockMoverEtapa).not.toHaveBeenCalled()
+    expect(mockRegistrarPagoPedido).not.toHaveBeenCalled()
+  })
+
+  it('registra un pago simbólico por el total del pedido, imputado a la muestra', async () => {
+    const { POST } = await loadRoute()
+    const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
+    expect(res.status).toBe(201)
+    const json = await res.json()
+    expect(json.data.pagoSimbolico).toBe('1.00')
+
+    expect(mockRegistrarPagoPedido).toHaveBeenCalledTimes(1)
+    expect(mockRegistrarPagoPedido.mock.calls[0]![0]).toMatchObject({
+      pedidoId: 'pedido-1',
+      monto: '1.00',
+      metodoPago: null,
+      registradoPor: ADMIN_ID,
+    })
+    expect(mockRegistrarPagoPedido.mock.calls[0]![0].descripcion).toMatch(/muestra/i)
+    // El pago se registra después de crear el pedido
+    expect(mockCrearPedidoConItems.mock.invocationCallOrder[0]!).toBeLessThan(mockRegistrarPagoPedido.mock.invocationCallOrder[0]!)
+
+    // Queda registrado en la actividad del lead
+    expect(mockDbInsertValues.mock.calls[0]![0]).toMatchObject({
+      action: 'muestra_creada',
+      metadata: { pagoSimbolico: '1.00' },
+    })
+  })
+
+  it('si la muestra vale $0 no registra ningún pago', async () => {
+    mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '0.00' })
+    const { POST } = await loadRoute()
+    const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
+    expect(res.status).toBe(201)
+    const json = await res.json()
+    expect(json.data.pagoSimbolico).toBeNull()
+    expect(mockRegistrarPagoPedido).not.toHaveBeenCalled()
   })
 
   it('crea el cliente desde el lead si no había uno vinculado', async () => {

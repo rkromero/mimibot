@@ -375,8 +375,11 @@ export async function registrarPago(
 export interface RegistrarPagoPedidoInput {
   pedidoId: string
   monto: string
-  metodoPago: 'efectivo' | 'transferencia' | 'mercadopago'
+  /** null para pagos simbólicos/bonificaciones que no entran en la caja por método */
+  metodoPago: 'efectivo' | 'transferencia' | 'mercadopago' | null
   registradoPor: string
+  /** Texto que se muestra en la cuenta corriente (default: "Pago recibido") */
+  descripcion?: string | null
 }
 
 export async function registrarPagoPedido(
@@ -387,7 +390,7 @@ export async function registrarPagoPedido(
   pedidoActualizado: Pick<typeof pedidos.$inferSelect, 'id' | 'montoPagado' | 'saldoPendiente' | 'estadoPago'>
   sobrante: string
 }> {
-  const { pedidoId, monto, metodoPago, registradoPor } = input
+  const { pedidoId, monto, metodoPago, registradoPor, descripcion = null } = input
 
   return drizzleDb.transaction(async (tx) => {
     // 1. Fetch the pedido
@@ -406,7 +409,7 @@ export async function registrarPagoPedido(
         monto,
         pedidoId,
         fecha: new Date(),
-        descripcion: null,
+        descripcion,
         metodoPago,
         registradoPor,
       })
