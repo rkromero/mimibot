@@ -12,6 +12,7 @@ import { deletePedido } from '@/lib/delete/delete.service'
 import { getSessionContext } from '@/lib/territorios/context'
 import { validateUuidParam } from '@/lib/api/validate-params'
 import { parseFechaAR, todayStrAR } from '@/lib/dates'
+import { onPedidoEntregado } from '@/lib/leads/muestra-enviada'
 import { esRolVentas } from '@/lib/authz/roles'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 
@@ -220,6 +221,12 @@ export async function PATCH(
       .set(fieldUpdates)
       .where(eq(pedidos.id, id))
       .returning()
+
+    // Entrega marcada a mano (admin): si es una muestra CDA, el lead pasa a
+    // "Muestra enviada" (best-effort).
+    if (estado === 'entregado' && current.estado !== 'entregado') {
+      await onPedidoEntregado(id, session.user.id)
+    }
 
     return NextResponse.json({ data: updated })
   } catch (err) {

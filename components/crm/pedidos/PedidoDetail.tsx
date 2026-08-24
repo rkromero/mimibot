@@ -14,6 +14,7 @@ import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import ProductSheet from './ProductSheet'
 import { esRolVentas } from '@/lib/authz/roles'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 type Props = { id: string }
 
@@ -63,6 +64,8 @@ type Pedido = {
   entregaPrecisionM: number | null
   metodoEntrega: 'expreso' | 'retiro_fabrica' | null
   esReparto: boolean
+  tipo?: 'venta' | 'muestra'
+  leadId?: string | null
   firmaUrl: string | null
   remitoFotoUrl: string | null
   comprobantePagoUrl: string | null
@@ -436,6 +439,7 @@ export default function PedidoDetail({ id }: Props) {
             <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[pedido.estado] ?? estadoFallbackColor)}>
               {estadoLabels[pedido.estado] ?? pedido.estado}
             </span>
+            <MuestraBadge tipo={pedido.tipo} />
             <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[pedido.estadoPago])}>
               {estadoPagoLabels[pedido.estadoPago]}
             </span>

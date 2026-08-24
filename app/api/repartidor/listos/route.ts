@@ -26,6 +26,7 @@ export async function GET() {
         id: true,
         fecha: true,
         total: true,
+        tipo: true,
         saldoPendiente: true,
         esReparto: true,
         metodoEntrega: true,

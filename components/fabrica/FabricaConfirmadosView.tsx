@@ -9,6 +9,7 @@ import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
 import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2, Send, X } from 'lucide-react'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 type PedidoItemFabrica = {
   id: string
@@ -23,6 +24,7 @@ type PedidoFabrica = {
   fecha: string
   total: string
   esReparto: boolean
+  tipo?: 'venta' | 'muestra'
   metodoEntrega: 'retiro_fabrica' | 'expreso' | null
   expresoNombre: string | null
   expresoDireccion: string | null
@@ -434,6 +436,7 @@ export default function FabricaConfirmadosView() {
                     </td>
                     <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
                       {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                      <MuestraBadge tipo={pedido.tipo} className="ml-2" />
                     </td>
                     <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
                       {formatFechaInstanteAR(pedido.fecha)}
@@ -504,6 +507,7 @@ export default function FabricaConfirmadosView() {
                         <span className="text-base font-semibold text-foreground">
                           {pedido.cliente?.nombre} {pedido.cliente?.apellido}
                         </span>
+                        <MuestraBadge tipo={pedido.tipo} />
                         <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                           #{pedido.id.slice(-8).toUpperCase()}
                         </span>

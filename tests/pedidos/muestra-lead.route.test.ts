@@ -28,10 +28,8 @@ const {
   mockDbInsertValues,
   mockCrearPedidoConItems,
   mockObtenerOCrearCliente,
-  mockMoverEtapa,
   mockRegistrarPagoPedido,
 } = vi.hoisted(() => ({
-  mockMoverEtapa: vi.fn(),
   mockRegistrarPagoPedido: vi.fn(),
   mockAuthFn: vi.fn(),
   mockFindLead: vi.fn(),
@@ -84,7 +82,6 @@ vi.mock('@/lib/authz/marcas', () => ({ assertPuedeCargarProductos: vi.fn().mockR
 vi.mock('@/lib/api/validate-params', () => ({ validateUuidParam: vi.fn().mockReturnValue(null) }))
 vi.mock('@/lib/clientes/conversion', () => ({ obtenerOCrearClienteDesdeLead: mockObtenerOCrearCliente }))
 vi.mock('@/lib/pedidos/service', () => ({ crearPedidoConItems: mockCrearPedidoConItems }))
-vi.mock('@/lib/leads/muestra-enviada', () => ({ moverLeadAMuestraEnviada: mockMoverEtapa }))
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({ registrarPagoPedido: mockRegistrarPagoPedido }))
 
 vi.mock('@/lib/errors', () => {
@@ -154,7 +151,6 @@ beforeEach(() => {
   mockFindProducto.mockResolvedValue({ id: PRODUCTO_ID, nombre: 'Muestras' })
   mockTxFindCliente.mockResolvedValue(clienteBase())
   mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '1.00' })
-  mockMoverEtapa.mockResolvedValue({ movido: true, stageId: 'stage-muestra' })
   mockRegistrarPagoPedido.mockResolvedValue({
     movimiento: { id: 'mov-1', monto: '1.00' },
     pedidoActualizado: { id: 'pedido-1', montoPagado: '1.00', saldoPendiente: '0.00', estadoPago: 'pagado' },
@@ -185,9 +181,22 @@ describe('POST /api/leads/[id]/muestra', () => {
       expresoNombre: null,
       expresoDireccion: null,
       creadoPor: ADMIN_ID,
+      // Marcado como muestra con el lead de origen: es lo que dispara el paso
+      // a "Muestra enviada" cuando el pedido se entrega.
+      tipo: 'muestra',
+      leadId: LEAD_ID,
     })
     // No se tocó la ficha del cliente
     expect(mockTxUpdateSet).not.toHaveBeenCalled()
+  })
+
+  it('al crear la muestra NO cambia la etapa del lead (eso pasa al entregarse el pedido)', async () => {
+    const { POST } = await loadRoute()
+    const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
+    expect(res.status).toBe(201)
+    // Solo se inserta la actividad muestra_creada; ningún stage_changed ni update de leads
+    const acciones = mockDbInsertValues.mock.calls.map((c) => (c[0] as { action?: string }).action)
+    expect(acciones).toEqual(['muestra_creada'])
   })
 
   it('sin método de entrega → 400 y no se crea el pedido', async () => {
@@ -271,25 +280,9 @@ describe('POST /api/leads/[id]/muestra', () => {
     })
   })
 
-  it('al crear la muestra mueve el lead a la etapa "Muestra enviada"', async () => {
-    const { POST } = await loadRoute()
-    const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
-    expect(res.status).toBe(201)
-    const json = await res.json()
-    expect(json.data.etapaMuestraEnviada).toBe(true)
-
-    expect(mockMoverEtapa).toHaveBeenCalledTimes(1)
-    const [leadArg, userArg] = mockMoverEtapa.mock.calls[0]!
-    expect(leadArg).toMatchObject({ id: LEAD_ID })
-    expect(userArg).toBe(ADMIN_ID)
-    // Se mueve recién después de crear el pedido
-    expect(mockCrearPedidoConItems.mock.invocationCallOrder[0]!).toBeLessThan(mockMoverEtapa.mock.invocationCallOrder[0]!)
-  })
-
-  it('si falla la validación no toca la etapa del lead ni registra pagos', async () => {
+  it('si falla la validación no registra pagos', async () => {
     const { POST } = await loadRoute()
     await POST(postReq({ metodoEntrega: 'expreso' }), { params })
-    expect(mockMoverEtapa).not.toHaveBeenCalled()
     expect(mockRegistrarPagoPedido).not.toHaveBeenCalled()
   })
 

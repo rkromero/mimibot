@@ -46,6 +46,10 @@ vi.mock('@/lib/cuenta-corriente/pago.service', () => ({
   registrarPagoPedido: mockRegistrarPago,
 }))
 
+vi.mock('@/lib/leads/muestra-enviada', () => ({
+  onPedidoEntregado: vi.fn().mockResolvedValue({ procesado: false, etapaMovida: false, stageId: null }),
+}))
+
 vi.mock('@/lib/errors', () => {
   class AuthzError extends Error {
     statusCode = 403

@@ -10,7 +10,6 @@ import { validateUuidParam } from '@/lib/api/validate-params'
 import { obtenerOCrearClienteDesdeLead } from '@/lib/clientes/conversion'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { muestraLeadSchema } from '@/lib/validations/lead'
-import { moverLeadAMuestraEnviada } from '@/lib/leads/muestra-enviada'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 
 // Tags de origen habilitados para el envío de muestras (ver intake). Ambos
@@ -62,8 +61,9 @@ export async function GET(
  * quien lo carga (admin incluido): la muestra la aprueba después quien
  * corresponda, como cualquier pedido de agente.
  *
- * Al crearlo, el lead pasa automáticamente a la etapa "Muestra enviada"
- * (slug `muestra-enviada`) del pipeline.
+ * El pedido queda marcado como `tipo = 'muestra'` con el `leadId` de origen.
+ * El lead NO cambia de etapa acá: pasa a "Muestra enviada" recién cuando el
+ * pedido se entrega (ver lib/leads/muestra-enviada.ts).
  *
  * La muestra tiene un precio simbólico (hoy $1). Para que el cliente no quede
  * con saldo deudor por una muestra bonificada, se registra en el mismo acto
@@ -191,6 +191,8 @@ export async function POST(
         metodoEntrega: input.metodoEntrega,
         expresoNombre,
         expresoDireccion,
+        tipo: 'muestra',
+        leadId: lead.id,
       },
     )
 
@@ -225,9 +227,6 @@ export async function POST(
       },
     })
 
-    // El lead pasa automáticamente a la etapa "Muestra enviada" del pipeline.
-    const etapa = await moverLeadAMuestraEnviada(lead, session.user.id)
-
     return NextResponse.json(
       {
         data: {
@@ -237,7 +236,6 @@ export async function POST(
           total: pedido.total,
           metodoEntrega: input.metodoEntrega,
           expresoNombre,
-          etapaMuestraEnviada: etapa.movido,
           pagoSimbolico,
         },
       },

@@ -115,6 +115,10 @@ vi.mock('@/lib/api/validate-params', () => ({
   validateUuidParam: mockValidateUuidParam,
 }))
 
+vi.mock('@/lib/leads/muestra-enviada', () => ({
+  onPedidoEntregado: vi.fn().mockResolvedValue({ procesado: false, etapaMovida: false, stageId: null }),
+}))
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const PEDIDO_ID = 'aaaaaaaa-0000-0000-0000-000000000001'

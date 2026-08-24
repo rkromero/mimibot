@@ -5,12 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { MapPin, Package, RefreshCw, CheckSquare, Square, Truck, AlertCircle, Send } from 'lucide-react'
 import { useToast } from '@/components/shared/ToastProvider'
 import { formatFechaInstanteAR } from '@/lib/dates'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 type PedidoListo = {
   id: string
   fecha: string
   total: string
   esReparto: boolean
+  tipo?: 'venta' | 'muestra'
   metodoEntrega: 'retiro_fabrica' | 'expreso' | null
   expresoNombre: string | null
   expresoDireccion: string | null
@@ -119,6 +121,7 @@ function PedidoList({
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold text-foreground leading-tight">
                     {pedido.cliente.nombre} {pedido.cliente.apellido}
+                    <MuestraBadge tipo={pedido.tipo} className="ml-2 align-middle" />
                   </p>
                   <span className="text-sm font-bold text-foreground shrink-0 tabular-nums">
                     {formatMoney(pedido.total)}

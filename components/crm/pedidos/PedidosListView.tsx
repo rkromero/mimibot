@@ -13,6 +13,7 @@ import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import SwipeableListItem from '@/components/shared/SwipeableListItem'
 import { useToast } from '@/components/shared/ToastProvider'
 import DataTable from '@/components/data-table/DataTable'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 type Pedido = {
   id: string
@@ -23,6 +24,7 @@ type Pedido = {
   estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'listo_para_repartir' | 'en_reparto' | 'entregado' | 'cancelado'
   total: string
   estadoPago: 'impago' | 'parcial' | 'pagado'
+  tipo?: 'venta' | 'muestra'
 }
 
 const estadoColors: Record<string, string> = {
@@ -481,6 +483,7 @@ export default function PedidosListView() {
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoColors[p.estado] ?? estadoFallbackColor)}>
                     {estadoLabels[p.estado] ?? p.estado}
                   </span>
+                  <MuestraBadge tipo={p.tipo} />
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[p.estadoPago])}>
                     {estadoPagoLabels[p.estadoPago]}
                   </span>

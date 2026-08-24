@@ -47,6 +47,10 @@ export async function crearPedidoConItems(
     expresoDireccion?: string | null
     /** true para pedidos de camioneta (rol vendedor) */
     esReparto?: boolean
+    /** 'muestra' para la muestra CDA cargada desde el lead (default 'venta') */
+    tipo?: 'venta' | 'muestra'
+    /** Lead que originó la muestra (solo tipo = 'muestra') */
+    leadId?: string | null
     /** Porcentaje de descuento 0-100 */
     descuento?: number
     /** Costo de envío (concepto "Envío"); se suma al total del pedido */
@@ -117,6 +121,8 @@ export async function crearPedidoConItems(
         expresoNombre: extra?.expresoNombre ?? null,
         expresoDireccion: extra?.expresoDireccion ?? null,
         esReparto: extra?.esReparto ?? false,
+        tipo: extra?.tipo ?? 'venta',
+        leadId: extra?.leadId ?? null,
       })
       .returning()
 

@@ -8,6 +8,7 @@ import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { Search, Truck, Package, RefreshCw, FileText, Download, ChevronDown, Tag, Send } from 'lucide-react'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 type PedidoItemFabrica = {
   id: string
@@ -21,6 +22,7 @@ type PedidoHistorico = {
   fecha: string
   estado: string
   total: string
+  tipo?: 'venta' | 'muestra'
   metodoEntrega: 'retiro_fabrica' | 'expreso' | null
   expresoNombre: string | null
   expresoDireccion: string | null
@@ -191,6 +193,7 @@ export default function FabricaHistoricoView() {
                       </td>
                       <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                         {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                        <MuestraBadge tipo={pedido.tipo} className="ml-2" />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {formatFechaInstanteAR(pedido.fecha)}
@@ -270,6 +273,7 @@ export default function FabricaHistoricoView() {
                         <span className="text-sm font-semibold text-foreground">
                           {pedido.cliente?.nombre} {pedido.cliente?.apellido}
                         </span>
+                        <MuestraBadge tipo={pedido.tipo} />
                         <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                           #{pedido.id.slice(-8).toUpperCase()}
                         </span>

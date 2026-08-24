@@ -7,7 +7,8 @@ import { cn, relativeTime, formatPhone } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
 import TagBadge from '@/components/shared/TagBadge'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
-import { Trash2 } from 'lucide-react'
+import { Trash2, FlaskConical } from 'lucide-react'
+import { formatFechaInstanteAR } from '@/lib/dates'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { LeadWithContact } from '@/types/db'
@@ -106,6 +107,17 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
             </span>
           )}
         </div>
+
+        {/* Muestra CDA entregada — fecha visible en la card para seguimiento rápido */}
+        {lead.muestraEntregadaAt && (
+          <span
+            className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+            title={`Muestra entregada el ${formatFechaInstanteAR(lead.muestraEntregadaAt)}`}
+          >
+            <FlaskConical size={11} />
+            Muestra {formatFechaInstanteAR(lead.muestraEntregadaAt, true)}
+          </span>
+        )}
 
         {/* Teléfono */}
         {lead.contact.phone && (

@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { pedidos, users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
+import { onPedidoEntregado } from '@/lib/leads/muestra-enviada'
 
 export interface MpApprovedPayment {
   id: number
@@ -76,6 +77,9 @@ export async function confirmarPagoPedido(
       updatedAt: new Date(),
     })
     .where(eq(pedidos.id, pedidoId))
+
+  // Muestra CDA: el lead pasa a "Muestra enviada" (best-effort)
+  await onPedidoEntregado(pedidoId, registradoPor)
 
   console.info('[confirmarPago] Payment', payment.id, 'applied to pedido', pedidoId, '— monto', monto)
   return { ok: true, pedidoId }

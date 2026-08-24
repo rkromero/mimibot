@@ -131,6 +131,10 @@ export const leads = pgTable('leads', {
   followUpStatus: followUpStatusEnum('follow_up_status'),
   followUpReason: text('follow_up_reason'),
   wonAt: timestamp('won_at', { mode: 'date' }),
+  // Fecha en que se entregó la muestra CDA (pedido tipo 'muestra' → entregado).
+  // Se muestra en la card del kanban; también marca que ya se procesó el paso
+  // a "Muestra enviada" (idempotencia).
+  muestraEntregadaAt: timestamp('muestra_entregada_at', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -272,6 +276,9 @@ export const unidadVentaEnum = pgEnum('unidad_venta', ['unidad', 'caja_12', 'caj
 export const tipoStockMovementEnum = pgEnum('tipo_stock_movement', ['entrada', 'salida', 'ajuste', 'reserva', 'cancelacion_reserva'])
 export const metodoEntregaEnum = pgEnum('metodo_entrega', ['retiro_fabrica', 'expreso'])
 export const metodoPagoEnum = pgEnum('metodo_pago', ['efectivo', 'transferencia', 'mercadopago'])
+// 'muestra' = muestra CDA cargada desde el botón del lead (precio simbólico,
+// pago automático). Al entregarse, el lead pasa a "Muestra enviada".
+export const tipoPedidoEnum = pgEnum('tipo_pedido', ['venta', 'muestra'])
 
 // ─── Territorios ──────────────────────────────────────────────────────────────
 
@@ -450,6 +457,11 @@ export const pedidos = pgTable('pedidos', {
   mpPreferenceId: text('mp_preference_id'),
   mpPaymentId: text('mp_payment_id'),
   esReparto: boolean('es_reparto').notNull().default(false),
+  // Tipo de pedido (ver tipoPedidoEnum). Las muestras se disparan desde el lead.
+  tipo: tipoPedidoEnum('tipo').notNull().default('venta'),
+  // Lead que originó la muestra (solo tipo = 'muestra'); al entregarse el
+  // pedido, ese lead pasa a la etapa "Muestra enviada" (lib/leads/muestra-enviada.ts)
+  leadId: uuid('lead_id').references(() => leads.id),
   repartidorId: uuid('repartidor_id').references(() => users.id),
   aceptadoAt: timestamp('aceptado_at', { mode: 'date' }),
   comprobantePagoUrl: text('comprobante_pago_url'),
@@ -466,6 +478,7 @@ export const pedidos = pgTable('pedidos', {
   // Performance indexes added in migration 0027
   index('pedidos_estado_idx').on(t.estado),
   index('pedidos_entregado_por_idx').on(t.entregadoPor),
+  index('pedidos_lead_idx').on(t.leadId),
 ])
 
 export const pedidoItems = pgTable('pedido_items', {

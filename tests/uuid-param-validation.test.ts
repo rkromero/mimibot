@@ -49,6 +49,7 @@ vi.mock('@/lib/followup/engine', () => ({
   scheduleFollowUp: vi.fn(), cancelFollowUp: vi.fn(),
 }))
 vi.mock('@/lib/realtime/broker', () => ({ emitLeadEvent: vi.fn() }))
+vi.mock('@/lib/leads/muestra-enviada', () => ({ onPedidoEntregado: vi.fn() }))
 vi.mock('@/lib/pdf/pdf.service', () => ({ emitirDocumento: vi.fn() }))
 vi.mock('@/lib/clientes/actividad.service', () => ({ evaluarClienteNuevo: vi.fn() }))
 vi.mock('@/lib/clientes/conversion', () => ({ convertirLeadACliente: vi.fn() }))

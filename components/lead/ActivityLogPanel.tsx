@@ -28,6 +28,16 @@ function describirEntregaMuestra(metadata: unknown): string | null {
   return null
 }
 
+/** Notas generadas por el sistema (p. ej. "Muestra entregada el …"). */
+function esNotaSistema(metadata: unknown): boolean {
+  return Boolean((metadata as { sistema?: boolean } | null)?.sistema)
+}
+
+function textoNota(metadata: unknown): string | null {
+  const texto = (metadata as { texto?: unknown } | null)?.texto
+  return typeof texto === 'string' && texto.length > 0 ? texto : null
+}
+
 export default function ActivityLogPanel({ leadId }: { leadId: string }) {
   const { data: log } = useQuery({
     queryKey: ['activity', leadId],
@@ -54,9 +64,14 @@ export default function ActivityLogPanel({ leadId }: { leadId: string }) {
           <div key={entry.id} className="flex items-start gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-1.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-foreground">{ACTION_LABELS[entry.action] ?? entry.action}</p>
+              <p className="text-xs text-foreground">
+                {esNotaSistema(entry.metadata) ? 'Nota del sistema' : (ACTION_LABELS[entry.action] ?? entry.action)}
+              </p>
               {entry.action === 'muestra_creada' && (
                 <p className="text-xs text-muted-foreground">{describirEntregaMuestra(entry.metadata)}</p>
+              )}
+              {entry.action === 'note_added' && textoNota(entry.metadata) && (
+                <p className="text-xs text-muted-foreground">{textoNota(entry.metadata)}</p>
               )}
               <p className="text-xs text-muted-foreground">{relativeTime(entry.createdAt)}</p>
             </div>

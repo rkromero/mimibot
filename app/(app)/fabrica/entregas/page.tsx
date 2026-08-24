@@ -9,6 +9,7 @@ import {
 import EntregarSheet from '@/components/repartidor/EntregarSheet'
 import type { Pedido } from '@/components/repartidor/PedidoCard'
 import { useRouter } from 'next/navigation'
+import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ type ExpresoPendiente = {
   id: string
   fecha: string
   total: string
+  tipo?: 'venta' | 'muestra'
   expresoNombre: string | null
   expresoDireccion: string | null
   metodoEntrega: string | null
@@ -103,6 +105,7 @@ function ExpresoPendienteCard({
         <div className="min-w-0 flex-1">
           <p className="font-bold text-base text-foreground truncate">
             {[pedido.cliente.nombre, pedido.cliente.apellido].filter(Boolean).join(' ')}
+            <MuestraBadge tipo={pedido.tipo} className="ml-2 align-middle" />
           </p>
           <div className="flex items-center gap-1.5 mb-0.5">
             <Send size={14} className="text-blue-500 shrink-0" />

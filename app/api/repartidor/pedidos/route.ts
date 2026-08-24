@@ -37,6 +37,7 @@ export async function GET() {
         id: true,
         fecha: true,
         total: true,
+        tipo: true,
         saldoPendiente: true,
         estado: true,
         estadoPago: true,

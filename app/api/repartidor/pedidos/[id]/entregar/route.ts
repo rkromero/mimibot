@@ -7,6 +7,7 @@ import { toApiError, AuthzError, NotFoundError, ConflictError, ValidationError }
 import { z } from 'zod'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 import { esRolReparto } from '@/lib/authz/roles'
+import { onPedidoEntregado } from '@/lib/leads/muestra-enviada'
 
 const camionetaSchema = z.object({
   firmaUrl: z.string().min(1),
@@ -120,6 +121,9 @@ export async function PATCH(
         throw dbErr
       }
 
+      // Muestra CDA: el lead pasa a "Muestra enviada" (best-effort)
+      await onPedidoEntregado(id, registradoPor)
+
       return NextResponse.json({ data: updated })
     }
 
@@ -180,6 +184,9 @@ export async function PATCH(
       }
       throw dbErr
     }
+
+    // Muestra CDA: el lead pasa a "Muestra enviada" (best-effort)
+    await onPedidoEntregado(id, registradoPor)
 
     return NextResponse.json({ data: updated })
   } catch (err) {
