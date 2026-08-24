@@ -156,7 +156,20 @@ export const leadFiltersSchema = z.object({
   stageId: z.string().uuid().optional(),
 })
 
+// ─── Muestra CDA desde el lead ────────────────────────────────────────────────
+// Mismo paso "Entrega" que cargan los agentes al crear un pedido: retiro en
+// fábrica o envío por expreso (y cuál). El método es obligatorio para que
+// fábrica sepa qué muestras se retiran y cuáles hay que despachar.
+export const muestraLeadSchema = z.object({
+  metodoEntrega: z.enum(['retiro_fabrica', 'expreso'], {
+    errorMap: () => ({ message: 'Indicá cómo se entrega la muestra: retiro en fábrica o envío por expreso' }),
+  }),
+  expresoNombre: z.string().trim().max(200).optional().nullable(),
+  expresoDireccion: z.string().trim().max(500).optional().nullable(),
+})
+
 export type CreateLeadInput = z.infer<typeof createLeadSchema>
+export type MuestraLeadInput = z.infer<typeof muestraLeadSchema>
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>
 export type IntakeInput = z.infer<typeof intakeSchema>
 export type LeadFilters = z.infer<typeof leadFiltersSchema>

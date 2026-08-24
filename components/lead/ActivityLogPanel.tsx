@@ -20,6 +20,14 @@ const ACTION_LABELS: Record<string, string> = {
   propuesta_eliminada: 'Propuesta eliminada',
 }
 
+/** "Retiro en fábrica" / "Envío por expreso: Andreani" según el metadata del log. */
+function describirEntregaMuestra(metadata: unknown): string | null {
+  const m = (metadata ?? {}) as { metodoEntrega?: string; expresoNombre?: string | null }
+  if (m.metodoEntrega === 'retiro_fabrica') return 'Retiro en fábrica'
+  if (m.metodoEntrega === 'expreso') return `Envío por expreso${m.expresoNombre ? `: ${m.expresoNombre}` : ''}`
+  return null
+}
+
 export default function ActivityLogPanel({ leadId }: { leadId: string }) {
   const { data: log } = useQuery({
     queryKey: ['activity', leadId],
@@ -47,6 +55,9 @@ export default function ActivityLogPanel({ leadId }: { leadId: string }) {
             <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700 mt-1.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs text-foreground">{ACTION_LABELS[entry.action] ?? entry.action}</p>
+              {entry.action === 'muestra_creada' && (
+                <p className="text-xs text-muted-foreground">{describirEntregaMuestra(entry.metadata)}</p>
+              )}
               <p className="text-xs text-muted-foreground">{relativeTime(entry.createdAt)}</p>
             </div>
           </div>

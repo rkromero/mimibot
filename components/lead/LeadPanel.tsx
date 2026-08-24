@@ -12,6 +12,7 @@ import ChatFeed from '@/components/chat/ChatFeed'
 import ChatComposer from '@/components/chat/ChatComposer'
 import TagBadge from '@/components/shared/TagBadge'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
+import MuestraModal from './MuestraModal'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { Session } from 'next-auth'
 
@@ -168,33 +169,15 @@ export default function LeadPanel({
   const TAGS_MUESTRA = ['landing-cda', 'web-alipro']
   const muestraHabilitada = tagList.some((t) => TAGS_MUESTRA.includes(t.name))
 
-  const [muestra, setMuestra] = useState<{ loading: boolean; pedidoId: string | null; error: string | null }>({
-    loading: false,
-    pedidoId: null,
-    error: null,
-  })
+  // El botón abre el modal con el paso "Entrega" (retiro / expreso); el pedido
+  // se crea desde el modal y acá solo guardamos el id para linkearlo.
+  const [muestraPedidoId, setMuestraPedidoId] = useState<string | null>(null)
+  const [muestraModalOpen, setMuestraModalOpen] = useState(false)
 
   useEffect(() => {
-    setMuestra({ loading: false, pedidoId: null, error: null })
+    setMuestraPedidoId(null)
+    setMuestraModalOpen(false)
   }, [leadId])
-
-  async function enviarMuestra() {
-    if (!leadId || muestra.loading) return
-    setMuestra({ loading: true, pedidoId: null, error: null })
-    try {
-      const res = await fetch(`/api/leads/${leadId}/muestra`, { method: 'POST' })
-      const json = await res.json() as { data?: { pedidoId: string }; error?: string }
-      if (!res.ok || !json.data) {
-        setMuestra({ loading: false, pedidoId: null, error: json.error ?? 'Error al crear el pedido de muestra' })
-        return
-      }
-      setMuestra({ loading: false, pedidoId: json.data.pedidoId, error: null })
-      void queryClient.invalidateQueries({ queryKey: ['activity', leadId] })
-      void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
-    } catch {
-      setMuestra({ loading: false, pedidoId: null, error: 'Error de red al crear el pedido' })
-    }
-  }
 
   async function toggleBot() {
     if (!lead || !leadId) return
@@ -234,7 +217,14 @@ export default function LeadPanel({
     return (
       <div className="flex flex-col w-full h-full min-h-0">
         {muestraHabilitada && (
-          <MuestraCda muestra={muestra} onEnviar={enviarMuestra} mobile />
+          <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
+        )}
+        {muestraModalOpen && leadId && (
+          <MuestraModal
+            leadId={leadId}
+            onClose={() => setMuestraModalOpen(false)}
+            onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
+          />
         )}
         {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
         {!isClienteMode && leadId && (
@@ -473,7 +463,16 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {muestraHabilitada && <MuestraCda muestra={muestra} onEnviar={enviarMuestra} />}
+        {muestraHabilitada && (
+          <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
+        )}
+        {muestraModalOpen && leadId && (
+          <MuestraModal
+            leadId={leadId}
+            onClose={() => setMuestraModalOpen(false)}
+            onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
+          />
+        )}
 
         <CotizadorLead leadId={leadId!} />
         <PropuestasList leadId={leadId!} />
@@ -534,19 +533,19 @@ export default function LeadPanel({
 }
 
 function MuestraCda({
-  muestra,
+  pedidoId,
   onEnviar,
   mobile,
 }: {
-  muestra: { loading: boolean; pedidoId: string | null; error: string | null }
+  pedidoId: string | null
   onEnviar: () => void
   mobile?: boolean
 }) {
   return (
     <div className={cn('px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
-      {muestra.pedidoId ? (
+      {pedidoId ? (
         <Link
-          href={`/crm/pedidos/${muestra.pedidoId}`}
+          href={`/crm/pedidos/${pedidoId}`}
           className={cn(
             'inline-flex items-center gap-1.5 text-xs text-primary hover:underline',
             mobile && 'min-h-[44px] w-full justify-center',
@@ -558,17 +557,15 @@ function MuestraCda({
       ) : (
         <button
           onClick={onEnviar}
-          disabled={muestra.loading}
           className={cn(
-            'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50',
+            'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors',
             mobile && 'min-h-[44px] w-full justify-center text-sm',
           )}
         >
           <Package size={13} />
-          {muestra.loading ? 'Creando pedido...' : 'Enviar muestra CDA'}
+          Enviar muestra CDA
         </button>
       )}
-      {muestra.error && <p className="mt-1.5 text-xs text-destructive">{muestra.error}</p>}
     </div>
   )
 }
