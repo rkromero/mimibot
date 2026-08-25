@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { leads, contacts, pipelineStages, activityLog, conversations } from '@/db/schema'
+import { leads, contacts, pipelineStages, activityLog } from '@/db/schema'
+import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { requireAdminOrGerente } from '@/lib/authz'
@@ -87,12 +88,9 @@ export async function POST(req: NextRequest) {
           metadata: { source: 'manual', bulk: true },
         })
 
+        // Conversación lista para escribir; no aparece en el inbox hasta el primer mensaje.
         if (row.phone) {
-          await db.insert(conversations).values({
-            leadId: lead!.id,
-            waContactPhone: row.phone,
-            waPhoneNumberId: process.env['WA_PHONE_NUMBER_ID'] ?? null,
-          })
+          await asegurarConversacionLead(lead!.id, row.phone)
         }
 
         imported++

@@ -6,6 +6,7 @@ import { eq, and, ilike, inArray, desc, sql, lt, or, isNull } from 'drizzle-orm'
 import { createLeadSchema, leadFiltersSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
 import { esRolVentas } from '@/lib/authz/roles'
+import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 
 // ─── Cursor helpers ────────────────────────────────────────────────────────────
 
@@ -354,12 +355,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Conversación lista para escribir; no aparece en el inbox hasta el primer mensaje.
     if (input.contactPhone) {
-      await db.insert(conversations).values({
-        leadId: lead!.id,
-        waContactPhone: input.contactPhone,
-        waPhoneNumberId: process.env['WA_PHONE_NUMBER_ID'] ?? null,
-      })
+      await asegurarConversacionLead(lead!.id, input.contactPhone)
     }
 
     return NextResponse.json({ data: lead }, { status: 201 })

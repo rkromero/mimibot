@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
-import { leads, contacts, conversations, messages, pipelineStages, activityLog, tags, leadTags } from '@/db/schema'
-import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
+import { leads, contacts, pipelineStages, activityLog, tags, leadTags } from '@/db/schema'
+import { eq, and, asc, desc, isNull } from 'drizzle-orm'
+import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 import { intakeSchema, normalizeIntake, buildIntakeResumen } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
 import { sendTextMessage } from '@/lib/whatsapp/client'
@@ -102,8 +103,10 @@ export async function POST(req: NextRequest) {
     })
 
     let leadId: string
+    let stageIdLead: string
     if (openLead) {
       leadId = openLead.id
+      stageIdLead = openLead.stageId
       await db.update(leads)
         .set({
           notes: openLead.notes ? `${openLead.notes}\n\n---\n${resumen}` : resumen,
@@ -147,6 +150,7 @@ export async function POST(req: NextRequest) {
         })
         .returning({ id: leads.id })
       leadId = lead!.id
+      stageIdLead = firstStage.id
 
       await db.insert(activityLog).values({
         leadId,
@@ -159,52 +163,32 @@ export async function POST(req: NextRequest) {
     const tagId = await ensureTag(data.source)
     await db.insert(leadTags).values({ leadId, tagId }).onConflictDoNothing()
 
-    // Conversación + mensaje entrante con el resumen del formulario: así el
-    // lead entra al inbox como conversación no leída, igual que un WhatsApp.
+    // Conversación de WhatsApp lista para escribir, pero SIN mensajes: el lead
+    // no entra al inbox hasta que el vendedor le escriba o la persona escriba
+    // por WhatsApp. El resumen del formulario ya queda en las notas del lead.
     if (phone) {
-      let conv = await db.query.conversations.findFirst({ where: eq(conversations.leadId, leadId) })
-      if (!conv) {
-        const [c] = await db
-          .insert(conversations)
-          .values({
-            leadId,
-            waContactPhone: phone,
-            waPhoneNumberId: process.env['WA_PHONE_NUMBER_ID'] ?? null,
-          })
-          .returning()
-        conv = c!
-      }
+      await asegurarConversacionLead(leadId, phone)
 
       const now = new Date()
-      await db.insert(messages).values({
-        conversationId: conv.id,
-        direction: 'inbound',
-        senderType: 'contact',
-        contentType: 'text',
-        body: resumen,
-        isRead: false,
-        sentAt: now,
-      })
-      await db.execute(
-        sql`UPDATE conversations SET last_message_at = ${now.toISOString()}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conv.id}`,
-      )
       await db.update(leads)
         .set({ lastContactedAt: now, updatedAt: now })
         .where(eq(leads.id, leadId))
-
-      await publishCrmEvent({
-        type: 'new_message',
-        conversationId: conv.id,
-        leadId,
-        assignedTo: openLead?.assignedTo ?? null,
-        direction: 'inbound',
-      })
 
       const welcomeMsg = process.env['WA_WELCOME_MESSAGE']
       if (welcomeMsg) {
         void sendTextMessage(normalizePhone(phone), welcomeMsg).catch(() => {})
       }
     }
+
+    // Refrescar el kanban en tiempo real (antes lo hacía el evento new_message)
+    await publishCrmEvent({
+      type: 'lead_updated',
+      leadId,
+      assignedTo: openLead?.assignedTo ?? null,
+      oldAssigned: openLead?.assignedTo ?? null,
+      stageId: stageIdLead,
+      oldStageId: stageIdLead,
+    })
 
     return NextResponse.json({ ok: true, leadId }, { status: 201, headers })
   } catch (err) {

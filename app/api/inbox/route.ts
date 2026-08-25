@@ -29,10 +29,19 @@ export async function GET(req: NextRequest) {
 
     // Base: pass if it's a cliente conversation (clienteId set) OR no lead OR lead is open.
     // This ensures lead→cliente converted conversations remain visible after the lead closes.
+    //
+    // Además, solo entran conversaciones con al menos un mensaje real
+    // (`lastMessageAt` seteado): la conversación se "abre" en el inbox recién
+    // cuando el vendedor le escribe o la persona escribe por WhatsApp. Un lead
+    // recién creado (landing, alta manual, import) tiene la fila de
+    // conversación pero no aparece acá hasta entonces.
     const baseCondition = sql`(
-      ${conversations.clienteId} IS NOT NULL
-      OR ${leads.id} IS NULL
-      OR (${leads.isOpen} = true AND ${leads.deletedAt} IS NULL)
+      ${conversations.lastMessageAt} IS NOT NULL
+      AND (
+        ${conversations.clienteId} IS NOT NULL
+        OR ${leads.id} IS NULL
+        OR (${leads.isOpen} = true AND ${leads.deletedAt} IS NULL)
+      )
     )`
 
     const filterConditions: ReturnType<typeof sql>[] = []
