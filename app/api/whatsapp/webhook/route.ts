@@ -2,9 +2,10 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
+import { estadoMasAvanzado } from '@/lib/whatsapp/estado-mensaje'
 import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
-import { waWebhookSchema, type WaMessage } from '@/lib/validations/webhook'
+import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/validations/webhook'
 import { db } from '@/db'
 import { leads, contacts, conversations, messages, activityLog, pipelineStages, clientes } from '@/db/schema'
 import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
@@ -83,6 +84,15 @@ async function handleWebhookEntries(
       if (change.field !== 'messages') continue
       const { value } = change
       const phoneNumberId = value.metadata.phone_number_id
+
+      // Avisos de entrega/lectura de mensajes salientes (tildes del chat)
+      for (const st of value.statuses ?? []) {
+        try {
+          await handleMessageStatus(st)
+        } catch (err) {
+          console.error('[webhook] error procesando status:', st.id, err)
+        }
+      }
 
       for (const msg of value.messages ?? []) {
         const contactPhone = `+${msg.from}` // normalizar a E.164 con +
@@ -365,4 +375,52 @@ function getMediaMimeType(msg: WaMessage): string | null {
 
 function getMediaFilename(msg: WaMessage): string | null {
   return msg.document?.filename ?? null
+}
+
+type WaStatus = NonNullable<WaWebhookPayload['entry'][number]['changes'][number]['value']['statuses']>[number]
+
+/**
+ * Guarda el estado de entrega (sent → delivered → read / failed) del mensaje
+ * saliente identificado por wa_message_id y avisa al chat por SSE.
+ */
+async function handleMessageStatus(st: WaStatus) {
+  const msg = await db.query.messages.findFirst({
+    where: eq(messages.waMessageId, st.id),
+    columns: { id: true, conversationId: true, waStatus: true },
+    with: {
+      conversation: {
+        columns: { leadId: true },
+        with: {
+          lead: { columns: { assignedTo: true } },
+          cliente: { columns: { asignadoA: true } },
+        },
+      },
+    },
+  })
+  if (!msg) return
+
+  const nuevo = estadoMasAvanzado(msg.waStatus, st.status)
+  if (!nuevo || nuevo === msg.waStatus) return
+
+  const err = st.errors?.[0]
+  const waError = nuevo === 'failed'
+    ? [err?.title, err?.message, err?.error_data?.details].filter(Boolean).join(' — ') || `Error ${err?.code ?? ''}`.trim()
+    : null
+
+  await db.update(messages)
+    .set({
+      waStatus: nuevo,
+      waStatusAt: new Date(parseInt(st.timestamp) * 1000),
+      waError,
+    })
+    .where(eq(messages.id, msg.id))
+
+  const conv = msg.conversation
+  await publishCrmEvent({
+    type: 'message_status',
+    conversationId: msg.conversationId,
+    leadId: conv?.leadId ?? null,
+    assignedTo: conv?.lead?.assignedTo ?? conv?.cliente?.asignadoA ?? null,
+    status: nuevo,
+  })
 }

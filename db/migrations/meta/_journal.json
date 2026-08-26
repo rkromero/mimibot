@@ -435,6 +435,13 @@
       "when": 1787654809715,
       "tag": "0061_telefonos_whatsapp_549",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787654869715,
+      "tag": "0062_estado_entrega_mensajes",
+      "breakpoints": true
     }
   ]
 }

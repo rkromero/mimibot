@@ -30,6 +30,7 @@ export function removeSseClient(client: SseClient) {
 export type CrmEvent =
   | { type: 'new_message'; conversationId: string; leadId: string | null; assignedTo: string | null; direction: string }
   | { type: 'lead_updated'; leadId: string; assignedTo: string | null; oldAssigned: string | null; stageId: string; oldStageId: string }
+  | { type: 'message_status'; conversationId: string; leadId: string | null; assignedTo: string | null; status: string }
 
 export function emitLeadEvent(event: CrmEvent) {
   const payload = JSON.stringify(event)

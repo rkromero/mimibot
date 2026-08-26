@@ -197,6 +197,11 @@ export const messages = pgTable('messages', {
   isRead: boolean('is_read').notNull().default(false),
   sentAt: timestamp('sent_at', { mode: 'date' }).notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  /** Estado de entrega según el webhook de Meta: sent | delivered | read | failed (solo salientes) */
+  waStatus: text('wa_status'),
+  waStatusAt: timestamp('wa_status_at', { mode: 'date' }),
+  /** Motivo cuando waStatus = failed */
+  waError: text('wa_error'),
 }, (t) => [
   index('messages_conv_sent_idx').on(t.conversationId, t.sentAt),
   uniqueIndex('messages_wa_message_idx').on(t.waMessageId),

@@ -34,9 +34,12 @@ export default function ChatFeed({ conversationId }: { conversationId: string })
     es.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data as string) as { type: string; conversationId?: string }
-        if (event.type === 'new_message' && event.conversationId === conversationId) {
+        if (event.conversationId !== conversationId) return
+        if (event.type === 'new_message') {
           void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
           void queryClient.invalidateQueries({ queryKey: ['apertura', conversationId] })
+        } else if (event.type === 'message_status') {
+          void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
         }
       } catch {}
     }

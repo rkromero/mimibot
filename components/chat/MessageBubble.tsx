@@ -1,5 +1,7 @@
+import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react'
 import { cn, relativeTime } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
+import { tildeDe } from '@/lib/whatsapp/estado-mensaje'
 import type { MessageWithAttachments } from '@/types/db'
 
 export default function MessageBubble({ message }: { message: MessageWithAttachments }) {
@@ -77,11 +79,28 @@ export default function MessageBubble({ message }: { message: MessageWithAttachm
           )}
         </div>
 
-        <span className="text-xs text-muted-foreground px-1">
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground px-1">
           {relativeTime(message.sentAt)}
+          {isOutbound && <span title={tildeDe(message).label}><Tildes message={message} /></span>}
         </span>
       </div>
     </div>
+  )
+}
+
+/** Tildes de WhatsApp: reloj (pendiente), ✓ enviado, ✓✓ entregado, ✓✓ azul leído, ! fallido. */
+function Tildes({ message }: { message: MessageWithAttachments }) {
+  const t = tildeDe(message)
+  const common = 'shrink-0'
+  if (t.fallo) return <AlertCircle size={13} className={cn(common, 'text-destructive')} aria-label={t.label} />
+  if (t.cantidad === 0) return <Clock size={12} className={cn(common, 'opacity-70')} aria-label={t.label} />
+  if (t.cantidad === 1) return <Check size={13} className={common} aria-label={t.label} />
+  return (
+    <CheckCheck
+      size={13}
+      className={cn(common, t.leido ? 'text-sky-500 dark:text-sky-400' : '')}
+      aria-label={t.label}
+    />
   )
 }
 

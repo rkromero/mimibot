@@ -48,6 +48,12 @@ export const waWebhookSchema = z.object({
           status: z.string(),
           timestamp: z.string(),
           recipient_id: z.string(),
+          errors: z.array(z.object({
+            code: z.number().optional(),
+            title: z.string().optional(),
+            message: z.string().optional(),
+            error_data: z.object({ details: z.string().optional() }).optional(),
+          })).optional(),
         })).optional(),
       }),
       field: z.string(),
