@@ -3,14 +3,15 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { conversations, messages, whatsappConfig, whatsappTemplates } from '@/db/schema'
+import { messages, whatsappConfig, whatsappTemplates } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendTextMessage, sendMediaMessage, uploadMediaToMeta, sendTemplateMessage, buildBodyComponents } from '@/lib/whatsapp/client'
-import { resolveTemplateVariables, applyTemplateValues, toTemplateVariables } from '@/lib/whatsapp/variables'
+import { resolveTemplateVariables, applyTemplateValues } from '@/lib/whatsapp/variables'
+import { resolverConversacionParaEnvio, variablesParaChat } from '@/lib/whatsapp/apertura'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType, contentTypeFromExt } from '@/lib/whatsapp/mime'
-import { AuthzError, toApiError, NotFoundError, ValidationError } from '@/lib/errors'
+import { toApiError, ValidationError } from '@/lib/errors'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
 import type { Session } from 'next-auth'
 
@@ -20,7 +21,11 @@ const sendTextSchema = z.object({
   conversationId: z.string().uuid(),
   // leadId kept as optional for backwards compatibility with existing clients
   leadId: z.string().uuid().optional(),
-  body: z.string().min(1).max(4096),
+  /** Texto libre. Opcional cuando se manda una plantilla (ventana cerrada). */
+  body: z.string().max(4096).optional().default(''),
+  /** Plantilla elegida en el chat para abrir la conversación; si falta, se usa la de Ajustes → WhatsApp. */
+  templateName: z.string().max(200).optional(),
+  templateLang: z.string().max(20).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -41,42 +46,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Returns the conversation with enough data to send, after verifying access. */
-async function resolveConversation(user: SessionUser, conversationId: string) {
-  const conv = await db.query.conversations.findFirst({
-    where: eq(conversations.id, conversationId),
-    columns: { id: true, waContactPhone: true, clienteId: true, leadId: true },
-    with: {
-      cliente: { columns: { asignadoA: true, nombre: true, apellido: true } },
-      lead: {
-        columns: { id: true, assignedTo: true, productInterest: true },
-        with: { contact: { columns: { name: true } } },
-      },
-    },
-  })
-
-  if (!conv) throw new NotFoundError('Conversación')
-  if (!conv.waContactPhone) throw new ValidationError('La conversación no tiene teléfono de contacto')
-
-  // Permission check for non-admin/non-gerente roles
-  if (user.role !== 'admin' && user.role !== 'gerente') {
-    const effectiveAssignment = conv.clienteId
-      ? conv.cliente?.asignadoA ?? null
-      : conv.lead?.assignedTo ?? null
-    if (effectiveAssignment !== user.id) {
-      throw new AuthzError('No tenés acceso a esta conversación')
-    }
-  }
-
-  const contactName = conv.clienteId
-    ? `${conv.cliente?.nombre ?? ''} ${conv.cliente?.apellido ?? ''}`.trim()
-    : (conv.lead?.contact?.name ?? '')
-
-  const productoInteres = conv.clienteId ? null : (conv.lead?.productInterest ?? null)
-
-  return { waContactPhone: conv.waContactPhone, contactName, productoInteres }
-}
-
 async function handleTextSend(req: NextRequest, user: SessionUser) {
   const body: unknown = await req.json()
   const parsed = sendTextSchema.safeParse(body)
@@ -84,28 +53,32 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 })
   }
 
-  const { conversationId, body: text } = parsed.data
-  const { waContactPhone, contactName, productoInteres } = await resolveConversation(user, conversationId)
+  const { conversationId, body: text, templateName: elegidaName, templateLang: elegidaLang } = parsed.data
+  const { waContactPhone, contactName, productoInteres } = await resolverConversacionParaEnvio(user, conversationId)
 
   const dentro24h = await estaDentroDe24h(conversationId)
 
   if (!dentro24h) {
-    const config = await db.query.whatsappConfig.findFirst({
-      columns: { aperturaTemplateName: true, aperturaTemplateLang: true },
-    })
+    // Plantilla elegida en el chat, o la de apertura configurada en Ajustes → WhatsApp
+    let templateName = elegidaName ?? null
+    let templateLang = elegidaLang ?? 'es'
+    if (!templateName) {
+      const config = await db.query.whatsappConfig.findFirst({
+        columns: { aperturaTemplateName: true, aperturaTemplateLang: true },
+      })
+      templateName = config?.aperturaTemplateName ?? null
+      templateLang = config?.aperturaTemplateLang ?? 'es'
+    }
 
-    if (!config?.aperturaTemplateName) {
+    if (!templateName) {
       return NextResponse.json(
         {
-          error: 'Han pasado más de 24h desde el último mensaje del cliente. Configurá una plantilla de apertura en Sistema → WhatsApp para poder iniciar la conversación.',
+          error: 'Han pasado más de 24h desde el último mensaje del cliente. Elegí una plantilla aprobada en el chat o configurá una de apertura en Sistema → WhatsApp.',
           code: 'WINDOW_CLOSED_NO_TEMPLATE',
         },
         { status: 422 },
       )
     }
-
-    const templateName = config.aperturaTemplateName
-    const templateLang = config.aperturaTemplateLang ?? 'es'
 
     const tmpl = await db.query.whatsappTemplates.findFirst({
       where: and(
@@ -116,22 +89,24 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
       columns: { bodyText: true, variables: true },
     })
 
-    // Variables según lo configurado al registrar la plantilla. Si no se
-    // configuraron (plantillas viejas), {{1}} es el nombre del cliente.
-    const configuredVars = toTemplateVariables(tmpl?.variables)
-    const varsToUse = configuredVars.length > 0
-      ? configuredVars
-      : (tmpl?.bodyText?.includes('{{1}}') ? [{ index: 1, source: 'cliente_nombre', sample: 'Cliente' }] : [])
+    if (!tmpl) {
+      return NextResponse.json(
+        {
+          error: `La plantilla "${templateName}" (${templateLang}) no está aprobada en la cuenta de WhatsApp actual. Sincronizá los estados en Ajustes → WhatsApp → Plantillas.`,
+          code: 'TEMPLATE_NOT_APPROVED',
+        },
+        { status: 422 },
+      )
+    }
+
+    const varsToUse = variablesParaChat(tmpl.bodyText, tmpl.variables)
     const resolvedValues = resolveTemplateVariables(varsToUse, {
       clienteNombre: contactName,
       vendedorNombre: user.name ?? undefined,
       productoInteres: productoInteres ?? undefined,
     })
     const components = buildBodyComponents(resolvedValues)
-
-    const resolvedBody = tmpl?.bodyText
-      ? applyTemplateValues(tmpl.bodyText, resolvedValues).trim()
-      : text
+    const resolvedBody = applyTemplateValues(tmpl.bodyText, resolvedValues).trim()
 
     const [msg] = await db
       .insert(messages)
@@ -166,6 +141,8 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
   }
 
   // Dentro de la ventana de 24h — enviar texto libre
+  if (!text.trim()) throw new ValidationError('Escribí un mensaje para enviar')
+
   const [msg] = await db
     .insert(messages)
     .values({
@@ -207,7 +184,7 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
     throw new ValidationError('file y conversationId son requeridos')
   }
 
-  const { waContactPhone } = await resolveConversation(user, conversationId)
+  const { waContactPhone } = await resolverConversacionParaEnvio(user, conversationId)
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const mimeType = file.type || contentTypeFromExt(file.name)

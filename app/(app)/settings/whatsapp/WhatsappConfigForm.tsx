@@ -288,7 +288,7 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
             )}
             {form.aperturaTemplateName && (
               <p className="text-xs text-muted-foreground">
-                Si el cuerpo de la plantilla usa <span className="font-mono">{'{{1}}'}</span>, se reemplazará automáticamente con el nombre del cliente.
+                Es la que se propone por defecto en el chat cuando la ventana de 24 hs está cerrada. Las variables se completan según lo configurado al registrar la plantilla.
               </p>
             )}
           </div>
