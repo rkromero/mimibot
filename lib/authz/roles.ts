@@ -57,3 +57,13 @@ export function esRolTipoAgent(role: string | null | undefined): boolean {
 export function esRolReparto(role: string | null | undefined): boolean {
   return role === 'repartidor' || role === 'distribucion'
 }
+
+/**
+ * ¿El rol pasa por el paso "Entrega" (retiro en fábrica / expreso) al cargar
+ * un pedido? Lo tienen los agentes (y su clon 'rtv') y también quienes cargan
+ * pedidos por ellos: admin y gerente. 'vendedor' (reparto) queda congelado:
+ * sus pedidos son de reparto propio y no eligen expreso.
+ */
+export function tieneFlujoMetodoEntrega(role: string | null | undefined): boolean {
+  return esRolTipoAgent(role) || role === 'admin' || role === 'gerente'
+}

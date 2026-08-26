@@ -9,7 +9,8 @@ import { notificarPedidoCreado } from '@/lib/whatsapp/notificaciones'
 import { toApiError, AuthzError, NotFoundError } from '@/lib/errors'
 import { getSessionContext } from '@/lib/territorios/context'
 import { parsePagination } from '@/lib/api/pagination'
-import { esRolVentas, esRolTipoAgent } from '@/lib/authz/roles'
+import { esRolVentas, tieneFlujoMetodoEntrega } from '@/lib/authz/roles'
+import { resolverEntrega, type ExpresoGuardado } from '@/lib/pedidos/metodo-entrega'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 
 export async function GET(req: NextRequest) {
@@ -162,10 +163,12 @@ export async function POST(req: NextRequest) {
     let vendedorId: string = session.user.id
     let creadoPor: string | null = null
     let territorioIdImputado: string | null = null
-    // Delivery method — only processed for role 'agent'; vendedor is frozen and ignores these
-    let metodoEntregaFinal: 'retiro_fabrica' | 'expreso' | null = null
-    let expresoNombreFinal: string | null = null
-    let expresoDireccionFinal: string | null = null
+    // Expreso guardado en la ficha del cliente (para "despachar por el mismo")
+    let fichaExpreso: ExpresoGuardado = null
+
+    const columnasCliente = { id: true, territorioId: true, expresoNombre: true, expresoDireccion: true } as const
+    const fichaDe = (c: { expresoNombre: string | null; expresoDireccion: string | null }): ExpresoGuardado =>
+      c.expresoNombre ? { nombre: c.expresoNombre, direccion: c.expresoDireccion ?? null } : null
 
     if (esRolVentas(ctx.role)) {
       const cliente = await db.query.clientes.findFirst({
@@ -174,33 +177,11 @@ export async function POST(req: NextRequest) {
           eq(clientes.asignadoA, session.user.id),
           isNull(clientes.deletedAt),
         ),
-        columns: { id: true, territorioId: true, expresoNombre: true, expresoDireccion: true },
+        columns: columnasCliente,
       })
       if (!cliente) throw new AuthzError('Solo podés crear pedidos para tus propios clientes')
       territorioIdImputado = cliente.territorioId ?? null
-
-      // Método de entrega — vendedor queda congelado, NO se activa para ese rol
-      if (esRolTipoAgent(ctx.role) && input.metodoEntrega) {
-        metodoEntregaFinal = input.metodoEntrega
-        if (input.metodoEntrega === 'expreso') {
-          if (input.expresoNombre && input.expresoDireccion) {
-            // Nuevo expreso: pisar el guardado en la ficha del cliente
-            await db.update(clientes)
-              .set({
-                expresoNombre: input.expresoNombre,
-                expresoDireccion: input.expresoDireccion,
-                updatedAt: new Date(),
-              })
-              .where(eq(clientes.id, input.clienteId))
-            expresoNombreFinal = input.expresoNombre
-            expresoDireccionFinal = input.expresoDireccion
-          } else {
-            // Usar el expreso guardado en la ficha
-            expresoNombreFinal = cliente.expresoNombre ?? null
-            expresoDireccionFinal = cliente.expresoDireccion ?? null
-          }
-        }
-      }
+      fichaExpreso = fichaDe(cliente)
 
     } else if (ctx.role === 'gerente') {
       if (!input.vendedorId) {
@@ -216,23 +197,41 @@ export async function POST(req: NextRequest) {
           inArray(clientes.territorioId, ctx.territoriosGestionados),
           isNull(clientes.deletedAt),
         ),
-        columns: { id: true, territorioId: true },
+        columns: columnasCliente,
       })
       if (!cliente) throw new AuthzError('Ese cliente no pertenece a tus territorios')
 
       vendedorId = input.vendedorId
       creadoPor = session.user.id
       territorioIdImputado = cliente.territorioId ?? null
+      fichaExpreso = fichaDe(cliente)
 
     } else {
       const cliente = await db.query.clientes.findFirst({
         where: and(eq(clientes.id, input.clienteId), isNull(clientes.deletedAt)),
-        columns: { id: true, territorioId: true },
+        columns: columnasCliente,
       })
       if (!cliente) throw new NotFoundError('Cliente')
 
       if (input.vendedorId) vendedorId = input.vendedorId
       territorioIdImputado = cliente.territorioId ?? null
+      fichaExpreso = fichaDe(cliente)
+    }
+
+    // Método de entrega (retiro / expreso): agentes, admin y gerente. 'vendedor'
+    // queda congelado y sus pedidos ignoran estos campos.
+    const entrega = tieneFlujoMetodoEntrega(ctx.role)
+      ? resolverEntrega(input, fichaExpreso)
+      : resolverEntrega({}, null)
+    if (entrega.actualizarFichaCliente) {
+      // Nuevo expreso: pisar el guardado en la ficha del cliente
+      await db.update(clientes)
+        .set({
+          expresoNombre: entrega.expresoNombre,
+          expresoDireccion: entrega.expresoDireccion,
+          updatedAt: new Date(),
+        })
+        .where(eq(clientes.id, input.clienteId))
     }
 
     // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
@@ -250,9 +249,9 @@ export async function POST(req: NextRequest) {
         territorioIdImputado,
         registradoPor: session.user.id,
         crearComoPendienteAprobacion,
-        metodoEntrega: metodoEntregaFinal,
-        expresoNombre: expresoNombreFinal,
-        expresoDireccion: expresoDireccionFinal,
+        metodoEntrega: entrega.metodoEntrega,
+        expresoNombre: entrega.expresoNombre,
+        expresoDireccion: entrega.expresoDireccion,
         esReparto: ctx.role === 'vendedor',
         descuento: input.descuento ?? 0,
         costoEnvio: input.costoEnvio ?? 0,

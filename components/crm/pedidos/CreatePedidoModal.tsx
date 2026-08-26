@@ -11,7 +11,7 @@ import RegistrarPagoModal from '@/components/crm/cuenta-corriente/RegistrarPagoM
 import Stepper from '@/components/shared/Stepper'
 import ProductSheet from '@/components/crm/pedidos/ProductSheet'
 import WhatsappLinkButton from '@/components/shared/WhatsappLinkButton'
-import { esRolTipoAgent } from '@/lib/authz/roles'
+import { tieneFlujoMetodoEntrega } from '@/lib/authz/roles'
 import MetodoEntregaStep from '@/components/crm/pedidos/MetodoEntregaStep'
 import {
   ENTREGA_FORM_INICIAL,
@@ -73,7 +73,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   const [costoEnvio, setCostoEnvio] = useState('')
   const [observaciones, setObservaciones] = useState('')
 
-  // Delivery method — only for agent role (paso compartido con el modal de muestra del lead)
+  // Método de entrega (paso compartido con el modal de muestra del lead)
   const [entregaForm, setEntregaForm] = useState<EntregaFormState>(ENTREGA_FORM_INICIAL)
 
   // Debounce the client search input (250 ms) for server-side search
@@ -103,10 +103,10 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
   // Nombre del vendedor logueado para firmar el mensaje de WhatsApp.
   const { data: session } = useSession()
   const vendedorName = session?.user?.name ?? null
-  // Solo el rol 'agent' tiene el flujo de método de entrega; 'vendedor' queda congelado
-  const isAgent = esRolTipoAgent(session?.user?.role)
-  const confirmStep = isAgent ? 3 : 2
-  const stepLabels = isAgent
+  // Paso "Entrega" (retiro / expreso): agentes, admin y gerente. 'vendedor' queda congelado.
+  const conEntrega = tieneFlujoMetodoEntrega(session?.user?.role)
+  const confirmStep = conEntrega ? 3 : 2
+  const stepLabels = conEntrega
     ? ['Cliente', 'Productos', 'Entrega', 'Confirmar']
     : ['Cliente', 'Productos', 'Confirmar']
 
@@ -232,9 +232,9 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
     setIsPending(true)
     setError(null)
     try {
-      // Build delivery payload — only for agent role. Solo manda nombre/dirección
-      // si el agente cargó un expreso nuevo; con el guardado, el server usa la ficha.
-      const deliveryPayload = isAgent ? (buildEntregaPayload(entregaForm, expresoGuardado) ?? {}) : {}
+      // Payload de entrega. Solo manda nombre/dirección si se cargó un expreso
+      // nuevo; con el guardado, el server usa la ficha del cliente.
+      const deliveryPayload = conEntrega ? (buildEntregaPayload(entregaForm, expresoGuardado) ?? {}) : {}
 
       const res = await fetch('/api/pedidos', {
         method: 'POST',
@@ -596,8 +596,8 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
             </>
           )}
 
-          {/* ---- STEP 2 (agent only): Entrega ---- */}
-          {isAgent && step === 2 && (
+          {/* ---- STEP 2 (roles con entrega): Entrega ---- */}
+          {conEntrega && step === 2 && (
             <>
               <div className="flex-1 overflow-y-auto p-4">
                 <MetodoEntregaStep form={entregaForm} onChange={setEntregaForm} expresoGuardado={expresoGuardado} />
@@ -616,7 +616,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
             </>
           )}
 
-          {/* ---- CONFIRM STEP: step 2 for non-agent, step 3 for agent ---- */}
+          {/* ---- CONFIRM STEP: step 2 sin paso de entrega, step 3 con él ---- */}
           {step === confirmStep && (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-5">

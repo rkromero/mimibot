@@ -80,3 +80,59 @@ describe('buildEntregaPayload', () => {
     ).toEqual({ metodoEntrega: 'expreso', expresoNombre: 'Cruz del Sur', expresoDireccion: 'Ruta 2' })
   })
 })
+
+// ─── Server: resolverEntrega ────────────────────────────────────────────────
+
+import { resolverEntrega } from '@/lib/pedidos/metodo-entrega'
+import { tieneFlujoMetodoEntrega } from '@/lib/authz/roles'
+
+describe('resolverEntrega (server)', () => {
+  it('sin método no graba nada ni toca la ficha', () => {
+    expect(resolverEntrega({}, GUARDADO)).toEqual({
+      metodoEntrega: null, expresoNombre: null, expresoDireccion: null, actualizarFichaCliente: false,
+    })
+    expect(resolverEntrega({ metodoEntrega: null }, GUARDADO).metodoEntrega).toBeNull()
+  })
+
+  it('retiro en fábrica graba el método sin expreso', () => {
+    expect(resolverEntrega({ metodoEntrega: 'retiro_fabrica', expresoNombre: 'OCA', expresoDireccion: 'x' }, GUARDADO)).toEqual({
+      metodoEntrega: 'retiro_fabrica', expresoNombre: null, expresoDireccion: null, actualizarFichaCliente: false,
+    })
+  })
+
+  it('expreso nuevo (nombre + dirección) se usa y se guarda en la ficha', () => {
+    expect(resolverEntrega({ metodoEntrega: 'expreso', expresoNombre: 'OCA', expresoDireccion: 'Calle 1' }, GUARDADO)).toEqual({
+      metodoEntrega: 'expreso', expresoNombre: 'OCA', expresoDireccion: 'Calle 1', actualizarFichaCliente: true,
+    })
+  })
+
+  it('"mismo expreso" (sin datos) usa el guardado en la ficha del cliente', () => {
+    expect(resolverEntrega({ metodoEntrega: 'expreso' }, GUARDADO)).toEqual({
+      metodoEntrega: 'expreso', expresoNombre: 'Andreani', expresoDireccion: 'Av. Siempreviva 123', actualizarFichaCliente: false,
+    })
+  })
+
+  it('expreso sin datos y sin ficha queda sin expreso pero con el método', () => {
+    expect(resolverEntrega({ metodoEntrega: 'expreso' }, null)).toEqual({
+      metodoEntrega: 'expreso', expresoNombre: null, expresoDireccion: null, actualizarFichaCliente: false,
+    })
+  })
+
+  it('con solo el nombre (sin dirección) no cuenta como expreso nuevo', () => {
+    const r = resolverEntrega({ metodoEntrega: 'expreso', expresoNombre: 'OCA' }, GUARDADO)
+    expect(r.actualizarFichaCliente).toBe(false)
+    expect(r.expresoNombre).toBe('Andreani')
+  })
+})
+
+describe('tieneFlujoMetodoEntrega', () => {
+  it('lo tienen agentes, rtv, admin y gerente', () => {
+    for (const r of ['agent', 'rtv', 'admin', 'gerente']) expect(tieneFlujoMetodoEntrega(r)).toBe(true)
+  })
+
+  it('vendedor queda congelado; fábrica y reparto no cargan pedidos con entrega', () => {
+    for (const r of ['vendedor', 'fabrica', 'repartidor', 'distribucion', null, undefined]) {
+      expect(tieneFlujoMetodoEntrega(r)).toBe(false)
+    }
+  })
+})

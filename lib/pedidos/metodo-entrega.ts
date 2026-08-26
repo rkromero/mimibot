@@ -62,3 +62,53 @@ export function buildEntregaPayload(form: EntregaFormState, guardado: ExpresoGua
   }
   return payload
 }
+
+/** Datos de entrega que recibe la API al crear un pedido. */
+export type EntregaInput = {
+  metodoEntrega?: MetodoEntrega | null
+  expresoNombre?: string | null
+  expresoDireccion?: string | null
+}
+
+export type EntregaResuelta = {
+  metodoEntrega: MetodoEntrega | null
+  expresoNombre: string | null
+  expresoDireccion: string | null
+  /** true cuando vino un expreso nuevo y hay que pisarlo en la ficha del cliente */
+  actualizarFichaCliente: boolean
+}
+
+const SIN_ENTREGA: EntregaResuelta = {
+  metodoEntrega: null,
+  expresoNombre: null,
+  expresoDireccion: null,
+  actualizarFichaCliente: false,
+}
+
+/**
+ * Resuelve, del lado del server, qué entrega queda grabada en el pedido.
+ * - Sin método: no se toca nada.
+ * - Retiro en fábrica: sin expreso.
+ * - Expreso con nombre y dirección: es uno nuevo, se usa y se guarda en la ficha.
+ * - Expreso sin datos: se usa el guardado en la ficha del cliente.
+ */
+export function resolverEntrega(input: EntregaInput, fichaCliente: ExpresoGuardado): EntregaResuelta {
+  if (!input.metodoEntrega) return SIN_ENTREGA
+  if (input.metodoEntrega === 'retiro_fabrica') {
+    return { ...SIN_ENTREGA, metodoEntrega: 'retiro_fabrica' }
+  }
+  if (input.expresoNombre && input.expresoDireccion) {
+    return {
+      metodoEntrega: 'expreso',
+      expresoNombre: input.expresoNombre,
+      expresoDireccion: input.expresoDireccion,
+      actualizarFichaCliente: true,
+    }
+  }
+  return {
+    metodoEntrega: 'expreso',
+    expresoNombre: fichaCliente?.nombre ?? null,
+    expresoDireccion: fichaCliente?.direccion ?? null,
+    actualizarFichaCliente: false,
+  }
+}
