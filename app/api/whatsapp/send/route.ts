@@ -49,7 +49,7 @@ async function resolveConversation(user: SessionUser, conversationId: string) {
     with: {
       cliente: { columns: { asignadoA: true, nombre: true, apellido: true } },
       lead: {
-        columns: { id: true, assignedTo: true },
+        columns: { id: true, assignedTo: true, productInterest: true },
         with: { contact: { columns: { name: true } } },
       },
     },
@@ -72,7 +72,9 @@ async function resolveConversation(user: SessionUser, conversationId: string) {
     ? `${conv.cliente?.nombre ?? ''} ${conv.cliente?.apellido ?? ''}`.trim()
     : (conv.lead?.contact?.name ?? '')
 
-  return { waContactPhone: conv.waContactPhone, contactName }
+  const productoInteres = conv.clienteId ? null : (conv.lead?.productInterest ?? null)
+
+  return { waContactPhone: conv.waContactPhone, contactName, productoInteres }
 }
 
 async function handleTextSend(req: NextRequest, user: SessionUser) {
@@ -83,7 +85,7 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
   }
 
   const { conversationId, body: text } = parsed.data
-  const { waContactPhone, contactName } = await resolveConversation(user, conversationId)
+  const { waContactPhone, contactName, productoInteres } = await resolveConversation(user, conversationId)
 
   const dentro24h = await estaDentroDe24h(conversationId)
 
@@ -123,6 +125,7 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
     const resolvedValues = resolveTemplateVariables(varsToUse, {
       clienteNombre: contactName,
       vendedorNombre: user.name ?? undefined,
+      productoInteres: productoInteres ?? undefined,
     })
     const components = buildBodyComponents(resolvedValues)
 

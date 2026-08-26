@@ -24,11 +24,22 @@ describe('primerNombre', () => {
 })
 
 describe('resolveTemplateVariables', () => {
-  const ctx = { clienteNombre: 'Juan Pérez', vendedorNombre: 'Rodo', pedidoNumero: 'ABC123', pedidoTotal: '$100,00' }
+  const ctx = {
+    clienteNombre: 'Juan Pérez',
+    vendedorNombre: 'Rodo',
+    pedidoNumero: 'ABC123',
+    pedidoTotal: '$100,00',
+    productoInteres: 'Alfajores',
+  }
 
   it('cliente_nombre manda solo el primer nombre; cliente_nombre_completo manda todo', () => {
     expect(resolveTemplateVariables([{ index: 1, source: 'cliente_nombre', sample: 'X' }], ctx)).toEqual(['Juan'])
     expect(resolveTemplateVariables([{ index: 1, source: 'cliente_nombre_completo', sample: 'X' }], ctx)).toEqual(['Juan Pérez'])
+  })
+
+  it('lead_producto_interes manda lo que el lead marcó en el formulario; sin dato cae al sample', () => {
+    expect(resolveTemplateVariables([{ index: 1, source: 'lead_producto_interes', sample: 'nuestros productos' }], ctx)).toEqual(['Alfajores'])
+    expect(resolveTemplateVariables([{ index: 1, source: 'lead_producto_interes', sample: 'nuestros productos' }], { clienteNombre: 'Ana' })).toEqual(['nuestros productos'])
   })
 
   it('respeta el orden por index aunque vengan desordenadas', () => {

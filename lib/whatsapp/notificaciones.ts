@@ -51,7 +51,7 @@ export async function notificarPedidoCreado(
           columns: { nombre: true, apellido: true },
         },
         lead: {
-          columns: { id: true },
+          columns: { id: true, productInterest: true },
           with: { contact: { columns: { name: true } } },
         },
       },
@@ -91,6 +91,7 @@ export async function notificarPedidoCreado(
       clienteNombre: contactName,
       pedidoNumero: pedidoNum,
       pedidoTotal: totalStr,
+      productoInteres: conv.lead?.productInterest ?? undefined,
     })
 
     const resolvedBody = tmpl?.bodyText

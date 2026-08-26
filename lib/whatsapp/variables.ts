@@ -11,12 +11,15 @@ export type TemplateVarCtx = {
   empresaNombre?: string
   pedidoNumero?: string
   pedidoTotal?: string
+  /** Producto que el lead marcó en el formulario del landing (solo conversaciones de lead) */
+  productoInteres?: string
 }
 
 /** Orígenes de dato que puede tener una variable de plantilla. */
 export const TEMPLATE_VAR_SOURCES = [
   { value: 'cliente_nombre',          label: 'Nombre del cliente (solo el nombre)' },
   { value: 'cliente_nombre_completo', label: 'Nombre y apellido del cliente' },
+  { value: 'lead_producto_interes',   label: 'Producto de interés del lead' },
   { value: 'vendedor_nombre',         label: 'Nombre del vendedor' },
   { value: 'empresa_nombre',          label: 'Nombre de la empresa' },
   { value: 'pedido_numero',           label: 'Número de pedido' },
@@ -55,6 +58,7 @@ export function resolveTemplateVariables(
     switch (v.source) {
       case 'cliente_nombre':          return oSample(primerNombre(ctx.clienteNombre), v.sample)
       case 'cliente_nombre_completo': return oSample(ctx.clienteNombre, v.sample)
+      case 'lead_producto_interes':   return oSample(ctx.productoInteres, v.sample)
       case 'vendedor_nombre':         return oSample(ctx.vendedorNombre, v.sample)
       case 'empresa_nombre':          return oSample(ctx.empresaNombre, v.sample)
       case 'pedido_numero':           return oSample(ctx.pedidoNumero, v.sample)
