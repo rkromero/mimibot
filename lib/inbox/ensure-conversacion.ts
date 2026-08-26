@@ -2,13 +2,7 @@ import { db } from '@/db'
 import { clientes, conversations } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { ValidationError, NotFoundError } from '@/lib/errors'
-
-function toE164(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  const withCountry = digits.startsWith('54') ? digits : '54' + digits.replace(/^0/, '')
-  return '+' + withCountry
-}
+import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 
 export async function ensureConversacionParaCliente(
   clienteId: string,
@@ -21,7 +15,7 @@ export async function ensureConversacionParaCliente(
   if (!cliente) throw new NotFoundError('Cliente')
   if (!cliente.telefono) throw new ValidationError('El cliente no tiene teléfono cargado')
 
-  const phone = toE164(cliente.telefono)
+  const phone = toWhatsappE164(cliente.telefono)
   if (!phone) throw new ValidationError('El cliente no tiene teléfono válido')
 
   // 1. Buscar conversación ya asignada al cliente

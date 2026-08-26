@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
+import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaMessage } from '@/lib/validations/webhook'
 import { db } from '@/db'
@@ -129,11 +130,20 @@ async function handleInboundMessage(params: {
   })
   if (existing) return
 
-  // Ruteo: cliente tiene prioridad sobre lead
-  const cliente = await db.query.clientes.findFirst({
-    where: eq(clientes.telefono, contactPhone),
-    columns: { id: true, asignadoA: true },
-  })
+  // Ruteo: cliente tiene prioridad sobre lead. `clientes.telefono` es texto
+  // libre ("+54 9 11 5755-7499", "011 4162-8140"...), así que se compara por
+  // los últimos 10 dígitos (área + número) en vez de por igualdad.
+  const nacional = ultimos10(contactPhone)
+  const cliente = nacional
+    ? await db.query.clientes.findFirst({
+        where: and(
+          isNull(clientes.deletedAt),
+          sql`right(regexp_replace(${clientes.telefono}, '[^0-9]', '', 'g'), 10) = ${nacional}`,
+        ),
+        columns: { id: true, asignadoA: true },
+        orderBy: [desc(clientes.createdAt)],
+      })
+    : undefined
 
   if (cliente) {
     await handleInboundFromCliente({ msg, contactPhone, phoneNumberId, cliente })

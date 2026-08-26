@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, type Db } from '@/db'
 import { conversations } from '@/db/schema'
+import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 
 /**
  * Asegura que el lead tenga su conversación de WhatsApp (una por lead).
@@ -26,7 +27,8 @@ export async function asegurarConversacionLead(
     .insert(conversations)
     .values({
       leadId,
-      waContactPhone: phone,
+      // Formato de WhatsApp (+549...): el webhook matchea por igualdad
+      waContactPhone: toWhatsappE164(phone) ?? phone,
       waPhoneNumberId: process.env['WA_PHONE_NUMBER_ID'] ?? null,
     })
     .returning({ id: conversations.id })

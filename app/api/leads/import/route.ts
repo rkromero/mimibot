@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 import { db } from '@/db'
 import { leads, contacts, pipelineStages, activityLog } from '@/db/schema'
 import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
@@ -55,8 +56,9 @@ export async function POST(req: NextRequest) {
       const row = rows[i]!
       try {
         let contactId: string
-        const existing = row.phone
-          ? await db.query.contacts.findFirst({ where: eq(contacts.phone, row.phone) })
+        const phone = toWhatsappE164(row.phone)
+        const existing = phone
+          ? await db.query.contacts.findFirst({ where: eq(contacts.phone, phone) })
           : null
 
         if (existing) {
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest) {
         } else {
           const [c] = await db
             .insert(contacts)
-            .values({ name: row.name, phone: row.phone ?? null, email: row.email || null })
+            .values({ name: row.name, phone, email: row.email || null })
             .returning({ id: contacts.id })
           contactId = c!.id
         }
@@ -89,8 +91,8 @@ export async function POST(req: NextRequest) {
         })
 
         // Conversación lista para escribir; no aparece en el inbox hasta el primer mensaje.
-        if (row.phone) {
-          await asegurarConversacionLead(lead!.id, row.phone)
+        if (phone) {
+          await asegurarConversacionLead(lead!.id, phone)
         }
 
         imported++

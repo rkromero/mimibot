@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 import { db } from '@/db'
 import { leads, contacts, pipelineStages, users, conversations, leadTags, tags, messages, activityLog } from '@/db/schema'
 import { eq, and, ilike, inArray, desc, sql, lt, or, isNull } from 'drizzle-orm'
@@ -292,6 +293,9 @@ export async function POST(req: NextRequest) {
     }
 
     const input = parsed.data
+    // Teléfono en el formato de WhatsApp (+549...) para que los mensajes
+    // entrantes caigan en la conversación de este lead.
+    const contactPhone = toWhatsappE164(input.contactPhone)
 
     const assignedTo =
       esRolVentas(session.user.role)
@@ -300,8 +304,8 @@ export async function POST(req: NextRequest) {
 
     let contactId: string
 
-    const existingContact = input.contactPhone
-      ? await db.query.contacts.findFirst({ where: eq(contacts.phone, input.contactPhone) })
+    const existingContact = contactPhone
+      ? await db.query.contacts.findFirst({ where: eq(contacts.phone, contactPhone) })
       : null
 
     if (existingContact) {
@@ -314,7 +318,7 @@ export async function POST(req: NextRequest) {
         .insert(contacts)
         .values({
           name: input.contactName,
-          phone: input.contactPhone ?? null,
+          phone: contactPhone,
           email: input.contactEmail ?? null,
         })
         .returning({ id: contacts.id })
@@ -356,8 +360,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Conversación lista para escribir; no aparece en el inbox hasta el primer mensaje.
-    if (input.contactPhone) {
-      await asegurarConversacionLead(lead!.id, input.contactPhone)
+    if (contactPhone) {
+      await asegurarConversacionLead(lead!.id, contactPhone)
     }
 
     return NextResponse.json({ data: lead }, { status: 201 })

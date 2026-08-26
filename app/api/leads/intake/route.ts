@@ -6,7 +6,7 @@ import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 import { intakeSchema, normalizeIntake, buildIntakeResumen } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
 import { sendTextMessage } from '@/lib/whatsapp/client'
-import { normalizePhone } from '@/lib/whatsapp/messages'
+import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 
 const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? '').split(',').filter(Boolean)
@@ -71,9 +71,9 @@ export async function POST(req: NextRequest) {
     }
 
     const data = normalizeIntake(parsed.data)
-    // Mismo formato E.164 (+54...) que usa el webhook de WhatsApp: si después
+    // Mismo formato que usa WhatsApp al mandar mensajes (+549...): si después
     // escribe por WhatsApp, el mensaje cae en la misma conversación.
-    const phone = data.phone && normalizePhone(data.phone) ? `+${normalizePhone(data.phone)}` : null
+    const phone = toWhatsappE164(data.phone)
     const resumen = buildIntakeResumen(data)
 
     // Buscar o crear contacto (por teléfono normalizado)
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
 
       const welcomeMsg = process.env['WA_WELCOME_MESSAGE']
       if (welcomeMsg) {
-        void sendTextMessage(normalizePhone(phone), welcomeMsg).catch(() => {})
+        void sendTextMessage(phone, welcomeMsg).catch(() => {})
       }
     }
 
