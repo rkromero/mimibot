@@ -4,15 +4,12 @@ import { and, eq, sql } from 'drizzle-orm'
 import { sendTemplateMessage, sendTextMessage, buildBodyComponents } from '@/lib/whatsapp/client'
 import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
-import { resolveTemplateVariables, applyTemplateValues, type TemplateVariable } from '@/lib/whatsapp/variables'
-
-function toTemplateVariables(raw: unknown): TemplateVariable[] {
-  if (!Array.isArray(raw)) return []
-  return raw.filter(
-    (v): v is TemplateVariable =>
-      typeof v === 'object' && v !== null && 'index' in v && 'source' in v && 'sample' in v,
-  )
-}
+import {
+  resolveTemplateVariables,
+  applyTemplateValues,
+  toTemplateVariables,
+  type TemplateVariable,
+} from '@/lib/whatsapp/variables'
 
 function fallbackPedidoVariables(bodyText: string): TemplateVariable[] {
   const vars: TemplateVariable[] = []

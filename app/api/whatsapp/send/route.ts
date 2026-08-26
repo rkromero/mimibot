@@ -6,7 +6,8 @@ import { db } from '@/db'
 import { conversations, messages, whatsappConfig, whatsappTemplates } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { sendTextMessage, sendMediaMessage, uploadMediaToMeta, sendTemplateMessage } from '@/lib/whatsapp/client'
+import { sendTextMessage, sendMediaMessage, uploadMediaToMeta, sendTemplateMessage, buildBodyComponents } from '@/lib/whatsapp/client'
+import { resolveTemplateVariables, applyTemplateValues, toTemplateVariables } from '@/lib/whatsapp/variables'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType, contentTypeFromExt } from '@/lib/whatsapp/mime'
 import { AuthzError, toApiError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -110,16 +111,23 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
         eq(whatsappTemplates.language, templateLang),
         eq(whatsappTemplates.status, 'APPROVED'),
       ),
-      columns: { bodyText: true },
+      columns: { bodyText: true, variables: true },
     })
 
-    const hasVar = !!tmpl?.bodyText?.includes('{{1}}')
-    const components = hasVar && contactName
-      ? [{ type: 'body' as const, parameters: [{ type: 'text' as const, text: contactName }] }]
-      : undefined
+    // Variables según lo configurado al registrar la plantilla. Si no se
+    // configuraron (plantillas viejas), {{1}} es el nombre del cliente.
+    const configuredVars = toTemplateVariables(tmpl?.variables)
+    const varsToUse = configuredVars.length > 0
+      ? configuredVars
+      : (tmpl?.bodyText?.includes('{{1}}') ? [{ index: 1, source: 'cliente_nombre', sample: 'Cliente' }] : [])
+    const resolvedValues = resolveTemplateVariables(varsToUse, {
+      clienteNombre: contactName,
+      vendedorNombre: user.name ?? undefined,
+    })
+    const components = buildBodyComponents(resolvedValues)
 
     const resolvedBody = tmpl?.bodyText
-      ? tmpl.bodyText.replace(/\{\{1\}\}/g, contactName).trim()
+      ? applyTemplateValues(tmpl.bodyText, resolvedValues).trim()
       : text
 
     const [msg] = await db

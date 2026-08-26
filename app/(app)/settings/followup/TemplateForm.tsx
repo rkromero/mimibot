@@ -11,7 +11,8 @@ type Props = {
 }
 
 const PARAM_SOURCES = [
-  { value: 'contact.name', label: 'Nombre del contacto' },
+  { value: 'contact.firstName', label: 'Nombre del contacto (solo el nombre)' },
+  { value: 'contact.name', label: 'Nombre completo del contacto' },
   { value: 'lead.productInterest', label: 'Producto de interés' },
   { value: 'lead.notes', label: 'Notas del lead' },
   { value: 'custom', label: 'Texto fijo' },

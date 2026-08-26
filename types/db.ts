@@ -21,7 +21,7 @@ export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect
 
 export type TemplateParameter = {
   position: number
-  source: 'contact.name' | 'lead.productInterest' | 'lead.notes' | 'custom'
+  source: 'contact.name' | 'contact.firstName' | 'lead.productInterest' | 'lead.notes' | 'custom'
   value?: string
 }
 

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsappTemplate } from '@/types/db'
+import { TEMPLATE_VAR_SOURCES } from '@/lib/whatsapp/variables'
 
 type TemplateVar = { index: number; source: string; sample: string }
 
@@ -28,14 +29,7 @@ const INITIAL_FORM: FormData = {
   variables: [],
 }
 
-const SOURCE_OPTIONS = [
-  { value: 'cliente_nombre',  label: 'Nombre del cliente' },
-  { value: 'vendedor_nombre', label: 'Nombre del vendedor' },
-  { value: 'empresa_nombre',  label: 'Nombre de la empresa' },
-  { value: 'pedido_numero',   label: 'Número de pedido' },
-  { value: 'pedido_total',    label: 'Total del pedido' },
-  { value: 'texto_fijo',      label: 'Texto fijo' },
-]
+const SOURCE_OPTIONS = TEMPLATE_VAR_SOURCES
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   PENDING: {
@@ -309,6 +303,8 @@ export default function WhatsappTemplatesPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 El valor de ejemplo se envía a Meta solo para la revisión. Al enviar el mensaje, se usa el dato real del sistema.
+                &quot;Nombre del cliente&quot; manda solo el primer nombre (ej. &quot;Juan&quot; para &quot;Juan Pérez&quot;);
+                para leads se toma el nombre cargado en el contacto.
               </p>
             </div>
           )}

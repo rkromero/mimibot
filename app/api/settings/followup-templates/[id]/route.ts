@@ -14,7 +14,7 @@ const updateSchema = z.object({
   bodyPreview: z.string().max(1024).optional(),
   parameters: z.array(z.object({
     position: z.number().int().min(1),
-    source: z.enum(['contact.name', 'lead.productInterest', 'lead.notes', 'custom']),
+    source: z.enum(['contact.name', 'contact.firstName', 'lead.productInterest', 'lead.notes', 'custom']),
     value: z.string().optional(),
   })).optional(),
   isActive: z.boolean().optional(),

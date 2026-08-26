@@ -6,6 +6,7 @@ import { withRetry } from '@/lib/claude/retry'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import type { TemplateParameter } from '@/types/db'
+import { primerNombre } from '@/lib/whatsapp/variables'
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -286,6 +287,7 @@ function resolveParam(
 ): string {
   switch (param.source) {
     case 'contact.name': return contact.name
+    case 'contact.firstName': return primerNombre(contact.name)
     case 'lead.productInterest': return lead.productInterest ?? ''
     case 'lead.notes': return lead.notes ?? ''
     case 'custom': return param.value ?? ''
