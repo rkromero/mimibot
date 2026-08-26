@@ -106,26 +106,71 @@ export async function createMetaTemplate(params: {
   return res.json() as Promise<{ id: string; status: string; category: string }>
 }
 
-export async function listMetaTemplates(): Promise<Array<{
+export type MetaTemplateSummary = {
   id: string
   name: string
   language: string
   status: string
   rejected_reason?: string
-}>> {
+}
+
+/**
+ * Lista TODAS las plantillas de la WABA configurada (sigue la paginación de Meta).
+ */
+export async function listMetaTemplates(): Promise<MetaTemplateSummary[]> {
   const { wabaId, accessToken } = await getWabaConfig()
 
-  const res = await fetch(`${WA_API_BASE}/${wabaId}/message_templates?limit=100`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  })
+  const all: MetaTemplateSummary[] = []
+  let url: string | null =
+    `${WA_API_BASE}/${wabaId}/message_templates?fields=id,name,language,status,rejected_reason&limit=100`
 
-  if (!res.ok) {
-    const body = await res.json() as MetaErrorBody
-    throw new Error(metaErrorMessage(body, res.status))
+  while (url) {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    })
+
+    if (!res.ok) {
+      const body = await res.json() as MetaErrorBody
+      throw new Error(metaErrorMessage(body, res.status))
+    }
+
+    const data = await res.json() as {
+      data?: MetaTemplateSummary[]
+      paging?: { next?: string }
+    }
+    all.push(...(data.data ?? []))
+    url = data.paging?.next ?? null
   }
 
-  const data = await res.json() as {
-    data: Array<{ id: string; name: string; language: string; status: string; rejected_reason?: string }>
+  return all
+}
+
+export function templateKey(t: { name: string; language: string }): string {
+  return `${t.name}|${t.language}`
+}
+
+export type LocalTemplateRef = { id: string; name: string; language: string }
+
+export type TemplateSyncPlan = {
+  /** Plantillas locales que existen en la WABA actual, con el dato fresco de Meta. */
+  updates: Array<{ localId: string; meta: MetaTemplateSummary }>
+  /** Plantillas locales que NO existen en la WABA actual (quedaron de otra cuenta o se borraron en Meta). */
+  deleteIds: string[]
+}
+
+/**
+ * Compara las plantillas guardadas localmente contra las que devuelve Meta para la WABA configurada.
+ * La WABA es la fuente de verdad: lo que no está en Meta no se puede usar para enviar, así que se marca para borrar.
+ */
+export function planTemplateSync(local: LocalTemplateRef[], meta: MetaTemplateSummary[]): TemplateSyncPlan {
+  const byKey = new Map<string, MetaTemplateSummary>()
+  for (const m of meta) byKey.set(templateKey(m), m)
+
+  const plan: TemplateSyncPlan = { updates: [], deleteIds: [] }
+  for (const l of local) {
+    const m = byKey.get(templateKey(l))
+    if (m) plan.updates.push({ localId: l.id, meta: m })
+    else plan.deleteIds.push(l.id)
   }
-  return data.data
+  return plan
 }

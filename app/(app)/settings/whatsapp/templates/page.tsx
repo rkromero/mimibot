@@ -121,12 +121,17 @@ export default function WhatsappTemplatesPage() {
         const err = await res.json() as { error: string }
         throw new Error(err.error)
       }
-      return res.json() as Promise<{ data: { synced: number } }>
+      return res.json() as Promise<{ data: { synced: number; deleted: number } }>
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['wa-templates'] })
-      setSyncMessage(`Sincronizadas ${data.data.synced} plantilla(s) desde Meta.`)
-      setTimeout(() => setSyncMessage(null), 4000)
+      const { synced, deleted } = data.data
+      const parts = [`Sincronizadas ${synced} plantilla(s) desde Meta.`]
+      if (deleted > 0) {
+        parts.push(`Se eliminaron ${deleted} plantilla(s) que no existen en la cuenta WhatsApp Business actual.`)
+      }
+      setSyncMessage(parts.join(' '))
+      setTimeout(() => setSyncMessage(null), 6000)
     },
     onError: (err: Error) => {
       setSyncMessage(`Error al sincronizar: ${err.message}`)
@@ -366,6 +371,11 @@ export default function WhatsappTemplatesPage() {
             {syncMutation.isPending ? 'Sincronizando...' : 'Sincronizar estados'}
           </button>
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Sincronizar actualiza los estados desde Meta y elimina las plantillas que no pertenecen a la
+          cuenta WhatsApp Business configurada actualmente (por ejemplo, si cambiaste de cuenta).
+        </p>
 
         {syncMessage && (
           <p className="text-xs text-muted-foreground">{syncMessage}</p>
