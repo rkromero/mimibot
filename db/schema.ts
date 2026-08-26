@@ -249,6 +249,15 @@ export const followUpConfig = pgTable('follow_up_config', {
   maxFollowUps: integer('max_follow_ups').notNull().default(3),
   retryHours: jsonb('retry_hours').notNull().default('[1, 22, 72]'),
   stallingPhrases: text('stalling_phrases').array().notNull().default([]),
+  /** Seguimiento automático después de enviar una propuesta */
+  propuestaEnabled: boolean('propuesta_enabled').notNull().default(true),
+  /** Horas después del último mensaje del cliente (dentro de la ventana de 24 hs) */
+  propuestaHoras: integer('propuesta_horas').notNull().default(23),
+  /** Texto libre con {{1}} = nombre del cliente y {{2}} = vendedor; null = el default del sistema */
+  propuestaMensaje: text('propuesta_mensaje'),
+  /** Plantilla aprobada de respaldo si la ventana está cerrada al momento de enviar */
+  propuestaTemplateName: text('propuesta_template_name'),
+  propuestaTemplateLang: text('propuesta_template_lang'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

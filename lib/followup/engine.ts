@@ -1,12 +1,18 @@
-import { eq, and, lte, isNotNull, asc } from 'drizzle-orm'
+import { eq, and, lte, isNotNull, isNull, asc, desc, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { leads, conversations, messages, activityLog, contacts, followUpTemplates, followUpConfig } from '@/db/schema'
+import {
+  leads, conversations, messages, activityLog, contacts, followUpTemplates, followUpConfig,
+  whatsappTemplates, propuestas, users,
+} from '@/db/schema'
 import { anthropic, BOT_MODEL } from '@/lib/claude/client'
 import { withRetry } from '@/lib/claude/retry'
-import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/client'
+import { sendTextMessage, sendTemplateMessage, buildBodyComponents } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import type { TemplateParameter } from '@/types/db'
-import { primerNombre } from '@/lib/whatsapp/variables'
+import { primerNombre, resolveTemplateVariables, applyTemplateValues } from '@/lib/whatsapp/variables'
+import { variablesParaChat } from '@/lib/whatsapp/apertura'
+import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
+import { calcularEnvioSeguimientoPropuesta, renderMensajeSeguimientoPropuesta } from './propuesta'
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -122,6 +128,11 @@ async function processSingleFollowUp(
   lead: typeof leads.$inferSelect,
   config: typeof followUpConfig.$inferSelect | null,
 ): Promise<void> {
+  if (lead.followUpReason === 'propuesta') {
+    await procesarSeguimientoPropuesta(lead, config)
+    return
+  }
+
   const conversation = await db.query.conversations.findFirst({
     where: eq(conversations.leadId, lead.id),
   })
@@ -293,4 +304,171 @@ function resolveParam(
     case 'custom': return param.value ?? ''
     default: return ''
   }
+}
+
+// ─── Seguimiento después de enviar una propuesta ─────────────────────────────
+
+/**
+ * Programa el seguimiento de una propuesta recién enviada: a N horas del
+ * último mensaje del cliente (dentro de la ventana de 24 hs → texto libre) o,
+ * si eso ya no es posible, 22 hs después de la propuesta (va por plantilla).
+ * Ocupa el único slot de seguimiento del lead (pisa uno pendiente de otro tipo).
+ */
+export async function programarSeguimientoPropuesta(leadId: string): Promise<void> {
+  const config = await db.query.followUpConfig.findFirst()
+  if (config && (!config.isEnabled || !config.propuestaEnabled)) return
+
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { id: true, isOpen: true } })
+  if (!lead || !lead.isOpen) return
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, leadId),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) return
+
+  const ultimo = await db.query.messages.findFirst({
+    where: and(eq(messages.conversationId, conversation.id), eq(messages.direction, 'inbound')),
+    orderBy: [desc(messages.sentAt)],
+    columns: { sentAt: true },
+  })
+
+  const plan = calcularEnvioSeguimientoPropuesta({
+    ahora: new Date(),
+    ultimoMensajeClienteAt: ultimo?.sentAt ?? null,
+    horasDesdeUltimoMensaje: config?.propuestaHoras ?? 23,
+  })
+
+  await db.update(leads)
+    .set({ nextFollowUpAt: plan.enviarAt, followUpStatus: 'pending', followUpReason: 'propuesta', updatedAt: new Date() })
+    .where(eq(leads.id, leadId))
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_scheduled',
+    metadata: { reason: 'propuesta', nextFollowUpAt: plan.enviarAt.toISOString(), dentroVentana: plan.dentroVentana },
+  })
+}
+
+/** El cliente escribió: el seguimiento de la propuesta ya no hace falta. */
+export async function cancelarSeguimientoPropuestaPorRespuesta(leadId: string): Promise<boolean> {
+  const rows = await db.update(leads)
+    .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.followUpStatus, 'pending'), eq(leads.followUpReason, 'propuesta')))
+    .returning({ id: leads.id })
+  if (rows.length === 0) return false
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_cancelled',
+    metadata: { reason: 'propuesta', motivo: 'el cliente respondió' },
+  })
+  return true
+}
+
+async function nombreVendedorParaSeguimiento(lead: typeof leads.$inferSelect): Promise<string | null> {
+  const propuesta = await db.query.propuestas.findFirst({
+    where: and(eq(propuestas.leadId, lead.id), isNull(propuestas.deletedAt)),
+    orderBy: [desc(propuestas.updatedAt)],
+    columns: { creadoPor: true },
+  })
+  const userId = propuesta?.creadoPor ?? lead.assignedTo
+  if (!userId) return null
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { name: true } })
+  return user?.name ?? null
+}
+
+async function procesarSeguimientoPropuesta(
+  lead: typeof leads.$inferSelect,
+  config: typeof followUpConfig.$inferSelect | null,
+): Promise<void> {
+  const marcar = async (status: 'sent' | 'failed', metadata: Record<string, unknown>) => {
+    await db.update(leads)
+      .set({ followUpStatus: status, nextFollowUpAt: null, lastContactedAt: status === 'sent' ? new Date() : undefined, updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({
+      leadId: lead.id,
+      // No hay valor 'failed' en el enum de actividad: se registra como cancelado con el motivo
+      action: status === 'sent' ? 'follow_up_sent' : 'follow_up_cancelled',
+      metadata: { reason: 'propuesta', ...metadata },
+    })
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, lead.id),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) {
+    await marcar('failed', { motivo: 'sin_conversacion' })
+    return
+  }
+  const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })
+  const vendedorNombre = await nombreVendedorParaSeguimiento(lead)
+  const clienteNombre = contact?.name ?? null
+
+  const dentroVentana = await estaDentroDe24h(conversation.id)
+  let body: string
+  let contentType: 'text' | 'template'
+  let waMessageId: string | null = null
+
+  if (dentroVentana) {
+    body = renderMensajeSeguimientoPropuesta(config?.propuestaMensaje, { clienteNombre, vendedorNombre })
+    contentType = 'text'
+    waMessageId = await sendTextMessage(conversation.waContactPhone, body)
+  } else {
+    const templateName = config?.propuestaTemplateName ?? null
+    const templateLang = config?.propuestaTemplateLang ?? 'es'
+    const tmpl = templateName
+      ? await db.query.whatsappTemplates.findFirst({
+          where: and(
+            eq(whatsappTemplates.name, templateName),
+            eq(whatsappTemplates.language, templateLang),
+            eq(whatsappTemplates.status, 'APPROVED'),
+          ),
+          columns: { bodyText: true, variables: true },
+        })
+      : null
+
+    if (!tmpl || !templateName) {
+      // Sin plantilla de respaldo: nota interna para que el vendedor lo mande a mano
+      await db.insert(messages).values({
+        conversationId: conversation.id,
+        direction: 'outbound',
+        senderType: 'system',
+        contentType: 'internal_note',
+        body: 'Seguimiento de propuesta pendiente: la ventana de 24 hs está cerrada y no hay plantilla de respaldo configurada (Ajustes → Seguimiento). Mandalo a mano desde el panel de plantillas del chat.',
+        isRead: true,
+        sentAt: new Date(),
+      })
+      await marcar('failed', { motivo: 'ventana_cerrada_sin_plantilla' })
+      await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+      return
+    }
+
+    const vars = variablesParaChat(tmpl.bodyText, tmpl.variables)
+    const valores = resolveTemplateVariables(vars, {
+      clienteNombre: clienteNombre ?? undefined,
+      vendedorNombre: vendedorNombre ?? undefined,
+      productoInteres: lead.productInterest ?? undefined,
+    })
+    body = applyTemplateValues(tmpl.bodyText, valores).trim()
+    contentType = 'template'
+    waMessageId = await sendTemplateMessage(conversation.waContactPhone, templateName, templateLang, buildBodyComponents(valores))
+  }
+
+  await db.insert(messages).values({
+    conversationId: conversation.id,
+    waMessageId,
+    direction: 'outbound',
+    senderType: 'system',
+    contentType,
+    body,
+    isRead: true,
+    sentAt: new Date(),
+  })
+  await db.execute(
+    sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversation.id}`,
+  )
+  await marcar('sent', { usedTemplate: !dentroVentana })
+  await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
 }

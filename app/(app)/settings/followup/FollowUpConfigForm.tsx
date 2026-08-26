@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import type { FollowUpConfig } from '@/types/db'
+import { MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT } from '@/lib/followup/propuesta'
 
 type Props = { initialConfig: FollowUpConfig | null }
 
@@ -18,6 +19,11 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
     maxFollowUps: initialConfig?.maxFollowUps ?? 3,
     retryHours: ((initialConfig?.retryHours as number[] | null) ?? [1, 22, 72]).join(', '),
     stallingPhrases: (initialConfig?.stallingPhrases ?? []).join('\n'),
+    propuestaEnabled: initialConfig?.propuestaEnabled ?? true,
+    propuestaHoras: initialConfig?.propuestaHoras ?? 23,
+    propuestaMensaje: initialConfig?.propuestaMensaje ?? MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT,
+    propuestaTemplateName: initialConfig?.propuestaTemplateName ?? '',
+    propuestaTemplateLang: initialConfig?.propuestaTemplateLang ?? 'es',
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -49,6 +55,11 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
             .split('\n')
             .map((s) => s.trim())
             .filter(Boolean),
+          propuestaEnabled: form.propuestaEnabled,
+          propuestaHoras: form.propuestaHoras,
+          propuestaMensaje: form.propuestaMensaje.trim() || null,
+          propuestaTemplateName: form.propuestaTemplateName.trim() || null,
+          propuestaTemplateLang: form.propuestaTemplateLang.trim() || 'es',
         }),
       })
 
@@ -171,6 +182,112 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
         />
         <p className="text-xs text-muted-foreground mt-1">
           Ej: <code>1, 24, 72</code> = 1h después, luego 24h, luego 72h.
+        </p>
+      </div>
+
+      {/* Seguimiento de propuesta */}
+      <div className="pt-4 border-t border-border space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">Seguimiento después de enviar una propuesta</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Al marcar una propuesta como enviada se programa un mensaje al día siguiente. Se manda
+            dentro de la ventana de 24 hs de WhatsApp (contada desde el último mensaje del cliente), como
+            texto libre. Si el cliente responde antes, se cancela.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Activo</span>
+          <button
+            type="button"
+            onClick={() => setForm((p) => ({ ...p, propuestaEnabled: !p.propuestaEnabled }))}
+            className={cn(
+              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              form.propuestaEnabled ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700',
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform',
+                form.propuestaEnabled ? 'translate-x-4' : 'translate-x-1',
+              )}
+            />
+          </button>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            Horas después del último mensaje del cliente
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={23}
+            value={form.propuestaHoras}
+            onChange={(e) => setForm((p) => ({ ...p, propuestaHoras: parseInt(e.target.value) || 23 }))}
+            className={cn(
+              'w-32 px-3 py-2 text-sm rounded-md border',
+              'border-border bg-background text-foreground',
+              'focus:outline-none focus:ring-1 focus:ring-ring',
+            )}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Máximo 23: pasadas las 24 hs WhatsApp exige plantilla. Si la propuesta se envió cuando ya no
+            quedaba margen, el seguimiento sale 22 hs después de la propuesta con la plantilla de respaldo.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Mensaje</label>
+          <textarea
+            value={form.propuestaMensaje}
+            onChange={(e) => setForm((p) => ({ ...p, propuestaMensaje: e.target.value }))}
+            rows={3}
+            className={cn(
+              'w-full px-3 py-2 text-sm rounded-md border resize-none',
+              'border-border bg-background text-foreground placeholder:text-muted-foreground',
+              'focus:outline-none focus:ring-1 focus:ring-ring',
+            )}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            <code>{'{{1}}'}</code> = nombre del cliente (solo el nombre), <code>{'{{2}}'}</code> = nombre del vendedor que envió la propuesta.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-[1fr_6rem] gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              Plantilla de respaldo <span className="text-muted-foreground font-normal">(si la ventana está cerrada)</span>
+            </label>
+            <input
+              type="text"
+              value={form.propuestaTemplateName}
+              onChange={(e) => setForm((p) => ({ ...p, propuestaTemplateName: e.target.value }))}
+              placeholder="ej: seguimiento_propuesta"
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Idioma</label>
+            <input
+              type="text"
+              value={form.propuestaTemplateLang}
+              onChange={(e) => setForm((p) => ({ ...p, propuestaTemplateLang: e.target.value }))}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Sin plantilla, si la ventana
+          está cerrada el sistema deja una nota interna en el chat para que lo mandes a mano.
         </p>
       </div>
 

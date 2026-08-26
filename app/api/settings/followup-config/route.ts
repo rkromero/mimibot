@@ -11,6 +11,11 @@ const configSchema = z.object({
   maxFollowUps: z.number().int().min(1).max(10).optional(),
   retryHours: z.array(z.number().int().min(1)).min(1).max(5).optional(),
   stallingPhrases: z.array(z.string().min(1).max(100)).max(30).optional(),
+  propuestaEnabled: z.boolean().optional(),
+  propuestaHoras: z.number().int().min(1).max(23).optional(),
+  propuestaMensaje: z.string().max(1000).nullable().optional(),
+  propuestaTemplateName: z.string().max(200).nullable().optional(),
+  propuestaTemplateLang: z.string().max(20).nullable().optional(),
 })
 
 export async function GET() {
@@ -25,6 +30,11 @@ export async function GET() {
     maxFollowUps: 3,
     retryHours: [1, 22, 72],
     stallingPhrases: [],
+    propuestaEnabled: true,
+    propuestaHoras: 23,
+    propuestaMensaje: null,
+    propuestaTemplateName: null,
+    propuestaTemplateLang: null,
   })
 }
 

@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
 import { estadoMasAvanzado } from '@/lib/whatsapp/estado-mensaje'
+import { cancelarSeguimientoPropuestaPorRespuesta } from '@/lib/followup/engine'
 import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/validations/webhook'
@@ -264,6 +265,13 @@ async function handleInboundMessage(params: {
   await db.update(leads)
     .set({ lastContactedAt: sentAt, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
+
+  // Si había un seguimiento de propuesta programado, el cliente ya respondió: no hace falta
+  try {
+    await cancelarSeguimientoPropuestaPorRespuesta(leadId)
+  } catch (err) {
+    console.error('[webhook] error cancelando seguimiento de propuesta:', err)
+  }
 
   const mediaId = getMediaId(msg)
   if (mediaId && savedMsg) {

@@ -14,6 +14,7 @@ import { formatNumeroPropuesta } from '@/lib/pdf/propuesta.template'
 import { uploadMediaToMeta, sendMediaMessage } from '@/lib/whatsapp/client'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { programarSeguimientoPropuesta } from '@/lib/followup/engine'
 import type { Session } from 'next-auth'
 
 const enviarSchema = z.object({
@@ -71,6 +72,11 @@ export async function POST(
     // 'descarga': el PDF ya lo bajó el navegador vía GET /pdf; acá solo se registra
 
     await marcarEnviada(id, propuesta.leadId, pdf.numero, parsed.data.via, session.user.id)
+
+    // Seguimiento automático al día siguiente (Ajustes → Seguimiento). Best-effort.
+    void programarSeguimientoPropuesta(propuesta.leadId).catch((err) => {
+      console.error('[propuesta] no se pudo programar el seguimiento:', err)
+    })
 
     return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada' } })
   } catch (err) {
