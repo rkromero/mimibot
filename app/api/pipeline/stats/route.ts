@@ -44,7 +44,7 @@ export async function GET() {
       const { getSessionContext } = await import('@/lib/territorios/context')
       const ctx = await getSessionContext(session.user)
       if (ctx.agentesVisibles.length === 0) {
-        return NextResponse.json({ ganadoMes: 0, perdidoMes: 0 })
+        return NextResponse.json({ ganadoMes: 0, perdidoMes: 0, perdidosPorMotivo: [] })
       }
       roleConditions.push(inArray(leads.assignedTo, ctx.agentesVisibles))
     }
@@ -66,27 +66,35 @@ export async function GET() {
       .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
       .where(and(...ganadoConditions))
 
-    // ── perdidoMes: isTerminal=true, isWon=false, updated_at en el mes AR ────
-    // No existe lostAt; updated_at es el proxy (el lead queda sin editar al cerrarse)
+    // ── perdidoMes: isTerminal=true, isWon=false, perdido_at en el mes AR ────
+    // (leads cerrados antes de existir perdido_at usan updated_at como proxy)
+    const fechaPerdido = sql`coalesce(${leads.perdidoAt}, ${leads.updatedAt})`
     const perdidoConditions: (SQL<unknown> | undefined)[] = [
       eq(leads.isOpen, false),
       eq(pipelineStages.isTerminal, true),
       eq(pipelineStages.isWon, false),
       isNull(leads.deletedAt),
-      gte(leads.updatedAt, inicioMes),
-      lt(leads.updatedAt, finMes),
+      sql`${fechaPerdido} >= ${inicioMes}`,
+      sql`${fechaPerdido} < ${finMes}`,
       ...roleConditions,
     ]
 
-    const [perdidoRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    const porMotivo = await db
+      .select({ motivo: leads.motivoPerdida, count: sql<number>`count(*)::int` })
       .from(leads)
       .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
       .where(and(...perdidoConditions))
+      .groupBy(leads.motivoPerdida)
+
+    const perdidoMes = porMotivo.reduce((acc, r) => acc + r.count, 0)
+    const perdidosPorMotivo = porMotivo
+      .map((r) => ({ motivo: r.motivo, count: r.count }))
+      .sort((a, b) => b.count - a.count)
 
     return NextResponse.json({
       ganadoMes: ganadoRow?.count ?? 0,
-      perdidoMes: perdidoRow?.count ?? 0,
+      perdidoMes,
+      perdidosPorMotivo,
     })
   } catch (err) {
     const { message, status } = toApiError(err)

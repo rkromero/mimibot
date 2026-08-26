@@ -11,6 +11,8 @@ import ActivityLogPanel from './ActivityLogPanel'
 import ChatFeed from '@/components/chat/ChatFeed'
 import ChatComposer from '@/components/chat/ChatComposer'
 import TagBadge from '@/components/shared/TagBadge'
+import GradoBadge from '@/components/shared/GradoBadge'
+import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import MuestraModal from './MuestraModal'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
@@ -434,11 +436,21 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {tagList.length > 0 && (
-          <div className="flex flex-wrap gap-1 px-4 py-2 border-b border-border">
+        {(tagList.length > 0 || lead.botGrado) && (
+          <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b border-border">
+            <GradoBadge grado={lead.botGrado} score={lead.botScore} conTexto />
             {tagList.map((tag) => (
               <TagBadge key={tag.id} tag={tag} />
             ))}
+          </div>
+        )}
+
+        {!lead.isOpen && lead.perdidoAt && (
+          <div className="px-4 py-2 border-b border-border bg-rose-50 dark:bg-rose-950/20">
+            <p className="text-xs text-rose-700 dark:text-rose-300">
+              <span className="font-medium">Perdido:</span> {labelMotivoPerdida(lead.motivoPerdida)}
+              {lead.motivoPerdidaDetalle ? ` — ${lead.motivoPerdidaDetalle}` : ''}
+            </p>
           </div>
         )}
 

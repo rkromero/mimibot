@@ -9,7 +9,7 @@ import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { programarSeguimientoIndagacion } from '@/lib/followup/engine'
 import { assignLeadByRule } from '@/lib/assignment'
-import { armarContextoLead, armarHistorialClaude, separarResumen, HANDOFF_MARKER } from './bot-context'
+import { armarContextoLead, armarHistorialClaude, separarResumen, extraerScore, HANDOFF_MARKER } from './bot-context'
 
 const DEFAULT_SYSTEM_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -245,12 +245,16 @@ async function qualifyAndAssign(
     console.warn('[bot] qualifyAndAssign: sin agentes elegibles, lead sin asignar', { leadId })
   }
 
+  const { score, grado } = extraerScore(resumen)
+
   await db.update(leads)
     .set({
       botEnabled: false,
       botQualified: true,
       ...(calificadoStage ? { stageId: calificadoStage.id } : {}),
       ...(agentId !== null ? { assignedTo: agentId } : {}),
+      ...(score !== null ? { botScore: score } : {}),
+      ...(grado ? { botGrado: grado } : {}),
       updatedAt: new Date(),
     })
     .where(eq(leads.id, leadId))
@@ -273,7 +277,7 @@ async function qualifyAndAssign(
   await db.insert(activityLog).values({
     leadId,
     action: 'bot_handoff',
-    metadata: { lastBotMessage: lastMessage.slice(0, 200), assignedTo: agentId },
+    metadata: { lastBotMessage: lastMessage.slice(0, 200), assignedTo: agentId, botScore: score, botGrado: grado },
   })
 
   await publishCrmEvent({

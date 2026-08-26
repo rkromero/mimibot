@@ -92,12 +92,29 @@ export async function PATCH(
         newStageIsWon = true
         updates.wonAt = new Date()
       }
+      const esPerdido = !!newStage?.isTerminal && !newStage.isWon
+      if (esPerdido) {
+        updates.perdidoAt = new Date()
+        updates.motivoPerdida = parsed.data.motivoPerdida ?? null
+        updates.motivoPerdidaDetalle = parsed.data.motivoPerdidaDetalle ?? null
+        updates.botEnabled = false
+      } else if (newStage && !newStage.isTerminal && !current.isOpen) {
+        // Reabrir un lead cerrado: vuelve a estar abierto y se limpia el cierre
+        updates.isOpen = true
+        updates.perdidoAt = null
+        updates.motivoPerdida = null
+        updates.motivoPerdidaDetalle = null
+      }
 
       await db.insert(activityLog).values({
         leadId: id,
         userId: session.user.id,
         action: 'stage_changed',
-        metadata: { fromStageId: current.stageId, toStageId: parsed.data.stageId },
+        metadata: {
+          fromStageId: current.stageId,
+          toStageId: parsed.data.stageId,
+          ...(esPerdido ? { motivoPerdida: parsed.data.motivoPerdida ?? null, detalle: parsed.data.motivoPerdidaDetalle ?? null } : {}),
+        },
       })
     }
 

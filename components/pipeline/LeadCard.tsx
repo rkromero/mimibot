@@ -8,6 +8,7 @@ import Avatar from '@/components/shared/Avatar'
 import TagBadge from '@/components/shared/TagBadge'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { Trash2, FlaskConical } from 'lucide-react'
+import GradoBadge from '@/components/shared/GradoBadge'
 import { formatFechaInstanteAR } from '@/lib/dates'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -98,8 +99,11 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
 
         {/* Nombre + tiempo */}
         <div className="flex items-start justify-between gap-1">
-          <span className="text-sm font-medium text-foreground leading-tight truncate">
-            {lead.contact.name}
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-foreground leading-tight truncate">
+              {lead.contact.name}
+            </span>
+            <GradoBadge grado={lead.botGrado} score={lead.botScore} />
           </span>
           {lead.lastMessage?.sentAt && (
             <span className="text-xs text-muted-foreground shrink-0 tabular-nums">

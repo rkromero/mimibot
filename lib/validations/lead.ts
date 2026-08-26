@@ -1,3 +1,4 @@
+import { CODIGOS_MOTIVO_PERDIDA } from '@/lib/leads/motivos-perdida'
 import { z } from 'zod'
 
 export const createLeadSchema = z.object({
@@ -25,6 +26,9 @@ export const updateLeadSchema = z.object({
   localidad: z.string().max(120).nullable().optional(),
   botEnabled: z.boolean().optional(),
   customFields: z.record(z.unknown()).optional(),
+  /** Al mover a Cerrado Perdido: por qué se pierde */
+  motivoPerdida: z.enum(CODIGOS_MOTIVO_PERDIDA).optional(),
+  motivoPerdidaDetalle: z.string().max(300).nullable().optional(),
 })
 
 // ─── Intake público (formularios de landings) ─────────────────────────────────

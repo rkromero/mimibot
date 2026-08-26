@@ -2,10 +2,12 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
+import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 
 type PipelineStats = {
   ganadoMes: number
   perdidoMes: number
+  perdidosPorMotivo?: Array<{ motivo: string | null; count: number }>
 }
 
 type Props = {
@@ -51,6 +53,16 @@ export default function ColumnaCerradaStat({ tipo }: Props) {
             {count}
           </span>
           <span className="text-xs text-muted-foreground">{label}</span>
+          {tipo === 'perdido' && (data?.perdidosPorMotivo?.length ?? 0) > 0 && (
+            <ul className="mt-1 w-full max-w-[13rem] space-y-0.5 text-[11px] text-muted-foreground">
+              {data!.perdidosPorMotivo!.map((m) => (
+                <li key={m.motivo ?? 'sin'} className="flex justify-between gap-2">
+                  <span className="truncate">{labelMotivoPerdida(m.motivo)}</span>
+                  <span className="tabular-nums shrink-0">{m.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </div>

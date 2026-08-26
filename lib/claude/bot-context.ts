@@ -126,3 +126,13 @@ export function separarResumen(respuesta: string): { visible: string; resumen: s
   const visible = antes.replace(HANDOFF_MARKER, '').trim()
   return { visible, resumen: resumen || null, handoff }
 }
+
+/** Lee "Score: X/14, grado A/B/C" del bloque [RESUMEN] (tolerante al formato). */
+export function extraerScore(resumen: string | null | undefined): { score: number | null; grado: 'A' | 'B' | 'C' | null } {
+  if (!resumen) return { score: null, grado: null }
+  const scoreMatch = /score\s*:?\s*(\d{1,2})\s*\/\s*14/i.exec(resumen)
+  const gradoMatch = /grado\s*:?\s*([ABC])\b/i.exec(resumen) ?? /\(\s*([ABC])\s*\)/.exec(resumen)
+  const score = scoreMatch ? Math.min(14, parseInt(scoreMatch[1]!, 10)) : null
+  const grado = gradoMatch ? (gradoMatch[1]!.toUpperCase() as 'A' | 'B' | 'C') : null
+  return { score, grado }
+}

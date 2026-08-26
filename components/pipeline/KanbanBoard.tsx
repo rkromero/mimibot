@@ -21,6 +21,8 @@ import LeadList from './LeadList'
 import PipelineFilters from './PipelineFilters'
 import CreateLeadModal from './CreateLeadModal'
 import BulkImportModal from './BulkImportModal'
+import MotivoPerdidaModal from './MotivoPerdidaModal'
+import type { MotivoPerdida } from '@/lib/leads/motivos-perdida'
 import LeadPanel from '@/components/lead/LeadPanel'
 import type { PipelineStage, LeadWithContact } from '@/types/db'
 import type { Session } from 'next-auth'
@@ -38,6 +40,8 @@ export default function KanbanBoard({ stages, user }: Props) {
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [activeLead, setActiveLead] = useState<LeadWithContact | null>(null)
   const [overStageId, setOverStageId] = useState<string | null>(null)
+  // Lead soltado en "Cerrado Perdido" esperando que el usuario indique el motivo
+  const [pendienteMotivo, setPendienteMotivo] = useState<{ leadId: string; stageId: string; leadName: string } | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -78,11 +82,16 @@ export default function KanbanBoard({ stages, user }: Props) {
   })
 
   const moveMutation = useMutation({
-    mutationFn: async ({ leadId, stageId }: { leadId: string; stageId: string }) => {
+    mutationFn: async ({ leadId, stageId, motivoPerdida, motivoPerdidaDetalle }: {
+      leadId: string
+      stageId: string
+      motivoPerdida?: MotivoPerdida
+      motivoPerdidaDetalle?: string | null
+    }) => {
       const res = await fetch(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stageId }),
+        body: JSON.stringify({ stageId, ...(motivoPerdida ? { motivoPerdida, motivoPerdidaDetalle } : {}) }),
       })
       if (!res.ok) throw new Error('Error al mover lead')
     },
@@ -202,6 +211,13 @@ export default function KanbanBoard({ stages, user }: Props) {
       },
     )
 
+    // A "Cerrado Perdido" no se mueve sin motivo: se pide antes de confirmar
+    const targetStage = stages.find((s) => s.id === targetStageId)
+    if (targetStage?.isTerminal && !targetStage.isWon) {
+      setPendienteMotivo({ leadId, stageId: targetStageId, leadName: found.lead.contact.name })
+      return
+    }
+
     moveMutation.mutate({ leadId, stageId: targetStageId })
   }
 
@@ -302,6 +318,21 @@ export default function KanbanBoard({ stages, user }: Props) {
 
       {showCreate && (
         <CreateLeadModal stages={stages} onClose={() => setShowCreate(false)} />
+      )}
+
+      {pendienteMotivo && (
+        <MotivoPerdidaModal
+          leadName={pendienteMotivo.leadName}
+          onConfirm={(motivo, detalle) => {
+            moveMutation.mutate({ ...pendienteMotivo, motivoPerdida: motivo, motivoPerdidaDetalle: detalle })
+            setPendienteMotivo(null)
+          }}
+          onCancel={() => {
+            setPendienteMotivo(null)
+            // Deshacer el movimiento optimista
+            void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+          }}
+        />
       )}
 
       {showImport && (

@@ -25,11 +25,16 @@ vi.mock('@/lib/dates', async (importOriginal) => {
 // Cada llamada a db.select() genera una nueva cadena; where() resuelve con el
 // resultado correspondiente (primera llamada = ganado, segunda = perdido).
 
+// where() es awaitable (query de ganados) y además expone groupBy() (query de
+// perdidos, agrupada por motivo) que resuelve con el mismo resultado.
 const buildChain = (result: { count: number }[]) => {
+  const whereResult = Object.assign(Promise.resolve(result), {
+    groupBy: vi.fn().mockResolvedValue(result),
+  })
   const chain = {
     from: vi.fn(),
     innerJoin: vi.fn(),
-    where: vi.fn().mockResolvedValue(result),
+    where: vi.fn().mockReturnValue(whereResult),
   }
   chain.from.mockReturnValue(chain)
   chain.innerJoin.mockReturnValue(chain)

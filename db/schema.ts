@@ -131,6 +131,13 @@ export const leads = pgTable('leads', {
   followUpStatus: followUpStatusEnum('follow_up_status'),
   followUpReason: text('follow_up_reason'),
   wonAt: timestamp('won_at', { mode: 'date' }),
+  /** Score del bot al derivar (0-14) y grado A/B/C, para priorizar */
+  botScore: integer('bot_score'),
+  botGrado: text('bot_grado'),
+  /** Cierre como perdido: cuándo y por qué (código de lib/leads/motivos-perdida) */
+  perdidoAt: timestamp('perdido_at', { mode: 'date' }),
+  motivoPerdida: text('motivo_perdida'),
+  motivoPerdidaDetalle: text('motivo_perdida_detalle'),
   // Fecha en que se entregó la muestra CDA (pedido tipo 'muestra' → entregado).
   // Se muestra en la card del kanban; también marca que ya se procesó el paso
   // a "Muestra enviada" (idempotencia).

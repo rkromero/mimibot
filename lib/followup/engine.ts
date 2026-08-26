@@ -23,6 +23,7 @@ import {
   type HorarioPermitido,
 } from './indagacion'
 import { generarMensajeRetomar } from '@/lib/claude/bot'
+import { MOTIVO_AUTO_DESISTIO, MOTIVO_AUTO_SIN_RESPUESTA, type MotivoPerdida } from '@/lib/leads/motivos-perdida'
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -545,7 +546,7 @@ export async function manejarRespuestaClienteIndagacion(leadId: string, texto: s
   if (esperandoRespuestaAlFinal && texto.trim()) {
     const config = await db.query.followUpConfig.findFirst()
     if (detectStalling(texto, config?.stallingPhrases ?? [])) {
-      await marcarLeadPerdido(leadId, 'Respondió al mensaje final que lo deja para más adelante')
+      await marcarLeadPerdido(leadId, 'Respondió al mensaje final que lo deja para más adelante', MOTIVO_AUTO_DESISTIO)
       return true
     }
   }
@@ -564,7 +565,7 @@ export async function manejarRespuestaClienteIndagacion(leadId: string, texto: s
 }
 
 /** Cierra el lead en "Cerrado Perdido" con nota y actividad. */
-export async function marcarLeadPerdido(leadId: string, motivo: string): Promise<void> {
+export async function marcarLeadPerdido(leadId: string, motivo: string, codigo: MotivoPerdida = MOTIVO_AUTO_SIN_RESPUESTA): Promise<void> {
   const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { id: true, stageId: true, assignedTo: true } })
   if (!lead) return
   const perdido = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.slug, 'cerrado-lost'), columns: { id: true } })
@@ -577,6 +578,9 @@ export async function marcarLeadPerdido(leadId: string, motivo: string): Promise
       botEnabled: false,
       nextFollowUpAt: null,
       followUpStatus: 'sent',
+      perdidoAt: new Date(),
+      motivoPerdida: codigo,
+      motivoPerdidaDetalle: motivo,
       updatedAt: new Date(),
     })
     .where(eq(leads.id, leadId))
@@ -584,7 +588,7 @@ export async function marcarLeadPerdido(leadId: string, motivo: string): Promise
   await db.insert(activityLog).values({
     leadId,
     action: 'stage_changed',
-    metadata: { fromStageId: lead.stageId, toStageId: perdido?.id ?? null, auto: true, motivo },
+    metadata: { fromStageId: lead.stageId, toStageId: perdido?.id ?? null, auto: true, motivoPerdida: codigo, detalle: motivo },
   })
 
   const conversation = await db.query.conversations.findFirst({ where: eq(conversations.leadId, leadId), columns: { id: true } })
@@ -618,7 +622,7 @@ async function procesarSeguimientoIndagacion(
 
   // Cierre: pasó el plazo del mensaje final sin respuesta
   if (reason === 'indagacion_cierre') {
-    await marcarLeadPerdido(lead.id, 'Sin respuesta al mensaje final de seguimiento')
+    await marcarLeadPerdido(lead.id, 'Sin respuesta al mensaje final de seguimiento', MOTIVO_AUTO_SIN_RESPUESTA)
     return
   }
 
