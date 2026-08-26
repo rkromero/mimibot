@@ -97,11 +97,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      let dbUser: { role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'; isActive: boolean; avatarColor: string } | undefined
+      let dbUser: { name: string | null; role: 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion'; isActive: boolean; avatarColor: string } | undefined
       try {
+        // Nombre, rol y color se leen de la base en cada request: si se editan
+        // en Usuarios, el cambio aplica sin tener que volver a iniciar sesión
+        // (el JWT solo guarda lo que había al momento del login).
         dbUser = await db.query.users.findFirst({
           where: eq(users.id, token.sub!),
-          columns: { role: true, isActive: true, avatarColor: true },
+          columns: { name: true, role: true, isActive: true, avatarColor: true },
         }) ?? undefined
       } catch {
         // DB unavailable — return session with defaults so the app doesn't hard-crash
@@ -112,6 +115,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         user: {
           ...session.user,
           id: token.sub!,
+          name: dbUser?.name ?? session.user.name ?? null,
           role: dbUser?.role ?? ((token.role as 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'repartidor' | 'rtv' | 'distribucion' | undefined) ?? 'agent'),
           avatarColor: dbUser?.avatarColor ?? '#1d4ed8',
           totpPending: (token.totpPending as boolean | undefined) ?? false,
