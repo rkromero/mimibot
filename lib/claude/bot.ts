@@ -9,6 +9,7 @@ import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { detectStalling, scheduleFollowUp } from '@/lib/followup/engine'
 import { assignLeadByRule } from '@/lib/assignment'
+import { armarContextoLead, armarHistorialClaude } from './bot-context'
 
 // Marcador que Claude incluye cuando quiere hacer handoff
 const HANDOFF_MARKER = '[HANDOFF]'
@@ -35,7 +36,10 @@ export async function processBotTurn(params: {
 
   // Cargar lead y configuración del bot
   const [lead, config] = await Promise.all([
-    db.query.leads.findFirst({ where: eq(leads.id, leadId) }),
+    db.query.leads.findFirst({
+      where: eq(leads.id, leadId),
+      with: { contact: { columns: { name: true } } },
+    }),
     db.query.botConfig.findFirst(),
   ])
 
@@ -63,20 +67,30 @@ export async function processBotTurn(params: {
     orderBy: [asc(messages.sentAt)],
   })
 
-  const claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
-
-  for (const msg of history) {
-    if (msg.contentType === 'internal_note') continue
-    if (msg.senderType === 'contact') {
-      claudeMessages.push({ role: 'user', content: msg.body ?? '' })
-    } else if (msg.senderType === 'bot') {
-      claudeMessages.push({ role: 'assistant', content: msg.body ?? '' })
-    }
-  }
+  // Contacto → user; bot y equipo (apertura con plantilla, textos del vendedor) → assistant.
+  // Si la conversación arrancó con mensajes del equipo, van al contexto del system prompt.
+  const { turnos: claudeMessages, previosDelEquipo } = armarHistorialClaude(history)
 
   if (claudeMessages.length === 0) return
 
-  const systemPrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
+  // Lo que ya sabemos del lead (formulario del landing, notas) para que el bot
+  // no vuelva a saludar ni a preguntar lo que ya está cargado.
+  const customFields = (lead.customFields ?? {}) as Record<string, unknown>
+  const empresa = typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null
+  const contextoLead = armarContextoLead(
+    {
+      contactName: lead.contact?.name ?? null,
+      empresa,
+      productoInteres: lead.productInterest,
+      localidad: lead.localidad,
+      direccion: lead.direccion,
+      notas: lead.notes,
+    },
+    previosDelEquipo,
+  )
+
+  const basePrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
+  const systemPrompt = contextoLead ? `${basePrompt}\n\n${contextoLead}` : basePrompt
 
   let claudeResponse: string
   try {
