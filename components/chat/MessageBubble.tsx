@@ -56,6 +56,12 @@ export default function MessageBubble({ message }: { message: MessageWithAttachm
         >
           {message.contentType === 'text' || message.contentType === 'internal_note' ? (
             <p className="whitespace-pre-wrap break-words">{message.body}</p>
+          ) : message.contentType === 'template' && message.body ? (
+            <>
+              {/* Plantilla aprobada de Meta: el cuerpo guardado ya tiene las variables resueltas */}
+              <p className="whitespace-pre-wrap break-words">{message.body}</p>
+              <p className="text-[10px] uppercase tracking-wide opacity-70 mt-1">Plantilla</p>
+            </>
           ) : message.attachments.length === 0 ? (
             <p className="text-xs italic opacity-80">
               [{contentTypeLabel(message.contentType)}]
