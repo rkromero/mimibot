@@ -9,10 +9,7 @@ import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { programarSeguimientoIndagacion } from '@/lib/followup/engine'
 import { assignLeadByRule } from '@/lib/assignment'
-import { armarContextoLead, armarHistorialClaude } from './bot-context'
-
-// Marcador que Claude incluye cuando quiere hacer handoff
-const HANDOFF_MARKER = '[HANDOFF]'
+import { armarContextoLead, armarHistorialClaude, separarResumen, HANDOFF_MARKER } from './bot-context'
 
 const DEFAULT_SYSTEM_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -90,12 +87,11 @@ export async function processBotTurn(params: {
 
   // <<CRITERIO_DE_CALIFICACION>>: condición principal — [HANDOFF] en respuesta del bot
   // o frase de handoff detectada en el último mensaje del usuario.
+  // El bloque [RESUMEN] (datos relevados) nunca va al cliente: queda como nota interna.
+  const { visible: cleanResponse, resumen, handoff } = separarResumen(claudeResponse)
   const shouldHandoff =
-    claudeResponse.includes(HANDOFF_MARKER) ||
+    handoff ||
     checkHandoffPhrases(claudeMessages.at(-1)?.content ?? '', config?.handoffPhrases ?? [])
-
-  // Limpiar el marcador del texto visible
-  const cleanResponse = claudeResponse.replace(HANDOFF_MARKER, '').trim()
 
   // Guardar respuesta del bot en DB
   await db.insert(messages).values({
@@ -130,7 +126,7 @@ export async function processBotTurn(params: {
   }
 
   if (shouldHandoff) {
-    await performHandoff(leadId, conversationId, contactPhone, cleanResponse)
+    await performHandoff(leadId, conversationId, contactPhone, cleanResponse, resumen)
     return
   }
 
@@ -217,12 +213,11 @@ export async function generarMensajeRetomar(leadId: string, conversationId: stri
       2,
       800,
     )
-    const texto = response.content
+    const crudo = response.content
       .filter((b) => b.type === 'text')
       .map((b) => b.text)
       .join('')
-      .replace(HANDOFF_MARKER, '')
-      .trim()
+    const texto = separarResumen(crudo).visible
     return texto || null
   } catch (err) {
     console.error('[bot] Claude error generando mensaje para retomar:', err)
@@ -234,6 +229,7 @@ async function qualifyAndAssign(
   leadId: string,
   conversationId: string,
   lastMessage: string,
+  resumen: string | null = null,
 ): Promise<void> {
   const stages = await db.query.pipelineStages.findMany({
     orderBy: [asc(pipelineStages.position)],
@@ -259,9 +255,10 @@ async function qualifyAndAssign(
     })
     .where(eq(leads.id, leadId))
 
-  const noteBody = agentId
+  const encabezado = agentId
     ? `Lead calificado y asignado al agente ${agentId}. Listo para el equipo de ventas.`
     : 'Lead calificado. Sin agentes disponibles para asignar.'
+  const noteBody = resumen ? `${encabezado}\n\nResumen del bot:\n${resumen}` : encabezado
 
   await db.insert(messages).values({
     conversationId,
@@ -294,8 +291,9 @@ async function performHandoff(
   conversationId: string,
   _contactPhone: string,
   lastMessage: string,
+  resumen: string | null = null,
 ): Promise<void> {
-  await qualifyAndAssign(leadId, conversationId, lastMessage)
+  await qualifyAndAssign(leadId, conversationId, lastMessage, resumen)
 }
 
 function checkHandoffPhrases(userMessage: string, phrases: string[]): boolean {

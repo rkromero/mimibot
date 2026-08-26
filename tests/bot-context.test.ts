@@ -3,7 +3,7 @@
  * y mensajes que el equipo ya mandó (apertura con plantilla).
  */
 import { describe, it, expect } from 'vitest'
-import { armarContextoLead, armarHistorialClaude } from '@/lib/claude/bot-context'
+import { armarContextoLead, armarHistorialClaude, separarResumen } from '@/lib/claude/bot-context'
 
 describe('armarContextoLead', () => {
   it('sin datos ni mensajes previos devuelve vacío (no ensucia el prompt)', () => {
@@ -85,5 +85,23 @@ describe('armarHistorialClaude', () => {
   it('sin mensajes del contacto no hay turnos', () => {
     const { turnos } = armarHistorialClaude([{ senderType: 'agent', contentType: 'template', body: 'Hola' }])
     expect(turnos).toEqual([])
+  })
+})
+
+describe('separarResumen', () => {
+  it('sin marcadores devuelve el texto tal cual', () => {
+    expect(separarResumen('Qué volumen tenés en mente?')).toEqual({ visible: 'Qué volumen tenés en mente?', resumen: null, handoff: false })
+  })
+
+  it('al derivar: el cliente ve solo el cierre; el resumen queda aparte', () => {
+    const r = separarResumen('Listo, te derivo con un asesor.\n[HANDOFF]\n[RESUMEN]\nProducto: alfajores\nCantidad: 3000/mes')
+    expect(r.visible).toBe('Listo, te derivo con un asesor.')
+    expect(r.handoff).toBe(true)
+    expect(r.resumen).toBe('Producto: alfajores\nCantidad: 3000/mes')
+  })
+
+  it('[HANDOFF] sin resumen y resumen vacío', () => {
+    expect(separarResumen('Chau! [HANDOFF]')).toEqual({ visible: 'Chau!', resumen: null, handoff: true })
+    expect(separarResumen('Chau! [HANDOFF] [RESUMEN]')).toEqual({ visible: 'Chau!', resumen: null, handoff: true })
   })
 })

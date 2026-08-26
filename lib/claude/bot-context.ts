@@ -108,3 +108,21 @@ export function armarHistorialClaude(history: MensajeHistorial[]): {
 
   return { turnos, previosDelEquipo }
 }
+
+export const HANDOFF_MARKER = '[HANDOFF]'
+export const RESUMEN_MARKER = '[RESUMEN]'
+
+/**
+ * Separa lo que ve el cliente de lo que es para el equipo. El bot, al derivar,
+ * escribe el cierre, luego [HANDOFF] y un bloque [RESUMEN] con los datos
+ * relevados. Nada de eso debe llegar al cliente: se saca del texto visible y
+ * el resumen se guarda como nota interna.
+ */
+export function separarResumen(respuesta: string): { visible: string; resumen: string | null; handoff: boolean } {
+  const handoff = respuesta.includes(HANDOFF_MARKER)
+  const idx = respuesta.indexOf(RESUMEN_MARKER)
+  const antes = idx >= 0 ? respuesta.slice(0, idx) : respuesta
+  const resumen = idx >= 0 ? respuesta.slice(idx + RESUMEN_MARKER.length).replace(HANDOFF_MARKER, '').trim() : null
+  const visible = antes.replace(HANDOFF_MARKER, '').trim()
+  return { visible, resumen: resumen || null, handoff }
+}
