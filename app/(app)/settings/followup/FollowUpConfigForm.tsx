@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import type { FollowUpConfig } from '@/types/db'
 import { MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT } from '@/lib/followup/propuesta'
+import { MENSAJE_FINAL_DEFAULT } from '@/lib/followup/indagacion'
 
 type Props = { initialConfig: FollowUpConfig | null }
 
@@ -24,6 +25,13 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
     propuestaMensaje: initialConfig?.propuestaMensaje ?? MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT,
     propuestaTemplateName: initialConfig?.propuestaTemplateName ?? '',
     propuestaTemplateLang: initialConfig?.propuestaTemplateLang ?? 'es',
+    indagacionEnabled: initialConfig?.indagacionEnabled ?? true,
+    indagacionHoras: initialConfig?.indagacionHoras ?? 2,
+    indagacionFinalHoras: initialConfig?.indagacionFinalHoras ?? 23,
+    indagacionCierreHoras: initialConfig?.indagacionCierreHoras ?? 24,
+    horarioDesde: initialConfig?.horarioDesde ?? 8,
+    horarioHasta: initialConfig?.horarioHasta ?? 22,
+    indagacionMensajeFinal: initialConfig?.indagacionMensajeFinal ?? MENSAJE_FINAL_DEFAULT,
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -60,6 +68,13 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           propuestaMensaje: form.propuestaMensaje.trim() || null,
           propuestaTemplateName: form.propuestaTemplateName.trim() || null,
           propuestaTemplateLang: form.propuestaTemplateLang.trim() || 'es',
+          indagacionEnabled: form.indagacionEnabled,
+          indagacionHoras: form.indagacionHoras,
+          indagacionFinalHoras: form.indagacionFinalHoras,
+          indagacionCierreHoras: form.indagacionCierreHoras,
+          horarioDesde: form.horarioDesde,
+          horarioHasta: form.horarioHasta,
+          indagacionMensajeFinal: form.indagacionMensajeFinal.trim() || null,
         }),
       })
 
@@ -289,6 +304,105 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Sin plantilla, si la ventana
           está cerrada el sistema deja una nota interna en el chat para que lo mandes a mano.
         </p>
+      </div>
+
+      {/* Seguimiento de indagación (leads en Nuevo) */}
+      <div className="pt-4 border-t border-border space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">Leads en Nuevo que dejan de responder al bot</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Cada vez que el bot escribe y la persona no contesta: a las N horas el bot retoma la pregunta
+            pendiente; si sigue sin responder, un mensaje final dentro de la ventana de 24 hs; si tampoco
+            responde (o contesta "más adelante"), el lead pasa a Cerrado Perdido. Si vuelve a escribir,
+            se crea un lead nuevo con la misma conversación.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Activo</span>
+          <button
+            type="button"
+            onClick={() => setForm((p) => ({ ...p, indagacionEnabled: !p.indagacionEnabled }))}
+            className={cn(
+              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              form.indagacionEnabled ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700',
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform',
+                form.indagacionEnabled ? 'translate-x-4' : 'translate-x-1',
+              )}
+            />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {([
+            ['indagacionHoras', 'Retomar a las (hs)', 1, 12],
+            ['indagacionFinalHoras', 'Final a las (hs desde su último mensaje)', 6, 23],
+            ['indagacionCierreHoras', 'Perdido a las (hs sin responder al final)', 1, 168],
+          ] as const).map(([key, label, min, max]) => (
+            <div key={key}>
+              <label className="block text-xs font-medium mb-1.5">{label}</label>
+              <input
+                type="number"
+                min={min}
+                max={max}
+                value={form[key]}
+                onChange={(e) => setForm((p) => ({ ...p, [key]: parseInt(e.target.value) || p[key] }))}
+                className={cn(
+                  'w-full px-3 py-2 text-sm rounded-md border',
+                  'border-border bg-background text-foreground',
+                  'focus:outline-none focus:ring-1 focus:ring-ring',
+                )}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Horario permitido para enviar (hora Argentina)</label>
+          <div className="flex items-center gap-2 text-sm">
+            <span>de</span>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={form.horarioDesde}
+              onChange={(e) => setForm((p) => ({ ...p, horarioDesde: parseInt(e.target.value) || 0 }))}
+              className={cn('w-20 px-3 py-2 text-sm rounded-md border', 'border-border bg-background text-foreground', 'focus:outline-none focus:ring-1 focus:ring-ring')}
+            />
+            <span>a</span>
+            <input
+              type="number"
+              min={1}
+              max={24}
+              value={form.horarioHasta}
+              onChange={(e) => setForm((p) => ({ ...p, horarioHasta: parseInt(e.target.value) || 24 }))}
+              className={cn('w-20 px-3 py-2 text-sm rounded-md border', 'border-border bg-background text-foreground', 'focus:outline-none focus:ring-1 focus:ring-ring')}
+            />
+            <span className="text-xs text-muted-foreground">hs. Fuera de ese rango nada se envía: se posterga a la mañana.</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Mensaje final</label>
+          <textarea
+            value={form.indagacionMensajeFinal}
+            onChange={(e) => setForm((p) => ({ ...p, indagacionMensajeFinal: e.target.value }))}
+            rows={3}
+            className={cn(
+              'w-full px-3 py-2 text-sm rounded-md border resize-none',
+              'border-border bg-background text-foreground placeholder:text-muted-foreground',
+              'focus:outline-none focus:ring-1 focus:ring-ring',
+            )}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            <code>{'{{1}}'}</code> = nombre, <code>{'{{2}}'}</code> = producto de interés. El mensaje para retomar lo
+            redacta el bot según lo que quedó pendiente en la charla.
+          </p>
+        </div>
       </div>
 
       {/* Stalling phrases */}

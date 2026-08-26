@@ -16,6 +16,14 @@ const configSchema = z.object({
   propuestaMensaje: z.string().max(1000).nullable().optional(),
   propuestaTemplateName: z.string().max(200).nullable().optional(),
   propuestaTemplateLang: z.string().max(20).nullable().optional(),
+  indagacionEnabled: z.boolean().optional(),
+  indagacionHoras: z.number().int().min(1).max(12).optional(),
+  indagacionFinalHoras: z.number().int().min(6).max(23).optional(),
+  indagacionCierreHoras: z.number().int().min(1).max(168).optional(),
+  horarioDesde: z.number().int().min(0).max(23).optional(),
+  horarioHasta: z.number().int().min(1).max(24).optional(),
+  indagacionMensajeFinal: z.string().max(1000).nullable().optional(),
+  indagacionMensajeRetomar: z.string().max(1000).nullable().optional(),
 })
 
 export async function GET() {
@@ -35,6 +43,14 @@ export async function GET() {
     propuestaMensaje: null,
     propuestaTemplateName: null,
     propuestaTemplateLang: null,
+    indagacionEnabled: true,
+    indagacionHoras: 2,
+    indagacionFinalHoras: 23,
+    indagacionCierreHoras: 24,
+    horarioDesde: 8,
+    horarioHasta: 22,
+    indagacionMensajeFinal: null,
+    indagacionMensajeRetomar: null,
   })
 }
 

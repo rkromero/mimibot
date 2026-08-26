@@ -258,6 +258,20 @@ export const followUpConfig = pgTable('follow_up_config', {
   /** Plantilla aprobada de respaldo si la ventana está cerrada al momento de enviar */
   propuestaTemplateName: text('propuesta_template_name'),
   propuestaTemplateLang: text('propuesta_template_lang'),
+  /** Seguimiento de leads en Nuevo que dejan de responder al bot (indagación) */
+  indagacionEnabled: boolean('indagacion_enabled').notNull().default(true),
+  /** Horas sin respuesta hasta el primer seguimiento (el bot retoma la pregunta pendiente) */
+  indagacionHoras: integer('indagacion_horas').notNull().default(2),
+  /** Horas desde el último mensaje de la persona hasta el mensaje final (dentro de la ventana de 24 hs) */
+  indagacionFinalHoras: integer('indagacion_final_horas').notNull().default(23),
+  /** Horas después del mensaje final sin respuesta para pasar a Perdido */
+  indagacionCierreHoras: integer('indagacion_cierre_horas').notNull().default(24),
+  /** Horario permitido para enviar seguimientos (hora Argentina): desde inclusive, hasta exclusive */
+  horarioDesde: integer('horario_desde').notNull().default(8),
+  horarioHasta: integer('horario_hasta').notNull().default(22),
+  /** Textos; null = default del sistema. {{1}} nombre, {{2}} producto de interés */
+  indagacionMensajeFinal: text('indagacion_mensaje_final'),
+  indagacionMensajeRetomar: text('indagacion_mensaje_retomar'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

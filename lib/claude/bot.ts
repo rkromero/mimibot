@@ -7,7 +7,7 @@ import { anthropic, BOT_MODEL } from './client'
 import { withRetry } from './retry'
 import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
-import { detectStalling, scheduleFollowUp } from '@/lib/followup/engine'
+import { programarSeguimientoIndagacion } from '@/lib/followup/engine'
 import { assignLeadByRule } from '@/lib/assignment'
 import { armarContextoLead, armarHistorialClaude } from './bot-context'
 
@@ -61,36 +61,8 @@ export async function processBotTurn(params: {
     return
   }
 
-  // Cargar historial de conversación (solo mensajes del contacto y del bot)
-  const history = await db.query.messages.findMany({
-    where: eq(messages.conversationId, conversationId),
-    orderBy: [asc(messages.sentAt)],
-  })
-
-  // Contacto → user; bot y equipo (apertura con plantilla, textos del vendedor) → assistant.
-  // Si la conversación arrancó con mensajes del equipo, van al contexto del system prompt.
-  const { turnos: claudeMessages, previosDelEquipo } = armarHistorialClaude(history)
-
+  const { systemPrompt, claudeMessages } = await construirContextoBot(lead, config, conversationId)
   if (claudeMessages.length === 0) return
-
-  // Lo que ya sabemos del lead (formulario del landing, notas) para que el bot
-  // no vuelva a saludar ni a preguntar lo que ya está cargado.
-  const customFields = (lead.customFields ?? {}) as Record<string, unknown>
-  const empresa = typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null
-  const contextoLead = armarContextoLead(
-    {
-      contactName: lead.contact?.name ?? null,
-      empresa,
-      productoInteres: lead.productInterest,
-      localidad: lead.localidad,
-      direccion: lead.direccion,
-      notas: lead.notes,
-    },
-    previosDelEquipo,
-  )
-
-  const basePrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
-  const systemPrompt = contextoLead ? `${basePrompt}\n\n${contextoLead}` : basePrompt
 
   let claudeResponse: string
   try {
@@ -162,14 +134,99 @@ export async function processBotTurn(params: {
     return
   }
 
-  // Detectar frases de estancamiento para agendar seguimiento
-  const lastUserMsg = claudeMessages.filter((m) => m.role === 'user').at(-1)?.content ?? ''
-  const followUpCfg = await db.query.followUpConfig.findFirst()
-  if (followUpCfg?.isEnabled !== false) {
-    const customPhrases = followUpCfg?.stallingPhrases ?? []
-    if (detectStalling(lastUserMsg, customPhrases)) {
-      await scheduleFollowUp(leadId, 'stalling')
-    }
+  // El bot acaba de escribir: si la persona no responde, seguimiento de indagación
+  // (2 hs → retomar la pregunta; 23 hs → mensaje final; luego Perdido).
+  try {
+    await programarSeguimientoIndagacion(leadId)
+  } catch (err) {
+    console.error('[bot] no se pudo programar el seguimiento de indagación:', err)
+  }
+}
+
+type LeadConContacto = typeof leads.$inferSelect & { contact?: { name: string | null } | null }
+
+/**
+ * System prompt (config + lo que ya sabemos del lead) e historial en turnos
+ * para Claude. Lo usan el turno normal del bot y el mensaje para retomar.
+ */
+export async function construirContextoBot(
+  lead: LeadConContacto,
+  config: typeof botConfig.$inferSelect | null | undefined,
+  conversationId: string,
+): Promise<{ systemPrompt: string; claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }> }> {
+  const history = await db.query.messages.findMany({
+    where: eq(messages.conversationId, conversationId),
+    orderBy: [asc(messages.sentAt)],
+  })
+
+  // Contacto → user; bot y equipo (apertura con plantilla, textos del vendedor) → assistant.
+  // Si la conversación arrancó con mensajes del equipo, van al contexto del system prompt.
+  const { turnos: claudeMessages, previosDelEquipo } = armarHistorialClaude(history)
+
+  // Lo que ya sabemos del lead (formulario del landing, notas) para que el bot
+  // no vuelva a saludar ni a preguntar lo que ya está cargado.
+  const customFields = (lead.customFields ?? {}) as Record<string, unknown>
+  const empresa = typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null
+  const contextoLead = armarContextoLead(
+    {
+      contactName: lead.contact?.name ?? null,
+      empresa,
+      productoInteres: lead.productInterest,
+      localidad: lead.localidad,
+      direccion: lead.direccion,
+      notas: lead.notes,
+    },
+    previosDelEquipo,
+  )
+
+  const basePrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
+  const systemPrompt = contextoLead ? `${basePrompt}\n\n${contextoLead}` : basePrompt
+  return { systemPrompt, claudeMessages }
+}
+
+/**
+ * Mensaje corto para retomar la indagación cuando la persona dejó de responder:
+ * vuelve sobre la pregunta que quedó pendiente, sin saludar ni presentarse.
+ * Devuelve null si Claude falla (el caller usa un texto fijo).
+ */
+export async function generarMensajeRetomar(leadId: string, conversationId: string): Promise<string | null> {
+  const [lead, config] = await Promise.all([
+    db.query.leads.findFirst({ where: eq(leads.id, leadId), with: { contact: { columns: { name: true } } } }),
+    db.query.botConfig.findFirst(),
+  ])
+  if (!lead) return null
+
+  const { systemPrompt, claudeMessages } = await construirContextoBot(lead, config, conversationId)
+  if (claudeMessages.length === 0) return null
+
+  const instruccion =
+    '[Instrucción del sistema, no es un mensaje de la persona] Pasaron unas horas y la persona no respondió tu último mensaje. ' +
+    'Escribí UN solo mensaje breve (máximo 2 oraciones) para retomar: volvé sobre la pregunta que quedó pendiente, ' +
+    'de forma amable y fácil de contestar. No saludes de nuevo, no te presentes, no repitas información ya dada, ' +
+    'no digas que es un seguimiento automático, sin markdown ni listas. Respondé solo con el mensaje.'
+
+  try {
+    const response = await withRetry(
+      () =>
+        anthropic.messages.create({
+          model: BOT_MODEL,
+          max_tokens: 200,
+          system: systemPrompt,
+          messages: [...claudeMessages, { role: 'user', content: instruccion }],
+        }),
+      2,
+      800,
+    )
+    const texto = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .replace(HANDOFF_MARKER, '')
+      .trim()
+    return texto || null
+  } catch (err) {
+    console.error('[bot] Claude error generando mensaje para retomar:', err)
+    return null
   }
 }
 

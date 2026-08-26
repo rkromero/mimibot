@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
 import { estadoMasAvanzado } from '@/lib/whatsapp/estado-mensaje'
-import { cancelarSeguimientoPropuestaPorRespuesta } from '@/lib/followup/engine'
+import { cancelarSeguimientoPropuestaPorRespuesta, manejarRespuestaClienteIndagacion } from '@/lib/followup/engine'
 import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/validations/webhook'
@@ -211,6 +211,30 @@ async function handleInboundMessage(params: {
       return
     }
 
+    // ¿Es alguien que ya tuvo un lead (cerrado como perdido, ganado, etc.) y vuelve a escribir?
+    // Se crea un lead nuevo pero se conserva la conversación: el chat mantiene el historial
+    // y el bot arranca sabiendo lo que ya se habló.
+    const [convPrevia] = await db
+      .select({
+        conversationId: conversations.id,
+        leadId: leads.id,
+        leadUpdatedAt: leads.updatedAt,
+        notes: leads.notes,
+        productInterest: leads.productInterest,
+      })
+      .from(conversations)
+      .innerJoin(leads, eq(conversations.leadId, leads.id))
+      .where(and(eq(conversations.waContactPhone, contactPhone), isNull(leads.deletedAt)))
+      .orderBy(desc(conversations.lastMessageAt))
+      .limit(1)
+
+    const diasDesdeCierre = convPrevia
+      ? Math.max(0, Math.round((Date.now() - convPrevia.leadUpdatedAt.getTime()) / 86_400_000))
+      : null
+    const notasReapertura = convPrevia
+      ? `Volvió a escribir por WhatsApp ${diasDesdeCierre} día(s) después de cerrarse el lead anterior. La conversación conserva el historial previo.`
+      : null
+
     const [newLead] = await db
       .insert(leads)
       .values({
@@ -218,26 +242,44 @@ async function handleInboundMessage(params: {
         stageId: firstStage.id,
         source: 'whatsapp',
         botEnabled: true,
+        ...(convPrevia ? { productInterest: convPrevia.productInterest, notes: notasReapertura } : {}),
       })
       .returning()
 
     await db.insert(activityLog).values({
       leadId: newLead!.id,
       action: 'lead_created',
-      metadata: { source: 'whatsapp', phone: contactPhone },
+      metadata: { source: 'whatsapp', phone: contactPhone, ...(convPrevia ? { reaperturaDeLead: convPrevia.leadId } : {}) },
     })
 
-    const [newConv] = await db
-      .insert(conversations)
-      .values({
-        leadId: newLead!.id,
-        waPhoneNumberId: phoneNumberId,
-        waContactPhone: contactPhone,
+    if (convPrevia) {
+      await db
+        .update(conversations)
+        .set({ leadId: newLead!.id, waPhoneNumberId: phoneNumberId, updatedAt: new Date() })
+        .where(eq(conversations.id, convPrevia.conversationId))
+      await db.insert(messages).values({
+        conversationId: convPrevia.conversationId,
+        direction: 'outbound',
+        senderType: 'system',
+        contentType: 'internal_note',
+        body: notasReapertura!,
+        isRead: true,
+        sentAt: new Date(),
       })
-      .returning()
+      conversationId = convPrevia.conversationId
+    } else {
+      const [newConv] = await db
+        .insert(conversations)
+        .values({
+          leadId: newLead!.id,
+          waPhoneNumberId: phoneNumberId,
+          waContactPhone: contactPhone,
+        })
+        .returning()
+      conversationId = newConv!.id
+    }
 
     leadId = newLead!.id
-    conversationId = newConv!.id
   }
 
   const contentType = msgContentType(msg.type)
@@ -266,11 +308,13 @@ async function handleInboundMessage(params: {
     .set({ lastContactedAt: sentAt, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
 
-  // Si había un seguimiento de propuesta programado, el cliente ya respondió: no hace falta
+  // Seguimientos: la persona respondió. Propuesta → se cancela. Indagación → se cancela,
+  // salvo que sea un "más adelante" al mensaje final, que cierra el lead como perdido.
   try {
     await cancelarSeguimientoPropuestaPorRespuesta(leadId)
+    await manejarRespuestaClienteIndagacion(leadId, body ?? '')
   } catch (err) {
-    console.error('[webhook] error cancelando seguimiento de propuesta:', err)
+    console.error('[webhook] error procesando seguimientos al recibir mensaje:', err)
   }
 
   const mediaId = getMediaId(msg)

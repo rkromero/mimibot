@@ -449,6 +449,13 @@
       "when": 1787654929715,
       "tag": "0063_seguimiento_propuesta_config",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1787654989715,
+      "tag": "0064_seguimiento_indagacion_config",
+      "breakpoints": true
     }
   ]
 }

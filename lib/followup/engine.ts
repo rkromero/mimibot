@@ -2,7 +2,7 @@ import { eq, and, lte, isNotNull, isNull, asc, desc, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import {
   leads, conversations, messages, activityLog, contacts, followUpTemplates, followUpConfig,
-  whatsappTemplates, propuestas, users,
+  whatsappTemplates, propuestas, users, pipelineStages,
 } from '@/db/schema'
 import { anthropic, BOT_MODEL } from '@/lib/claude/client'
 import { withRetry } from '@/lib/claude/retry'
@@ -13,6 +13,16 @@ import { primerNombre, resolveTemplateVariables, applyTemplateValues } from '@/l
 import { variablesParaChat } from '@/lib/whatsapp/apertura'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
 import { calcularEnvioSeguimientoPropuesta, renderMensajeSeguimientoPropuesta } from './propuesta'
+import {
+  calcularPrimerSeguimiento,
+  calcularSeguimientoFinal,
+  renderMensajeIndagacion,
+  MENSAJE_FINAL_DEFAULT,
+  MENSAJE_RETOMAR_FALLBACK,
+  OFFSET_ARGENTINA_HORAS,
+  type HorarioPermitido,
+} from './indagacion'
+import { generarMensajeRetomar } from '@/lib/claude/bot'
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -130,6 +140,10 @@ async function processSingleFollowUp(
 ): Promise<void> {
   if (lead.followUpReason === 'propuesta') {
     await procesarSeguimientoPropuesta(lead, config)
+    return
+  }
+  if (lead.followUpReason === 'indagacion' || lead.followUpReason === 'indagacion_final' || lead.followUpReason === 'indagacion_cierre') {
+    await procesarSeguimientoIndagacion(lead, config)
     return
   }
 
@@ -471,4 +485,253 @@ async function procesarSeguimientoPropuesta(
   )
   await marcar('sent', { usedTemplate: !dentroVentana })
   await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+}
+
+// ─── Seguimiento de indagación (leads en Nuevo que dejan de responder al bot) ─
+
+type FollowUpCfg = typeof followUpConfig.$inferSelect | null | undefined
+
+function horarioDe(config: FollowUpCfg): HorarioPermitido {
+  return { desde: config?.horarioDesde ?? 8, hasta: config?.horarioHasta ?? 22, offsetHoras: OFFSET_ARGENTINA_HORAS }
+}
+
+/** ¿El lead sigue en indagación: abierto, en Nuevo y con el bot calificando? */
+async function leadEnIndagacion(leadId: string): Promise<(typeof leads.$inferSelect) | null> {
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) })
+  if (!lead || !lead.isOpen || !lead.botEnabled || lead.botQualified) return null
+  const stage = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.id, lead.stageId), columns: { slug: true } })
+  if (stage?.slug !== 'nuevo') return null
+  return lead
+}
+
+/**
+ * El bot acaba de escribir: programar el primer seguimiento a N horas si la
+ * persona no responde. Cada mensaje del bot reinicia el reloj.
+ */
+export async function programarSeguimientoIndagacion(leadId: string): Promise<void> {
+  const config = await db.query.followUpConfig.findFirst()
+  if (config && (!config.isEnabled || !config.indagacionEnabled)) return
+  const lead = await leadEnIndagacion(leadId)
+  if (!lead) return
+
+  const at = calcularPrimerSeguimiento(new Date(), config?.indagacionHoras ?? 2, horarioDe(config))
+  await db.update(leads)
+    .set({ nextFollowUpAt: at, followUpStatus: 'pending', followUpReason: 'indagacion', updatedAt: new Date() })
+    .where(eq(leads.id, leadId))
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_scheduled',
+    metadata: { reason: 'indagacion', nextFollowUpAt: at.toISOString() },
+  })
+}
+
+/**
+ * Llegó un mensaje de la persona. Si estaba esperando respuesta al mensaje
+ * final y la respuesta es "más adelante / lo pienso", pasa a Perdido. En
+ * cualquier otro caso, cancela el seguimiento pendiente y la charla sigue.
+ * Devuelve true si el lead se cerró como perdido.
+ */
+export async function manejarRespuestaClienteIndagacion(leadId: string, texto: string): Promise<boolean> {
+  const lead = await db.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    columns: { id: true, followUpStatus: true, followUpReason: true, isOpen: true },
+  })
+  if (!lead || !lead.isOpen) return false
+  const reason = lead.followUpReason
+  if (reason !== 'indagacion' && reason !== 'indagacion_final' && reason !== 'indagacion_cierre') return false
+
+  const esperandoRespuestaAlFinal =
+    (reason === 'indagacion_final' && lead.followUpStatus === 'sent') || reason === 'indagacion_cierre'
+  if (esperandoRespuestaAlFinal && texto.trim()) {
+    const config = await db.query.followUpConfig.findFirst()
+    if (detectStalling(texto, config?.stallingPhrases ?? [])) {
+      await marcarLeadPerdido(leadId, 'Respondió al mensaje final que lo deja para más adelante')
+      return true
+    }
+  }
+
+  if (lead.followUpStatus === 'pending') {
+    await db.update(leads)
+      .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+      .where(eq(leads.id, leadId))
+    await db.insert(activityLog).values({
+      leadId,
+      action: 'follow_up_cancelled',
+      metadata: { reason, motivo: 'la persona respondió' },
+    })
+  }
+  return false
+}
+
+/** Cierra el lead en "Cerrado Perdido" con nota y actividad. */
+export async function marcarLeadPerdido(leadId: string, motivo: string): Promise<void> {
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { id: true, stageId: true, assignedTo: true } })
+  if (!lead) return
+  const perdido = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.slug, 'cerrado-lost'), columns: { id: true } })
+    ?? await db.query.pipelineStages.findFirst({ where: and(eq(pipelineStages.isTerminal, true), eq(pipelineStages.isWon, false)), columns: { id: true } })
+
+  await db.update(leads)
+    .set({
+      ...(perdido ? { stageId: perdido.id } : {}),
+      isOpen: false,
+      botEnabled: false,
+      nextFollowUpAt: null,
+      followUpStatus: 'sent',
+      updatedAt: new Date(),
+    })
+    .where(eq(leads.id, leadId))
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'stage_changed',
+    metadata: { fromStageId: lead.stageId, toStageId: perdido?.id ?? null, auto: true, motivo },
+  })
+
+  const conversation = await db.query.conversations.findFirst({ where: eq(conversations.leadId, leadId), columns: { id: true } })
+  if (conversation) {
+    await db.insert(messages).values({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      senderType: 'system',
+      contentType: 'internal_note',
+      body: `Lead cerrado como perdido automáticamente: ${motivo}. Si vuelve a escribir, se crea un lead nuevo con esta misma conversación.`,
+      isRead: true,
+      sentAt: new Date(),
+    })
+  }
+
+  await publishCrmEvent({
+    type: 'lead_updated',
+    leadId,
+    assignedTo: lead.assignedTo ?? null,
+    oldAssigned: lead.assignedTo ?? null,
+    stageId: perdido?.id ?? '',
+    oldStageId: lead.stageId,
+  })
+}
+
+async function procesarSeguimientoIndagacion(
+  lead: typeof leads.$inferSelect,
+  config: FollowUpCfg,
+): Promise<void> {
+  const reason = lead.followUpReason as 'indagacion' | 'indagacion_final' | 'indagacion_cierre'
+
+  // Cierre: pasó el plazo del mensaje final sin respuesta
+  if (reason === 'indagacion_cierre') {
+    await marcarLeadPerdido(lead.id, 'Sin respuesta al mensaje final de seguimiento')
+    return
+  }
+
+  const cancelar = async (motivo: string) => {
+    await db.update(leads)
+      .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({ leadId: lead.id, action: 'follow_up_cancelled', metadata: { reason, motivo } })
+  }
+
+  // Si ya no está en indagación (lo tomó un humano, cambió de etapa, se cerró), no molestar
+  const vigente = await leadEnIndagacion(lead.id)
+  if (!vigente) {
+    await cancelar('el lead ya no está en indagación')
+    return
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, lead.id),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) {
+    await cancelar('sin conversación de WhatsApp')
+    return
+  }
+
+  const ultimoInbound = await db.query.messages.findFirst({
+    where: and(eq(messages.conversationId, conversation.id), eq(messages.direction, 'inbound')),
+    orderBy: [desc(messages.sentAt)],
+    columns: { sentAt: true },
+  })
+  const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })
+  const datos = { clienteNombre: contact?.name ?? null, productoInteres: lead.productInterest }
+
+  if (!(await estaDentroDe24h(conversation.id))) {
+    // Sin ventana no se puede mandar texto libre. Se deja nota y se sigue el flujo.
+    await db.insert(messages).values({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      senderType: 'system',
+      contentType: 'internal_note',
+      body: `Seguimiento de indagación (${reason === 'indagacion' ? 'retomar' : 'mensaje final'}) no enviado: la ventana de 24 hs está cerrada. Podés mandarle una plantilla desde el chat.`,
+      isRead: true,
+      sentAt: new Date(),
+    })
+    if (reason === 'indagacion_final') {
+      await programarCierre(lead.id, config)
+    } else {
+      await cancelar('ventana de 24 hs cerrada')
+    }
+    return
+  }
+
+  let body: string
+  if (reason === 'indagacion') {
+    body = (await generarMensajeRetomar(lead.id, conversation.id))
+      ?? renderMensajeIndagacion(config?.indagacionMensajeRetomar, datos, MENSAJE_RETOMAR_FALLBACK)
+  } else {
+    body = renderMensajeIndagacion(config?.indagacionMensajeFinal, datos, MENSAJE_FINAL_DEFAULT)
+  }
+
+  const waMessageId = await sendTextMessage(conversation.waContactPhone, body)
+  await db.insert(messages).values({
+    conversationId: conversation.id,
+    waMessageId,
+    direction: 'outbound',
+    senderType: 'bot',
+    contentType: 'text',
+    body,
+    isRead: true,
+    sentAt: new Date(),
+  })
+  await db.execute(
+    sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversation.id}`,
+  )
+  await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+
+  if (reason === 'indagacion') {
+    // Programar el mensaje final dentro de la ventana de 24 hs
+    const ahora = new Date()
+    const at = calcularSeguimientoFinal({
+      ultimoMensajeClienteAt: ultimoInbound?.sentAt ?? ahora,
+      horas: config?.indagacionFinalHoras ?? 23,
+      ahora,
+      noAntesDe: new Date(ahora.getTime() + 60 * 60 * 1000),
+      horario: horarioDe(config),
+    })
+    await db.update(leads)
+      .set({ nextFollowUpAt: at, followUpStatus: 'pending', followUpReason: 'indagacion_final', lastContactedAt: ahora, updatedAt: ahora })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({
+      leadId: lead.id,
+      action: 'follow_up_sent',
+      metadata: { reason: 'indagacion', next: 'indagacion_final', nextFollowUpAt: at.toISOString() },
+    })
+  } else {
+    await db.update(leads)
+      .set({ followUpStatus: 'sent', lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({ leadId: lead.id, action: 'follow_up_sent', metadata: { reason: 'indagacion_final' } })
+    await programarCierre(lead.id, config)
+  }
+}
+
+/** Después del mensaje final: si no responde en K horas, pasa a Perdido. */
+async function programarCierre(leadId: string, config: FollowUpCfg): Promise<void> {
+  const at = new Date(Date.now() + (config?.indagacionCierreHoras ?? 24) * 60 * 60 * 1000)
+  await db.update(leads)
+    .set({ nextFollowUpAt: at, followUpStatus: 'pending', followUpReason: 'indagacion_cierre', updatedAt: new Date() })
+    .where(eq(leads.id, leadId))
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_scheduled',
+    metadata: { reason: 'indagacion_cierre', nextFollowUpAt: at.toISOString() },
+  })
 }
