@@ -5,11 +5,25 @@ import Link from 'next/link'
 import { Send, Paperclip, AlertCircle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { suscribirInsertarTexto, suscribirEnviarTexto, combinarTexto } from '@/lib/inbox/composer-events'
+import { useRespuestasRapidas } from '@/lib/inbox/use-respuestas-rapidas'
+import {
+  detectarComando,
+  filtrarPorComando,
+  reemplazarVariables,
+  type RespuestaRapida,
+  type VariablesRespuesta,
+} from '@/lib/inbox/respuestas-rapidas'
+import ComandoRespuestas from './ComandoRespuestas'
 
 type Props = {
   conversationId: string
   leadId?: string
+  /** Datos para completar {nombre} y {producto} en las respuestas rápidas */
+  variables?: VariablesRespuesta
 }
+
+const MAX_SUGERENCIAS = 8
 
 type PlantillaApertura = {
   name: string
@@ -25,7 +39,7 @@ type AperturaInfo = {
 
 const keyDe = (p: { name: string; language: string }) => `${p.name}::${p.language}`
 
-export default function ChatComposer({ conversationId, leadId }: Props) {
+export default function ChatComposer({ conversationId, leadId, variables = {} }: Props) {
   const [text, setText] = useState('')
   const [isPending, startTransition] = useTransition()
   const [isNote, setIsNote] = useState(false)
@@ -33,7 +47,46 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
   const [templateNotice, setTemplateNotice] = useState(false)
   const [plantillaKey, setPlantillaKey] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
+
+  // ── Respuestas rápidas por comando ("/" + atajo) ──────────────────────────
+  const { data: respuestas = [] } = useRespuestasRapidas()
+  const [comandoActivo, setComandoActivo] = useState(0)
+  // Esc cierra las sugerencias hasta que se vuelva a tipear
+  const [comandoOculto, setComandoOculto] = useState(false)
+
+  const consultaComando = !isNote && !comandoOculto ? detectarComando(text) : null
+  const opcionesComando =
+    consultaComando !== null ? filtrarPorComando(respuestas, consultaComando).slice(0, MAX_SUGERENCIAS) : []
+
+  useEffect(() => {
+    setComandoActivo(0)
+  }, [consultaComando])
+
+  function elegirRespuesta(r: RespuestaRapida) {
+    setText(reemplazarVariables(r.body, variables))
+    setComandoOculto(true)
+    textareaRef.current?.focus()
+  }
+
+  // Respuestas rápidas (panel / bottom sheet): el texto elegido se inserta en
+  // el composer de esta conversación, en la pestaña WhatsApp, y queda el foco
+  // en el cuadro para retocarlo o mandarlo.
+  useEffect(() => {
+    return suscribirInsertarTexto(conversationId, (nuevo) => {
+      setText((prev) => combinarTexto(prev, nuevo))
+      setIsNote(false)
+      textareaRef.current?.focus()
+    })
+  }, [conversationId])
+
+  // Envío directo desde el panel: manda por WhatsApp sin tocar lo que la
+  // persona tenía escrito en el cuadro. Ref para no re-suscribir en cada render.
+  const enviarDirectoRef = useRef<(texto: string) => void>(() => {})
+  useEffect(() => {
+    return suscribirEnviarTexto(conversationId, (texto) => enviarDirectoRef.current(texto))
+  }, [conversationId])
 
   // Estado de la ventana de 24 hs + plantillas con las que se puede abrir.
   // Se refresca cuando llegan mensajes (ChatFeed invalida 'apertura') y cada 30 s.
@@ -68,6 +121,35 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Modo comando: las flechas recorren las sugerencias, Enter/Tab insertan
+    // la resaltada y Esc las cierra. Si no hay sugerencias, Enter manda el
+    // texto tal cual (por si quieren escribir "/algo" literal).
+    if (consultaComando !== null && !e.nativeEvent.isComposing) {
+      const total = opcionesComando.length
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setComandoOculto(true)
+        return
+      }
+      if (total > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setComandoActivo((i) => (i + 1) % total)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setComandoActivo((i) => (i - 1 + total) % total)
+          return
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault()
+          elegirRespuesta(opcionesComando[comandoActivo] ?? opcionesComando[0]!)
+          return
+        }
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -78,11 +160,10 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
     const trimmed = text.trim()
     if (!trimmed || isPending) return
 
-    startTransition(async () => {
-      setSendError(null)
-      setTemplateNotice(false)
-
-      if (isNote) {
+    if (isNote) {
+      startTransition(async () => {
+        setSendError(null)
+        setTemplateNotice(false)
         await fetch(`/api/conversations/${conversationId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -90,13 +171,29 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
         })
         setText('')
         void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
-        return
-      }
+      })
+      return
+    }
+
+    enviarWhatsapp(trimmed, { limpiarCuadro: true })
+  }
+
+  /**
+   * Manda un mensaje de WhatsApp. `limpiarCuadro` vacía el cuadro al enviar
+   * (lo que se escribió ahí); el envío directo de una respuesta rápida no lo
+   * toca, por si había un borrador a medio escribir.
+   */
+  function enviarWhatsapp(body: string, { limpiarCuadro }: { limpiarCuadro: boolean }) {
+    if (isPending) return
+
+    startTransition(async () => {
+      setSendError(null)
+      setTemplateNotice(false)
 
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, leadId, body: trimmed }),
+        body: JSON.stringify({ conversationId, leadId, body }),
       })
 
       if (!res.ok) {
@@ -110,13 +207,18 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
       }
 
       const data = await res.json() as { sentAsTemplate?: boolean }
-      setText('')
+      if (limpiarCuadro) setText('')
       refrescar()
       if (data.sentAsTemplate) {
         setTemplateNotice(true)
         setTimeout(() => setTemplateNotice(false), 6000)
       }
     })
+  }
+
+  enviarDirectoRef.current = (texto) => {
+    const trimmed = texto.trim()
+    if (trimmed) enviarWhatsapp(trimmed, { limpiarCuadro: false })
   }
 
   function handleSendPlantilla() {
@@ -271,20 +373,37 @@ export default function ChatComposer({ conversationId, leadId }: Props) {
         </div>
       ) : (
         <div className="flex items-end gap-2 px-3 py-2">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={isNote ? 'Escribir nota interna...' : 'Escribir mensaje de WhatsApp...'}
-            rows={2}
-            className={cn(
-              'flex-1 resize-none px-3 py-2 text-base rounded-md border',
-              'border-border bg-background text-foreground',
-              'placeholder:text-muted-foreground',
-              'focus:outline-none focus:ring-1 focus:ring-ring',
-              isNote && 'bg-amber-50/50 dark:bg-amber-950/20',
+          <div className="relative flex-1 min-w-0">
+            {consultaComando !== null && (
+              <ComandoRespuestas
+                consulta={consultaComando}
+                opciones={opcionesComando}
+                activo={comandoActivo}
+                variables={variables}
+                hayRespuestas={respuestas.length > 0}
+                onElegir={elegirRespuesta}
+                onActivo={setComandoActivo}
+              />
             )}
-          />
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value)
+                setComandoOculto(false)
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={isNote ? 'Escribir nota interna...' : 'Escribir mensaje de WhatsApp... ( / para respuestas rápidas)'}
+              rows={2}
+              className={cn(
+                'w-full resize-none px-3 py-2 text-base rounded-md border',
+                'border-border bg-background text-foreground',
+                'placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+                isNote && 'bg-amber-50/50 dark:bg-amber-950/20',
+              )}
+            />
+          </div>
           <div className="flex flex-col gap-1.5">
             {!isNote && (
               <>

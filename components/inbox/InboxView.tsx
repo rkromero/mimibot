@@ -8,10 +8,14 @@ import { cn, relativeTime } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
 import LeadPanel from '@/components/lead/LeadPanel'
 import QuickReplies from '@/components/chat/QuickReplies'
+import RespuestasRapidasPanel from '@/components/chat/RespuestasRapidasPanel'
 import type { Session } from 'next-auth'
 import { esRolVentas } from '@/lib/authz/roles'
+import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
 
 type Filter = 'mine' | 'unassigned' | 'all'
+
+const RR_PANEL_KEY = 'alipro:inbox-respuestas-rapidas'
 
 type InboxItem = {
   conversationId: string
@@ -37,6 +41,9 @@ export default function InboxView({ user }: Props) {
   const searchParams = useSearchParams()
   const initConvId = searchParams.get('conversation')
   const initLeadId = searchParams.get('lead') // backwards compat
+  // Viene de la ficha del cliente ("WhatsApp"): identifica la conversación
+  // aunque todavía no tenga mensajes y no figure en el listado.
+  const initClienteId = searchParams.get('cliente')
 
   const isRestrictedRole = esRolVentas(user.role)
 
@@ -46,6 +53,30 @@ export default function InboxView({ user }: Props) {
     initConvId ?? initLeadId ? 'conversation' : 'list',
   )
   const [qrOpen, setQrOpen] = useState(false)
+
+  // Panel de respuestas rápidas al lado de la conversación (desktop). La
+  // preferencia se guarda por navegador; sin preferencia, arranca abierto
+  // solo en pantallas anchas (≥1280px) para no achicar el chat.
+  const [rrAbierto, setRrAbierto] = useState(false)
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem(RR_PANEL_KEY)
+      setRrAbierto(guardado !== null ? guardado === '1' : window.innerWidth >= 1280)
+    } catch {
+      setRrAbierto(false)
+    }
+  }, [])
+  function toggleRrPanel() {
+    setRrAbierto((prev) => {
+      const next = !prev
+      try {
+        window.localStorage.setItem(RR_PANEL_KEY, next ? '1' : '0')
+      } catch {
+        // sin localStorage (modo privado, etc.): solo dura la sesión
+      }
+      return next
+    })
+  }
 
   const fetchFilter = async (f: Filter): Promise<InboxItem[]> => {
     const res = await fetch(`/api/inbox?filter=${f}`)
@@ -103,6 +134,29 @@ export default function InboxView({ user }: Props) {
     ? (allLoadedItems.find((i) => i.conversationId === selectedConvId) ?? null)
     : null
 
+  // Conversación abierta desde la ficha del cliente que aún no tiene mensajes:
+  // no está en el listado, así que el panel se arma en modo cliente con lo que
+  // vino en la URL (LeadPanel carga el resto desde /api/clientes/:id).
+  const esConvInicialDeCliente = !selectedItem && !!initClienteId && selectedConvId === initConvId
+  const panelTipo: 'cliente' | 'lead' = selectedItem?.tipo ?? (esConvInicialDeCliente ? 'cliente' : 'lead')
+  const panelClienteId = selectedItem?.clienteId ?? (esConvInicialDeCliente ? initClienteId : null)
+
+  // Nombre para el encabezado y las respuestas rápidas cuando la conversación
+  // no está en el listado. Misma key que LeadPanel: una sola consulta.
+  const { data: clienteInicial } = useQuery<{ nombre: string; apellido: string | null }>({
+    queryKey: ['cliente-detail', panelClienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/clientes/${panelClienteId}`)
+      if (!res.ok) throw new Error('Error al cargar cliente')
+      const json = await res.json() as { data: { nombre: string; apellido: string | null } }
+      return json.data
+    },
+    enabled: esConvInicialDeCliente && !!panelClienteId,
+    retry: false,
+  })
+  const panelNombre = selectedItem?.nombre
+    ?? (clienteInicial ? [clienteInicial.nombre, clienteInicial.apellido].filter(Boolean).join(' ') : undefined)
+
   const totalUnread = items.reduce((sum, i) => sum + (i.unreadCount ?? 0), 0)
   const formatCount = (n: number) => (n > 99 ? '99+' : String(n))
 
@@ -147,10 +201,10 @@ export default function InboxView({ user }: Props) {
             <div className="flex-1 min-h-0 overflow-hidden">
               <LeadPanel
                 conversationId={selectedConvId}
-                tipo={selectedItem?.tipo ?? 'lead'}
+                tipo={panelTipo}
                 leadId={selectedItem?.leadId}
-                clienteId={selectedItem?.clienteId}
-                nombre={selectedItem?.nombre}
+                clienteId={panelClienteId}
+                nombre={panelNombre}
                 contactPhone={selectedItem?.contactPhone}
                 onClose={handleCloseConversation}
                 user={user}
@@ -303,10 +357,10 @@ export default function InboxView({ user }: Props) {
         {selectedConvId ? (
           <LeadPanel
             conversationId={selectedConvId}
-            tipo={selectedItem?.tipo ?? 'lead'}
+            tipo={panelTipo}
             leadId={selectedItem?.leadId}
-            clienteId={selectedItem?.clienteId}
-            nombre={selectedItem?.nombre}
+            clienteId={panelClienteId}
+            nombre={panelNombre}
             contactPhone={selectedItem?.contactPhone}
             onClose={() => setSelectedConvId(null)}
             user={user}
@@ -319,14 +373,26 @@ export default function InboxView({ user }: Props) {
         )}
       </div>
 
+      {/* Respuestas rápidas al lado de la conversación — desktop ancho */}
+      {selectedConvId && (
+        <RespuestasRapidasPanel
+          conversationId={selectedConvId}
+          variables={{ nombre: panelNombre }}
+          abierto={rrAbierto}
+          onToggle={toggleRrPanel}
+          className="hidden lg:flex"
+        />
+      )}
+
       <QuickReplies
         open={qrOpen}
         onClose={() => setQrOpen(false)}
         onSelect={(text) => {
-          void navigator.clipboard?.writeText(text)
+          // Se inserta en el cuadro de texto del chat abierto (ChatComposer).
+          if (selectedConvId) emitirInsertarTexto({ conversationId: selectedConvId, text })
           setQrOpen(false)
         }}
-        leadNombre={selectedItem?.nombre}
+        variables={{ nombre: panelNombre }}
       />
     </div>
   )

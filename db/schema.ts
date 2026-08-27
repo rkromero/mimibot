@@ -171,6 +171,22 @@ export const leadTags = pgTable('lead_tags', {
   index('lead_tags_tag_idx').on(t.tagId),
 ])
 
+// ─── Respuestas rápidas del chat ──────────────────────────────────────────────
+// Mensajes predefinidos, compartidos por todo el equipo. Se invocan desde el
+// cuadro de texto escribiendo "/" + atajo, o desde el panel al lado del chat.
+
+export const respuestasRapidas = pgTable('respuestas_rapidas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  /** Comando para invocarla, sin la barra: "/hola" se guarda como "hola" */
+  atajo: text('atajo').notNull().unique(),
+  titulo: text('titulo').notNull(),
+  /** Texto del mensaje; admite {nombre} y {producto} */
+  body: text('body').notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
 // ─── Conversaciones (pertenece a un lead o a un cliente) ──────────────────────
 
 export const conversations = pgTable('conversations', {

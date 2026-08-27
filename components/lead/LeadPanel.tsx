@@ -16,6 +16,7 @@ import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import MuestraModal from './MuestraModal'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
+import type { VariablesRespuesta } from '@/lib/inbox/respuestas-rapidas'
 import type { Session } from 'next-auth'
 
 // GET /api/leads/[id] devuelve tags como filas de lead_tags con el tag anidado
@@ -166,6 +167,11 @@ export default function LeadPanel({
   // Tags normalizados a Tag[] sin importar el shape (plano o anidado)
   const tagList: Tag[] = (lead?.tags ?? []).map((t) => ('tag' in t ? t.tag : t))
 
+  // Datos con los que se completan {nombre} y {producto} en las respuestas rápidas
+  const variablesRespuesta: VariablesRespuesta = isClienteMode
+    ? { nombre: nombre ?? [cliente?.nombre, cliente?.apellido].filter(Boolean).join(' ') }
+    : { nombre: lead?.contact?.name ?? nombre, producto: lead?.productInterest }
+
   // ── Muestra CDA ──────────────────────────────────────────────────────────────
   // Disponible para todos los leads, sin importar el tag de origen.
   // El botón abre el modal con el paso "Entrega" (retiro / expreso); el pedido
@@ -232,7 +238,7 @@ export default function LeadPanel({
         {effectiveConvId ? (
           <>
             <ChatFeed conversationId={effectiveConvId} />
-            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} />
+            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
@@ -366,7 +372,7 @@ export default function LeadPanel({
           {effectiveConvId ? (
             <>
               <ChatFeed conversationId={effectiveConvId} />
-              <ChatComposer conversationId={effectiveConvId} />
+              <ChatComposer conversationId={effectiveConvId} variables={variablesRespuesta} />
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -503,7 +509,7 @@ export default function LeadPanel({
         {effectiveConvId ? (
           <>
             <ChatFeed conversationId={effectiveConvId} />
-            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} />
+            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
