@@ -8,6 +8,8 @@
  * se filtran/ordenan las respuestas. La UI y la API las consumen.
  */
 
+import { primerNombre } from '@/lib/whatsapp/variables'
+
 export type RespuestaRapida = {
   id: string
   /** Comando sin la barra: "hola" se invoca como "/hola" */
@@ -24,17 +26,19 @@ export type VariablesRespuesta = {
 
 /** Variables que se pueden usar en el texto, con su descripción para la UI. */
 export const VARIABLES_RESPUESTA: ReadonlyArray<{ token: string; descripcion: string }> = [
-  { token: '{nombre}', descripcion: 'Nombre del contacto' },
+  { token: '{nombre}', descripcion: 'Primer nombre del contacto' },
   { token: '{producto}', descripcion: 'Producto de interés del lead' },
 ]
 
 /**
- * Reemplaza {nombre} y {producto} por los datos de la conversación. Si un
- * dato no está disponible el marcador queda visible, así quien envía lo nota
- * en el cuadro de texto y lo corrige antes de mandar.
+ * Reemplaza {nombre} y {producto} por los datos de la conversación. {nombre}
+ * es solo el primer nombre ("Ana López" → "Ana"): el saludo va en tono
+ * cercano, no formal. Si un dato no está disponible el marcador queda
+ * visible, así quien envía lo nota en el cuadro de texto y lo corrige antes
+ * de mandar.
  */
 export function reemplazarVariables(body: string, vars: VariablesRespuesta = {}): string {
-  const nombre = vars.nombre?.trim()
+  const nombre = primerNombre(vars.nombre)
   const producto = vars.producto?.trim()
   return body
     .replace(/\{nombre\}/g, nombre || '{nombre}')

@@ -30,6 +30,11 @@ describe('reemplazarVariables', () => {
       .toBe('Hola Ana, te paso alfajores')
   })
 
+  it('{nombre} es solo el primer nombre, aunque el contacto tenga nombre y apellido', () => {
+    expect(reemplazarVariables('Hola {nombre}!', { nombre: 'Ana López' })).toBe('Hola Ana!')
+    expect(reemplazarVariables('Hola {nombre}!', { nombre: '  Juan Carlos Pérez ' })).toBe('Hola Juan!')
+  })
+
   it('deja el marcador visible si falta el dato (para que quien envía lo note)', () => {
     expect(reemplazarVariables('Hola {nombre}', {})).toBe('Hola {nombre}')
     expect(reemplazarVariables('Hola {nombre}', { nombre: '   ' })).toBe('Hola {nombre}')
