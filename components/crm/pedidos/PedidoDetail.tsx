@@ -619,7 +619,7 @@ export default function PedidoDetail({ id }: Props) {
             </button>
           )}
           {/* Proforma: comprobante previo — disponible también antes de aprobar.
-              Descargar (se la manda al cliente, con nombre cliente + nº pedido) o imprimir. */}
+              Descargar (se la manda al cliente, con nombre cliente + nº de proforma) o imprimir. */}
           {proformaAvailable && (
             <div className="inline-flex rounded-md border border-border overflow-hidden">
               <button

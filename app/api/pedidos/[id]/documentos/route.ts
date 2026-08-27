@@ -35,7 +35,7 @@ export async function POST(
     )
 
     // La proforma se descarga (se la manda al cliente); el remito se imprime.
-    // El nombre lleva cliente + número de pedido: "Juan Perez - Pedido 3A9F12BC - Proforma.pdf".
+    // El nombre lleva cliente + número del documento: "Juan Perez - Proforma 000141.pdf".
     const disposition = tipo === 'proforma' ? 'attachment' : 'inline'
 
     return new Response(buffer as unknown as BodyInit, {

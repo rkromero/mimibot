@@ -17,7 +17,7 @@ import { NotFoundError } from '@/lib/errors'
 export type EmitirDocumentoResult = {
   buffer: Buffer
   numero: number
-  /** "Juan Perez - Pedido 3A9F12BC - Proforma.pdf": cliente + número de pedido + tipo */
+  /** "Juan Perez - Proforma 000141.pdf": cliente + tipo + número del documento emitido */
   nombreArchivo: string
 }
 
@@ -135,9 +135,10 @@ export async function emitirDocumento(
     expresoDireccion: pedido.expresoDireccion ?? undefined,
   }
 
-  // 5. Render PDF. El título va en los metadatos del PDF: es lo que sugiere el
-  // navegador como nombre al guardar o imprimir a PDF.
-  const titulo = tituloDocumento(tipo, pedido.cliente, pedido.id)
+  // 5. Render PDF. El título ("Juan Perez - Proforma 000141") va en los
+  // metadatos del PDF: es lo que sugiere el navegador como nombre al guardar
+  // o imprimir a PDF. Mismo número que va impreso en el documento.
+  const titulo = tituloDocumento(tipo, pedido.cliente, newNumber)
   let element: React.ReactElement<DocumentProps>
 
   if (tipo === 'remito') {
@@ -160,6 +161,6 @@ export async function emitirDocumento(
   return {
     buffer: Buffer.from(buffer),
     numero: newNumber,
-    nombreArchivo: nombreArchivoDocumento(tipo, pedido.cliente, pedido.id),
+    nombreArchivo: nombreArchivoDocumento(tipo, pedido.cliente, newNumber),
   }
 }

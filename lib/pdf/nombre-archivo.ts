@@ -1,7 +1,7 @@
 /**
  * Título y nombre de archivo de los PDFs de un pedido (remito / proforma):
- * "Juan Pérez - Pedido 3A9F12BC - Proforma.pdf". El código del pedido es el
- * mismo que se ve en la ficha (#últimos 8 del id).
+ * "Juan Perez - Proforma 000141.pdf". El número es el del documento emitido,
+ * el mismo que va impreso en el PDF ("Nº 000141"), correlativo por tipo.
  */
 
 export type TipoDocumentoPedido = 'remito' | 'proforma'
@@ -11,9 +11,9 @@ const ETIQUETA: Record<TipoDocumentoPedido, string> = {
   proforma: 'Proforma',
 }
 
-/** Código corto del pedido, igual que en la UI: "Pedido #3A9F12BC". */
-export function codigoPedido(pedidoId: string): string {
-  return pedidoId.slice(-8).toUpperCase()
+/** Número de documento con 6 dígitos, igual que impreso en el PDF. */
+export function padNumeroDocumento(numero: number): string {
+  return String(numero).padStart(6, '0')
 }
 
 /** Nombre completo del cliente limpio para usar en un nombre de archivo (ASCII, sin caracteres inválidos). */
@@ -28,22 +28,22 @@ function nombreClienteParaArchivo(cliente: { nombre: string; apellido?: string |
     .trim()
 }
 
-/** "Juan Perez - Pedido 3A9F12BC - Proforma" (también va como título del PDF). */
+/** "Juan Perez - Proforma 000141" (también va como título del PDF). */
 export function tituloDocumento(
   tipo: TipoDocumentoPedido,
   cliente: { nombre: string; apellido?: string | null },
-  pedidoId: string,
+  numero: number,
 ): string {
   const nombre = nombreClienteParaArchivo(cliente) || 'Cliente'
-  return `${nombre} - Pedido ${codigoPedido(pedidoId)} - ${ETIQUETA[tipo]}`
+  return `${nombre} - ${ETIQUETA[tipo]} ${padNumeroDocumento(numero)}`
 }
 
 export function nombreArchivoDocumento(
   tipo: TipoDocumentoPedido,
   cliente: { nombre: string; apellido?: string | null },
-  pedidoId: string,
+  numero: number,
 ): string {
-  return `${tituloDocumento(tipo, cliente, pedidoId)}.pdf`
+  return `${tituloDocumento(tipo, cliente, numero)}.pdf`
 }
 
 /** Lee el nombre de archivo del header Content-Disposition (o null). */

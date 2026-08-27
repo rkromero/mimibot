@@ -82,7 +82,7 @@ export function useGenerarDocumento() {
 
   /**
    * Genera el PDF de un pedido y lo imprime (por defecto) o lo descarga con
-   * el nombre que manda el server (cliente + número de pedido).
+   * el nombre que manda el server (cliente + número de proforma/remito).
    */
   async function generarDocumento(pedidoId: string, tipo: DocTipo, accion: DocAccion = 'imprimir') {
     if (generating) return
