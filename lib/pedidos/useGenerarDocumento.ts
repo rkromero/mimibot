@@ -5,6 +5,8 @@ import { useToast } from '@/components/shared/ToastProvider'
 import { nombreArchivoDesdeHeader } from '@/lib/pdf/nombre-archivo'
 
 export type DocTipo = 'remito' | 'proforma' | 'etiqueta'
+/** Qué hacer con el PDF generado: abrir el diálogo de impresión o bajarlo al disco. */
+export type DocAccion = 'imprimir' | 'descargar'
 
 type Generating = { pedidoId: string; tipo: DocTipo } | null
 
@@ -78,7 +80,11 @@ export function useGenerarDocumento() {
   const [bulkGenerating, setBulkGenerating] = useState<DocTipo | null>(null)
   const toast = useToast()
 
-  async function generarDocumento(pedidoId: string, tipo: DocTipo) {
+  /**
+   * Genera el PDF de un pedido y lo imprime (por defecto) o lo descarga con
+   * el nombre que manda el server (cliente + número de pedido).
+   */
+  async function generarDocumento(pedidoId: string, tipo: DocTipo, accion: DocAccion = 'imprimir') {
     if (generating) return
     setGenerating({ pedidoId, tipo })
     try {
@@ -107,11 +113,8 @@ export function useGenerarDocumento() {
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
 
-      // La proforma se la entrega el agente al cliente: se descarga con el
-      // nombre que manda el server (cliente + número de pedido). Remito y
-      // etiqueta se imprimen.
-      if (tipo === 'proforma') {
-        descargarBlob(url, nombreArchivoDesdeHeader(res.headers.get('Content-Disposition')) ?? 'proforma.pdf')
+      if (accion === 'descargar') {
+        descargarBlob(url, nombreArchivoDesdeHeader(res.headers.get('Content-Disposition')) ?? `${tipo}.pdf`)
       } else {
         printBlob(url)
       }

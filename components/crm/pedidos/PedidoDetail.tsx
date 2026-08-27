@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, Printer, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
@@ -418,7 +418,8 @@ export default function PedidoDetail({ id }: Props) {
     secondaryActions.push({ key: 'remito', label: isGenerating(id, 'remito') ? 'Generando...' : 'Remito', icon: FileText, onClick: () => void generarDocumento(id, 'remito'), disabled: anyGenerating(id) })
   }
   if (proformaAvailable) {
-    secondaryActions.push({ key: 'proforma', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma', icon: Download, onClick: () => void generarDocumento(id, 'proforma'), disabled: anyGenerating(id) })
+    secondaryActions.push({ key: 'proforma-descargar', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Descargar proforma', icon: Download, onClick: () => void generarDocumento(id, 'proforma', 'descargar'), disabled: anyGenerating(id) })
+    secondaryActions.push({ key: 'proforma-imprimir', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Imprimir proforma', icon: Printer, onClick: () => void generarDocumento(id, 'proforma', 'imprimir'), disabled: anyGenerating(id) })
   }
   if (docsAvailable) {
     secondaryActions.push({ key: 'etiqueta', label: isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta', icon: Tag, onClick: () => void generarDocumento(id, 'etiqueta'), disabled: anyGenerating(id) })
@@ -617,17 +618,29 @@ export default function PedidoDetail({ id }: Props) {
               {isGenerating(id, 'remito') ? 'Generando...' : 'Remito'}
             </button>
           )}
-          {/* Proforma: comprobante previo — disponible también antes de aprobar */}
+          {/* Proforma: comprobante previo — disponible también antes de aprobar.
+              Descargar (se la manda al cliente, con nombre cliente + nº pedido) o imprimir. */}
           {proformaAvailable && (
-            <button
-              onClick={() => void generarDocumento(id, 'proforma')}
-              disabled={anyGenerating(id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
-              title="Descargar proforma PDF"
-            >
-              <Download size={14} />
-              {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
-            </button>
+            <div className="inline-flex rounded-md border border-border overflow-hidden">
+              <button
+                onClick={() => void generarDocumento(id, 'proforma', 'descargar')}
+                disabled={anyGenerating(id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                title="Descargar proforma PDF"
+              >
+                <Download size={14} />
+                {isGenerating(id, 'proforma') ? 'Generando...' : 'Proforma'}
+              </button>
+              <button
+                onClick={() => void generarDocumento(id, 'proforma', 'imprimir')}
+                disabled={anyGenerating(id)}
+                className="flex items-center px-2.5 py-1.5 text-sm border-l border-border hover:bg-accent transition-colors disabled:opacity-50"
+                title="Imprimir proforma"
+                aria-label="Imprimir proforma"
+              >
+                <Printer size={14} />
+              </button>
+            </div>
           )}
           {/* Etiqueta: solo con mercadería lista (confirmado/entregado) */}
           {docsAvailable && (
