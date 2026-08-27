@@ -14,6 +14,7 @@ import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import ActividadesSection from '@/components/crm/actividades/ActividadesSection'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import UnificarClienteModal from './UnificarClienteModal'
+import ClienteChatDrawer from './ClienteChatDrawer'
 import { useToast } from '@/components/shared/ToastProvider'
 
 type Props = { id: string }
@@ -114,6 +115,8 @@ export default function ClienteDetail({ id }: Props) {
   const [purgeError, setPurgeError] = useState<string | null>(null)
   const [showUnificar, setShowUnificar] = useState(false)
   const [isOpeningInbox, setIsOpeningInbox] = useState(false)
+  // Conversación de WhatsApp abierta como panel sobre la ficha (null = cerrado)
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null)
   const [showGeoMenu, setShowGeoMenu] = useState(false)
   const [isGeoLoading, setIsGeoLoading] = useState(false)
 
@@ -311,7 +314,9 @@ export default function ClienteDetail({ id }: Props) {
         return
       }
       const { data } = await res.json() as { data: { conversationId: string } }
-      router.push(`/inbox?conversation=${data.conversationId}`)
+      // El chat se abre como panel sobre la ficha (ClienteChatDrawer), sin
+      // salir de acá: al cerrarlo se sigue en la ficha del cliente.
+      setChatConversationId(data.conversationId)
     } catch {
       toast.error('Error de conexión')
     } finally {
@@ -975,6 +980,17 @@ export default function ClienteDetail({ id }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
+            {cliente.telefono && (
+              <button
+                onClick={() => void handleOpenInbox()}
+                disabled={isOpeningInbox}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-60"
+                title="Abrir la conversación de WhatsApp con este cliente"
+              >
+                {isOpeningInbox ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                WhatsApp
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setShowUnificar(true)}
@@ -1120,6 +1136,17 @@ export default function ClienteDetail({ id }: Props) {
         <CreatePedidoModal
           clienteId={id}
           onClose={() => setShowCreatePedido(false)}
+        />
+      )}
+
+      {chatConversationId && cliente && session?.user && (
+        <ClienteChatDrawer
+          clienteId={id}
+          conversationId={chatConversationId}
+          nombre={`${cliente.nombre} ${cliente.apellido}`.trim()}
+          telefono={cliente.telefono}
+          user={session.user}
+          onClose={() => setChatConversationId(null)}
         />
       )}
 
