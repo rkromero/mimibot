@@ -8,14 +8,11 @@ import { cn, relativeTime } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
 import LeadPanel from '@/components/lead/LeadPanel'
 import QuickReplies from '@/components/chat/QuickReplies'
-import RespuestasRapidasPanel from '@/components/chat/RespuestasRapidasPanel'
 import type { Session } from 'next-auth'
 import { esRolVentas } from '@/lib/authz/roles'
 import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
 
 type Filter = 'mine' | 'unassigned' | 'all'
-
-const RR_PANEL_KEY = 'alipro:inbox-respuestas-rapidas'
 
 type InboxItem = {
   conversationId: string
@@ -53,30 +50,6 @@ export default function InboxView({ user }: Props) {
     initConvId ?? initLeadId ? 'conversation' : 'list',
   )
   const [qrOpen, setQrOpen] = useState(false)
-
-  // Panel de respuestas rápidas al lado de la conversación (desktop). La
-  // preferencia se guarda por navegador; sin preferencia, arranca abierto
-  // solo en pantallas anchas (≥1280px) para no achicar el chat.
-  const [rrAbierto, setRrAbierto] = useState(false)
-  useEffect(() => {
-    try {
-      const guardado = window.localStorage.getItem(RR_PANEL_KEY)
-      setRrAbierto(guardado !== null ? guardado === '1' : window.innerWidth >= 1280)
-    } catch {
-      setRrAbierto(false)
-    }
-  }, [])
-  function toggleRrPanel() {
-    setRrAbierto((prev) => {
-      const next = !prev
-      try {
-        window.localStorage.setItem(RR_PANEL_KEY, next ? '1' : '0')
-      } catch {
-        // sin localStorage (modo privado, etc.): solo dura la sesión
-      }
-      return next
-    })
-  }
 
   const fetchFilter = async (f: Filter): Promise<InboxItem[]> => {
     const res = await fetch(`/api/inbox?filter=${f}`)
@@ -372,17 +345,6 @@ export default function InboxView({ user }: Props) {
           </div>
         )}
       </div>
-
-      {/* Respuestas rápidas al lado de la conversación — desktop ancho */}
-      {selectedConvId && (
-        <RespuestasRapidasPanel
-          conversationId={selectedConvId}
-          variables={{ nombre: panelNombre }}
-          abierto={rrAbierto}
-          onToggle={toggleRrPanel}
-          className="hidden lg:flex"
-        />
-      )}
 
       <QuickReplies
         open={qrOpen}

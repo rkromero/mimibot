@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ordenarRespuestas, type RespuestaRapida } from '@/lib/inbox/respuestas-rapidas'
 import type { RespuestaRapidaInput } from '@/lib/validations/respuesta-rapida'
@@ -58,4 +59,39 @@ export function useEliminarRespuestaRapida() {
       void queryClient.invalidateQueries({ queryKey: RESPUESTAS_RAPIDAS_KEY })
     },
   })
+}
+
+const PANEL_KEY = 'alipro:chat-respuestas-rapidas'
+
+/**
+ * Panel de respuestas rápidas al lado del chat: abierto/cerrado. La
+ * preferencia se guarda por navegador; sin preferencia, arranca abierto solo
+ * en pantallas anchas (≥1280px) para no achicar el chat. Se lee en un effect
+ * para no romper la hidratación (en el server no hay localStorage).
+ */
+export function usePanelRespuestasRapidas(): [boolean, () => void] {
+  const [abierto, setAbierto] = useState(false)
+
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem(PANEL_KEY)
+      setAbierto(guardado !== null ? guardado === '1' : window.innerWidth >= 1280)
+    } catch {
+      setAbierto(false)
+    }
+  }, [])
+
+  const toggle = useCallback(() => {
+    setAbierto((prev) => {
+      const next = !prev
+      try {
+        window.localStorage.setItem(PANEL_KEY, next ? '1' : '0')
+      } catch {
+        // sin localStorage (modo privado, etc.): solo dura la sesión
+      }
+      return next
+    })
+  }, [])
+
+  return [abierto, toggle]
 }

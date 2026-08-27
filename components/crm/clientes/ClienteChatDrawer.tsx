@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, MessageCircle } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Zap } from 'lucide-react'
 import type { Session } from 'next-auth'
 import LeadPanel from '@/components/lead/LeadPanel'
+import QuickReplies from '@/components/chat/QuickReplies'
+import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
 
 type Props = {
   clienteId: string
@@ -31,12 +33,15 @@ function useEsDesktop(): boolean | null {
  * Chat de WhatsApp del cliente sin salir de su ficha.
  *
  * En desktop se abre como panel deslizante a la derecha (LeadPanel en modo
- * cliente, con fondo oscurecido: click afuera, la X o Esc lo cierran). En
- * mobile ocupa toda la pantalla con un encabezado para volver. Al cerrarlo
- * la ficha sigue donde estaba.
+ * cliente, con fondo oscurecido: click afuera, la X o Esc lo cierran; el
+ * panel de respuestas rápidas va adentro, con el botón ⚡ de la cabecera).
+ * En mobile ocupa toda la pantalla con un encabezado para volver y el ⚡
+ * abre las respuestas rápidas como hoja inferior. Al cerrarlo la ficha sigue
+ * donde estaba.
  */
 export default function ClienteChatDrawer({ clienteId, conversationId, nombre, telefono, user, onClose }: Props) {
   const esDesktop = useEsDesktop()
+  const [qrOpen, setQrOpen] = useState(false)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -88,6 +93,14 @@ export default function ClienteChatDrawer({ clienteId, conversationId, nombre, t
             WhatsApp
           </p>
         </div>
+        <button
+          onClick={() => setQrOpen(true)}
+          className="p-2 text-primary min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Respuestas rápidas"
+          title="Respuestas rápidas"
+        >
+          <Zap size={18} />
+        </button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <LeadPanel
@@ -101,6 +114,16 @@ export default function ClienteChatDrawer({ clienteId, conversationId, nombre, t
           mobileMode
         />
       </div>
+
+      <QuickReplies
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        onSelect={(text) => {
+          emitirInsertarTexto({ conversationId, text })
+          setQrOpen(false)
+        }}
+        variables={{ nombre }}
+      />
     </div>
   )
 }

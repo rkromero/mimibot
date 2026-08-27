@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package } from 'lucide-react'
+import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package, Zap } from 'lucide-react'
+import RespuestasRapidasPanel from '@/components/chat/RespuestasRapidasPanel'
+import { usePanelRespuestasRapidas } from '@/lib/inbox/use-respuestas-rapidas'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import Avatar from '@/components/shared/Avatar'
@@ -171,6 +173,10 @@ export default function LeadPanel({
   const variablesRespuesta: VariablesRespuesta = isClienteMode
     ? { nombre: nombre ?? [cliente?.nombre, cliente?.apellido].filter(Boolean).join(' ') }
     : { nombre: lead?.contact?.name ?? nombre, producto: lead?.productInterest }
+
+  // Panel de respuestas rápidas al lado del chat (desktop); el botón ⚡ de la
+  // cabecera "Conversación" lo abre y cierra.
+  const [rrAbierto, toggleRr] = usePanelRespuestasRapidas()
 
   // ── Muestra CDA ──────────────────────────────────────────────────────────────
   // Disponible para todos los leads, sin importar el tag de origen.
@@ -363,21 +369,33 @@ export default function LeadPanel({
           )}
         </div>
 
-        {/* Columna derecha: chat */}
-        <div className="flex flex-col flex-1 min-w-0">
-          <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
-            <ShoppingBag size={14} className="text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Conversación</span>
-          </div>
-          {effectiveConvId ? (
-            <>
-              <ChatFeed conversationId={effectiveConvId} />
-              <ChatComposer conversationId={effectiveConvId} variables={variablesRespuesta} />
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <p className="text-sm text-muted-foreground">Sin conversación disponible.</p>
+        {/* Columna derecha: chat + respuestas rápidas */}
+        <div className="flex flex-1 min-w-0">
+          <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
+              <ShoppingBag size={14} className="text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Conversación</span>
+              {effectiveConvId && <BotonRespuestasRapidas abierto={rrAbierto} onClick={toggleRr} />}
             </div>
+            {effectiveConvId ? (
+              <>
+                <ChatFeed conversationId={effectiveConvId} />
+                <ChatComposer conversationId={effectiveConvId} variables={variablesRespuesta} />
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <p className="text-sm text-muted-foreground">Sin conversación disponible.</p>
+              </div>
+            )}
+          </div>
+          {effectiveConvId && (
+            <RespuestasRapidasPanel
+              conversationId={effectiveConvId}
+              variables={variablesRespuesta}
+              abierto={rrAbierto}
+              onToggle={toggleRr}
+              className="hidden md:flex"
+            />
           )}
         </div>
       </div>
@@ -393,7 +411,11 @@ export default function LeadPanel({
     return (
       <div className="fixed inset-y-0 right-0 flex z-40">
         <button className="fixed inset-0 bg-black/10 dark:bg-black/30" onClick={onClose} aria-label="Cerrar" />
-        <div className="relative flex ml-auto w-[780px] max-w-full h-full bg-background border-l border-border shadow-md">
+        <div className={cn(
+          'relative flex ml-auto max-w-full h-full bg-background border-l border-border shadow-md transition-[width] duration-150',
+          // Más ancho con el panel de respuestas rápidas abierto, para no achicar el chat
+          rrAbierto ? 'w-[1040px]' : 'w-[780px]',
+        )}>
           {clienteInner}
         </div>
       </div>
@@ -494,29 +516,41 @@ export default function LeadPanel({
         </div>
       </div>
 
-      {/* Columna derecha: chat */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
-          <span className="text-sm font-medium text-foreground">Conversación</span>
-          {lead.botEnabled && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Bot size={11} />
-              Bot activo
-            </span>
+      {/* Columna derecha: chat + respuestas rápidas */}
+      <div className="flex flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="flex items-center gap-2 px-4 h-12 border-b border-border shrink-0">
+            <span className="text-sm font-medium text-foreground">Conversación</span>
+            {lead.botEnabled && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Bot size={11} />
+                Bot activo
+              </span>
+            )}
+            {effectiveConvId && <BotonRespuestasRapidas abierto={rrAbierto} onClick={toggleRr} />}
+          </div>
+
+          {effectiveConvId ? (
+            <>
+              <ChatFeed conversationId={effectiveConvId} />
+              <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Este lead no tiene conversación de WhatsApp.
+              </p>
+            </div>
           )}
         </div>
-
-        {effectiveConvId ? (
-          <>
-            <ChatFeed conversationId={effectiveConvId} />
-            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
-          </>
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              Este lead no tiene conversación de WhatsApp.
-            </p>
-          </div>
+        {effectiveConvId && (
+          <RespuestasRapidasPanel
+            conversationId={effectiveConvId}
+            variables={variablesRespuesta}
+            abierto={rrAbierto}
+            onToggle={toggleRr}
+            className="hidden md:flex"
+          />
         )}
       </div>
     </div>
@@ -536,10 +570,34 @@ export default function LeadPanel({
         onClick={onClose}
         aria-label="Cerrar"
       />
-      <div className="relative flex ml-auto w-[780px] max-w-full h-full bg-background border-l border-border shadow-md">
+      <div className={cn(
+          'relative flex ml-auto max-w-full h-full bg-background border-l border-border shadow-md transition-[width] duration-150',
+          // Más ancho con el panel de respuestas rápidas abierto, para no achicar el chat
+          rrAbierto ? 'w-[1040px]' : 'w-[780px]',
+        )}>
         {leadInner}
       </div>
     </div>
+  )
+}
+
+/** Botón ⚡ de la cabecera del chat: abre/cierra el panel de respuestas rápidas. */
+function BotonRespuestasRapidas({ abierto, onClick }: { abierto: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'ml-auto hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+        abierto
+          ? 'bg-primary/10 text-primary hover:bg-primary/15'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+      )}
+      title={abierto ? 'Ocultar respuestas rápidas' : 'Mostrar respuestas rápidas'}
+      aria-pressed={abierto}
+    >
+      <Zap size={13} />
+      Respuestas rápidas
+    </button>
   )
 }
 

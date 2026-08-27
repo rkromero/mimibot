@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Plus, Search, Send, Pencil, Trash2, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { Zap, Plus, Search, Send, Pencil, Trash2, PanelRightClose } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { useToast } from '@/components/shared/ToastProvider'
@@ -53,28 +53,9 @@ export default function RespuestasRapidasPanel({ conversationId, variables, abie
     }
   }
 
-  if (!abierto) {
-    return (
-      <div className={cn('flex-col items-center w-10 shrink-0 border-l border-border bg-background py-2', className)}>
-        <button
-          onClick={onToggle}
-          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title="Mostrar respuestas rápidas"
-          aria-label="Mostrar respuestas rápidas"
-        >
-          <PanelRightOpen size={16} />
-        </button>
-        <button
-          onClick={onToggle}
-          className="mt-1 p-2 rounded-md text-primary hover:bg-accent transition-colors"
-          title="Respuestas rápidas"
-          aria-label="Respuestas rápidas"
-        >
-          <Zap size={16} />
-        </button>
-      </div>
-    )
-  }
+  // Cerrado: no ocupa lugar; se vuelve a abrir con el botón ⚡ de la
+  // cabecera "Conversación" del chat.
+  if (!abierto) return null
 
   return (
     <div className={cn('flex-col w-64 shrink-0 border-l border-border bg-background min-h-0', className)}>
