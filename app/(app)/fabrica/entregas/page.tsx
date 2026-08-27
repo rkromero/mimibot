@@ -153,7 +153,8 @@ function RutaExpresoPedidoCard({ pedido, onDelivered }: { pedido: Pedido; onDeli
       const res = await fetch(`/api/clientes/${pedido.cliente.id}/conversacion`, { method: 'POST' })
       if (!res.ok) return
       const json = await res.json() as { data: { conversationId: string } }
-      router.push(`/inbox?conversation=${json.data.conversationId}`)
+      // `cliente=`: el inbox abre la conversación en modo cliente aunque sea nueva
+      router.push(`/inbox?conversation=${json.data.conversationId}&cliente=${pedido.cliente.id}`)
     } catch { /* ignore */ }
   }
 

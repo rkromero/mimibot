@@ -50,7 +50,8 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
       const res = await fetch(`/api/clientes/${cliente.id}/conversacion`, { method: 'POST' })
       if (!res.ok) return
       const json = await res.json() as { data: { conversationId: string } }
-      router.push(`/inbox?conversation=${json.data.conversationId}`)
+      // `cliente=`: el inbox abre la conversación en modo cliente aunque sea nueva
+      router.push(`/inbox?conversation=${json.data.conversationId}&cliente=${cliente.id}`)
     } catch {
       // ignore
     } finally {

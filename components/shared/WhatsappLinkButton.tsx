@@ -55,7 +55,10 @@ export default function WhatsappLinkButton({
       const res = await fetch(`/api/clientes/${clienteId}/conversacion`, { method: 'POST' })
       if (!res.ok) return
       const json = await res.json() as { data: { conversationId: string } }
-      router.push(`/inbox?conversation=${json.data.conversationId}`)
+      // `cliente=` le dice al inbox que es una conversación de cliente (no de
+      // lead) aunque sea nueva y todavía no tenga mensajes ni figure en el
+      // listado; sin eso mostraba "No se pudo cargar el lead".
+      router.push(`/inbox?conversation=${json.data.conversationId}&cliente=${clienteId}`)
     } catch {
       // ignore
     } finally {
