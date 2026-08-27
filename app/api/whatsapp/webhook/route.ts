@@ -10,7 +10,7 @@ import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/va
 import { db } from '@/db'
 import { leads, contacts, conversations, messages, activityLog, pipelineStages, clientes } from '@/db/schema'
 import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
-import { processBotTurn } from '@/lib/claude/bot'
+import { programarTurnoBot } from '@/lib/claude/bot-debounce'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
 import { publishCrmEvent } from '@/lib/realtime/broker'
@@ -343,12 +343,14 @@ async function handleInboundMessage(params: {
   })
 
   if (lead?.botEnabled && !lead.botQualified && msg.type === 'text') {
-    void processBotTurn({
+    // No responde ya: espera unos segundos (Ajustes → Bot) por si la persona
+    // manda varios mensajes seguidos, y contesta una sola vez al conjunto.
+    void programarTurnoBot({
       leadId,
       conversationId,
       inboundMessageId: savedMsg!.id,
       contactPhone,
-    }).catch((err) => console.error('[bot] error en processBotTurn:', err))
+    }).catch((err) => console.error('[bot] error programando el turno del bot:', err))
   }
 }
 

@@ -142,10 +142,15 @@ export const leads = pgTable('leads', {
   // Se muestra en la card del kanban; también marca que ya se procesó el paso
   // a "Muestra enviada" (idempotencia).
   muestraEntregadaAt: timestamp('muestra_entregada_at', { mode: 'date', withTimezone: true }),
+  // Respuesta del bot pendiente: momento a partir del cual debe contestar
+  // (espera configurable tras el último mensaje). Red de seguridad del timer
+  // en memoria: si el server se reinicia, el scheduler la retoma.
+  botResponderDesde: timestamp('bot_responder_desde', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
+  index('leads_bot_responder_desde_idx').on(t.botResponderDesde),
   index('leads_stage_assigned_idx').on(t.stageId, t.assignedTo),
   index('leads_assigned_to_idx').on(t.assignedTo),
   index('leads_contact_idx').on(t.contactId),
@@ -308,6 +313,12 @@ export const botConfig = pgTable('bot_config', {
   qualificationQuestions: jsonb('qualification_questions').notNull().default('[]'),
   maxTurns: integer('max_turns').notNull().default(6),
   handoffPhrases: text('handoff_phrases').array().notNull().default([]),
+  /**
+   * Segundos que el bot espera después del último mensaje del contacto antes
+   * de responder: si la persona manda varios mensajes seguidos, se juntan y
+   * el bot contesta una sola vez al conjunto.
+   */
+  esperaRespuestaSegundos: integer('espera_respuesta_segundos').notNull().default(15),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

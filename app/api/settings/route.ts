@@ -11,6 +11,7 @@ const updateBotSchema = z.object({
   systemPrompt: z.string().min(10).max(8000).optional(),
   isEnabled: z.boolean().optional(),
   maxTurns: z.number().int().min(1).max(20).optional(),
+  esperaRespuestaSegundos: z.number().int().min(0, 'La espera no puede ser negativa').max(120, 'La espera no puede superar los 120 segundos').optional(),
   handoffPhrases: z.array(z.string().max(100)).max(20).optional(),
   qualificationQuestions: z.array(z.string()).optional(),
 })
@@ -47,6 +48,7 @@ export async function PATCH(req: NextRequest) {
       if (parsed.data.systemPrompt !== undefined) updates.systemPrompt = parsed.data.systemPrompt
       if (parsed.data.isEnabled !== undefined) updates.isEnabled = parsed.data.isEnabled
       if (parsed.data.maxTurns !== undefined) updates.maxTurns = parsed.data.maxTurns
+      if (parsed.data.esperaRespuestaSegundos !== undefined) updates.esperaRespuestaSegundos = parsed.data.esperaRespuestaSegundos
       if (parsed.data.handoffPhrases !== undefined) updates.handoffPhrases = parsed.data.handoffPhrases
       if (parsed.data.qualificationQuestions !== undefined) updates.qualificationQuestions = parsed.data.qualificationQuestions
 

@@ -30,6 +30,7 @@ export default function BotConfigForm({ initialConfig }: Props) {
     isEnabled: initialConfig?.isEnabled ?? true,
     systemPrompt: initialConfig?.systemPrompt ?? DEFAULT_PROMPT,
     maxTurns: initialConfig?.maxTurns ?? 6,
+    esperaRespuestaSegundos: initialConfig?.esperaRespuestaSegundos ?? 15,
     handoffPhrases: (initialConfig?.handoffPhrases ?? []).join('\n'),
   })
 
@@ -46,6 +47,7 @@ export default function BotConfigForm({ initialConfig }: Props) {
           isEnabled: form.isEnabled,
           systemPrompt: form.systemPrompt,
           maxTurns: form.maxTurns,
+          esperaRespuestaSegundos: form.esperaRespuestaSegundos,
           handoffPhrases: form.handoffPhrases
             .split('\n')
             .map((s) => s.trim())
@@ -156,6 +158,35 @@ export default function BotConfigForm({ initialConfig }: Props) {
             'focus:outline-none focus:ring-1 focus:ring-ring',
           )}
         />
+      </div>
+
+      {/* Espera antes de responder */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5">
+          Segundos de espera antes de responder
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={120}
+            value={form.esperaRespuestaSegundos}
+            onChange={(e) => {
+              const n = parseInt(e.target.value)
+              setForm((p) => ({ ...p, esperaRespuestaSegundos: Number.isNaN(n) ? 0 : Math.min(120, Math.max(0, n)) }))
+            }}
+            className={cn(
+              'w-24 px-3 py-2 text-sm rounded-md border',
+              'border-border bg-background text-foreground',
+              'focus:outline-none focus:ring-1 focus:ring-ring',
+            )}
+          />
+          <span className="text-sm text-muted-foreground">segundos</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          El bot espera este tiempo después del último mensaje de la persona. Si manda varios mensajes seguidos,
+          los junta y responde una sola vez al conjunto. Con 0 responde de inmediato a cada mensaje.
+        </p>
       </div>
 
       {/* Handoff phrases */}
