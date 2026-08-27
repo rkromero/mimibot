@@ -12,10 +12,6 @@ import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { muestraLeadSchema } from '@/lib/validations/lead'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 
-// Tags de origen habilitados para el envío de muestras (ver intake). Ambos
-// reciben el mismo producto muestra de la marca CDA.
-const TAGS_MUESTRA = new Set(['landing-cda', 'web-alipro'])
-
 /**
  * GET /api/leads/[id]/muestra — datos para el modal de muestra: el cliente ya
  * vinculado al lead (si existe) con su expreso guardado, para ofrecer
@@ -49,9 +45,10 @@ export async function GET(
 /**
  * POST /api/leads/[id]/muestra — carga un pedido de muestra CDA para el lead.
  *
- * Solo para leads con tag `landing-cda` o `web-alipro`. Busca o crea el cliente
- * a partir del lead (el lead sigue abierto en el pipeline) y crea un pedido con
- * el producto "Muestra" de la marca CDA (cantidad 1, precio del producto).
+ * Disponible para cualquier lead, sin importar el tag de origen. Busca o crea
+ * el cliente a partir del lead (el lead sigue abierto en el pipeline) y crea un
+ * pedido con el producto "Muestra" de la marca CDA (cantidad 1, precio del
+ * producto).
  *
  * Body: `{ metodoEntrega: 'retiro_fabrica' | 'expreso', expresoNombre?, expresoDireccion? }`
  * — el mismo paso "Entrega" que cargan los agentes, así fábrica sabe qué
@@ -96,17 +93,9 @@ export async function POST(
 
     const lead = await db.query.leads.findFirst({
       where: and(eq(leads.id, id), isNull(leads.deletedAt)),
-      with: {
-        contact: true,
-        tags: { with: { tag: true } },
-      },
+      with: { contact: true },
     })
     if (!lead) throw new NotFoundError('Lead')
-
-    const habilitado = lead.tags.some((lt) => lt.tag?.name && TAGS_MUESTRA.has(lt.tag.name))
-    if (!habilitado) {
-      throw new ValidationError('El envío de muestras es solo para leads de CDA o ALIPRO (tags landing-cda / web-alipro)')
-    }
 
     // Producto "Muestra" de la marca CDA — se busca por marca + nombre para no
     // atar el código a un ID/SKU puntual (hoy: "Muestras", SKU CDA023).

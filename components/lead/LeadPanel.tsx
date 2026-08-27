@@ -167,10 +167,7 @@ export default function LeadPanel({
   const tagList: Tag[] = (lead?.tags ?? []).map((t) => ('tag' in t ? t.tag : t))
 
   // ── Muestra CDA ──────────────────────────────────────────────────────────────
-  // Habilitado para leads de las landings de CDA y ALIPRO (misma muestra CDA).
-  const TAGS_MUESTRA = ['landing-cda', 'web-alipro']
-  const muestraHabilitada = tagList.some((t) => TAGS_MUESTRA.includes(t.name))
-
+  // Disponible para todos los leads, sin importar el tag de origen.
   // El botón abre el modal con el paso "Entrega" (retiro / expreso); el pedido
   // se crea desde el modal y acá solo guardamos el id para linkearlo.
   const [muestraPedidoId, setMuestraPedidoId] = useState<string | null>(null)
@@ -218,9 +215,7 @@ export default function LeadPanel({
     }
     return (
       <div className="flex flex-col w-full h-full min-h-0">
-        {muestraHabilitada && (
-          <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
-        )}
+        <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
         {muestraModalOpen && leadId && (
           <MuestraModal
             leadId={leadId}
@@ -475,9 +470,7 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {muestraHabilitada && (
-          <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
-        )}
+        <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
         {muestraModalOpen && leadId && (
           <MuestraModal
             leadId={leadId}

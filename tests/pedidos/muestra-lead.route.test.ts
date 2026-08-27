@@ -331,14 +331,15 @@ describe('POST /api/leads/[id]/muestra', () => {
     expect(mockCrearPedidoConItems.mock.calls[0]![0]).toBe('nuevo')
   })
 
-  it('lead sin tag habilitado → 400', async () => {
-    mockFindLead.mockResolvedValue({
-      id: LEAD_ID, assignedTo: null, contact: { name: 'X' }, tags: [{ tag: { name: 'otro' } }],
-    })
-    const { POST } = await loadRoute()
-    const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
-    expect(res.status).toBe(400)
-    expect(mockCrearPedidoConItems).not.toHaveBeenCalled()
+  it('la muestra no depende del tag de origen: lead con otro tag o sin tags → 201', async () => {
+    for (const tags of [[{ tag: { name: 'pagina-primer-lote' } }], []]) {
+      vi.clearAllMocks()
+      mockFindLead.mockResolvedValue({ id: LEAD_ID, assignedTo: null, contact: { name: 'X' }, tags })
+      const { POST } = await loadRoute()
+      const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
+      expect(res.status).toBe(201)
+      expect(mockCrearPedidoConItems).toHaveBeenCalledTimes(1)
+    }
   })
 })
 
