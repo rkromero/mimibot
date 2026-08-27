@@ -28,19 +28,21 @@ export async function POST(
       throw new ValidationError('El campo "tipo" debe ser "remito" o "proforma"')
     }
 
-    const { buffer, numero } = await emitirDocumento(
+    const { buffer, nombreArchivo } = await emitirDocumento(
       id,
       tipo as TipoDocumento,
       session.user.id,
     )
 
-    const filename = `${tipo as string}-${String(numero).padStart(6, '0')}.pdf`
+    // La proforma se descarga (se la manda al cliente); el remito se imprime.
+    // El nombre lleva cliente + número de pedido: "Juan Perez - Pedido 3A9F12BC - Proforma.pdf".
+    const disposition = tipo === 'proforma' ? 'attachment' : 'inline'
 
     return new Response(buffer as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Disposition': `${disposition}; filename="${nombreArchivo}"`,
         'Content-Length': String(buffer.length),
       },
     })

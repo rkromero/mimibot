@@ -10,11 +10,15 @@ import {
 import { eq, sql, and, isNull } from 'drizzle-orm'
 import { RemitoDocument } from './remito.template'
 import { ProformaDocument } from './proforma.template'
+import { armarMarcaTitulo } from './marca-titulo'
+import { tituloDocumento, nombreArchivoDocumento } from './nombre-archivo'
 import { NotFoundError } from '@/lib/errors'
 
 export type EmitirDocumentoResult = {
   buffer: Buffer
   numero: number
+  /** "Juan Perez - Pedido 3A9F12BC - Proforma.pdf": cliente + número de pedido + tipo */
+  nombreArchivo: string
 }
 
 export async function emitirDocumento(
@@ -95,12 +99,11 @@ export async function emitirDocumento(
   })
 
   // 4. Build PedidoData
-  // Marcas únicas de los productos del pedido, en orden de aparición.
-  const marcaNombres = [...new Set(
-    pedido.items
-      .map((item) => item.producto?.marca?.nombre)
-      .filter((n): n is string => !!n),
-  )]
+  // Marcas únicas en orden de aparición, con los reemplazos de marcas
+  // discontinuadas (CDA → ALIPRO)
+  const marcaTitulo = armarMarcaTitulo(
+    pedido.items.map((item) => item.producto?.marca?.nombre),
+  )
 
   const pedidoData = {
     id: pedido.id,
@@ -123,7 +126,7 @@ export async function emitirDocumento(
     })),
     total: pedido.total,
     costoEnvio: pedido.costoEnvio ?? '0',
-    marcaTitulo: marcaNombres.length > 0 ? marcaNombres.join(' + ') : undefined,
+    marcaTitulo,
     vendedorNombre: pedido.vendedor?.name ?? 'Vendedor',
     empresa,
     // Método de entrega (solo pedidos del rol Agente)
@@ -132,20 +135,31 @@ export async function emitirDocumento(
     expresoDireccion: pedido.expresoDireccion ?? undefined,
   }
 
-  // 5. Render PDF
+  // 5. Render PDF. El título va en los metadatos del PDF: es lo que sugiere el
+  // navegador como nombre al guardar o imprimir a PDF.
+  const titulo = tituloDocumento(tipo, pedido.cliente, pedido.id)
   let element: React.ReactElement<DocumentProps>
 
   if (tipo === 'remito') {
-    element = React.createElement(RemitoDocument, { data: pedidoData, numero: newNumber }) as React.ReactElement<DocumentProps>
+    element = React.createElement(RemitoDocument, {
+      data: pedidoData,
+      numero: newNumber,
+      titulo,
+    }) as React.ReactElement<DocumentProps>
   } else {
     element = React.createElement(ProformaDocument, {
       data: pedidoData,
       numero: newNumber,
       saldoPendiente: pedido.saldoPendiente,
+      titulo,
     }) as React.ReactElement<DocumentProps>
   }
 
   const buffer = await renderToBuffer(element)
 
-  return { buffer: Buffer.from(buffer), numero: newNumber }
+  return {
+    buffer: Buffer.from(buffer),
+    numero: newNumber,
+    nombreArchivo: nombreArchivoDocumento(tipo, pedido.cliente, pedido.id),
+  }
 }

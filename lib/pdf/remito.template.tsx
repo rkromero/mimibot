@@ -267,9 +267,14 @@ export const S = StyleSheet.create({
 
 // ─── RemitoDocument ───────────────────────────────────────────────────────────
 
-type Props = { data: PedidoData; numero: number }
+type Props = {
+  data: PedidoData
+  numero: number
+  /** Título en los metadatos del PDF: es el nombre que sugiere el navegador al guardar/imprimir a PDF */
+  titulo?: string
+}
 
-export function RemitoDocument({ data, numero }: Props) {
+export function RemitoDocument({ data, numero, titulo }: Props) {
   const footerText = [
     data.empresa.nombre,
     data.empresa.cuit ? `CUIT: ${data.empresa.cuit}` : null,
@@ -280,7 +285,7 @@ export function RemitoDocument({ data, numero }: Props) {
     .filter(Boolean).join(', ') || 'No especificada'
 
   return (
-    <Document>
+    <Document title={titulo}>
       <Page size="A4" style={S.page}>
 
         {/* ── Encabezado ──────────────────────────────────────────────────── */}

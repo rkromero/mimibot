@@ -2,10 +2,26 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/shared/ToastProvider'
+import { nombreArchivoDesdeHeader } from '@/lib/pdf/nombre-archivo'
 
 export type DocTipo = 'remito' | 'proforma' | 'etiqueta'
 
 type Generating = { pedidoId: string; tipo: DocTipo } | null
+
+/** Descarga el blob con el nombre indicado (link con `download` + click). */
+function descargarBlob(url: string, nombreArchivo: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombreArchivo
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  // Un tick después: el navegador ya tomó el objeto; liberar la URL
+  setTimeout(() => {
+    try { document.body.removeChild(a) } catch { /* ya removido */ }
+    URL.revokeObjectURL(url)
+  }, 1000)
+}
 
 function printBlob(url: string) {
   const iframe = document.createElement('iframe')
@@ -90,7 +106,15 @@ export function useGenerarDocumento() {
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      printBlob(url)
+
+      // La proforma se la entrega el agente al cliente: se descarga con el
+      // nombre que manda el server (cliente + número de pedido). Remito y
+      // etiqueta se imprimen.
+      if (tipo === 'proforma') {
+        descargarBlob(url, nombreArchivoDesdeHeader(res.headers.get('Content-Disposition')) ?? 'proforma.pdf')
+      } else {
+        printBlob(url)
+      }
     } catch {
       toast.error('Error de conexión al generar documento')
     } finally {

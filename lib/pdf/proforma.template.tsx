@@ -75,9 +75,15 @@ const P = StyleSheet.create({
 
 // ─── ProformaDocument ─────────────────────────────────────────────────────────
 
-type Props = { data: PedidoData; numero: number; saldoPendiente?: string }
+type Props = {
+  data: PedidoData
+  numero: number
+  saldoPendiente?: string
+  /** Título en los metadatos del PDF: es el nombre que sugiere el navegador al guardar/imprimir a PDF */
+  titulo?: string
+}
 
-export function ProformaDocument({ data, numero }: Props) {
+export function ProformaDocument({ data, numero, titulo }: Props) {
   const footerText = [
     data.empresa.nombre,
     data.empresa.cuit ? `CUIT: ${data.empresa.cuit}` : null,
@@ -93,7 +99,7 @@ export function ProformaDocument({ data, numero }: Props) {
   const subtotalProductos = (parseFloat(data.total) - envio).toFixed(2)
 
   return (
-    <Document>
+    <Document title={titulo}>
       <Page size="A4" style={S.page}>
 
         {/* ── Encabezado ──────────────────────────────────────────────────── */}

@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { pedidos, empresaConfig } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { EtiquetaDocument, type EtiquetaData } from './etiqueta.template'
+import { armarMarcaTitulo } from './marca-titulo'
 import { NotFoundError } from '@/lib/errors'
 
 function resolverEntregaLineas(
@@ -68,12 +69,11 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     pedido.cliente,
   )
 
-  // Marcas únicas de los productos del pedido, en orden de aparición.
-  const marcaNombres = [...new Set(
-    pedido.items
-      .map((item) => item.producto?.marca?.nombre)
-      .filter((n): n is string => !!n),
-  )]
+  // Marcas únicas en orden de aparición, con los reemplazos de marcas
+  // discontinuadas (CDA → ALIPRO)
+  const marcaTitulo = armarMarcaTitulo(
+    pedido.items.map((item) => item.producto?.marca?.nombre),
+  )
 
   const data: EtiquetaData = {
     pedidoId: pedido.id,
@@ -82,7 +82,7 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     clienteTelefono: pedido.cliente.telefono ?? undefined,
     entregaLineas,
     empresa: { nombre: config?.nombre ?? '' },
-    marcaTitulo: marcaNombres.length > 0 ? marcaNombres.join(' + ') : undefined,
+    marcaTitulo,
     observaciones: pedido.observaciones ?? undefined,
   }
 
