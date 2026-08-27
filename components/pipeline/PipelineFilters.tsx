@@ -17,7 +17,8 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
   const agentsQuery = useQuery({
     queryKey: ['agents'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent,vendedor,rtv')
+      // Incluye admins: los leads también pueden estar asignados a un admin
+      const res = await fetch('/api/users?role=agent,vendedor,rtv,admin')
       if (!res.ok) return []
       const json = await res.json() as { data: User[] }
       return json.data

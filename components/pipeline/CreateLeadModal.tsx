@@ -38,7 +38,8 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
   const { data: agents = [] } = useQuery<AgentOption[]>({
     queryKey: ['agents-list'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent,rtv&active=true')
+      // Agentes y también admins: un lead se puede asignar a un admin (p. ej. Teo)
+      const res = await fetch('/api/users?role=agent,rtv,admin&active=true')
       if (!res.ok) return []
       const json = await res.json() as { data: AgentOption[] }
       return json.data

@@ -45,7 +45,8 @@ export default function BulkImportModal({ stages, userRole, onClose }: Props) {
   const { data: agents = [] } = useQuery<AgentOption[]>({
     queryKey: ['agents-list'],
     queryFn: async () => {
-      const res = await fetch('/api/users?role=agent,rtv&active=true')
+      // Misma lista que el alta de lead: agentes y admins
+      const res = await fetch('/api/users?role=agent,rtv,admin&active=true')
       if (!res.ok) return []
       const json = await res.json() as { data: AgentOption[] }
       return json.data
