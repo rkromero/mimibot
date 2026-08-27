@@ -19,7 +19,7 @@ type ConfigRow = {
 }
 
 // Sets up 3 calls: config, eligible agents, optional UPDATE (used by round_robin)
-function mockCalls(config: ConfigRow | null, agents: { id: string }[]) {
+function mockCalls(config: ConfigRow | null, agents: Array<{ id: string; role?: string }>) {
   mockExecute
     .mockResolvedValueOnce((config ? [config] : []) as never)
     .mockResolvedValueOnce(agents as never)
@@ -248,5 +248,60 @@ describe('assignLeadByRule', () => {
       mockCalls({ ...RR_CONFIG, round_robin_pointer: 0 }, [{ id: 'only-active' }])
       expect(await assignLeadByRule()).toBe('only-active')
     })
+  })
+})
+
+// ─── admins ────────────────────────────────────────────────────────────────────
+// Un admin se puede elegir a mano ("Todo a un agente" / con peso) pero no entra
+// en el reparto parejo (rotativo / al azar) si hay gente de ventas activa.
+
+describe('assignLeadByRule con admins', () => {
+  const VENTAS_Y_ADMIN = [
+    { id: 'admin-teo', role: 'admin' },
+    { id: 'agent-a', role: 'agent' },
+    { id: 'agent-b', role: 'rtv' },
+  ]
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('regla fija a un admin → se lo asigna', async () => {
+    mockCalls(
+      { rule: 'fixed', fixed_agent_id: 'admin-teo', weights: [], round_robin_pointer: 0 },
+      VENTAS_Y_ADMIN,
+    )
+    expect(await assignLeadByRule()).toBe('admin-teo')
+  })
+
+  it('con peso a un admin → puede recibir leads', async () => {
+    mockCalls(
+      { rule: 'weighted', fixed_agent_id: null, weights: [{ agentId: 'admin-teo', weight: 100 }], round_robin_pointer: 0 },
+      VENTAS_Y_ADMIN,
+    )
+    expect(await assignLeadByRule(() => 0.5)).toBe('admin-teo')
+  })
+
+  it('rotativo: salta a los admins mientras haya ventas activos', async () => {
+    mockCalls({ rule: 'round_robin', fixed_agent_id: null, weights: [], round_robin_pointer: 0 }, VENTAS_Y_ADMIN)
+    expect(await assignLeadByRule()).toBe('agent-a')
+    mockCalls({ rule: 'round_robin', fixed_agent_id: null, weights: [], round_robin_pointer: 1 }, VENTAS_Y_ADMIN)
+    expect(await assignLeadByRule()).toBe('agent-b')
+    mockCalls({ rule: 'round_robin', fixed_agent_id: null, weights: [], round_robin_pointer: 2 }, VENTAS_Y_ADMIN)
+    expect(await assignLeadByRule()).toBe('agent-a')
+  })
+
+  it('al azar: nunca cae en un admin si hay ventas activos', async () => {
+    for (const r of [0, 0.5, 0.99]) {
+      // "random" no consume el mock del UPDATE: limpiar la cola en cada vuelta
+      mockExecute.mockReset()
+      mockCalls({ rule: 'random', fixed_agent_id: null, weights: [], round_robin_pointer: 0 }, VENTAS_Y_ADMIN)
+      expect(['agent-a', 'agent-b']).toContain(await assignLeadByRule(() => r))
+    }
+  })
+
+  it('sin ventas activos, el reparto cae en los admins antes que dejar el lead sin asignar', async () => {
+    mockCalls({ rule: 'round_robin', fixed_agent_id: null, weights: [], round_robin_pointer: 0 }, [{ id: 'admin-teo', role: 'admin' }])
+    expect(await assignLeadByRule()).toBe('admin-teo')
   })
 })

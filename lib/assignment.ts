@@ -10,6 +10,24 @@ type ConfigRow = {
   round_robin_pointer: number
 }
 
+type Elegible = { id: string; role: string }
+
+/**
+ * Roles a los que se les puede asignar un lead (a mano o por regla). Los
+ * admins entran para poder elegirlos explícitamente ("Todo a un agente" o con
+ * peso), pero NO en el reparto automático parejo (rotativo / al azar): ahí
+ * solo participan los roles de ventas, para que un admin no reciba leads sin
+ * haberlo configurado.
+ */
+export const ROLES_ASIGNABLES = ['agent', 'vendedor', 'rtv', 'admin'] as const
+export const ROLES_REPARTO_AUTOMATICO = ['agent', 'vendedor', 'rtv'] as const
+
+function poolReparto(elegibles: Elegible[]): Elegible[] {
+  const ventas = elegibles.filter((u) => (ROLES_REPARTO_AUTOMATICO as readonly string[]).includes(u.role))
+  // Sin nadie de ventas activo, mejor repartir entre los admins que dejar el lead sin asignar
+  return ventas.length > 0 ? ventas : elegibles
+}
+
 export async function assignLeadByRule(rng = Math.random): Promise<string | null> {
   const configRows = await db.execute(sql`
     SELECT rule, fixed_agent_id, weights, round_robin_pointer
@@ -18,32 +36,33 @@ export async function assignLeadByRule(rng = Math.random): Promise<string | null
   const config = (configRows as unknown as ConfigRow[])[0] ?? null
 
   const eligibleRows = await db.execute(sql`
-    SELECT id FROM users
-    WHERE role IN ('agent', 'vendedor', 'rtv') AND is_active = true
+    SELECT id, role FROM users
+    WHERE role IN ('agent', 'vendedor', 'rtv', 'admin') AND is_active = true
     ORDER BY id
   `)
-  const eligible = eligibleRows as unknown as Array<{ id: string }>
+  const eligible = eligibleRows as unknown as Elegible[]
 
   if (eligible.length === 0) return null
 
   const eligibleSet = new Set(eligible.map((a) => a.id))
+  const pool = poolReparto(eligible)
   const rule = config?.rule ?? 'round_robin'
 
   switch (rule) {
     case 'fixed': {
       const fixedId = config?.fixed_agent_id ?? null
       if (fixedId && eligibleSet.has(fixedId)) return fixedId
-      return doRoundRobin(eligible, config?.round_robin_pointer ?? 0)
+      return doRoundRobin(pool, config?.round_robin_pointer ?? 0)
     }
 
     case 'random':
-      return eligible[Math.floor(rng() * eligible.length)]!.id
+      return pool[Math.floor(rng() * pool.length)]!.id
 
     case 'weighted': {
       const rawWeights = config?.weights ?? []
       const active = rawWeights.filter((w) => eligibleSet.has(w.agentId) && w.weight > 0)
       if (active.length === 0) {
-        return eligible[Math.floor(rng() * eligible.length)]!.id
+        return pool[Math.floor(rng() * pool.length)]!.id
       }
       const total = active.reduce((s, w) => s + w.weight, 0)
       let cursor = rng() * total
@@ -55,7 +74,7 @@ export async function assignLeadByRule(rng = Math.random): Promise<string | null
     }
 
     default: // round_robin
-      return doRoundRobin(eligible, config?.round_robin_pointer ?? 0)
+      return doRoundRobin(pool, config?.round_robin_pointer ?? 0)
   }
 }
 
