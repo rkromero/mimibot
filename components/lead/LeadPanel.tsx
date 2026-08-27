@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package, Zap } from 'lucide-react'
+import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package, Zap, ArrowLeft } from 'lucide-react'
 import RespuestasRapidasPanel from '@/components/chat/RespuestasRapidasPanel'
+import QuickReplies from '@/components/chat/QuickReplies'
 import { usePanelRespuestasRapidas } from '@/lib/inbox/use-respuestas-rapidas'
+import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
+import { useEsMobile } from '@/lib/ui/use-es-mobile'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import Avatar from '@/components/shared/Avatar'
@@ -178,6 +181,11 @@ export default function LeadPanel({
   // cabecera "Conversación" lo abre y cierra.
   const [rrAbierto, toggleRr] = usePanelRespuestasRapidas()
 
+  // En el celular, el panel flotante (kanban, ficha del cliente) usa el layout
+  // mobile a pantalla completa en vez de las dos columnas de escritorio.
+  const esMobile = useEsMobile()
+  const [qrOpen, setQrOpen] = useState(false)
+
   // ── Muestra CDA ──────────────────────────────────────────────────────────────
   // Disponible para todos los leads, sin importar el tag de origen.
   // El botón abre el modal con el paso "Entrega" (retiro / expreso); el pedido
@@ -201,16 +209,17 @@ export default function LeadPanel({
   }
 
   // ── Mobile mode ──────────────────────────────────────────────────────────────
-  if (mobileMode) {
+  const modoMobile = mobileMode || (!embedded && esMobile === true)
+  if (modoMobile) {
+    let inner: ReactNode
     if (!isClienteMode && isLoading) {
-      return (
+      inner = (
         <div className="flex items-center justify-center w-full h-full text-sm text-muted-foreground">
           Cargando...
         </div>
       )
-    }
-    if (!isClienteMode && (isError || !lead)) {
-      return (
+    } else if (!isClienteMode && (isError || !lead)) {
+      inner = (
         <div className="flex flex-col items-center justify-center gap-3 w-full h-full text-sm text-muted-foreground">
           <p>No se pudo cargar el lead.</p>
           <button
@@ -224,40 +233,99 @@ export default function LeadPanel({
           </button>
         </div>
       )
+    } else {
+      inner = (
+        <div className="flex flex-col w-full h-full min-h-0">
+          {!isClienteMode && leadId && (
+            <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
+          )}
+          {muestraModalOpen && leadId && (
+            <MuestraModal
+              leadId={leadId}
+              onClose={() => setMuestraModalOpen(false)}
+              onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
+            />
+          )}
+          {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
+          {!isClienteMode && leadId && (
+            <div className="max-h-56 overflow-y-auto shrink-0">
+              <PropuestasList leadId={leadId} mobile />
+            </div>
+          )}
+          {effectiveConvId ? (
+            <>
+              <ChatFeed conversationId={effectiveConvId} />
+              <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                {isClienteMode
+                  ? 'Este cliente no tiene conversación de WhatsApp.'
+                  : 'Este lead no tiene conversación de WhatsApp.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )
     }
+
+    // El inbox mobile ya pone su propia cabecera (InboxView); acá solo el contenido.
+    if (mobileMode) return inner
+
+    // Panel flotante en el celular (kanban, ficha del cliente): pantalla
+    // completa por encima de la barra inferior, con cabecera para volver y ⚡.
     return (
-      <div className="flex flex-col w-full h-full min-h-0">
-        <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
-        {muestraModalOpen && leadId && (
-          <MuestraModal
-            leadId={leadId}
-            onClose={() => setMuestraModalOpen(false)}
-            onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
-          />
-        )}
-        {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
-        {!isClienteMode && leadId && (
-          <div className="max-h-56 overflow-y-auto shrink-0">
-            <PropuestasList leadId={leadId} mobile />
-          </div>
-        )}
-        {effectiveConvId ? (
-          <>
-            <ChatFeed conversationId={effectiveConvId} />
-            <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
-          </>
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              {isClienteMode
-                ? 'Este cliente no tiene conversación de WhatsApp.'
-                : 'Este lead no tiene conversación de WhatsApp.'}
+      <div className="fixed inset-0 z-[60] flex flex-col bg-background">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
+          <button
+            onClick={onClose}
+            className="p-2 -ml-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Volver"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-foreground truncate">{variablesRespuesta.nombre || '...'}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              {!isClienteMode && lead?.botEnabled ? (
+                <>
+                  <Bot size={11} />
+                  Bot activo
+                </>
+              ) : (
+                'WhatsApp'
+              )}
             </p>
           </div>
-        )}
+          {effectiveConvId && (
+            <button
+              onClick={() => setQrOpen(true)}
+              className="p-2 text-primary min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Respuestas rápidas"
+              title="Respuestas rápidas"
+            >
+              <Zap size={18} />
+            </button>
+          )}
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden">{inner}</div>
+        <QuickReplies
+          open={qrOpen}
+          onClose={() => setQrOpen(false)}
+          onSelect={(text) => {
+            if (effectiveConvId) emitirInsertarTexto({ conversationId: effectiveConvId, text })
+            setQrOpen(false)
+          }}
+          variables={variablesRespuesta}
+        />
       </div>
     )
   }
+
+  // Panel flotante: hasta saber el ancho del viewport no se pinta nada, para
+  // no mostrar un instante las dos columnas de escritorio en el celular.
+  if (!embedded && esMobile === null) return null
 
   // ── Desktop mode ─────────────────────────────────────────────────────────────
 
