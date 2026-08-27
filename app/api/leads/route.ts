@@ -144,12 +144,27 @@ export async function GET(req: NextRequest) {
             avatarColor: users.avatarColor,
           },
           unreadCount: conversations.unreadCount,
+          lastMessageBody: messages.body,
+          lastMessageType: messages.contentType,
+          lastMessageAt: messages.sentAt,
+          lastMessageDirection: messages.direction,
         })
         .from(leads)
         .innerJoin(contacts, eq(leads.contactId, contacts.id))
         .innerJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
         .leftJoin(users, eq(leads.assignedTo, users.id))
         .leftJoin(conversations, eq(conversations.leadId, leads.id))
+        // Último mensaje de la conversación: la card muestra su preview y la
+        // fecha ("hace 2 h"); sin esto decía "Sin mensajes" aunque hubiera
+        // no leídos.
+        .leftJoin(
+          messages,
+          sql`${messages.id} = (
+            SELECT id FROM messages
+            WHERE conversation_id = ${conversations.id}
+            ORDER BY sent_at DESC LIMIT 1
+          )`,
+        )
         .where(and(...conditionsWithCursor))
         .orderBy(desc(leads.updatedAt), sql`${leads.id} DESC`)
         .limit(colLimit + 1)
@@ -183,7 +198,14 @@ export async function GET(req: NextRequest) {
         assignedUser: r.assignedUser,
         tags: tagsByLead[r.lead.id] ?? [],
         unreadCount: r.unreadCount ?? 0,
-        lastMessage: null,
+        lastMessage: r.lastMessageAt
+          ? {
+              body: r.lastMessageBody,
+              contentType: r.lastMessageType,
+              sentAt: r.lastMessageAt,
+              direction: r.lastMessageDirection,
+            }
+          : null,
       }))
 
       return NextResponse.json({ data, hasMore, total, nextCursor })
@@ -264,7 +286,9 @@ export async function GET(req: NextRequest) {
       assignedUser: r.assignedUser,
       tags: tagsByLead[r.lead.id] ?? [],
       unreadCount: r.unreadCount ?? 0,
-      lastMessage: r.lastMessageBody
+      // Por fecha y no por texto: un último mensaje sin cuerpo (imagen, audio)
+      // también cuenta, la card muestra "Imagen" / "Audio".
+      lastMessage: r.lastMessageAt
         ? {
             body: r.lastMessageBody,
             contentType: r.lastMessageType,
