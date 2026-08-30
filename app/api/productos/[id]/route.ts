@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { productos, marcas } from '@/db/schema'
+import { productos, marcas, recetas } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { updateProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
@@ -9,6 +9,7 @@ import { assertPuedeVerMarca } from '@/lib/authz/marcas'
 import { toApiError, NotFoundError } from '@/lib/errors'
 import { deleteProducto } from '@/lib/delete/delete.service'
 import { validateUuidParam } from '@/lib/api/validate-params'
+import { costearProducto } from '@/lib/productos/costeo.service'
 
 export async function GET(
   _req: NextRequest,
@@ -31,7 +32,11 @@ export async function GET(
     // Ventas no pueden ver productos de marcas no habilitadas para ellos.
     await assertPuedeVerMarca(session.user, producto.marcaId)
 
-    return NextResponse.json({ data: producto })
+    // Costeo en vivo desde la receta (FASE 1D): cambiar el precio de un
+    // insumo y recargar refleja el costo nuevo; persiste costo_calculado
+    const costeo = producto.recetaId ? await costearProducto(producto) : null
+
+    return NextResponse.json({ data: { ...producto, costeo } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
@@ -54,7 +59,7 @@ export async function PATCH(
 
     const existing = await db.query.productos.findFirst({
       where: and(eq(productos.id, id), isNull(productos.deletedAt)),
-      columns: { id: true },
+      columns: { id: true, recetaId: true },
     })
     if (!existing) throw new NotFoundError('Producto')
 
@@ -65,9 +70,30 @@ export async function PATCH(
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
+    // Estado EFECTIVO post-PATCH: con receta enlazada, el costo manual está
+    // bloqueado (se calcula desde la receta)
+    const recetaIdEfectiva = parsed.data.recetaId !== undefined ? parsed.data.recetaId : existing.recetaId
+    if (recetaIdEfectiva && parsed.data.costo != null && parsed.data.costo !== '') {
+      return NextResponse.json(
+        { error: 'El costo se calcula desde la receta: no se puede cargar a mano' },
+        { status: 400 },
+      )
+    }
+    if (parsed.data.recetaId != null && parsed.data.recetaId !== existing.recetaId) {
+      const receta = await db.query.recetas.findFirst({
+        where: and(eq(recetas.id, parsed.data.recetaId), eq(recetas.activo, true)),
+        columns: { id: true },
+      })
+      if (!receta) {
+        return NextResponse.json({ error: 'Receta inválida o inactiva' }, { status: 400 })
+      }
+    }
+
     const updates: Partial<typeof productos.$inferInsert> = {
       updatedAt: new Date(),
     }
+    if (parsed.data.recetaId !== undefined) updates.recetaId = parsed.data.recetaId
+    if (parsed.data.margenPct !== undefined) updates.margenPct = parsed.data.margenPct || null
 
     if (parsed.data.marcaId !== undefined) {
       const marca = await db.query.marcas.findFirst({
@@ -99,7 +125,8 @@ export async function PATCH(
       .where(eq(productos.id, id))
       .returning()
 
-    return NextResponse.json({ data: updated })
+    const costeo = updated?.recetaId ? await costearProducto(updated) : null
+    return NextResponse.json({ data: updated ? { ...updated, costeo } : updated })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

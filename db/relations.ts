@@ -155,6 +155,7 @@ export const actividadesClienteRelations = relations(actividadesCliente, ({ one 
 export const productosRelations = relations(productos, ({ one, many }) => ({
   creadoPor: one(users, { fields: [productos.creadoPor], references: [users.id] }),
   marca: one(marcas, { fields: [productos.marcaId], references: [marcas.id] }),
+  receta: one(recetas, { fields: [productos.recetaId], references: [recetas.id] }),
   items: many(pedidoItems),
   stockMovements: many(stockMovements),
 }))
@@ -221,8 +222,9 @@ export const insumosRelations = relations(insumos, ({ many }) => ({
   recetaItems: many(recetaItems),
 }))
 
-export const recetasRelations = relations(recetas, ({ many }) => ({
+export const recetasRelations = relations(recetas, ({ one, many }) => ({
   items: many(recetaItems),
+  cliente: one(clientes, { fields: [recetas.clienteId], references: [clientes.id] }),
 }))
 
 export const recetaItemsRelations = relations(recetaItems, ({ one }) => ({

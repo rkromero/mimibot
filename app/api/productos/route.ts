@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { productos, marcas } from '@/db/schema'
+import { productos, marcas, recetas } from '@/db/schema'
 import { eq, and, ilike, isNull, asc, desc, sql, getTableColumns } from 'drizzle-orm'
 import { createProductoSchema } from '@/lib/validations/productos'
 import { requireAdmin } from '@/lib/authz'
 import { marcaVisibleFilter } from '@/lib/authz/marcas'
 import { toApiError } from '@/lib/errors'
 import { parsePagination } from '@/lib/api/pagination'
+import { costearProducto, costearProductos, obtenerMargenGlobal } from '@/lib/productos/costeo.service'
+import { resolverMargen } from '@/lib/costos/margen'
 
 export async function GET(req: NextRequest) {
   try {
@@ -82,7 +84,19 @@ export async function GET(req: NextRequest) {
         .limit(limit)
         .offset((page - 1) * limit)
 
-      return NextResponse.json({ data: rows, page, limit, total, totalPages })
+      // Costeo por receta (FASE 1D): costo calculado en vivo + margen
+      // objetivo para el semáforo del listado
+      const costeos = await costearProductos(rows)
+      const margenGlobal = await obtenerMargenGlobal()
+      const data = rows.map((p) => {
+        const costeo = costeos.get(p.id) ?? null
+        const margenObjetivo = costeo
+          ? costeo.margen.valor
+          : resolverMargen(p.margenPct != null ? Number(p.margenPct) : null, null, margenGlobal).valor
+        return { ...p, costeo, margenObjetivo }
+      })
+
+      return NextResponse.json({ data, page, limit, total, totalPages })
     } catch (innerErr) {
       const rawMessage = innerErr instanceof Error ? innerErr.message : String(innerErr)
       console.error('[productos GET] full select failed, trying minimal projection:', rawMessage)
@@ -162,6 +176,17 @@ export async function POST(req: NextRequest) {
     }
     const marcaId = marca.id
 
+    // Receta enlazada: debe existir y estar activa
+    if (input.recetaId) {
+      const receta = await db.query.recetas.findFirst({
+        where: and(eq(recetas.id, input.recetaId), eq(recetas.activo, true)),
+        columns: { id: true },
+      })
+      if (!receta) {
+        return NextResponse.json({ error: 'Receta inválida o inactiva' }, { status: 400 })
+      }
+    }
+
     let sku = skuFromUser
     let producto: (typeof productos.$inferSelect) | undefined
 
@@ -177,6 +202,8 @@ export async function POST(req: NextRequest) {
             descripcion: input.descripcion ?? null,
             precio: input.precio,
             costo: input.costo ?? null,
+            recetaId: input.recetaId,
+            margenPct: input.margenPct || null,
             categoria: input.categoria ?? null,
             imagenUrl: input.imagenUrl ?? null,
             unidadVenta: input.unidadVenta ?? 'unidad',
@@ -205,7 +232,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo generar un SKU único, intentá de nuevo' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: producto }, { status: 201 })
+    // Con receta: costeo en vivo (y primer costo_calculado persistido)
+    const costeo = producto.recetaId ? await costearProducto(producto) : null
+    return NextResponse.json({ data: { ...producto, costeo } }, { status: 201 })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

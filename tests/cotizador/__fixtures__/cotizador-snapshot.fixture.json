@@ -1,0 +1,64 @@
+{
+  "formulaVersion": 3,
+  "margenPct": 35,
+  "cargoSetupPersonalizado": 150000,
+  "alfajoresPorCaja": 12,
+  "topeDescuentoPct": 8,
+  "validezDias": 10,
+  "condicionesComerciales": "1. PAGO. Al contado.\n\n2. ENTREGA. En planta ALIPRO.",
+  "condicionesPackagingPersonalizado": "Packaging personalizado. Bobina del cliente.",
+  "precioBobinaUnit": 35,
+  "precioCajaUnit": 550,
+  "recetas": {
+    "60": [
+      {
+        "gramos": 38.5,
+        "precioPorKg": 6000
+      },
+      {
+        "gramos": 15.25,
+        "precioPorKg": 4800.5
+      },
+      {
+        "gramos": 6.25,
+        "precioPorKg": 12000
+      }
+    ],
+    "80": [
+      {
+        "gramos": 50,
+        "precioPorKg": 6000
+      },
+      {
+        "gramos": 20,
+        "precioPorKg": 4800.5
+      },
+      {
+        "gramos": 10,
+        "precioPorKg": 12000
+      }
+    ]
+  },
+  "escalones": [
+    {
+      "cantidadMin": 100,
+      "cantidadMax": 999,
+      "descuentoPct": 0
+    },
+    {
+      "cantidadMin": 1000,
+      "cantidadMax": 4999,
+      "descuentoPct": 5
+    },
+    {
+      "cantidadMin": 5000,
+      "cantidadMax": 9999,
+      "descuentoPct": 10
+    },
+    {
+      "cantidadMin": 10000,
+      "cantidadMax": null,
+      "descuentoPct": 15
+    }
+  ]
+}

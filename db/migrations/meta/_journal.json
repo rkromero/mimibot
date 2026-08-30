@@ -477,6 +477,20 @@
       "when": 1787655169715,
       "tag": "0067_bot_espera_respuesta",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1787655229715,
+      "tag": "0068_costos_recetas",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1787655289715,
+      "tag": "0069_producto_receta",
+      "breakpoints": true
     }
   ]
 }

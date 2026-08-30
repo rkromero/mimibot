@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { db } from '@/db'
 import { insumos, recetas, cotizadorConfig, escalonesVolumen } from '@/db/schema'
 import { ValidationError } from '@/lib/errors'
@@ -43,8 +43,10 @@ export async function armarSnapshotCotizador(): Promise<CotizadorSnapshot> {
     insumosActivos.filter((i) => i.unidad === 'kg').map((i) => [i.id, Number(i.precio)]),
   )
 
+  // Solo las recetas del cotizador: las recetas de costeo (FASE 1B, con o sin
+  // cliente asignado) no participan de las propuestas.
   const recetasActivas = await db.query.recetas.findMany({
-    where: eq(recetas.activo, true),
+    where: and(eq(recetas.esCotizador, true), eq(recetas.activo, true)),
     with: { items: true },
   })
 

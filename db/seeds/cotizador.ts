@@ -55,7 +55,10 @@ async function seed() {
       console.log(`  ~ receta ${gramaje}g exists`)
       continue
     }
-    const [receta] = await db.insert(recetas).values({ gramaje }).returning()
+    const [receta] = await db
+      .insert(recetas)
+      .values({ gramaje, nombre: `Alfajor ${gramaje}g`, esCotizador: true })
+      .returning()
     const items = (Object.entries(componentes) as [keyof typeof componentes, number][])
       .map(([tipo, gramos]) => {
         const insumoId = insumosPorTipo.get(tipo)

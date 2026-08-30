@@ -1,0 +1,107 @@
+{
+  "snapshot": {
+    "formulaVersion": 3,
+    "margenPct": 35,
+    "cargoSetupPersonalizado": 150000,
+    "alfajoresPorCaja": 12,
+    "topeDescuentoPct": 8,
+    "validezDias": 10,
+    "condicionesComerciales": "1. PAGO. Al contado.",
+    "condicionesPackagingPersonalizado": "Packaging personalizado. Bobina del cliente.",
+    "precioBobinaUnit": 35,
+    "precioCajaUnit": 550,
+    "recetas": {
+      "60": [
+        {
+          "gramos": 27,
+          "precioPorKg": 6000
+        },
+        {
+          "gramos": 21,
+          "precioPorKg": 4800.5
+        },
+        {
+          "gramos": 12,
+          "precioPorKg": 12000
+        }
+      ],
+      "80": [
+        {
+          "gramos": 36,
+          "precioPorKg": 6000
+        },
+        {
+          "gramos": 28,
+          "precioPorKg": 4800.5
+        },
+        {
+          "gramos": 16,
+          "precioPorKg": 12000
+        }
+      ]
+    },
+    "escalones": [
+      {
+        "cantidadMin": 100,
+        "cantidadMax": 999,
+        "descuentoPct": 0
+      },
+      {
+        "cantidadMin": 1000,
+        "cantidadMax": 4999,
+        "descuentoPct": 5
+      },
+      {
+        "cantidadMin": 5000,
+        "cantidadMax": 9999,
+        "descuentoPct": 10
+      },
+      {
+        "cantidadMin": 10000,
+        "cantidadMax": null,
+        "descuentoPct": 15
+      }
+    ]
+  },
+  "resultados": [
+    {
+      "costoInsumosUnitario": 487.64,
+      "precioUnitNeto": 696.56,
+      "escalonAplicado": {
+        "cantidadMin": 1000,
+        "cantidadMax": 4999,
+        "descuentoPct": 5
+      },
+      "neto": 696560,
+      "setup": 0,
+      "iva": 146277.6,
+      "total": 842837.6
+    },
+    {
+      "costoInsumosUnitario": 588.25,
+      "precioUnitNeto": 773.77,
+      "escalonAplicado": {
+        "cantidadMin": 5000,
+        "cantidadMax": 9999,
+        "descuentoPct": 10
+      },
+      "neto": 4018850,
+      "setup": 150000,
+      "iva": 843958.5,
+      "total": 4862808.5
+    },
+    {
+      "costoInsumosUnitario": 452.64,
+      "precioUnitNeto": 640.67,
+      "escalonAplicado": {
+        "cantidadMin": 100,
+        "cantidadMax": 999,
+        "descuentoPct": 0
+      },
+      "neto": 470335,
+      "setup": 150000,
+      "iva": 98770.35,
+      "total": 569105.35
+    }
+  ]
+}

@@ -8,16 +8,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockAuthFn, mockSelect, mockMarcaVisibleFilter } = vi.hoisted(() => ({
+const { mockAuthFn, mockSelect, mockMarcaVisibleFilter, mockCostearProductos } = vi.hoisted(() => ({
   mockAuthFn: vi.fn(),
   mockSelect: vi.fn(),
   mockMarcaVisibleFilter: vi.fn(),
+  mockCostearProductos: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({ auth: mockAuthFn }))
 vi.mock('@/db', () => ({ db: { select: mockSelect } }))
 vi.mock('@/lib/authz/marcas', () => ({ marcaVisibleFilter: mockMarcaVisibleFilter }))
 vi.mock('@/lib/authz', () => ({ requireAdmin: vi.fn() }))
+// Costeo por receta (FASE 1D): fuera de alcance de estos tests
+vi.mock('@/lib/productos/costeo.service', () => ({
+  costearProductos: mockCostearProductos,
+  costearProducto: vi.fn().mockResolvedValue(null),
+  obtenerMargenGlobal: vi.fn().mockResolvedValue(35),
+}))
 vi.mock('@/lib/api/pagination', () => ({
   parsePagination: vi.fn().mockReturnValue({ page: 1, limit: 50, sortBy: 'nombre', sortDir: 'asc', search: '' }),
 }))
@@ -42,6 +49,7 @@ function makeSession(role: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockCostearProductos.mockResolvedValue(new Map())
 })
 
 describe('GET /api/productos — visibilidad por marca', () => {

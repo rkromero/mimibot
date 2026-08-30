@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   pgTable, pgEnum, text, timestamp, boolean, integer,
-  decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision, date,
+  decimal, uuid, jsonb, primaryKey, index, uniqueIndex, doublePrecision, date, check,
 } from 'drizzle-orm/pg-core'
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -467,6 +467,13 @@ export const productos = pgTable('productos', {
   descripcion: text('descripcion'),
   precio: decimal('precio', { precision: 12, scale: 2 }).notNull(),
   costo: decimal('costo', { precision: 12, scale: 2 }),
+  // Enlace a receta (FASE 1D): con receta, el costo se calcula desde
+  // lib/costos (costo manual bloqueado); costoCalculado/costoActualizadoAt
+  // persisten el último recálculo. margenPct pisa al margen de la receta.
+  recetaId: uuid('receta_id').references(() => recetas.id),
+  margenPct: decimal('margen_pct', { precision: 5, scale: 2 }),
+  costoCalculado: decimal('costo_calculado', { precision: 12, scale: 2 }),
+  costoActualizadoAt: timestamp('costo_actualizado_at', { mode: 'date' }),
   categoria: text('categoria'),
   imagenUrl: text('imagen_url'),
   unidadVenta: unidadVentaEnum('unidad_venta').notNull().default('unidad'),
@@ -483,6 +490,7 @@ export const productos = pgTable('productos', {
   index('productos_activo_idx').on(t.activo),
   uniqueIndex('productos_sku_idx').on(t.sku),
   index('productos_marca_idx').on(t.marcaId),
+  index('productos_receta_idx').on(t.recetaId),
 ])
 
 // ─── CRM: Pedidos ─────────────────────────────────────────────────────────────
@@ -859,13 +867,44 @@ export const insumos = pgTable('insumos', {
   index('insumos_activo_idx').on(t.activo),
 ])
 
+// Histórico de precios de insumos: cada cambio agrega una fila acá.
+// insumos.precio se mantiene como el precio vigente denormalizado.
+export const insumoPrecios = pgTable('insumo_precios', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  insumoId: uuid('insumo_id').notNull().references(() => insumos.id, { onDelete: 'cascade' }),
+  precio: decimal('precio', { precision: 12, scale: 2 }).notNull(),
+  vigenteDesde: timestamp('vigente_desde', { mode: 'date' }).notNull().defaultNow(),
+  registradoPor: uuid('registrado_por').references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('insumo_precios_insumo_vigente_idx').on(t.insumoId, t.vigenteDesde.desc()),
+])
+
+// esCotizador marca las recetas del cotizador de propuestas; las demás son
+// recetas de costeo, opcionalmente asignadas a un cliente (nunca ambas cosas:
+// CHECK recetas_cotizador_sin_cliente_check). El gramaje ya no es UNIQUE
+// global: lo reemplaza el índice único PARCIAL recetas_gramaje_cotizador_unique_idx
+// (gramaje WHERE es_cotizador = true AND activo = true), creado con SQL crudo
+// en la migración 0068 porque drizzle-kit no genera únicos parciales — mismo
+// criterio que clientes_cuit_unique_idx (migración 0048).
 export const recetas = pgTable('recetas', {
   id: uuid('id').defaultRandom().primaryKey(),
-  gramaje: integer('gramaje').notNull().unique(),
+  nombre: text('nombre').notNull(),
+  gramaje: integer('gramaje').notNull(),
+  clienteId: uuid('cliente_id').references(() => clientes.id),
+  esCotizador: boolean('es_cotizador').notNull().default(false),
+  bobinaInsumoId: uuid('bobina_insumo_id').references(() => insumos.id),
+  cajaInsumoId: uuid('caja_insumo_id').references(() => insumos.id),
+  alfajoresPorCaja: integer('alfajores_por_caja'),
+  margenPct: decimal('margen_pct', { precision: 5, scale: 2 }),
   activo: boolean('activo').notNull().default(true),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-})
+}, (t) => [
+  index('recetas_cliente_idx').on(t.clienteId),
+  index('recetas_es_cotizador_idx').on(t.esCotizador),
+  check('recetas_cotizador_sin_cliente_check', sql`NOT (${t.esCotizador} AND ${t.clienteId} IS NOT NULL)`),
+])
 
 // Solo aplica a insumos con unidad 'kg' (los de unidad 'unidad' entran
 // directo en la fórmula: bobina por alfajor, caja prorrateada)
@@ -873,6 +912,9 @@ export const recetaItems = pgTable('receta_items', {
   recetaId: uuid('receta_id').notNull().references(() => recetas.id, { onDelete: 'cascade' }),
   insumoId: uuid('insumo_id').notNull().references(() => insumos.id),
   gramos: decimal('gramos', { precision: 8, scale: 2 }).notNull(),
+  // Cantidad en la unidad del insumo (costeo por receta). En FASE 1A espeja
+  // gramos vía backfill; gramos sigue siendo la columna que consume el cotizador.
+  cantidad: decimal('cantidad', { precision: 12, scale: 4 }),
 }, (t) => [
   primaryKey({ columns: [t.recetaId, t.insumoId] }),
   index('receta_items_insumo_idx').on(t.insumoId),

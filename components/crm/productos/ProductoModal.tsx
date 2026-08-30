@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import ProductoRecetaPrecio from './ProductoRecetaPrecio'
+import type { Receta } from '@/components/admin/cotizador/RecetaCard'
 
 type Producto = {
   id: string
@@ -20,6 +22,8 @@ type Producto = {
   ivaPct: string
   stockMinimo: number
   activo: boolean
+  recetaId: string | null
+  margenPct: string | null
 }
 
 type Marca = { id: string; nombre: string; slug: string; activo: boolean; esDefault: boolean }
@@ -75,6 +79,32 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
     },
   })
 
+  // Recetas generales (cotizador + plantillas) para enlazar el costo (FASE 1D)
+  const { data: recetasList = [] } = useQuery<Receta[]>({
+    queryKey: ['cotizador-recetas', 'generales'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/cotizador/recetas?generales=true')
+      if (!res.ok) return []
+      const json = await res.json() as { data: Receta[] }
+      return json.data
+    },
+    enabled: isAdmin,
+    staleTime: 30_000,
+  })
+
+  const { data: margenGlobal = null } = useQuery<number | null>({
+    queryKey: ['cotizador-config-global-margen'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/cotizador/config')
+      if (!res.ok) return null
+      const json = await res.json() as { data?: { config?: { margenPct?: string } } }
+      const m = json.data?.config?.margenPct
+      return m != null ? Number(m) : null
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  })
+
   const [form, setForm] = useState({
     marcaId: producto?.marcaId ?? '',
     sku: producto?.sku ?? '',
@@ -88,6 +118,8 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
     pesoG: producto?.pesoG != null ? String(producto.pesoG) : '',
     ivaPct: producto?.ivaPct ?? '21.00',
     stockMinimo: producto?.stockMinimo != null ? String(producto.stockMinimo) : '0',
+    recetaId: producto?.recetaId ?? '',
+    margenPct: producto?.margenPct != null ? String(Number(producto.margenPct)) : '',
   })
 
   function set<K extends keyof typeof form>(key: K, value: string) {
@@ -131,7 +163,12 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
 
       if (form.sku.trim()) body.sku = form.sku.trim().toUpperCase()
       if (form.pesoG) body.pesoG = parseInt(form.pesoG, 10)
-      if (isAdmin && form.costo) body.costo = form.costo
+      if (isAdmin) {
+        body.recetaId = form.recetaId || null
+        body.margenPct = form.margenPct || null
+        // Con receta enlazada el costo es calculado: no se manda a mano
+        if (!form.recetaId && form.costo) body.costo = form.costo
+      }
 
       const res = await fetch(url, {
         method,
@@ -251,21 +288,23 @@ export default function ProductoModal({ producto, onClose, isAdmin = false }: Pr
                 className={inputClass}
               />
             </div>
-            {isAdmin && (
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Costo ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.costo}
-                  onChange={(e) => set('costo', e.target.value)}
-                  placeholder="0.00"
-                  className={inputClass}
-                />
-              </div>
-            )}
           </div>
+
+          {isAdmin && (
+            <ProductoRecetaPrecio
+              recetas={recetasList}
+              margenGlobal={margenGlobal}
+              recetaId={form.recetaId}
+              onRecetaId={(v) => set('recetaId', v)}
+              costo={form.costo}
+              onCosto={(v) => set('costo', v)}
+              margen={form.margenPct}
+              onMargen={(v) => set('margenPct', v)}
+              precio={form.precio}
+              onPrecio={(v) => set('precio', v)}
+              ivaPct={form.ivaPct}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

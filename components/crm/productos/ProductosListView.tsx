@@ -25,6 +25,15 @@ type Producto = {
   ivaPct: string
   stockMinimo: number
   activo: boolean
+  recetaId: string | null
+  margenPct: string | null
+  costeo?: {
+    costoUnitario: number
+    margen: { valor: number; origen: string }
+    precioSugeridoNeto: number
+    diferenciaPrecioPct: number
+  } | null
+  margenObjetivo?: number
 }
 
 type Marca = { id: string; nombre: string; slug: string; activo: boolean; esDefault: boolean }
@@ -38,6 +47,30 @@ const UNIDAD_LABELS: Record<string, string> = {
 
 function formatMoney(value: string | number) {
   return `$${parseFloat(String(value)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+}
+
+// Margen real sobre el precio guardado (neto), con semáforo contra el margen
+// objetivo: verde si lo supera, ámbar hasta 5 puntos por debajo, rojo más abajo.
+function renderMargenReal(row: Producto) {
+  const precio = parseFloat(row.precio)
+  const costo = row.costeo ? row.costeo.costoUnitario : row.costo ? parseFloat(row.costo) : null
+  if (!precio || precio <= 0 || costo == null || isNaN(costo)) {
+    return <span className="text-muted-foreground">—</span>
+  }
+  const real = ((precio - costo) / precio) * 100
+  const objetivo = row.margenObjetivo
+  const color = objetivo == null
+    ? 'text-muted-foreground'
+    : real >= objetivo
+      ? 'text-green-600 dark:text-green-400'
+      : objetivo - real <= 5
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-red-600 dark:text-red-400'
+  return (
+    <span className={cn('font-medium', color)} title={objetivo != null ? `Objetivo: ${objetivo}%` : undefined}>
+      {real.toFixed(1)}%
+    </span>
+  )
 }
 
 // "MIM-003" → "MIM-004" (conserva el padding). Sin número final → vacío,
@@ -211,7 +244,31 @@ export default function ProductosListView() {
             label: 'Costo',
             headerClassName: 'text-right hidden lg:table-cell',
             className: 'text-right text-muted-foreground hidden lg:table-cell',
-            render: (row: Producto) => <span>{row.costo ? formatMoney(row.costo) : '—'}</span>,
+            render: (row: Producto) => {
+              if (row.costeo) {
+                return (
+                  <span>
+                    {formatMoney(row.costeo.costoUnitario)}
+                    <span className="block text-[10px] text-sky-600 dark:text-sky-400">Receta</span>
+                  </span>
+                )
+              }
+              return row.costo
+                ? (
+                  <span>
+                    {formatMoney(row.costo)}
+                    <span className="block text-[10px] text-muted-foreground">Manual</span>
+                  </span>
+                )
+                : <span>—</span>
+            },
+          },
+          {
+            key: 'margen',
+            label: 'Margen',
+            headerClassName: 'text-right hidden lg:table-cell',
+            className: 'text-right hidden lg:table-cell',
+            render: (row: Producto) => renderMargenReal(row),
           },
         ]
       : []),
