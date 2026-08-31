@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { messages, conversations, leads, attachments } from '@/db/schema'
+import { messages } from '@/db/schema'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { toApiError, NotFoundError } from '@/lib/errors'
-import { canAccessLead } from '@/lib/authz'
+import { toApiError } from '@/lib/errors'
+import { canAccessConversacion } from '@/lib/authz/conversaciones'
 import { validateUuidParam } from '@/lib/api/validate-params'
 
 const addNoteSchema = z.object({
@@ -26,12 +26,8 @@ export async function GET(
     const invalid = validateUuidParam(id)
     if (invalid) return invalid
 
-    const conv = await db.query.conversations.findFirst({
-      where: eq(conversations.id, id),
-      columns: { leadId: true },
-    })
-    if (!conv?.leadId) throw new NotFoundError('Conversación')
-    await canAccessLead(session.user, conv.leadId)
+    // Conversación de lead o de cliente: la autorización sigue al dueño.
+    await canAccessConversacion(session.user, id)
 
     const msgs = await db.query.messages.findMany({
       where: eq(messages.conversationId, id),
@@ -61,12 +57,7 @@ export async function POST(
     const invalid = validateUuidParam(id)
     if (invalid) return invalid
 
-    const conv = await db.query.conversations.findFirst({
-      where: eq(conversations.id, id),
-      columns: { leadId: true },
-    })
-    if (!conv?.leadId) throw new NotFoundError('Conversación')
-    await canAccessLead(session.user, conv.leadId)
+    await canAccessConversacion(session.user, id)
 
     const body: unknown = await req.json()
     const parsed = addNoteSchema.safeParse(body)

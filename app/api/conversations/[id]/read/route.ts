@@ -3,8 +3,8 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { conversations, messages } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { toApiError, NotFoundError } from '@/lib/errors'
-import { canAccessLead } from '@/lib/authz'
+import { toApiError } from '@/lib/errors'
+import { canAccessConversacion } from '@/lib/authz/conversaciones'
 import { validateUuidParam } from '@/lib/api/validate-params'
 
 export async function POST(
@@ -19,12 +19,8 @@ export async function POST(
     const invalid = validateUuidParam(id)
     if (invalid) return invalid
 
-    const conv = await db.query.conversations.findFirst({
-      where: eq(conversations.id, id),
-      columns: { leadId: true },
-    })
-    if (!conv?.leadId) throw new NotFoundError('Conversación')
-    await canAccessLead(session.user, conv.leadId)
+    // Conversación de lead o de cliente: la autorización sigue al dueño.
+    await canAccessConversacion(session.user, id)
 
     await db
       .update(messages)
