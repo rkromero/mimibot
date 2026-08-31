@@ -199,6 +199,15 @@ export default function LeadPanel({
     setMuestraModalOpen(false)
   }, [leadId])
 
+  // Abrir el panel marca el lead como visto (lo hace el GET): se invalidan
+  // las listas del kanban para que el bubble "Nuevo" se apague al volver.
+  const loadedLeadId = lead?.id ?? null
+  useEffect(() => {
+    if (!loadedLeadId) return
+    void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+    void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
+  }, [loadedLeadId, queryClient])
+
   async function toggleBot() {
     if (!lead || !leadId) return
     await fetch(`/api/leads/${leadId}`, {

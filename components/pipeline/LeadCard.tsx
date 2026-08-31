@@ -103,6 +103,11 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
             <span className="text-sm font-medium text-foreground leading-tight truncate">
               {lead.contact.name}
             </span>
+            {!lead.vistoAt && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500 text-white animate-pulse">
+                Nuevo
+              </span>
+            )}
             <GradoBadge grado={lead.botGrado} score={lead.botScore} />
           </span>
           {lead.lastMessage?.sentAt && (

@@ -78,6 +78,11 @@ export default function LeadList({ leads, stages, loading, onLeadClick }: Props)
                   )}>
                     {lead.contact.name}
                   </span>
+                  {!lead.vistoAt && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500 text-white">
+                      Nuevo
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {lead.unreadCount > 0 && (
                       <span className="text-[10px] font-bold text-primary-foreground bg-primary rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center tabular-nums">

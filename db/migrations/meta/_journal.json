@@ -491,6 +491,13 @@
       "when": 1787655289715,
       "tag": "0069_producto_receta",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1787655349715,
+      "tag": "0070_lead_visto",
+      "breakpoints": true
     }
   ]
 }

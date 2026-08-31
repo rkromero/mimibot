@@ -146,6 +146,9 @@ export const leads = pgTable('leads', {
   // (espera configurable tras el último mensaje). Red de seguridad del timer
   // en memoria: si el server se reinicia, el scheduler la retoma.
   botResponderDesde: timestamp('bot_responder_desde', { mode: 'date', withTimezone: true }),
+  // Bubble "Nuevo" del kanban: null = el lead entró y todavía nadie abrió su
+  // tarjeta; se marca al abrir el panel (GET /api/leads/[id])
+  vistoAt: timestamp('visto_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),

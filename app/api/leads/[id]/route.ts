@@ -25,6 +25,13 @@ export async function GET(
     if (invalid) return invalid
     await canAccessLead(session.user, id)
 
+    // Abrir la tarjeta apaga el bubble "Nuevo" del kanban: la primera vista
+    // marca visto_at (y el findFirst de abajo ya lo devuelve seteado)
+    await db
+      .update(leads)
+      .set({ vistoAt: new Date() })
+      .where(and(eq(leads.id, id), isNull(leads.vistoAt)))
+
     const lead = await db.query.leads.findFirst({
       where: and(eq(leads.id, id), isNull(leads.deletedAt)),
       with: {
