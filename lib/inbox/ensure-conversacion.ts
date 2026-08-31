@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { clientes, conversations } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { ValidationError, NotFoundError } from '@/lib/errors'
 import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 
@@ -38,6 +38,23 @@ export async function ensureConversacionParaCliente(
         .where(eq(conversations.id, leadConv.id))
       return { conversationId: leadConv.id, clienteId }
     }
+  }
+
+  // 2.5 Unificación: el hilo de WhatsApp es uno solo por persona. Cualquier
+  //     conversación del mismo teléfono que aún no tenga cliente (p. ej. la
+  //     de un lead que no quedó enlazado a este cliente) se adopta en vez de
+  //     crear una segunda. Si hay varias, gana la de actividad más reciente.
+  const mismaPersona = await db.query.conversations.findFirst({
+    where: and(eq(conversations.waContactPhone, phone), isNull(conversations.clienteId)),
+    orderBy: [sql`${conversations.lastMessageAt} DESC NULLS LAST`],
+    columns: { id: true },
+  })
+  if (mismaPersona) {
+    await db
+      .update(conversations)
+      .set({ clienteId, updatedAt: new Date() })
+      .where(eq(conversations.id, mismaPersona.id))
+    return { conversationId: mismaPersona.id, clienteId }
   }
 
   // 3. Crear conversación nueva con clienteId (sin lead)

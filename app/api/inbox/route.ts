@@ -87,17 +87,25 @@ export async function GET(req: NextRequest) {
     const rows = await db
       .select({
         conversationId: conversations.id,
-        tipo: sql<'cliente' | 'lead'>`CASE WHEN ${conversations.clienteId} IS NOT NULL THEN 'cliente' ELSE 'lead' END`,
+        // Un lead ABIERTO manda sobre el cliente: el panel de lead tiene el
+        // cotizador y la etapa (conversación unificada lead+cliente). Cuando
+        // el lead se cierra, vuelve a verse como la conversación del cliente.
+        // El ACCESO no cambia: sigue mandando el dueño del cliente (ver
+        // effectiveOwner y canAccessConversacion).
+        tipo: sql<'cliente' | 'lead'>`CASE
+          WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN 'lead'
+          WHEN ${conversations.clienteId} IS NOT NULL THEN 'cliente'
+          ELSE 'lead' END`,
         leadId: conversations.leadId,
         clienteId: conversations.clienteId,
-        nombre: sql<string>`CASE WHEN ${conversations.clienteId} IS NOT NULL
-          THEN ${clientes.nombre} || ' ' || ${clientes.apellido}
-          ELSE ${contacts.name}
-        END`,
-        contactPhone: sql<string>`CASE WHEN ${conversations.clienteId} IS NOT NULL
-          THEN ${clientes.telefono}
-          ELSE ${contacts.phone}
-        END`,
+        nombre: sql<string>`CASE
+          WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${contacts.name}
+          WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.nombre} || ' ' || ${clientes.apellido}
+          ELSE ${contacts.name} END`,
+        contactPhone: sql<string>`CASE
+          WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${contacts.phone}
+          WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.telefono}
+          ELSE ${contacts.phone} END`,
         unreadCount: conversations.unreadCount,
         lastMessageAt: conversations.lastMessageAt,
         lastMessageBody: sql<string>`(

@@ -5,10 +5,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockFindConv, mockInsertValues, mockInsertTable } = vi.hoisted(() => ({
+const { mockFindConv, mockInsertValues, mockInsertTable, mockUpdateSet } = vi.hoisted(() => ({
   mockFindConv: vi.fn(),
   mockInsertValues: vi.fn(),
   mockInsertTable: vi.fn(),
+  mockUpdateSet: vi.fn(),
 }))
 
 vi.mock('@/db', () => ({
@@ -23,6 +24,12 @@ vi.mock('@/db', () => ({
         },
       }
     },
+    update: () => ({
+      set: (v: unknown) => {
+        mockUpdateSet(v)
+        return { where: () => Promise.resolve() }
+      },
+    }),
   },
 }))
 
@@ -38,6 +45,15 @@ describe('asegurarConversacionLead', () => {
     mockFindConv.mockResolvedValue({ id: 'conv-1' })
     const r = await asegurarConversacionLead('lead-1', '+5491100000000')
     expect(r).toEqual({ conversationId: 'conv-1', creada: false })
+    expect(mockInsertValues).not.toHaveBeenCalled()
+  })
+
+  it('adopta la conversación del mismo teléfono sin lead (unificación con la del cliente)', async () => {
+    // 1ra búsqueda (por leadId): nada; 2da (por teléfono sin lead): la del cliente
+    mockFindConv.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ id: 'conv-cliente' })
+    const r = await asegurarConversacionLead('lead-1', '+5491100000000')
+    expect(r).toEqual({ conversationId: 'conv-cliente', creada: false })
+    expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ leadId: 'lead-1' }))
     expect(mockInsertValues).not.toHaveBeenCalled()
   })
 

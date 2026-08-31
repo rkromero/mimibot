@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db, type Db } from '@/db'
 import { conversations } from '@/db/schema'
 import { toWhatsappE164 } from '@/lib/whatsapp/phone'
@@ -22,6 +22,23 @@ export async function asegurarConversacionLead(
     columns: { id: true },
   })
   if (existente) return { conversationId: existente.id, creada: false }
+
+  // Unificación: el hilo de WhatsApp es uno solo por persona. Si el mismo
+  // teléfono ya tiene una conversación SIN lead (típicamente la de un
+  // cliente), se adopta en vez de crear una segunda; las que ya pertenecen a
+  // otro lead no se tocan (teléfonos compartidos entre leads distintos).
+  const telefono = toWhatsappE164(phone) ?? phone
+  const mismaPersona = await drizzleDb.query.conversations.findFirst({
+    where: and(eq(conversations.waContactPhone, telefono), isNull(conversations.leadId)),
+    columns: { id: true },
+  })
+  if (mismaPersona) {
+    await drizzleDb
+      .update(conversations)
+      .set({ leadId, updatedAt: new Date() })
+      .where(eq(conversations.id, mismaPersona.id))
+    return { conversationId: mismaPersona.id, creada: false }
+  }
 
   const [creada] = await drizzleDb
     .insert(conversations)
