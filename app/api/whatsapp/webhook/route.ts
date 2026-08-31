@@ -12,6 +12,7 @@ import { leads, contacts, conversations, messages, activityLog, pipelineStages, 
 import { eq, and, asc, desc, isNull, sql } from 'drizzle-orm'
 import { programarTurnoBot } from '@/lib/claude/bot-debounce'
 import { persistInboundMedia } from '@/lib/whatsapp/media'
+import { transcripcionHabilitada, transcribirAudio } from '@/lib/whatsapp/transcripcion'
 import { waMediaType } from '@/lib/whatsapp/mime'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { handleAdminMenu } from '@/lib/whatsapp/admin-menu'
@@ -320,13 +321,47 @@ async function handleInboundMessage(params: {
   const mediaId = getMediaId(msg)
   if (mediaId && savedMsg) {
     const mimeType = getMediaMimeType(msg) ?? 'application/octet-stream'
-    void persistInboundMedia({
+    const persistencia = persistInboundMedia({
       waMediaId: mediaId,
       messageId: savedMsg.id,
       conversationId,
       mimeType,
       filename: getMediaFilename(msg),
-    }).catch((err) => console.error('[webhook] error guardando media:', err))
+    })
+    if (msg.type === 'audio' && transcripcionHabilitada()) {
+      // Nota de voz: se transcribe (Claude no procesa audio) y el texto queda
+      // como body del mensaje; recién con la transcripción lista se programa
+      // el turno del bot, que arma el historial desde la DB.
+      const msgId = savedMsg.id
+      void persistencia
+        .then(async ({ buffer }) => {
+          const texto = await transcribirAudio(buffer, mimeType)
+          if (!texto) return
+          await db.update(messages).set({ body: texto }).where(eq(messages.id, msgId))
+          await publishCrmEvent({
+            type: 'new_message',
+            conversationId,
+            leadId,
+            assignedTo,
+            direction: 'inbound',
+          })
+          const leadBot = await db.query.leads.findFirst({
+            where: eq(leads.id, leadId),
+            columns: { botEnabled: true, botQualified: true },
+          })
+          if (leadBot?.botEnabled && !leadBot.botQualified) {
+            await programarTurnoBot({
+              leadId,
+              conversationId,
+              inboundMessageId: msgId,
+              contactPhone,
+            })
+          }
+        })
+        .catch((err) => console.error('[webhook] error transcribiendo audio:', err))
+    } else {
+      void persistencia.catch((err) => console.error('[webhook] error guardando media:', err))
+    }
   }
 
   await publishCrmEvent({

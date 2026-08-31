@@ -64,6 +64,14 @@ export default function MessageBubble({ message }: { message: MessageWithAttachm
               <p className="whitespace-pre-wrap break-words">{message.body}</p>
               <p className="text-[10px] uppercase tracking-wide opacity-70 mt-1">Plantilla</p>
             </>
+          ) : message.body ? (
+            <>
+              {/* Media con texto: p. ej. transcripción automática de una nota de voz */}
+              <p className="whitespace-pre-wrap break-words">{message.body}</p>
+              {message.contentType === 'audio' && (
+                <p className="text-[10px] uppercase tracking-wide opacity-70 mt-1">Transcripción automática</p>
+              )}
+            </>
           ) : message.attachments.length === 0 ? (
             <p className="text-xs italic opacity-80">
               [{contentTypeLabel(message.contentType)}]

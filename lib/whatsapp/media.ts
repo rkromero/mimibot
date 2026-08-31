@@ -5,14 +5,16 @@ import { db } from '@/db'
 import { attachments, messages } from '@/db/schema'
 import { ext } from './mime'
 
-// Descarga un media de Meta, lo sube a R2, y guarda el attachment en DB
+// Descarga un media de Meta, lo sube a R2, y guarda el attachment en DB.
+// Devuelve el buffer para que el caller pueda reusarlo (p. ej. transcripción
+// de audios) sin volver a bajar el archivo de Meta.
 export async function persistInboundMedia(params: {
   waMediaId: string
   messageId: string
   conversationId: string
   mimeType: string
   filename?: string | null
-}): Promise<void> {
+}): Promise<{ buffer: Buffer }> {
   const { waMediaId, messageId, conversationId, mimeType, filename } = params
 
   const { buffer } = await downloadMediaFromMeta(waMediaId)
@@ -37,6 +39,8 @@ export async function persistInboundMedia(params: {
     fileSize: buffer.length,
     originalFilename: filename ?? null,
   })
+
+  return { buffer }
 }
 
 // Sube un buffer enviado por el agente a R2
