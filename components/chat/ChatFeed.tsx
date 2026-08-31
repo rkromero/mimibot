@@ -25,6 +25,7 @@ export default function ChatFeed({ conversationId }: { conversationId: string })
     void (async () => {
       await fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' })
       void queryClient.invalidateQueries({ queryKey: ['inbox'] })
+      void queryClient.invalidateQueries({ queryKey: ['inbox-unread'] })
     })()
   }, [conversationId, queryClient])
 

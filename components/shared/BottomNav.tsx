@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { useQuery } from '@tanstack/react-query'
 import {
   Home,
   MessageSquare,
@@ -24,6 +23,7 @@ import { cn } from '@/lib/utils'
 import type { Session } from 'next-auth'
 import BottomSheet from '@/components/shared/BottomSheet'
 import { esRolVentas } from '@/lib/authz/roles'
+import { useInboxUnreadTotal } from '@/lib/inbox/use-unread-total'
 
 type Props = {
   user: Session['user']
@@ -46,22 +46,7 @@ const ADMIN_TABS = [
 ]
 
 // ─── Inbox unread badge ───────────────────────────────────────────────────────
-
-function useUnreadCount(enabled: boolean) {
-  const { data } = useQuery<number>({
-    queryKey: ['inbox-unread'],
-    queryFn: async () => {
-      const res = await fetch('/api/inbox?filter=mine')
-      if (!res.ok) return 0
-      const json = (await res.json()) as { data: Array<{ unreadCount: number }> }
-      return (json.data ?? []).reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
-    },
-    enabled,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  })
-  return data ?? 0
-}
+// Hook compartido con el Sidebar: total scopeado + actualización en vivo (SSE)
 
 // ─── Generic link tab ────────────────────────────────────────────────────────
 
@@ -108,7 +93,7 @@ function FieldNav({ user, onNewPedido }: Props) {
   const [masOpen, setMasOpen] = useState(false)
   // Activamos el polling de inbox para ambos roles porque ambos pueden tener
   // mensajes sin leer asignados a ellos.
-  const unreadCount = useUnreadCount(esRolVentas(user.role) || user.role === 'gerente')
+  const unreadCount = useInboxUnreadTotal(esRolVentas(user.role) || user.role === 'gerente')
 
   const inicioActive = pathname === '/' || pathname.startsWith('/agent/home')
   const inboxActive = pathname.startsWith('/inbox')

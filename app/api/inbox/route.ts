@@ -84,6 +84,17 @@ export async function GET(req: NextRequest) {
       ? and(baseCondition, ...filterConditions)
       : baseCondition
 
+    // Total de no leídos para la burbuja del menú: mismo scoping, sin filas
+    if (sp.get('soloNoLeidos') === 'true') {
+      const [row] = await db
+        .select({ total: sql<number>`coalesce(sum(${conversations.unreadCount}), 0)::int` })
+        .from(conversations)
+        .leftJoin(leads, eq(conversations.leadId, leads.id))
+        .leftJoin(clientes, eq(conversations.clienteId, clientes.id))
+        .where(whereClause)
+      return NextResponse.json({ total: row?.total ?? 0 })
+    }
+
     const rows = await db
       .select({
         conversationId: conversations.id,

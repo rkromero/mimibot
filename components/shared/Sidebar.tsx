@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
 import BrandLogo from '@/components/shared/BrandLogo'
 import type { Session } from 'next-auth'
+import { useInboxUnreadTotal } from '@/lib/inbox/use-unread-total'
 
 type User = Session['user']
 type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'rtv'
@@ -113,7 +114,8 @@ function SidebarLink({
   label,
   icon: Icon,
   pathname,
-}: NavItem & { pathname: string }) {
+  badge,
+}: NavItem & { pathname: string; badge?: number }) {
   const isActive =
     href === '/dashboard'
       ? pathname === '/dashboard' || pathname.startsWith('/dashboard/')
@@ -131,7 +133,12 @@ function SidebarLink({
       )}
     >
       <Icon size={15} strokeWidth={1.75} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="min-w-[18px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold text-center tabular-nums leading-none">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -139,6 +146,10 @@ function SidebarLink({
 export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOpen?: () => void }) {
   const pathname = usePathname()
   const groups = filterGroups(user.role as Role)
+
+  // Burbuja de no leídos del inbox, en vivo (SSE); solo si el rol ve el inbox
+  const tieneInbox = groups.some((g) => g.items.some((i) => i.href === '/inbox'))
+  const unread = useInboxUnreadTotal(tieneInbox)
 
   return (
     <aside className="hidden md:flex flex-col w-52 border-r border-border bg-card shrink-0">
@@ -164,7 +175,12 @@ export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOp
             </p>
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <SidebarLink key={item.href} {...item} pathname={pathname} />
+                <SidebarLink
+                  key={item.href}
+                  {...item}
+                  pathname={pathname}
+                  badge={item.href === '/inbox' ? unread : undefined}
+                />
               ))}
             </div>
           </div>
