@@ -84,14 +84,30 @@ export async function GET(req: NextRequest) {
       ? and(baseCondition, ...filterConditions)
       : baseCondition
 
-    // Total de no leídos para la burbuja del menú: mismo scoping, sin filas
+    // Total de no leídos para la burbuja del menú. Cuenta TODO lo que el
+    // usuario puede ver en su inbox sin importar la pestaña: ventas lo suyo,
+    // gerente sus agentes + sin asignar, admin todo (ignora `filter`).
     if (sp.get('soloNoLeidos') === 'true') {
+      const alcance: ReturnType<typeof sql>[] = []
+      if (isRestrictedRole) {
+        alcance.push(sql`${effectiveOwner} = ${session.user.id}::uuid`)
+      } else if (session.user.role === 'gerente') {
+        const ctx = await getSessionContext(session.user)
+        if (ctx.agentesVisibles.length === 0) {
+          alcance.push(sql`${effectiveOwner} IS NULL`)
+        } else {
+          alcance.push(sql`(
+            ${effectiveOwner} IS NULL
+            OR ${effectiveOwner} = ANY(ARRAY[${sql.join(ctx.agentesVisibles.map((id) => sql`${id}::uuid`), sql`, `)}])
+          )`)
+        }
+      }
       const [row] = await db
         .select({ total: sql<number>`coalesce(sum(${conversations.unreadCount}), 0)::int` })
         .from(conversations)
         .leftJoin(leads, eq(conversations.leadId, leads.id))
         .leftJoin(clientes, eq(conversations.clienteId, clientes.id))
-        .where(whereClause)
+        .where(and(baseCondition, ...alcance))
       return NextResponse.json({ total: row?.total ?? 0 })
     }
 

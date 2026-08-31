@@ -16,7 +16,7 @@ export function useInboxUnreadTotal(enabled: boolean): number {
   const { data } = useQuery<number>({
     queryKey: ['inbox-unread'],
     queryFn: async () => {
-      const res = await fetch('/api/inbox?filter=mine&soloNoLeidos=true')
+      const res = await fetch('/api/inbox?soloNoLeidos=true')
       if (!res.ok) return 0
       const json = await res.json() as { total?: number }
       return json.total ?? 0
