@@ -20,6 +20,7 @@ import GradoBadge from '@/components/shared/GradoBadge'
 import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import MuestraModal from './MuestraModal'
+import EtapaLeadSelector from './EtapaLeadSelector'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { VariablesRespuesta } from '@/lib/inbox/respuestas-rapidas'
 import type { Session } from 'next-auth'
@@ -247,6 +248,14 @@ export default function LeadPanel({
             />
           )}
           {!isClienteMode && leadId && <CotizadorLead leadId={leadId} mobile />}
+          {!isClienteMode && leadId && lead && (
+            <EtapaLeadSelector
+              leadId={leadId}
+              stage={lead.stage}
+              leadName={lead.contact?.name ?? nombre ?? null}
+              mobile
+            />
+          )}
           {!isClienteMode && leadId && (
             <div className="max-h-56 overflow-y-auto shrink-0">
               <PropuestasList leadId={leadId} mobile />
@@ -576,6 +585,7 @@ export default function LeadPanel({
         )}
 
         <CotizadorLead leadId={leadId!} />
+        <EtapaLeadSelector leadId={leadId!} stage={lead.stage} leadName={lead.contact?.name ?? null} />
         <PropuestasList leadId={leadId!} />
 
         <div className="flex-1 overflow-y-auto">
