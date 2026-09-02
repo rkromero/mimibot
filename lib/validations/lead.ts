@@ -1,5 +1,6 @@
 import { CODIGOS_MOTIVO_PERDIDA } from '@/lib/leads/motivos-perdida'
 import { RECORDATORIO_NOTA_MAX, esFechaDia } from '@/lib/leads/recordatorio'
+import { normalizeCuit } from '@/lib/validations/clientes'
 import { z } from 'zod'
 
 export const createLeadSchema = z.object({
@@ -25,6 +26,10 @@ export const updateLeadSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
   direccion: z.string().max(300).nullable().optional(),
   localidad: z.string().max(120).nullable().optional(),
+  provincia: z.string().max(100).nullable().optional(),
+  codigoPostal: z.string().max(10).nullable().optional(),
+  /** CUIT o DNI: mismo tratamiento que en clientes (trim, vacío → null) */
+  cuit: z.string().max(20).nullable().optional().transform(normalizeCuit),
   botEnabled: z.boolean().optional(),
   customFields: z.record(z.unknown()).optional(),
   /** Al mover a Cerrado Perdido: por qué se pierde */

@@ -80,7 +80,11 @@ vi.mock('@/db', () => {
 vi.mock('@/lib/authz', () => ({ canAccessLead: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/authz/marcas', () => ({ assertPuedeCargarProductos: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/api/validate-params', () => ({ validateUuidParam: vi.fn().mockReturnValue(null) }))
-vi.mock('@/lib/clientes/conversion', () => ({ obtenerOCrearClienteDesdeLead: mockObtenerOCrearCliente }))
+vi.mock('@/lib/clientes/conversion', () => ({
+  obtenerOCrearClienteDesdeLead: mockObtenerOCrearCliente,
+  // Cliente ya vinculado: en estos tests no se completa nada, devuelve el mismo
+  completarClienteDesdeLead: vi.fn(async (_tx: unknown, cliente: unknown) => cliente),
+}))
 vi.mock('@/lib/pedidos/service', () => ({ crearPedidoConItems: mockCrearPedidoConItems }))
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({ registrarPagoPedido: mockRegistrarPagoPedido }))
 

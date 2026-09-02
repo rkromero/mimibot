@@ -17,6 +17,14 @@ const barrioSchema = z.string().max(200).optional().nullable().transform(normali
 
 export const LOCALIDAD_CABA = 'Ciudad Autónoma de Buenos Aires'
 
+/** Provincias del desplegable de la ficha de cliente y del panel del lead. */
+export const PROVINCIAS_AR: ReadonlyArray<string> = [
+  'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba', 'Corrientes',
+  'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja', 'Mendoza', 'Misiones',
+  'Neuquén', 'Río Negro', 'Salta', 'San Juan', 'San Luis', 'Santa Cruz', 'Santa Fe',
+  'Santiago del Estero', 'Tierra del Fuego', 'Tucumán',
+]
+
 // Provincia CABA en cualquiera de sus variantes usuales (case-insensitive,
 // con o sin tildes). Para clientes de CABA el barrio es obligatorio.
 export function esProvinciaCABA(provincia: string | null | undefined): boolean {

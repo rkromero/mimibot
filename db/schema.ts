@@ -117,9 +117,14 @@ export const leads = pgTable('leads', {
   budget: decimal('budget', { precision: 12, scale: 2 }),
   productInterest: text('product_interest'),
   notes: text('notes'),
-  // Dirección del lead (para envío de muestras); se copia al cliente al convertir
+  // Dirección y documento del lead (para envío de muestras); se copian a la
+  // ficha del cliente al enviar la muestra o al convertir (ver
+  // lib/clientes/conversion.ts). cuit = CUIT o DNI, mismo campo que clientes.cuit.
   direccion: text('direccion'),
   localidad: text('localidad'),
+  provincia: text('provincia'),
+  codigoPostal: text('codigo_postal'),
+  cuit: text('cuit'),
   customFields: jsonb('custom_fields').notNull().default('{}'),
   botEnabled: boolean('bot_enabled').notNull().default(true),
   botQualified: boolean('bot_qualified').notNull().default(false),

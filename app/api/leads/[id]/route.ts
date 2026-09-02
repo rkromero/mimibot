@@ -85,6 +85,9 @@ export async function PATCH(
     if (parsed.data.notes !== undefined) updates.notes = parsed.data.notes
     if (parsed.data.direccion !== undefined) updates.direccion = parsed.data.direccion
     if (parsed.data.localidad !== undefined) updates.localidad = parsed.data.localidad
+    if (parsed.data.provincia !== undefined) updates.provincia = parsed.data.provincia
+    if (parsed.data.codigoPostal !== undefined) updates.codigoPostal = parsed.data.codigoPostal
+    if (parsed.data.cuit !== undefined) updates.cuit = parsed.data.cuit
     if (parsed.data.botEnabled !== undefined) updates.botEnabled = parsed.data.botEnabled
     if (parsed.data.customFields !== undefined) updates.customFields = parsed.data.customFields
 

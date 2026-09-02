@@ -3,11 +3,22 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn, relativeTime } from '@/lib/utils'
+import { PROVINCIAS_AR } from '@/lib/validations/clientes'
 import type { LeadWithContact } from '@/types/db'
 
 type Props = { lead: LeadWithContact }
 
-type EditableField = 'budget' | 'productInterest' | 'notes' | 'direccion' | 'localidad'
+// Dirección completa y CUIT/DNI: se copian a la ficha del cliente al enviar la
+// muestra o al convertir el lead (ver lib/clientes/conversion.ts).
+type EditableField =
+  | 'budget'
+  | 'productInterest'
+  | 'notes'
+  | 'direccion'
+  | 'localidad'
+  | 'provincia'
+  | 'codigoPostal'
+  | 'cuit'
 
 export default function LeadDetails({ lead }: Props) {
   const queryClient = useQueryClient()
@@ -18,14 +29,20 @@ export default function LeadDetails({ lead }: Props) {
     notes: lead.notes ?? '',
     direccion: lead.direccion ?? '',
     localidad: lead.localidad ?? '',
+    provincia: lead.provincia ?? '',
+    codigoPostal: lead.codigoPostal ?? '',
+    cuit: lead.cuit ?? '',
   })
 
-  async function save(field: EditableField) {
+  // `valor` permite guardar en el mismo evento que cambia el estado (desplegable
+  // de provincia), sin esperar al re-render.
+  async function save(field: EditableField, valor?: string) {
     setEditing(null)
+    const v = valor ?? values[field]
     await fetch(`/api/leads/${lead.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: values[field] || null }),
+      body: JSON.stringify({ [field]: v || null }),
     })
     void queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
     void queryClient.invalidateQueries({ queryKey: ['leads'] })
@@ -36,6 +53,15 @@ export default function LeadDetails({ lead }: Props) {
       <Section label="Contacto">
         <Row label="Teléfono" value={lead.contact.phone ?? '—'} />
         <Row label="Email" value={lead.contact.email ?? '—'} />
+        <InlineEdit
+          label="CUIT / DNI"
+          value={values.cuit}
+          isEditing={editing === 'cuit'}
+          onEdit={() => setEditing('cuit')}
+          onChange={(v) => setValues((p) => ({ ...p, cuit: v }))}
+          onSave={() => save('cuit')}
+          onCancel={() => setEditing(null)}
+        />
         <Row label="Fuente" value={sourceLabel(lead.source)} />
         <Row label="Creado" value={relativeTime(lead.createdAt)} />
         {lead.lastContactedAt && (
@@ -82,6 +108,28 @@ export default function LeadDetails({ lead }: Props) {
           onEdit={() => setEditing('localidad')}
           onChange={(v) => setValues((p) => ({ ...p, localidad: v }))}
           onSave={() => save('localidad')}
+          onCancel={() => setEditing(null)}
+        />
+        <InlineSelect
+          label="Provincia"
+          value={values.provincia}
+          options={PROVINCIAS_AR}
+          placeholder="Seleccionar provincia"
+          isEditing={editing === 'provincia'}
+          onEdit={() => setEditing('provincia')}
+          onChange={(v) => {
+            setValues((p) => ({ ...p, provincia: v }))
+            void save('provincia', v)
+          }}
+          onCancel={() => setEditing(null)}
+        />
+        <InlineEdit
+          label="Código postal"
+          value={values.codigoPostal}
+          isEditing={editing === 'codigoPostal'}
+          onEdit={() => setEditing('codigoPostal')}
+          onChange={(v) => setValues((p) => ({ ...p, codigoPostal: v }))}
+          onSave={() => save('codigoPostal')}
           onCancel={() => setEditing(null)}
         />
       </Section>
@@ -191,6 +239,59 @@ function InlineEdit({
           className="text-xs text-foreground hover:text-primary transition-colors text-right truncate max-w-[120px]"
         >
           {value ? `${prefix ?? ''}${value}` : <span className="text-muted-foreground">—</span>}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Misma fila que InlineEdit pero con desplegable: elegir una opción guarda al
+// instante (no hay Enter). Escape o salir del campo cancela.
+function InlineSelect({
+  label, value, options, placeholder, isEditing, onEdit, onChange, onCancel,
+}: {
+  label: string
+  value: string
+  options: ReadonlyArray<string>
+  placeholder: string
+  isEditing: boolean
+  onEdit: () => void
+  onChange: (v: string) => void
+  onCancel: () => void
+}) {
+  // Un valor guardado que no esté en la lista (importado o viejo) se ofrece igual
+  const opciones = value && !options.includes(value) ? [value, ...options] : options
+
+  return (
+    <div className="flex items-center justify-between px-4 py-1.5 gap-3">
+      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+      {isEditing ? (
+        <select
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onCancel}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onCancel()
+          }}
+          aria-label={label}
+          className={cn(
+            'w-36 px-1.5 py-0.5 text-xs rounded border',
+            'border-border bg-background text-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        >
+          <option value="">{placeholder}</option>
+          {opciones.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      ) : (
+        <button
+          onClick={onEdit}
+          className="text-xs text-foreground hover:text-primary transition-colors text-right truncate max-w-[120px]"
+        >
+          {value || <span className="text-muted-foreground">—</span>}
         </button>
       )}
     </div>

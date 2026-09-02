@@ -42,7 +42,7 @@ vi.mock('@/lib/errors', () => ({
   },
 }))
 
-import { convertirLeadACliente } from '@/lib/clientes/conversion'
+import { convertirLeadACliente, completarClienteDesdeLead } from '@/lib/clientes/conversion'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -257,6 +257,168 @@ describe('convertirLeadACliente', () => {
       await expect(convertirLeadACliente(LEAD_ID, USER_ID)).rejects.toThrow(
         'Contacto del lead',
       )
+    })
+  })
+})
+
+// ─── Dirección completa y CUIT/DNI del lead → ficha del cliente ──────────────
+// Calle, localidad, provincia, código postal y CUIT/DNI cargados en el panel
+// del lead viajan al cliente al convertir o al enviar la muestra, sin pisar lo
+// que la ficha ya tenga. El CUIT nunca se duplica entre clientes activos.
+
+describe('dirección completa y CUIT/DNI del lead', () => {
+  const USER_ID = 'user-abc'
+  const LEAD_ID = 'lead-002'
+  const CUIT = '20-12345678-9'
+
+  const leadCompleto = {
+    id: LEAD_ID,
+    isOpen: true,
+    assignedTo: null,
+    direccion: 'Av. Siempre Viva 742',
+    localidad: 'Springfield',
+    provincia: 'Buenos Aires',
+    codigoPostal: '1900',
+    cuit: CUIT,
+    contact: { name: 'Homero Simpson', email: 'homero@example.com', phone: '+5491100000000' },
+  }
+
+  const clienteVacio = {
+    id: 'cliente-existing',
+    email: 'homero@example.com',
+    direccion: null,
+    localidad: null,
+    provincia: null,
+    codigoPostal: null,
+    cuit: null,
+    leadId: null,
+  }
+
+  function armarInsert() {
+    const returningInsert = vi.fn().mockResolvedValue([{ id: 'cliente-new' }])
+    const valuesInsert = vi.fn().mockReturnValue({ returning: returningInsert })
+    mockTxInsert.mockReturnValue({ values: valuesInsert })
+    return valuesInsert
+  }
+
+  /** Primer update = cliente (con returning); los siguientes (lead, conversación) no devuelven nada. */
+  function armarUpdates() {
+    const returningCliente = vi.fn().mockResolvedValue([{ id: 'cliente-existing' }])
+    const whereCliente = vi.fn().mockReturnValue({ returning: returningCliente })
+    const setCliente = vi.fn().mockReturnValue({ where: whereCliente })
+    const whereOtro = vi.fn().mockResolvedValue(undefined)
+    const setOtro = vi.fn().mockReturnValue({ where: whereOtro })
+    mockTxUpdate.mockReset()
+    mockTxUpdate.mockReturnValueOnce({ set: setCliente }).mockReturnValue({ set: setOtro })
+    return setCliente
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation((fn: (tx: ReturnType<typeof makeTx>) => unknown) => fn(makeTx()))
+    mockTxQueryTerritorioAgenteFindFirst.mockResolvedValue(null)
+    mockTxQueryLeadsFindFirst.mockResolvedValue(leadCompleto)
+  })
+
+  it('crea el cliente con calle, localidad, provincia, CP y CUIT del lead', async () => {
+    mockTxQueryClientesFindFirst.mockResolvedValue(undefined) // ni por email ni por CUIT
+    const valuesInsert = armarInsert()
+    armarUpdates()
+
+    const r = await convertirLeadACliente(LEAD_ID, USER_ID)
+
+    expect(r.wasNew).toBe(true)
+    // Busca por email y por CUIT antes de crear
+    expect(mockTxQueryClientesFindFirst).toHaveBeenCalledTimes(2)
+    expect(valuesInsert.mock.calls[0]![0]).toMatchObject({
+      direccion: 'Av. Siempre Viva 742',
+      localidad: 'Springfield',
+      provincia: 'Buenos Aires',
+      codigoPostal: '1900',
+      cuit: CUIT,
+    })
+  })
+
+  it('al cliente existente (por email) le completa solo lo que le falta', async () => {
+    mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce({ ...clienteVacio, direccion: 'Ya cargada 123' }) // por email
+      .mockResolvedValueOnce(undefined) // por CUIT: nadie lo usa
+    const setCliente = armarUpdates()
+
+    const r = await convertirLeadACliente(LEAD_ID, USER_ID)
+
+    expect(r.wasNew).toBe(false)
+    expect(mockTxInsert).not.toHaveBeenCalled()
+    const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+    expect(set).toMatchObject({
+      leadId: LEAD_ID,
+      localidad: 'Springfield',
+      provincia: 'Buenos Aires',
+      codigoPostal: '1900',
+      cuit: CUIT,
+    })
+    expect(set).not.toHaveProperty('direccion') // no pisa la dirección cargada
+  })
+
+  it('sin coincidencia por email, vincula el cliente activo que ya tiene ese CUIT', async () => {
+    mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce(undefined) // por email
+      .mockResolvedValueOnce({ ...clienteVacio, id: 'cliente-cuit', email: null, cuit: CUIT }) // por CUIT
+    const setCliente = armarUpdates()
+
+    const r = await convertirLeadACliente(LEAD_ID, USER_ID)
+
+    expect(r.wasNew).toBe(false)
+    expect(mockTxInsert).not.toHaveBeenCalled()
+    const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+    expect(set).toMatchObject({ leadId: LEAD_ID, direccion: 'Av. Siempre Viva 742', provincia: 'Buenos Aires' })
+    expect(set).not.toHaveProperty('cuit') // ya lo tenía
+  })
+
+  it('no copia el CUIT si otro cliente activo ya lo usa', async () => {
+    mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce(clienteVacio) // por email: este
+      .mockResolvedValueOnce({ ...clienteVacio, id: 'cliente-otro', cuit: CUIT }) // por CUIT: otro
+    const setCliente = armarUpdates()
+
+    await convertirLeadACliente(LEAD_ID, USER_ID)
+
+    const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+    expect(set).toMatchObject({ leadId: LEAD_ID, provincia: 'Buenos Aires', codigoPostal: '1900' })
+    expect(set).not.toHaveProperty('cuit')
+  })
+
+  describe('completarClienteDesdeLead (cliente ya vinculado, p. ej. segunda muestra)', () => {
+    it('completa provincia, CP y CUIT que faltaban', async () => {
+      mockTxQueryClientesFindFirst.mockResolvedValue(undefined) // nadie usa el CUIT
+      const setCliente = armarUpdates()
+      const cliente = { ...clienteVacio, direccion: 'Calle 1', localidad: 'Lanús' }
+
+      const r = await completarClienteDesdeLead(makeTx() as never, cliente as never, leadCompleto)
+
+      expect(r).toEqual({ id: 'cliente-existing' })
+      const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+      expect(set).toMatchObject({ provincia: 'Buenos Aires', codigoPostal: '1900', cuit: CUIT })
+      expect(set).not.toHaveProperty('direccion')
+      expect(set).not.toHaveProperty('localidad')
+    })
+
+    it('no toca la ficha si no le falta nada', async () => {
+      armarUpdates()
+      const cliente = {
+        ...clienteVacio,
+        direccion: 'Calle 1',
+        localidad: 'Lanús',
+        provincia: 'Buenos Aires',
+        codigoPostal: '1824',
+        cuit: '27-00000000-1',
+      }
+
+      const r = await completarClienteDesdeLead(makeTx() as never, cliente as never, leadCompleto)
+
+      expect(r).toBe(cliente)
+      expect(mockTxUpdate).not.toHaveBeenCalled()
+      expect(mockTxQueryClientesFindFirst).not.toHaveBeenCalled()
     })
   })
 })

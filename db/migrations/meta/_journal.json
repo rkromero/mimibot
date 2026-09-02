@@ -512,6 +512,13 @@
       "when": 1787655469715,
       "tag": "0072_lead_recordatorio",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1787655529715,
+      "tag": "0073_lead_direccion_completa",
+      "breakpoints": true
     }
   ]
 }
