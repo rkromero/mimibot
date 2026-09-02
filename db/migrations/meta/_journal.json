@@ -519,6 +519,13 @@
       "when": 1787655529715,
       "tag": "0073_lead_direccion_completa",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1787655589715,
+      "tag": "0074_ultimo_seguimiento",
+      "breakpoints": true
     }
   ]
 }

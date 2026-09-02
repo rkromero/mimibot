@@ -262,6 +262,7 @@ export default function LeadPanel({
               stage={lead?.stage}
               recordatorioAt={lead?.recordatorioAt}
               recordatorioNota={lead?.recordatorioNota}
+              seguimiento={lead}
               mobile
             />
           )}
@@ -606,6 +607,7 @@ export default function LeadPanel({
           stage={lead.stage}
           recordatorioAt={lead.recordatorioAt}
           recordatorioNota={lead.recordatorioNota}
+          seguimiento={lead}
         />
         <EtapaLeadSelector leadId={leadId!} stage={lead.stage} leadName={lead.contact?.name ?? null} />
         <PropuestasList leadId={leadId!} />

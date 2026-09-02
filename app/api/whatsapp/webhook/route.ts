@@ -3,7 +3,11 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
 import { estadoMasAvanzado } from '@/lib/whatsapp/estado-mensaje'
-import { cancelarSeguimientoPropuestaPorRespuesta, manejarRespuestaClienteIndagacion } from '@/lib/followup/engine'
+import {
+  cancelarSeguimientoPropuestaPorRespuesta,
+  manejarRespuestaClienteIndagacion,
+  manejarRespuestaUltimoSeguimiento,
+} from '@/lib/followup/engine'
 import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/validations/webhook'
@@ -311,9 +315,12 @@ async function handleInboundMessage(params: {
 
   // Seguimientos: la persona respondió. Propuesta → se cancela. Indagación → se cancela,
   // salvo que sea un "más adelante" al mensaje final, que cierra el lead como perdido.
+  // Último seguimiento (botón) → se cancela el cierre, salvo respuestas automáticas
+  // de negocios; en Nuevo vuelve a contestar el bot.
   try {
     await cancelarSeguimientoPropuestaPorRespuesta(leadId)
     await manejarRespuestaClienteIndagacion(leadId, body ?? '')
+    await manejarRespuestaUltimoSeguimiento(leadId, { tipo: msg.type, texto: body })
   } catch (err) {
     console.error('[webhook] error procesando seguimientos al recibir mensaje:', err)
   }

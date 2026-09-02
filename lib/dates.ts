@@ -124,3 +124,24 @@ export function rangoMesAR(mes: string): { desde: Date; hasta: Date } | null {
     hasta: parseFechaAR(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01`),
   }
 }
+
+/**
+ * Instante expresado en hora Argentina como "dd/MM/yyyy HH:mm" (o "dd/MM HH:mm"
+ * con `corto`). Para plazos con hora, p. ej. "cierra el 03/09/2026 16:00".
+ */
+export function formatFechaHoraAR(value: Date | string, corto = false): string {
+  const d = new Date(value)
+  const fecha = new Intl.DateTimeFormat('es-AR', {
+    timeZone: AR_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    ...(corto ? {} : { year: 'numeric' }),
+  }).format(d)
+  const hora = new Intl.DateTimeFormat('es-AR', {
+    timeZone: AR_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d)
+  return `${fecha} ${hora}`
+}

@@ -1,4 +1,4 @@
-import { eq, and, lte, isNotNull, isNull, asc, desc, sql } from 'drizzle-orm'
+import { eq, and, lte, gt, isNotNull, isNull, asc, desc, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import {
   leads, conversations, messages, activityLog, contacts, followUpTemplates, followUpConfig,
@@ -24,6 +24,15 @@ import {
 } from './indagacion'
 import { generarMensajeRetomar } from '@/lib/claude/bot'
 import { MOTIVO_AUTO_DESISTIO, MOTIVO_AUTO_SIN_RESPUESTA, type MotivoPerdida } from '@/lib/leads/motivos-perdida'
+import { NotFoundError, ValidationError } from '@/lib/errors'
+import { formatFechaHoraAR } from '@/lib/dates'
+import {
+  REASON_ULTIMO_SEGUIMIENTO,
+  ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
+  ULTIMO_SEGUIMIENTO_TEMPLATE_DEFAULT,
+  calcularCierreUltimoSeguimiento,
+  esRespuestaAutomatica,
+} from './ultimo-seguimiento'
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -104,7 +113,9 @@ export async function cancelFollowUp(leadId: string): Promise<void> {
 
 export async function processFollowUps(): Promise<{ processed: number; errors: number }> {
   const config = await db.query.followUpConfig.findFirst()
-  if (config && !config.isEnabled) return { processed: 0, errors: 0 }
+  // Con los seguimientos automáticos apagados igual se procesan los cierres del
+  // botón "Último seguimiento": los disparó una persona a mano.
+  const soloManuales = !!config && !config.isEnabled
 
   const now = new Date()
   const pendingLeads = await db.query.leads.findMany({
@@ -120,6 +131,7 @@ export async function processFollowUps(): Promise<{ processed: number; errors: n
   let errors = 0
 
   for (const lead of pendingLeads) {
+    if (soloManuales && lead.followUpReason !== REASON_ULTIMO_SEGUIMIENTO) continue
     try {
       await processSingleFollowUp(lead, config ?? null)
       processed++
@@ -139,6 +151,10 @@ async function processSingleFollowUp(
   lead: typeof leads.$inferSelect,
   config: typeof followUpConfig.$inferSelect | null,
 ): Promise<void> {
+  if (lead.followUpReason === REASON_ULTIMO_SEGUIMIENTO) {
+    await procesarCierreUltimoSeguimiento(lead, config)
+    return
+  }
   if (lead.followUpReason === 'propuesta') {
     await procesarSeguimientoPropuesta(lead, config)
     return
@@ -738,4 +754,263 @@ async function programarCierre(leadId: string, config: FollowUpCfg): Promise<voi
     action: 'follow_up_scheduled',
     metadata: { reason: 'indagacion_cierre', nextFollowUpAt: at.toISOString() },
   })
+}
+
+// ─── Último seguimiento (botón del panel del lead) ────────────────────────────
+// El vendedor manda la plantilla aprobada configurada y arranca el plazo: si
+// nadie contesta en N horas del horario permitido, el lead pasa a Perdido con
+// "Dejó de responder". Reglas puras en ./ultimo-seguimiento.ts.
+
+export type PreparacionUltimoSeguimiento =
+  | {
+      ok: true
+      lead: typeof leads.$inferSelect
+      conversationId: string
+      waContactPhone: string
+      templateName: string
+      templateLang: string
+      valores: string[]
+      body: string
+      cierraEl: Date
+    }
+  | { ok: false; motivo: string; templateName: string; cierraEl: Date }
+
+function plantillaUltimoSeguimiento(config: FollowUpCfg): { templateName: string; templateLang: string } {
+  return {
+    templateName: config?.ultimoSeguimientoTemplateName?.trim() || ULTIMO_SEGUIMIENTO_TEMPLATE_DEFAULT,
+    templateLang: config?.ultimoSeguimientoTemplateLang?.trim() || 'es',
+  }
+}
+
+function cierreUltimoSeguimiento(desde: Date, config: FollowUpCfg): Date {
+  return calcularCierreUltimoSeguimiento(
+    desde,
+    config?.ultimoSeguimientoHoras ?? ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
+    horarioDe(config),
+  )
+}
+
+/**
+ * Arma todo lo necesario para mandar el último seguimiento sin mandarlo: lo
+ * usa el modal (vista previa y por qué no se puede) y el envío. Si no se
+ * puede, dice por qué en lugar de lanzar.
+ */
+export async function prepararUltimoSeguimiento(
+  leadId: string,
+  vendedorNombre: string | null,
+): Promise<PreparacionUltimoSeguimiento> {
+  const config = await db.query.followUpConfig.findFirst()
+  const { templateName, templateLang } = plantillaUltimoSeguimiento(config)
+  const cierraEl = cierreUltimoSeguimiento(new Date(), config)
+  const noDisponible = (motivo: string): PreparacionUltimoSeguimiento => ({ ok: false, motivo, templateName, cierraEl })
+
+  const lead = await db.query.leads.findFirst({ where: and(eq(leads.id, leadId), isNull(leads.deletedAt)) })
+  if (!lead) throw new NotFoundError('Lead')
+  if (!lead.isOpen) return noDisponible('El lead está cerrado')
+  if (lead.followUpReason === REASON_ULTIMO_SEGUIMIENTO && lead.followUpStatus === 'pending') {
+    return noDisponible('Ya se mandó el último seguimiento y está esperando respuesta')
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, leadId),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) return noDisponible('El lead no tiene conversación de WhatsApp')
+
+  const tmpl = await db.query.whatsappTemplates.findFirst({
+    where: and(
+      eq(whatsappTemplates.name, templateName),
+      eq(whatsappTemplates.language, templateLang),
+      eq(whatsappTemplates.status, 'APPROVED'),
+    ),
+    columns: { bodyText: true, variables: true },
+  })
+  if (!tmpl) {
+    return noDisponible(
+      `La plantilla "${templateName}" (${templateLang}) no está aprobada en WhatsApp. Cuando Meta la apruebe, sincronizá en Ajustes → WhatsApp → Plantillas.`,
+    )
+  }
+
+  const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })
+  const valores = resolveTemplateVariables(variablesParaChat(tmpl.bodyText, tmpl.variables), {
+    clienteNombre: contact?.name ?? undefined,
+    vendedorNombre: vendedorNombre ?? undefined,
+    productoInteres: lead.productInterest ?? undefined,
+  })
+  const body = applyTemplateValues(tmpl.bodyText, valores).trim()
+
+  return {
+    ok: true,
+    lead,
+    conversationId: conversation.id,
+    waContactPhone: conversation.waContactPhone,
+    templateName,
+    templateLang,
+    valores,
+    body,
+    cierraEl,
+  }
+}
+
+/** Manda la plantilla, deja constancia en el chat y programa el cierre. Reemplaza el seguimiento automático pendiente. */
+export async function enviarUltimoSeguimiento(
+  leadId: string,
+  user: { id: string; name: string | null },
+): Promise<{ body: string; cierraEl: Date }> {
+  const prep = await prepararUltimoSeguimiento(leadId, user.name)
+  if (!prep.ok) throw new ValidationError(prep.motivo)
+  const { lead, conversationId, waContactPhone, templateName, templateLang, valores, body } = prep
+
+  const waMessageId = await sendTemplateMessage(waContactPhone, templateName, templateLang, buildBodyComponents(valores))
+
+  // El plazo corre desde el envío real (la vista previa se calculó un rato antes)
+  const ahora = new Date()
+  const config = await db.query.followUpConfig.findFirst()
+  const cierraEl = cierreUltimoSeguimiento(ahora, config)
+
+  await db.insert(messages).values([
+    {
+      conversationId,
+      waMessageId,
+      direction: 'outbound',
+      senderType: 'agent',
+      senderId: user.id,
+      contentType: 'template',
+      body,
+      isRead: true,
+      sentAt: ahora,
+    },
+    {
+      conversationId,
+      direction: 'outbound',
+      senderType: 'system',
+      contentType: 'internal_note',
+      body: `Último seguimiento enviado. Si no responde antes del ${formatFechaHoraAR(cierraEl)} pasa a Perdido (Dejó de responder). Si responde, el cierre se cancela solo.`,
+      isRead: true,
+      sentAt: new Date(ahora.getTime() + 1),
+    },
+  ])
+  await db.execute(
+    sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversationId}`,
+  )
+
+  if (lead.followUpStatus === 'pending' && lead.followUpReason) {
+    await db.insert(activityLog).values({
+      leadId,
+      userId: user.id,
+      action: 'follow_up_cancelled',
+      metadata: { reason: lead.followUpReason, motivo: 'reemplazado por el último seguimiento' },
+    })
+  }
+  await db.update(leads)
+    .set({
+      ultimoSeguimientoAt: ahora,
+      nextFollowUpAt: cierraEl,
+      followUpStatus: 'pending',
+      followUpReason: REASON_ULTIMO_SEGUIMIENTO,
+      lastContactedAt: ahora,
+      updatedAt: ahora,
+    })
+    .where(eq(leads.id, leadId))
+  await db.insert(activityLog).values({
+    leadId,
+    userId: user.id,
+    action: 'follow_up_sent',
+    metadata: { reason: REASON_ULTIMO_SEGUIMIENTO, templateName, cierraEl: cierraEl.toISOString() },
+  })
+  await publishCrmEvent({ type: 'new_message', conversationId, leadId, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+
+  return { body, cierraEl }
+}
+
+/** Cancela el cierre pendiente del último seguimiento (a mano o porque respondió). */
+export async function cancelarUltimoSeguimiento(leadId: string, motivo: string, userId: string | null = null): Promise<boolean> {
+  const rows = await db.update(leads)
+    .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.followUpStatus, 'pending'), eq(leads.followUpReason, REASON_ULTIMO_SEGUIMIENTO)))
+    .returning({ id: leads.id })
+  if (rows.length === 0) return false
+
+  await db.insert(activityLog).values({
+    leadId,
+    userId,
+    action: 'follow_up_cancelled',
+    metadata: { reason: REASON_ULTIMO_SEGUIMIENTO, motivo },
+  })
+  return true
+}
+
+/**
+ * Llegó un mensaje de la persona. Si el lead estaba esperando respuesta al
+ * último seguimiento: las respuestas automáticas de negocios no cuentan; con
+ * una respuesta real se cancela el cierre y, si el lead está en "Nuevo",
+ * vuelve a contestar el bot (en otra etapa la respuesta queda para el vendedor).
+ */
+export async function manejarRespuestaUltimoSeguimiento(
+  leadId: string,
+  msg: { tipo: string; texto: string | null },
+): Promise<'no_aplica' | 'ignorado' | 'cancelado'> {
+  const lead = await db.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    columns: { id: true, isOpen: true, stageId: true, followUpReason: true, followUpStatus: true, botEnabled: true, botQualified: true },
+  })
+  if (!lead || !lead.isOpen || lead.followUpReason !== REASON_ULTIMO_SEGUIMIENTO || lead.followUpStatus !== 'pending') {
+    return 'no_aplica'
+  }
+
+  if (msg.tipo === 'text') {
+    const config = await db.query.followUpConfig.findFirst()
+    if (esRespuestaAutomatica(msg.texto, config?.respuestasAutomaticasFrases ?? [])) {
+      await db.insert(activityLog).values({
+        leadId,
+        action: 'note_added',
+        metadata: {
+          sistema: true,
+          motivo: 'respuesta_automatica_ignorada',
+          texto: 'Llegó una respuesta automática de negocio: no cuenta, el último seguimiento sigue esperando una respuesta real.',
+        },
+      })
+      return 'ignorado'
+    }
+  }
+
+  await cancelarUltimoSeguimiento(leadId, 'la persona respondió')
+
+  const stage = await db.query.pipelineStages.findFirst({ where: eq(pipelineStages.id, lead.stageId), columns: { slug: true } })
+  if (stage?.slug === 'nuevo' && (!lead.botEnabled || lead.botQualified)) {
+    await db.update(leads)
+      .set({ botEnabled: true, botQualified: false, updatedAt: new Date() })
+      .where(eq(leads.id, leadId))
+    await db.insert(activityLog).values({
+      leadId,
+      action: 'bot_enabled',
+      metadata: { motivo: 'respondió al último seguimiento estando en Nuevo' },
+    })
+  }
+  return 'cancelado'
+}
+
+/** Venció el plazo: si no hubo respuesta real desde el envío, pasa a Perdido. */
+async function procesarCierreUltimoSeguimiento(lead: typeof leads.$inferSelect, config: FollowUpCfg): Promise<void> {
+  // Red de seguridad por si el webhook no llegó a cancelar: cualquier mensaje
+  // entrante posterior al envío que no sea una respuesta automática lo salva
+  if (lead.ultimoSeguimientoAt) {
+    const conversation = await db.query.conversations.findFirst({ where: eq(conversations.leadId, lead.id), columns: { id: true } })
+    if (conversation) {
+      const entrantes = await db.query.messages.findMany({
+        where: and(
+          eq(messages.conversationId, conversation.id),
+          eq(messages.direction, 'inbound'),
+          gt(messages.sentAt, lead.ultimoSeguimientoAt),
+        ),
+        columns: { contentType: true, body: true },
+      })
+      const frases = config?.respuestasAutomaticasFrases ?? []
+      if (entrantes.some((m) => m.contentType !== 'text' || !esRespuestaAutomatica(m.body, frases))) {
+        await cancelarUltimoSeguimiento(lead.id, 'la persona respondió')
+        return
+      }
+    }
+  }
+  await marcarLeadPerdido(lead.id, 'Sin respuesta al último seguimiento', MOTIVO_AUTO_SIN_RESPUESTA)
 }

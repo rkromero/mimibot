@@ -24,6 +24,11 @@ const configSchema = z.object({
   horarioHasta: z.number().int().min(1).max(24).optional(),
   indagacionMensajeFinal: z.string().max(1000).nullable().optional(),
   indagacionMensajeRetomar: z.string().max(1000).nullable().optional(),
+  // Botón "Último seguimiento" del panel del lead
+  ultimoSeguimientoTemplateName: z.string().max(200).nullable().optional(),
+  ultimoSeguimientoTemplateLang: z.string().max(20).nullable().optional(),
+  ultimoSeguimientoHoras: z.number().int().min(1).max(168).optional(),
+  respuestasAutomaticasFrases: z.array(z.string().min(1).max(200)).max(50).optional(),
 })
 
 export async function GET() {
@@ -51,6 +56,10 @@ export async function GET() {
     horarioHasta: 22,
     indagacionMensajeFinal: null,
     indagacionMensajeRetomar: null,
+    ultimoSeguimientoTemplateName: null,
+    ultimoSeguimientoTemplateLang: null,
+    ultimoSeguimientoHoras: 10,
+    respuestasAutomaticasFrases: [],
   })
 }
 

@@ -9,6 +9,7 @@ import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { useToast } from '@/components/shared/ToastProvider'
 import AgendarLlamadaButton from './AgendarLlamadaButton'
 import RecordatorioLeadButton from './RecordatorioLead'
+import UltimoSeguimientoButton, { type SeguimientoLead } from './UltimoSeguimientoLead'
 import type { PipelineStage } from '@/types/db'
 
 type Packaging = 'cristal' | 'personalizado'
@@ -94,8 +95,9 @@ function numeroPropuestaFmt(n: number): string {
 }
 
 // Barra de acciones del lead: botón "Cotizar" (+ modal) y, a su derecha, el
-// botón verde "Agendar llamada" (mueve el lead a la etapa "Llamada") y
-// "Recordar" (día en que hay que volver a llamarlo).
+// botón verde "Agendar llamada" (mueve el lead a la etapa "Llamada"),
+// "Recordar" (día en que hay que volver a llamarlo) y "Último seguimiento"
+// (plantilla + cierre automático si no responde).
 // Única definición del JSX: se instancia tanto en la columna izquierda de la
 // vista desktop como en la barra superior de mobile.
 export default function CotizadorLead({
@@ -103,6 +105,7 @@ export default function CotizadorLead({
   stage,
   recordatorioAt,
   recordatorioNota,
+  seguimiento,
   mobile,
 }: {
   leadId: string
@@ -111,6 +114,8 @@ export default function CotizadorLead({
   /** Recordatorio de llamada vigente (para el botón "Recordar") */
   recordatorioAt?: string | null
   recordatorioNota?: string | null
+  /** Estado del seguimiento (para el botón "Último seguimiento") */
+  seguimiento?: SeguimientoLead | null
   mobile?: boolean
 }) {
   const [showModal, setShowModal] = useState(false)
@@ -135,6 +140,7 @@ export default function CotizadorLead({
           recordatorioNota={recordatorioNota}
           mobile={mobile}
         />
+        <UltimoSeguimientoButton leadId={leadId} seguimiento={seguimiento} mobile={mobile} />
       </div>
       {showModal && <CotizarModal leadId={leadId} onClose={() => setShowModal(false)} />}
     </>

@@ -41,8 +41,8 @@ function horaLocal(date: Date, offsetHoras: number): number {
   return local.getUTCHours() + local.getUTCMinutes() / 60
 }
 
-/** Fecha con la hora local puesta en `hora` (0-23.99) del mismo día local, más `diasExtra` días. */
-function conHoraLocal(date: Date, hora: number, offsetHoras: number, diasExtra = 0): Date {
+/** Fecha con la hora local puesta en `hora` (0-24) del mismo día local, más `diasExtra` días. */
+export function conHoraLocal(date: Date, hora: number, offsetHoras: number, diasExtra = 0): Date {
   const local = new Date(date.getTime() + offsetHoras * HORA_MS)
   const base = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + diasExtra)
   return new Date(base + hora * HORA_MS - offsetHoras * HORA_MS)

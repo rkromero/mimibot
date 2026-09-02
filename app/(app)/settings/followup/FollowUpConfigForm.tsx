@@ -5,6 +5,11 @@ import { cn } from '@/lib/utils'
 import type { FollowUpConfig } from '@/types/db'
 import { MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT } from '@/lib/followup/propuesta'
 import { MENSAJE_FINAL_DEFAULT } from '@/lib/followup/indagacion'
+import {
+  ULTIMO_SEGUIMIENTO_TEMPLATE_DEFAULT,
+  ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
+  RESPUESTAS_AUTOMATICAS_DEFAULT,
+} from '@/lib/followup/ultimo-seguimiento'
 
 type Props = { initialConfig: FollowUpConfig | null }
 
@@ -32,6 +37,10 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
     horarioDesde: initialConfig?.horarioDesde ?? 8,
     horarioHasta: initialConfig?.horarioHasta ?? 22,
     indagacionMensajeFinal: initialConfig?.indagacionMensajeFinal ?? MENSAJE_FINAL_DEFAULT,
+    ultimoSeguimientoTemplateName: initialConfig?.ultimoSeguimientoTemplateName ?? ULTIMO_SEGUIMIENTO_TEMPLATE_DEFAULT,
+    ultimoSeguimientoTemplateLang: initialConfig?.ultimoSeguimientoTemplateLang ?? 'es',
+    ultimoSeguimientoHoras: initialConfig?.ultimoSeguimientoHoras ?? ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
+    respuestasAutomaticasFrases: (initialConfig?.respuestasAutomaticasFrases ?? []).join('\n'),
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -75,6 +84,13 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           horarioDesde: form.horarioDesde,
           horarioHasta: form.horarioHasta,
           indagacionMensajeFinal: form.indagacionMensajeFinal.trim() || null,
+          ultimoSeguimientoTemplateName: form.ultimoSeguimientoTemplateName.trim() || null,
+          ultimoSeguimientoTemplateLang: form.ultimoSeguimientoTemplateLang.trim() || 'es',
+          ultimoSeguimientoHoras: form.ultimoSeguimientoHoras,
+          respuestasAutomaticasFrases: form.respuestasAutomaticasFrases
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean),
         }),
       })
 
@@ -401,6 +417,86 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           <p className="text-xs text-muted-foreground mt-1">
             <code>{'{{1}}'}</code> = nombre, <code>{'{{2}}'}</code> = producto de interés. El mensaje para retomar lo
             redacta el bot según lo que quedó pendiente en la charla.
+          </p>
+        </div>
+      </div>
+
+      {/* Último seguimiento (botón del panel del lead) */}
+      <div className="pt-4 border-t border-border space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">Último seguimiento (botón del lead)</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manda la plantilla aprobada y, si nadie contesta en las horas indicadas (contadas solo dentro del horario
+            permitido de arriba), el lead pasa a Perdido con &quot;Dejó de responder&quot;. Si contesta, en &quot;Nuevo&quot; sigue
+            el bot; en otra etapa la respuesta queda para el vendedor.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-[1fr_6rem_6rem] gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Plantilla</label>
+            <input
+              type="text"
+              value={form.ultimoSeguimientoTemplateName}
+              onChange={(e) => setForm((p) => ({ ...p, ultimoSeguimientoTemplateName: e.target.value }))}
+              placeholder={ULTIMO_SEGUIMIENTO_TEMPLATE_DEFAULT}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Idioma</label>
+            <input
+              type="text"
+              value={form.ultimoSeguimientoTemplateLang}
+              onChange={(e) => setForm((p) => ({ ...p, ultimoSeguimientoTemplateLang: e.target.value }))}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Cierra a las (hs)</label>
+            <input
+              type="number"
+              min={1}
+              max={168}
+              value={form.ultimoSeguimientoHoras}
+              onChange={(e) => setForm((p) => ({ ...p, ultimoSeguimientoHoras: parseInt(e.target.value) || p.ultimoSeguimientoHoras }))}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Hasta que Meta la apruebe, el
+          botón avisa y no manda.
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Respuestas automáticas de negocios (no cuentan como respuesta)</label>
+          <textarea
+            value={form.respuestasAutomaticasFrases}
+            onChange={(e) => setForm((p) => ({ ...p, respuestasAutomaticasFrases: e.target.value }))}
+            rows={4}
+            placeholder="Una frase por línea, p. ej.: en este momento no podemos atenderte"
+            className={cn(
+              'w-full px-3 py-2 text-sm rounded-md border resize-none',
+              'border-border bg-background text-foreground placeholder:text-muted-foreground',
+              'focus:outline-none focus:ring-1 focus:ring-ring',
+            )}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Se comparan sin mayúsculas ni tildes. Ya se detectan por defecto: {RESPUESTAS_AUTOMATICAS_DEFAULT.slice(0, 4).map((f) => `"${f}"`).join(', ')} y
+            otras {RESPUESTAS_AUTOMATICAS_DEFAULT.length - 4}. Un audio o una foto siempre cuentan como respuesta.
           </p>
         </div>
       </div>

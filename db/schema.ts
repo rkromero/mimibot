@@ -159,6 +159,9 @@ export const leads = pgTable('leads', {
   recordatorioAt: date('recordatorio_at', { mode: 'string' }),
   recordatorioNota: text('recordatorio_nota'),
   recordatorioPor: uuid('recordatorio_por').references(() => users.id),
+  // Botón "Último seguimiento": cuándo se mandó la plantilla. El cierre pendiente
+  // vive en nextFollowUpAt / followUpReason = 'ultimo_seguimiento'.
+  ultimoSeguimientoAt: timestamp('ultimo_seguimiento_at', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -314,6 +317,13 @@ export const followUpConfig = pgTable('follow_up_config', {
   /** Textos; null = default del sistema. {{1}} nombre, {{2}} producto de interés */
   indagacionMensajeFinal: text('indagacion_mensaje_final'),
   indagacionMensajeRetomar: text('indagacion_mensaje_retomar'),
+  /** Botón "Último seguimiento": plantilla aprobada que se manda (null = 'ultimo_seguimiento', 'es') */
+  ultimoSeguimientoTemplateName: text('ultimo_seguimiento_template_name'),
+  ultimoSeguimientoTemplateLang: text('ultimo_seguimiento_template_lang'),
+  /** Horas sin respuesta, contadas dentro del horario permitido, para pasar a Perdido */
+  ultimoSeguimientoHoras: integer('ultimo_seguimiento_horas').notNull().default(10),
+  /** Frases de respuestas automáticas de negocios que no cuentan como respuesta (además de las del sistema) */
+  respuestasAutomaticasFrases: text('respuestas_automaticas_frases').array().notNull().default([]),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
