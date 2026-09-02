@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { formatFechaAR, formatFechaInstanteAR } from '@/lib/dates'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { useToast } from '@/components/shared/ToastProvider'
+import AgendarLlamadaButton from './AgendarLlamadaButton'
+import type { PipelineStage } from '@/types/db'
 
 type Packaging = 'cristal' | 'personalizado'
 
@@ -90,24 +92,36 @@ function numeroPropuestaFmt(n: number): string {
   return `PROP-${String(n).padStart(5, '0')}`
 }
 
-// Botón "Cotizar" + modal. Única definición del JSX: se instancia tanto en la
-// columna izquierda de la vista desktop como en la barra superior de mobile.
-export default function CotizadorLead({ leadId, mobile }: { leadId: string; mobile?: boolean }) {
+// Barra de acciones del lead: botón "Cotizar" (+ modal) y, a su derecha, el
+// botón verde "Agendar llamada" que mueve el lead a la etapa "Llamada".
+// Única definición del JSX: se instancia tanto en la columna izquierda de la
+// vista desktop como en la barra superior de mobile.
+export default function CotizadorLead({
+  leadId,
+  stage,
+  mobile,
+}: {
+  leadId: string
+  /** Etapa actual del lead (para el botón "Agendar llamada") */
+  stage?: PipelineStage | null
+  mobile?: boolean
+}) {
   const [showModal, setShowModal] = useState(false)
 
   return (
     <>
-      <div className={cn('px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
+      <div className={cn('flex items-center gap-2 px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
         <button
           onClick={() => setShowModal(true)}
           className={cn(
             'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors',
-            mobile && 'min-h-[44px] w-full justify-center text-sm',
+            mobile && 'min-h-[44px] flex-1 justify-center text-sm',
           )}
         >
           <Calculator size={13} />
           Cotizar
         </button>
+        <AgendarLlamadaButton leadId={leadId} stage={stage} mobile={mobile} />
       </div>
       {showModal && <CotizarModal leadId={leadId} onClose={() => setShowModal(false)} />}
     </>

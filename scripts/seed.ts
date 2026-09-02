@@ -18,8 +18,10 @@ const STAGES = [
   { slug: 'propuesta',    name: 'Propuesta',      color: '#8b5cf6', position: 3, isDeletable: true,  isTerminal: false },
   // El lead pasa acá automáticamente al cargar la muestra CDA (ver lib/leads/muestra-enviada.ts)
   { slug: 'muestra-enviada', name: 'Muestra enviada', color: '#0ea5e9', position: 4, isDeletable: true, isTerminal: false },
-  { slug: 'cerrado-won',  name: 'Cerrado Ganado', color: '#10b981', position: 5, isDeletable: false, isTerminal: true, isWon: true  },
-  { slug: 'cerrado-lost', name: 'Cerrado Perdido', color: '#ef4444', position: 6, isDeletable: false, isTerminal: true, isWon: false },
+  // El botón "Agendar llamada" del panel del lead lo mueve acá (ver components/lead/AgendarLlamadaButton.tsx)
+  { slug: 'agendar-llamada', name: 'Agendar llamada', color: '#22c55e', position: 5, isDeletable: true, isTerminal: false },
+  { slug: 'cerrado-won',  name: 'Cerrado Ganado', color: '#10b981', position: 6, isDeletable: false, isTerminal: true, isWon: true  },
+  { slug: 'cerrado-lost', name: 'Cerrado Perdido', color: '#ef4444', position: 7, isDeletable: false, isTerminal: true, isWon: false },
 ]
 
 async function seed() {

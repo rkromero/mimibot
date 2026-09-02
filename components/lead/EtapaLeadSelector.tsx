@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { useToast } from '@/components/shared/ToastProvider'
 import MotivoPerdidaModal from '@/components/pipeline/MotivoPerdidaModal'
+import { useMoverEtapaLead } from './useMoverEtapaLead'
 import type { PipelineStage } from '@/types/db'
-import type { MotivoPerdida } from '@/lib/leads/motivos-perdida'
 
 type Props = {
   leadId: string
@@ -20,51 +18,8 @@ type Props = {
 // muestra la etapa actual y un desplegable para moverla desde ahí mismo.
 // Mover a "perdido" (terminal no ganada) pide el motivo, igual que el kanban.
 export default function EtapaLeadSelector({ leadId, stage, leadName, mobile = false }: Props) {
-  const queryClient = useQueryClient()
-  const toast = useToast()
-  const [isSaving, setIsSaving] = useState(false)
+  const { stages, isSaving, moverA } = useMoverEtapaLead(leadId)
   const [pendientePerdido, setPendientePerdido] = useState<PipelineStage | null>(null)
-
-  const { data: stages = [] } = useQuery<PipelineStage[]>({
-    queryKey: ['stages'],
-    queryFn: async () => {
-      const res = await fetch('/api/stages')
-      if (!res.ok) return []
-      const json = await res.json() as { data: PipelineStage[] }
-      return json.data
-    },
-    staleTime: 60_000,
-  })
-
-  async function moverA(stageId: string, motivo?: MotivoPerdida, detalle?: string | null) {
-    setIsSaving(true)
-    try {
-      const res = await fetch(`/api/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stageId,
-          ...(motivo ? { motivoPerdida: motivo, motivoPerdidaDetalle: detalle ?? null } : {}),
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json() as { error?: string }
-        toast.error(data.error ?? 'No se pudo cambiar la etapa')
-        return
-      }
-      const destino = stages.find((s) => s.id === stageId)
-      toast.success(`Lead movido a "${destino?.name ?? 'la nueva etapa'}"`)
-      void queryClient.invalidateQueries({ queryKey: ['lead', leadId] })
-      void queryClient.invalidateQueries({ queryKey: ['inbox'] })
-      void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
-      void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
-      if (destino?.isTerminal) void queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] })
-    } catch {
-      toast.error('Error de conexión')
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   function handleChange(stageId: string) {
     if (!stageId || stageId === stage?.id) return
