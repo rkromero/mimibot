@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Bot, MessageSquare } from 'lucide-react'
 import { cn, relativeTime } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
+import RecordatorioChip from '@/components/shared/RecordatorioChip'
 import LeadPanel from '@/components/lead/LeadPanel'
 import QuickReplies from '@/components/chat/QuickReplies'
 import type { Session } from 'next-auth'
@@ -29,6 +30,9 @@ type InboxItem = {
   assignedUserColor: string | null
   assignedUserId: string | null
   botEnabled: boolean | null
+  /** Recordatorio de llamada del lead abierto (YYYY-MM-DD) */
+  recordatorioAt: string | null
+  recordatorioNota: string | null
 }
 
 type Props = { user: Session['user'] }
@@ -301,6 +305,9 @@ export default function InboxView({ user }: Props) {
                       )}>
                         {item.tipo === 'cliente' ? 'Cliente' : 'Lead'}
                       </span>
+                      {item.recordatorioAt && (
+                        <RecordatorioChip fecha={item.recordatorioAt} nota={item.recordatorioNota} className="shrink-0" />
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {item.unreadCount > 0 && (

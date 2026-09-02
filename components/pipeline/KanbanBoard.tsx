@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   DndContext,
   DragEndEvent,
@@ -48,7 +49,12 @@ export default function KanbanBoard({ stages, user }: Props) {
   const [view, setView] = useState<'board' | 'list'>(() =>
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'board',
   )
-  const [filters, setFilters] = useState<LeadFilters>({})
+  // /pipeline?recordatorio=hoy (desde Mi día y el popup de recordatorios) abre
+  // el tablero ya filtrado por "Para llamar hoy"
+  const searchParams = useSearchParams()
+  const [filters, setFilters] = useState<LeadFilters>(() =>
+    searchParams.get('recordatorio') === 'hoy' ? { recordatorio: 'hoy' } : {},
+  )
   const [mobileStageId, setMobileStageId] = useState<string>('all')
   const canImport = user.role === 'admin' || user.role === 'gerente'
   const filtersKey = JSON.stringify(filters)
@@ -71,6 +77,7 @@ export default function KanbanBoard({ stages, user }: Props) {
       if (filters.tagId) params.set('tagId', filters.tagId)
       if (filters.source) params.set('source', filters.source)
       if (filters.search) params.set('search', filters.search)
+      if (filters.recordatorio) params.set('recordatorio', filters.recordatorio)
       const res = await fetch(`/api/leads?${params.toString()}`)
       if (!res.ok) throw new Error('Error al cargar leads')
       const json = await res.json() as { data: LeadWithContact[] }

@@ -149,11 +149,17 @@ export const leads = pgTable('leads', {
   // Bubble "Nuevo" del kanban: null = el lead entró y todavía nadie abrió su
   // tarjeta; se marca al abrir el panel (GET /api/leads/[id])
   vistoAt: timestamp('visto_at', { mode: 'date' }),
+  // Recordatorio de llamada (uno por lead): día calendario AR en que hay que
+  // volver a hablarle, nota corta y quién lo puso. Ver lib/leads/recordatorio.ts.
+  recordatorioAt: date('recordatorio_at', { mode: 'string' }),
+  recordatorioNota: text('recordatorio_nota'),
+  recordatorioPor: uuid('recordatorio_por').references(() => users.id),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
 }, (t) => [
   index('leads_bot_responder_desde_idx').on(t.botResponderDesde),
+  index('leads_recordatorio_idx').on(t.recordatorioAt).where(sql`${t.recordatorioAt} IS NOT NULL`),
   index('leads_stage_assigned_idx').on(t.stageId, t.assignedTo),
   index('leads_assigned_to_idx').on(t.assignedTo),
   index('leads_contact_idx').on(t.contactId),

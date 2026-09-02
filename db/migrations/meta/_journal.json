@@ -505,6 +505,13 @@
       "when": 1787655409715,
       "tag": "0071_agendar_llamada_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1787655469715,
+      "tag": "0072_lead_recordatorio",
+      "breakpoints": true
     }
   ]
 }

@@ -256,7 +256,15 @@ export default function LeadPanel({
               onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
             />
           )}
-          {!isClienteMode && leadId && <CotizadorLead leadId={leadId} stage={lead?.stage} mobile />}
+          {!isClienteMode && leadId && (
+            <CotizadorLead
+              leadId={leadId}
+              stage={lead?.stage}
+              recordatorioAt={lead?.recordatorioAt}
+              recordatorioNota={lead?.recordatorioNota}
+              mobile
+            />
+          )}
           {!isClienteMode && leadId && lead && (
             <EtapaLeadSelector
               leadId={leadId}
@@ -593,7 +601,12 @@ export default function LeadPanel({
           />
         )}
 
-        <CotizadorLead leadId={leadId!} stage={lead.stage} />
+        <CotizadorLead
+          leadId={leadId!}
+          stage={lead.stage}
+          recordatorioAt={lead.recordatorioAt}
+          recordatorioNota={lead.recordatorioNota}
+        />
         <EtapaLeadSelector leadId={leadId!} stage={lead.stage} leadName={lead.contact?.name ?? null} />
         <PropuestasList leadId={leadId!} />
 

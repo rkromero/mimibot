@@ -8,6 +8,7 @@ import { formatFechaAR, formatFechaInstanteAR } from '@/lib/dates'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { useToast } from '@/components/shared/ToastProvider'
 import AgendarLlamadaButton from './AgendarLlamadaButton'
+import RecordatorioLeadButton from './RecordatorioLead'
 import type { PipelineStage } from '@/types/db'
 
 type Packaging = 'cristal' | 'personalizado'
@@ -93,24 +94,30 @@ function numeroPropuestaFmt(n: number): string {
 }
 
 // Barra de acciones del lead: botón "Cotizar" (+ modal) y, a su derecha, el
-// botón verde "Agendar llamada" que mueve el lead a la etapa "Llamada".
+// botón verde "Agendar llamada" (mueve el lead a la etapa "Llamada") y
+// "Recordar" (día en que hay que volver a llamarlo).
 // Única definición del JSX: se instancia tanto en la columna izquierda de la
 // vista desktop como en la barra superior de mobile.
 export default function CotizadorLead({
   leadId,
   stage,
+  recordatorioAt,
+  recordatorioNota,
   mobile,
 }: {
   leadId: string
   /** Etapa actual del lead (para el botón "Agendar llamada") */
   stage?: PipelineStage | null
+  /** Recordatorio de llamada vigente (para el botón "Recordar") */
+  recordatorioAt?: string | null
+  recordatorioNota?: string | null
   mobile?: boolean
 }) {
   const [showModal, setShowModal] = useState(false)
 
   return (
     <>
-      <div className={cn('flex items-center gap-2 px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
+      <div className={cn('flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
         <button
           onClick={() => setShowModal(true)}
           className={cn(
@@ -122,6 +129,12 @@ export default function CotizadorLead({
           Cotizar
         </button>
         <AgendarLlamadaButton leadId={leadId} stage={stage} mobile={mobile} />
+        <RecordatorioLeadButton
+          leadId={leadId}
+          recordatorioAt={recordatorioAt}
+          recordatorioNota={recordatorioNota}
+          mobile={mobile}
+        />
       </div>
       {showModal && <CotizarModal leadId={leadId} onClose={() => setShowModal(false)} />}
     </>

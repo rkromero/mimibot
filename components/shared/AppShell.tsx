@@ -9,6 +9,7 @@ import Sidebar, { filterGroups } from '@/components/shared/Sidebar'
 import BrandLogo from '@/components/shared/BrandLogo'
 import BottomNav from '@/components/shared/BottomNav'
 import GlobalSearch from '@/components/shared/GlobalSearch'
+import RecordatoriosHoyPopup from '@/components/shared/RecordatoriosHoyPopup'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import Avatar from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
@@ -287,6 +288,8 @@ export default function AppShell({ user, children }: Props) {
       )}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {/* "Tenés que llamar a estos hoy": una vez por día, si hay recordatorios de hoy o vencidos */}
+      <RecordatoriosHoyPopup user={user} />
       {newPedidoOpen && <CreatePedidoModal onClose={() => setNewPedidoOpen(false)} />}
     </>
   )

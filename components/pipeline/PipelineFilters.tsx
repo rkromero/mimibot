@@ -28,7 +28,7 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
   })
 
   const hasActiveFilters =
-    filters.agentId || filters.tagId || filters.source || filters.search
+    filters.agentId || filters.tagId || filters.source || filters.search || filters.recordatorio
 
   return (
     <div className="flex items-center gap-2 px-4 h-11 border-b border-border bg-background shrink-0">
@@ -89,6 +89,27 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
         <option value="whatsapp">WhatsApp</option>
         <option value="landing">Landing</option>
         <option value="manual">Manual</option>
+      </select>
+
+      {/* Filtro por recordatorio de llamada */}
+      <select
+        value={filters.recordatorio ?? ''}
+        onChange={(e) =>
+          onChange({
+            ...filters,
+            recordatorio: (e.target.value as LeadFilters['recordatorio']) || undefined,
+          })
+        }
+        className={cn(
+          'py-1.5 pl-2.5 pr-7 text-sm rounded-md border',
+          'border-border bg-background text-foreground',
+          'focus:outline-none focus:ring-1 focus:ring-ring',
+        )}
+        aria-label="Filtrar por recordatorio de llamada"
+      >
+        <option value="">Recordatorios</option>
+        <option value="hoy">Para llamar hoy</option>
+        <option value="todos">Con recordatorio</option>
       </select>
 
       {/* Limpiar filtros */}

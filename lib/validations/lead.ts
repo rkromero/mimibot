@@ -1,4 +1,5 @@
 import { CODIGOS_MOTIVO_PERDIDA } from '@/lib/leads/motivos-perdida'
+import { RECORDATORIO_NOTA_MAX, esFechaDia } from '@/lib/leads/recordatorio'
 import { z } from 'zod'
 
 export const createLeadSchema = z.object({
@@ -158,6 +159,20 @@ export const leadFiltersSchema = z.object({
   source: z.enum(['whatsapp', 'landing', 'manual']).optional(),
   search: z.string().max(200).optional(),
   stageId: z.string().uuid().optional(),
+  /** 'hoy' = recordatorio de llamada de hoy o vencido · 'todos' = con recordatorio */
+  recordatorio: z.enum(['hoy', 'todos']).optional(),
+})
+
+// ─── Recordatorio de llamada del lead ─────────────────────────────────────────
+// Día calendario (YYYY-MM-DD, sin hora) y nota corta. Ver lib/leads/recordatorio.ts.
+export const recordatorioLeadSchema = z.object({
+  fecha: z.string().refine(esFechaDia, 'Fecha inválida: usá el formato AAAA-MM-DD'),
+  nota: z
+    .string()
+    .trim()
+    .max(RECORDATORIO_NOTA_MAX, `La nota no puede superar los ${RECORDATORIO_NOTA_MAX} caracteres`)
+    .nullable()
+    .optional(),
 })
 
 // ─── Muestra CDA desde el lead ────────────────────────────────────────────────
@@ -174,6 +189,7 @@ export const muestraLeadSchema = z.object({
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>
 export type MuestraLeadInput = z.infer<typeof muestraLeadSchema>
+export type RecordatorioLeadInput = z.infer<typeof recordatorioLeadSchema>
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>
 export type IntakeInput = z.infer<typeof intakeSchema>
 export type LeadFilters = z.infer<typeof leadFiltersSchema>

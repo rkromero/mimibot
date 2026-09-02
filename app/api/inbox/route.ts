@@ -149,6 +149,9 @@ export async function GET(req: NextRequest) {
         assignedUserName: users.name,
         assignedUserColor: users.avatarColor,
         botEnabled: leads.botEnabled,
+        // Recordatorio de llamada del lead (solo mientras el lead está abierto)
+        recordatorioAt: sql<string | null>`CASE WHEN ${leads.isOpen} THEN ${leads.recordatorioAt} END`,
+        recordatorioNota: sql<string | null>`CASE WHEN ${leads.isOpen} THEN ${leads.recordatorioNota} END`,
       })
       .from(conversations)
       .leftJoin(leads, eq(conversations.leadId, leads.id))

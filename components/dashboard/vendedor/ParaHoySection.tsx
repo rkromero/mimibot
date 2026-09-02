@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Clock, MapPin, AlertCircle, Truck } from 'lucide-react'
+import { Clock, MapPin, AlertCircle, Truck, CalendarClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type ParaHoy = {
@@ -9,6 +9,8 @@ type ParaHoy = {
   visitasHoy: number
   cobranzasVencidas: number
   pedidosPorEntregar: number
+  /** Recordatorios de llamada de hoy + vencidos */
+  recordatoriosHoy: number
 }
 
 type Props = {
@@ -25,6 +27,13 @@ type CardDef = {
 }
 
 const CARDS: CardDef[] = [
+  {
+    key: 'recordatoriosHoy',
+    label: 'Para llamar hoy',
+    icon: CalendarClock,
+    href: '/pipeline?recordatorio=hoy',
+    activeColor: 'text-amber-600',
+  },
   {
     key: 'leadsInactivos',
     label: 'Sin contactar',
@@ -57,7 +66,7 @@ export default function ParaHoySection({ data, isLoading = false }: Props) {
   if (isLoading) {
     return (
       <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: CARDS.length }).map((_, i) => (
           <div
             key={i}
             className="w-[148px] h-28 rounded-2xl animate-pulse bg-muted shrink-0"

@@ -4,8 +4,9 @@ import { db } from '@/db'
 import {
   leads, pipelineStages, actividadesCliente, pedidos, clientes, metas,
 } from '@/db/schema'
-import { eq, and, isNull, sql, desc, gte, lt, inArray } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, sql, desc, gte, lt, lte, inArray } from 'drizzle-orm'
 import { esRolVentas } from '@/lib/authz/roles'
+import { todayStrAR } from '@/lib/dates'
 
 export async function GET() {
   try {
@@ -21,7 +22,7 @@ export async function GET() {
         data: {
           nombre: session.user.name?.split(' ')[0] ?? 'usuario',
           meta: null,
-          paraHoy: { leadsInactivos: 0, visitasHoy: 0, cobranzasVencidas: 0, pedidosPorEntregar: 0 },
+          paraHoy: { leadsInactivos: 0, visitasHoy: 0, cobranzasVencidas: 0, pedidosPorEntregar: 0, recordatoriosHoy: 0 },
           ultimosMovimientos: [],
         },
       })
@@ -40,6 +41,7 @@ export async function GET() {
       visitasResult,
       cobranzasResult,
       porEntregarResult,
+      recordatoriosResult,
       ultimosPedidos,
     ] = await Promise.all([
       // ── Meta del mes ──────────────────────────────────────────────────────────
@@ -74,6 +76,11 @@ export async function GET() {
         .from(pedidos)
         .where(and(eq(pedidos.vendedorId, userId), eq(pedidos.estado, 'confirmado'), isNull(pedidos.deletedAt))),
 
+      // ── Recordatorios de llamada para hoy (de hoy + vencidos) ────────────────
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(eq(leads.assignedTo, userId), eq(leads.isOpen, true), isNull(leads.deletedAt), isNotNull(leads.recordatorioAt), lte(leads.recordatorioAt, todayStrAR()))),
+
       // ── Últimos 5 pedidos ─────────────────────────────────────────────────────
       db.select({ id: pedidos.id, estado: pedidos.estado, total: pedidos.total, createdAt: pedidos.createdAt, clienteNombre: clientes.nombre, clienteApellido: clientes.apellido })
         .from(pedidos)
@@ -89,6 +96,7 @@ export async function GET() {
     const [visitasHoyRow] = visitasResult
     const [cobranzasRow] = cobranzasResult
     const [porEntregarRow] = porEntregarResult
+    const [recordatoriosRow] = recordatoriosResult
 
     const ultimosMovimientos = ultimosPedidos.map((p) => ({
       tipo: 'pedido',
@@ -108,6 +116,7 @@ export async function GET() {
           visitasHoy: visitasHoyRow?.total ?? 0,
           cobranzasVencidas: cobranzasRow?.total ?? 0,
           pedidosPorEntregar: porEntregarRow?.total ?? 0,
+          recordatoriosHoy: recordatoriosRow?.total ?? 0,
         },
         ultimosMovimientos,
       },

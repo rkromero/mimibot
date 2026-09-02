@@ -9,6 +9,7 @@ import TagBadge from '@/components/shared/TagBadge'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
 import { Trash2, FlaskConical } from 'lucide-react'
 import GradoBadge from '@/components/shared/GradoBadge'
+import RecordatorioChip from '@/components/shared/RecordatorioChip'
 import { formatFechaInstanteAR } from '@/lib/dates'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -126,6 +127,11 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
             <FlaskConical size={11} />
             Muestra {formatFechaInstanteAR(lead.muestraEntregadaAt, true)}
           </span>
+        )}
+
+        {/* Recordatorio de llamada: cuándo hay que volver a hablarle */}
+        {lead.recordatorioAt && (
+          <RecordatorioChip fecha={lead.recordatorioAt} nota={lead.recordatorioNota} className="self-start" />
         )}
 
         {/* Teléfono */}

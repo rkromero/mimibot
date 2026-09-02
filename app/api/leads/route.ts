@@ -3,9 +3,10 @@ import { auth } from '@/lib/auth'
 import { toWhatsappE164 } from '@/lib/whatsapp/phone'
 import { db } from '@/db'
 import { leads, contacts, pipelineStages, users, conversations, leadTags, tags, messages, activityLog } from '@/db/schema'
-import { eq, and, ilike, inArray, desc, sql, lt, or, isNull } from 'drizzle-orm'
+import { eq, and, ilike, inArray, desc, sql, lt, lte, or, isNull, isNotNull } from 'drizzle-orm'
 import { createLeadSchema, leadFiltersSchema } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
+import { todayStrAR } from '@/lib/dates'
 import { esRolVentas } from '@/lib/authz/roles'
 import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
     }
 
-    const { agentId, tagId, source, search, stageId } = filters.data
+    const { agentId, tagId, source, search, stageId, recordatorio } = filters.data
 
     // ── Role scoping ──────────────────────────────────────────────────────────
     let effectiveAgentId: string | undefined = agentId
@@ -94,6 +95,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (source) baseConditions.push(eq(leads.source, source))
+
+    // Recordatorio de llamada: 'hoy' = de hoy o vencido · 'todos' = con recordatorio
+    if (recordatorio) {
+      baseConditions.push(isNotNull(leads.recordatorioAt))
+      if (recordatorio === 'hoy') baseConditions.push(lte(leads.recordatorioAt, todayStrAR()))
+    }
 
     // ── Per-column cursor pagination (when stageId is provided) ───────────────
     if (stageId) {
