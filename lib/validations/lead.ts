@@ -16,6 +16,8 @@ export const createLeadSchema = z.object({
   direccion: z.string().max(300).optional().nullable(),
   localidad: z.string().max(120).optional().nullable(),
   tags: z.array(z.string().uuid()).optional(),
+  /** Mandar la plantilla de apertura por WhatsApp al crearlo (si tiene teléfono) */
+  enviarApertura: z.boolean().optional(),
 })
 
 export const updateLeadSchema = z.object({

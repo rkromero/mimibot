@@ -5,8 +5,9 @@ import { eq, and, asc, desc, isNull } from 'drizzle-orm'
 import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 import { intakeSchema, normalizeIntake, buildIntakeResumen } from '@/lib/validations/lead'
 import { toApiError } from '@/lib/errors'
-import { sendTextMessage } from '@/lib/whatsapp/client'
 import { toWhatsappE164 } from '@/lib/whatsapp/phone'
+import { assignLeadByRule } from '@/lib/assignment'
+import { enviarAperturaLead } from '@/lib/leads/apertura'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 
 const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? '').split(',').filter(Boolean)
@@ -104,9 +105,12 @@ export async function POST(req: NextRequest) {
 
     let leadId: string
     let stageIdLead: string
+    let assignedTo: string | null = null
+    let esNuevo = false
     if (openLead) {
       leadId = openLead.id
       stageIdLead = openLead.stageId
+      assignedTo = openLead.assignedTo
       await db.update(leads)
         .set({
           notes: openLead.notes ? `${openLead.notes}\n\n---\n${resumen}` : resumen,
@@ -151,32 +155,47 @@ export async function POST(req: NextRequest) {
         .returning({ id: leads.id })
       leadId = lead!.id
       stageIdLead = firstStage.id
+      esNuevo = true
 
       await db.insert(activityLog).values({
         leadId,
         action: 'lead_created',
         metadata: { source: data.source, fromIntake: true },
       })
+
+      // Asignación al crearlo con la regla de Ajustes → Asignación: el lead
+      // nace con dueño y la plantilla de apertura sale con su nombre. Cuando
+      // el bot califica, respeta esta asignación.
+      assignedTo = await assignLeadByRule()
+      if (assignedTo) {
+        await db.update(leads).set({ assignedTo, updatedAt: new Date() }).where(eq(leads.id, leadId))
+        await db.insert(activityLog).values({
+          leadId,
+          action: 'assigned',
+          metadata: { assignedTo, auto: true, motivo: 'regla de asignación al crear el lead' },
+        })
+      }
     }
 
     // Tag con la landing de origen, visible en inbox y pipeline
     const tagId = await ensureTag(data.source)
     await db.insert(leadTags).values({ leadId, tagId }).onConflictDoNothing()
 
-    // Conversación de WhatsApp lista para escribir, pero SIN mensajes: el lead
-    // no entra al inbox hasta que el vendedor le escriba o la persona escriba
-    // por WhatsApp. El resumen del formulario ya queda en las notas del lead.
+    // Conversación de WhatsApp lista para escribir. Con la apertura automática
+    // activa (Ajustes → WhatsApp), al lead nuevo se le manda la plantilla de
+    // apertura ahí mismo y entra al inbox con ese primer mensaje. Si no se
+    // puede mandar (número sin WhatsApp, plantilla no aprobada), queda nota y
+    // el lead sigue "sin contactar" para que alguien lo llame. Un formulario
+    // repetido no la vuelve a mandar.
     if (phone) {
       await asegurarConversacionLead(leadId, phone)
 
-      const now = new Date()
-      await db.update(leads)
-        .set({ lastContactedAt: now, updatedAt: now })
-        .where(eq(leads.id, leadId))
-
-      const welcomeMsg = process.env['WA_WELCOME_MESSAGE']
-      if (welcomeMsg) {
-        void sendTextMessage(phone, welcomeMsg).catch(() => {})
+      if (esNuevo) {
+        const waConfig = await db.query.whatsappConfig.findFirst({ columns: { aperturaAutoLeads: true } })
+        if (waConfig?.aperturaAutoLeads) {
+          const apertura = await enviarAperturaLead(leadId, { origen: 'landing' })
+          if (!apertura.enviada) console.warn(`[intake] apertura no enviada al lead ${leadId}: ${apertura.motivo}`)
+        }
       }
     }
 
@@ -184,7 +203,7 @@ export async function POST(req: NextRequest) {
     await publishCrmEvent({
       type: 'lead_updated',
       leadId,
-      assignedTo: openLead?.assignedTo ?? null,
+      assignedTo,
       oldAssigned: openLead?.assignedTo ?? null,
       stageId: stageIdLead,
       oldStageId: stageIdLead,

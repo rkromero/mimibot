@@ -162,6 +162,8 @@ export const leads = pgTable('leads', {
   // Botón "Último seguimiento": cuándo se mandó la plantilla. El cierre pendiente
   // vive en nextFollowUpAt / followUpReason = 'ultimo_seguimiento'.
   ultimoSeguimientoAt: timestamp('ultimo_seguimiento_at', { mode: 'date', withTimezone: true }),
+  // Plantilla de apertura automática: cuándo se mandó (una sola vez por lead).
+  aperturaEnviadaAt: timestamp('apertura_enviada_at', { mode: 'date', withTimezone: true }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
@@ -708,6 +710,10 @@ export const whatsappConfig = pgTable('whatsapp_config', {
   isConfigured: boolean('is_configured').notNull().default(false),
   aperturaTemplateName: text('apertura_template_name'),
   aperturaTemplateLang: text('apertura_template_lang'),
+  /** Mandar la plantilla de apertura automáticamente a los leads nuevos de landing (ver lib/leads/apertura.ts) */
+  aperturaAutoLeads: boolean('apertura_auto_leads').notNull().default(false),
+  /** Nombre que va en la variable "vendedor" de la apertura cuando el lead no tiene vendedor */
+  aperturaNombreDefault: text('apertura_nombre_default'),
   pedidoCreadoEnabled: boolean('pedido_creado_enabled').notNull().default(false),
   pedidoCreadoTemplateName: text('pedido_creado_template_name'),
   pedidoCreadoTemplateLang: text('pedido_creado_template_lang'),

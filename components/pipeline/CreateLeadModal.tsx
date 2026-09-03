@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from 'next-auth/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useToast } from '@/components/shared/ToastProvider'
 import type { PipelineStage, User } from '@/types/db'
 
 type Props = {
@@ -20,6 +21,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
   const canAssign = session?.user?.role === 'admin' || session?.user?.role === 'gerente'
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   const [form, setForm] = useState({
     contactName: '',
@@ -33,6 +35,8 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
     direccion: '',
     localidad: '',
     source: 'manual' as const,
+    // Plantilla de apertura por WhatsApp al crearlo (solo si tiene teléfono)
+    enviarApertura: true,
   })
 
   const { data: agents = [] } = useQuery<AgentOption[]>({
@@ -81,6 +85,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
           direccion: form.direccion.trim() || undefined,
           localidad: form.localidad.trim() || undefined,
           source: form.source,
+          enviarApertura: form.enviarApertura && !!form.contactPhone.trim(),
         }),
       })
 
@@ -88,6 +93,11 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
         const data = await res.json() as { error: string }
         setError(typeof data.error === 'string' ? data.error : 'Error al crear lead')
         return
+      }
+
+      const json = await res.json() as { apertura?: { enviada: boolean; motivo?: string } | null }
+      if (json.apertura && !json.apertura.enviada) {
+        toast.warning(`Lead creado, pero no se mandó la apertura: ${json.apertura.motivo ?? 'sin detalle'}`)
       }
 
       void queryClient.invalidateQueries({ queryKey: ['leads'] })
@@ -149,6 +159,17 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={form.enviarApertura}
+              disabled={!form.contactPhone.trim()}
+              onChange={(e) => set('enviarApertura', e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-border"
+            />
+            Mandarle la plantilla de apertura por WhatsApp al crearlo
+          </label>
 
           <div className={canAssign ? 'grid grid-cols-2 gap-3' : ''}>
             <div>

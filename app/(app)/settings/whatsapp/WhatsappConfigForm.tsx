@@ -55,6 +55,8 @@ type FormState = {
   wabaId: string
   aperturaTemplateName: string
   aperturaTemplateLang: string
+  aperturaAutoLeads: boolean
+  aperturaNombreDefault: string
   pedidoCreadoEnabled: boolean
   pedidoCreadoTemplateName: string
   pedidoCreadoTemplateLang: string
@@ -75,6 +77,8 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     wabaId: initialConfig?.wabaId ?? '',
     aperturaTemplateName: initialConfig?.aperturaTemplateName ?? '',
     aperturaTemplateLang: initialConfig?.aperturaTemplateLang ?? '',
+    aperturaAutoLeads: initialConfig?.aperturaAutoLeads ?? false,
+    aperturaNombreDefault: initialConfig?.aperturaNombreDefault ?? '',
     pedidoCreadoEnabled: initialConfig?.pedidoCreadoEnabled ?? false,
     pedidoCreadoTemplateName: initialConfig?.pedidoCreadoTemplateName ?? '',
     pedidoCreadoTemplateLang: initialConfig?.pedidoCreadoTemplateLang ?? '',
@@ -291,6 +295,51 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
                 Es la que se propone por defecto en el chat cuando la ventana de 24 hs está cerrada. Las variables se completan según lo configurado al registrar la plantilla.
               </p>
             )}
+          </div>
+
+          {/* Apertura automática a leads nuevos */}
+          <div className="flex items-start justify-between gap-4 pt-1">
+            <div>
+              <p className="text-sm font-medium">Mandarla automáticamente a los leads nuevos de landing</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Al entrar un lead desde una landing se le manda esta plantilla al instante, a nombre del vendedor que le
+                asignó la regla de Ajustes → Asignación. Si responde, sigue el bot. Si no se puede mandar, queda una nota
+                y el lead sigue &quot;sin contactar&quot;. Los leads creados a mano tienen su propio tilde en el formulario.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.aperturaAutoLeads}
+              onClick={() => setForm(p => ({ ...p, aperturaAutoLeads: !p.aperturaAutoLeads }))}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                'transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                form.aperturaAutoLeads ? 'bg-primary' : 'bg-input',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg',
+                  'transform transition duration-200',
+                  form.aperturaAutoLeads ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium">Nombre del remitente si el lead no tiene vendedor</label>
+            <input
+              type="text"
+              value={form.aperturaNombreDefault}
+              onChange={handleChange('aperturaNombreDefault')}
+              placeholder="ej: Teo"
+              className={inputClass}
+            />
+            <p className="text-xs text-muted-foreground">
+              Completa la variable &quot;nombre del vendedor&quot; cuando la regla no asignó a nadie. Sin nombre sale &quot;el equipo&quot;.
+              El producto de interés vacío sale como &quot;tu producto&quot;.
+            </p>
           </div>
         </div>
 

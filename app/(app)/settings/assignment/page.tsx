@@ -7,9 +7,10 @@ import AssignmentConfigForm from './AssignmentConfigForm'
 export default async function AssignmentSettingsPage() {
   const [config, agents] = await Promise.all([
     db.query.assignmentConfig.findFirst({ where: eq(assignmentConfig.id, 1) }),
+    // Mismos roles que reparte la regla (incluye admins: también atienden leads)
     db.query.users.findMany({
       where: (u, { and, inArray, eq: sqlEq }) =>
-        and(inArray(u.role, ['agent', 'vendedor', 'rtv']), sqlEq(u.isActive, true)),
+        and(inArray(u.role, ['agent', 'vendedor', 'rtv', 'admin']), sqlEq(u.isActive, true)),
       columns: { id: true, name: true },
       orderBy: (u, { asc }) => [asc(u.name)],
     }),

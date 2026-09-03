@@ -240,7 +240,10 @@ async function qualifyAndAssign(
     stages.find((s) => s.slug === 'calificado') ??
     stages.find((s) => !s.isTerminal && s.position > (nuevoStage?.position ?? -1))
 
-  const agentId = await assignLeadByRule()
+  // Si el lead ya tiene vendedor (asignado al crearse desde la landing o a
+  // mano), se respeta; la regla solo se usa para los que llegan sin dueño.
+  const actual = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { assignedTo: true } })
+  const agentId = actual?.assignedTo ?? await assignLeadByRule()
   if (agentId === null) {
     console.warn('[bot] qualifyAndAssign: sin agentes elegibles, lead sin asignar', { leadId })
   }

@@ -13,19 +13,17 @@ type ConfigRow = {
 type Elegible = { id: string; role: string }
 
 /**
- * Roles a los que se les puede asignar un lead (a mano o por regla). Los
- * admins entran para poder elegirlos explícitamente ("Todo a un agente" o con
- * peso), pero NO en el reparto automático parejo (rotativo / al azar): ahí
- * solo participan los roles de ventas, para que un admin no reciba leads sin
- * haberlo configurado.
+ * Roles a los que se les puede asignar un lead, a mano o por regla. Los admins
+ * participan del reparto automático (rotativo / al azar) igual que ventas: en
+ * ALIPRO los admins también atienden leads (p. ej. Teo). Quien no deba recibir
+ * leads se deja afuera con la regla "Todo a un agente" o con peso.
  */
 export const ROLES_ASIGNABLES = ['agent', 'vendedor', 'rtv', 'admin'] as const
-export const ROLES_REPARTO_AUTOMATICO = ['agent', 'vendedor', 'rtv'] as const
+export const ROLES_REPARTO_AUTOMATICO = ROLES_ASIGNABLES
 
+/** Todos los elegibles activos entran en el reparto parejo. */
 function poolReparto(elegibles: Elegible[]): Elegible[] {
-  const ventas = elegibles.filter((u) => (ROLES_REPARTO_AUTOMATICO as readonly string[]).includes(u.role))
-  // Sin nadie de ventas activo, mejor repartir entre los admins que dejar el lead sin asignar
-  return ventas.length > 0 ? ventas : elegibles
+  return elegibles
 }
 
 export async function assignLeadByRule(rng = Math.random): Promise<string | null> {

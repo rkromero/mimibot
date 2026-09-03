@@ -9,6 +9,7 @@ import { toApiError } from '@/lib/errors'
 import { todayStrAR } from '@/lib/dates'
 import { esRolVentas } from '@/lib/authz/roles'
 import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
+import { enviarAperturaLead, type ResultadoApertura } from '@/lib/leads/apertura'
 
 // ─── Cursor helpers ────────────────────────────────────────────────────────────
 
@@ -390,12 +391,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Conversación lista para escribir; no aparece en el inbox hasta el primer mensaje.
+    // Conversación lista para escribir; no aparece en el inbox hasta el primer
+    // mensaje. Con el tilde del formulario, ese primer mensaje es la plantilla
+    // de apertura, a nombre del vendedor asignado o de quien lo creó.
+    let apertura: ResultadoApertura | null = null
     if (contactPhone) {
       await asegurarConversacionLead(lead!.id, contactPhone)
+      if (input.enviarApertura) {
+        apertura = await enviarAperturaLead(lead!.id, { origen: 'manual', remitenteNombre: session.user.name ?? null })
+      }
     }
 
-    return NextResponse.json({ data: lead }, { status: 201 })
+    return NextResponse.json({ data: lead, apertura }, { status: 201 })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
