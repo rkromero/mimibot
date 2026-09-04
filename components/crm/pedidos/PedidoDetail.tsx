@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, Printer, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, Printer, MessageCircle, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
 import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
@@ -191,7 +191,7 @@ export default function PedidoDetail({ id }: Props) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [showProof, setShowProof] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const { generarDocumento, isGenerating, anyGenerating } = useGenerarDocumento()
+  const { generarDocumento, enviarDocumentoWhatsapp, isGenerating, isSending, anyGenerating } = useGenerarDocumento()
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false)
@@ -420,6 +420,7 @@ export default function PedidoDetail({ id }: Props) {
   if (proformaAvailable) {
     secondaryActions.push({ key: 'proforma-descargar', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Descargar proforma', icon: Download, onClick: () => void generarDocumento(id, 'proforma', 'descargar'), disabled: anyGenerating(id) })
     secondaryActions.push({ key: 'proforma-imprimir', label: isGenerating(id, 'proforma') ? 'Generando...' : 'Imprimir proforma', icon: Printer, onClick: () => void generarDocumento(id, 'proforma', 'imprimir'), disabled: anyGenerating(id) })
+    secondaryActions.push({ key: 'proforma-whatsapp', label: isSending(id, 'proforma') ? 'Enviando...' : 'Enviar proforma por WhatsApp', icon: MessageCircle, onClick: () => void enviarDocumentoWhatsapp(id, 'proforma'), disabled: anyGenerating(id) })
   }
   if (docsAvailable) {
     secondaryActions.push({ key: 'etiqueta', label: isGenerating(id, 'etiqueta') ? 'Generando...' : 'Etiqueta', icon: Tag, onClick: () => void generarDocumento(id, 'etiqueta'), disabled: anyGenerating(id) })
@@ -619,7 +620,8 @@ export default function PedidoDetail({ id }: Props) {
             </button>
           )}
           {/* Proforma: comprobante previo — disponible también antes de aprobar.
-              Descargar (se la manda al cliente, con nombre cliente + nº de proforma) o imprimir. */}
+              Descargar (nombre cliente + nº de proforma), imprimir, o mandarla por el
+              WhatsApp embebido a la conversación del cliente para que pague. */}
           {proformaAvailable && (
             <div className="inline-flex rounded-md border border-border overflow-hidden">
               <button
@@ -639,6 +641,16 @@ export default function PedidoDetail({ id }: Props) {
                 aria-label="Imprimir proforma"
               >
                 <Printer size={14} />
+              </button>
+              <button
+                onClick={() => void enviarDocumentoWhatsapp(id, 'proforma')}
+                disabled={anyGenerating(id)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm border-l border-border text-green-700 dark:text-green-400 hover:bg-accent transition-colors disabled:opacity-50"
+                title="Enviar proforma por WhatsApp al cliente (queda en el chat)"
+                aria-label="Enviar proforma por WhatsApp"
+              >
+                <MessageCircle size={14} />
+                {isSending(id, 'proforma') ? 'Enviando...' : 'WhatsApp'}
               </button>
             </div>
           )}

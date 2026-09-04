@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/shared/ToastProvider'
-import { nombreArchivoDesdeHeader } from '@/lib/pdf/nombre-archivo'
+import { nombreArchivoDesdeHeader, padNumeroDocumento } from '@/lib/pdf/nombre-archivo'
 
 export type DocTipo = 'remito' | 'proforma' | 'etiqueta'
 /** Qué hacer con el PDF generado: abrir el diálogo de impresión o bajarlo al disco. */
@@ -78,6 +78,8 @@ function printBlob(url: string) {
 export function useGenerarDocumento() {
   const [generating, setGenerating] = useState<Generating>(null)
   const [bulkGenerating, setBulkGenerating] = useState<DocTipo | null>(null)
+  // Envío por WhatsApp: estado propio para que los botones digan "Enviando..." y no "Generando..."
+  const [sending, setSending] = useState<Generating>(null)
   const toast = useToast()
 
   /**
@@ -126,6 +128,38 @@ export function useGenerarDocumento() {
   }
 
   /**
+   * Emite la proforma y la manda como documento por el WhatsApp embebido a la
+   * conversación del cliente (queda en el chat). Devuelve true si salió.
+   */
+  async function enviarDocumentoWhatsapp(pedidoId: string, tipo: 'proforma'): Promise<boolean> {
+    if (generating || sending) return false
+    setSending({ pedidoId, tipo })
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoId}/documentos/enviar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo, via: 'whatsapp' }),
+      })
+      const json = await res.json().catch(() => ({})) as { data?: { numero: number }; error?: string }
+
+      if (!res.ok) {
+        // Los errores traen instrucciones (ventana de 24 hs, sin teléfono): que se lean
+        toast.error(json.error ?? 'Error al enviar por WhatsApp', 8000)
+        return false
+      }
+
+      const numero = json.data?.numero
+      toast.success(numero ? `Proforma ${padNumeroDocumento(numero)} enviada por WhatsApp` : 'Proforma enviada por WhatsApp')
+      return true
+    } catch {
+      toast.error('Error de conexión al enviar por WhatsApp')
+      return false
+    } finally {
+      setSending(null)
+    }
+  }
+
+  /**
    * Genera un único PDF con los documentos de varios pedidos (un click) y abre
    * el diálogo de impresión. El backend combina todos los PDFs en uno solo.
    */
@@ -164,8 +198,13 @@ export function useGenerarDocumento() {
     return generating?.pedidoId === pedidoId && generating.tipo === tipo
   }
 
+  function isSending(pedidoId: string, tipo: DocTipo): boolean {
+    return sending?.pedidoId === pedidoId && sending.tipo === tipo
+  }
+
+  /** Hay un PDF del pedido generándose o enviándose: deshabilita el resto de los botones de documentos. */
   function anyGenerating(pedidoId: string): boolean {
-    return generating?.pedidoId === pedidoId
+    return generating?.pedidoId === pedidoId || sending?.pedidoId === pedidoId
   }
 
   function isBulkGenerating(tipo?: DocTipo): boolean {
@@ -175,7 +214,9 @@ export function useGenerarDocumento() {
   return {
     generarDocumento,
     generarDocumentosBulk,
+    enviarDocumentoWhatsapp,
     isGenerating,
+    isSending,
     anyGenerating,
     isBulkGenerating,
   }

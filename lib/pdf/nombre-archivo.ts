@@ -11,6 +11,11 @@ const ETIQUETA: Record<TipoDocumentoPedido, string> = {
   proforma: 'Proforma',
 }
 
+/** "Proforma" / "Remito": cómo se nombra el documento en títulos, archivos y mensajes. */
+export function etiquetaDocumento(tipo: TipoDocumentoPedido): string {
+  return ETIQUETA[tipo]
+}
+
 /** Número de documento con 6 dígitos, igual que impreso en el PDF. */
 export function padNumeroDocumento(numero: number): string {
   return String(numero).padStart(6, '0')
