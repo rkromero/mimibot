@@ -168,6 +168,14 @@ describe('prepararAvisoMuestra', () => {
     if (!r.ok) expect(r.motivo).toMatch(/Ya se avisó el 09\/09\/2026/)
   })
 
+  it('ya avisada pero con reenviar → arma la vista previa igual', async () => {
+    const avisada = new Date('2026-09-09T10:00:00.000Z')
+    m.findLead.mockResolvedValue({ ...LEAD, muestraAvisadaAt: avisada })
+    const r = await prepararAvisoMuestra('lead-1', null, { reenviar: true })
+    expect(r.ok).toBe(true)
+    expect(r.avisadaAt).toEqual(avisada)
+  })
+
   it('sin pedido de muestra entregado → no disponible', async () => {
     m.findPedido.mockResolvedValue(undefined)
     const r = await prepararAvisoMuestra('lead-1', null)
@@ -313,6 +321,18 @@ describe('enviarAvisoMuestra', () => {
     expect(m.updateSet.mock.calls[0]![0]).toMatchObject({ muestraAvisadaAt: r.avisadaAt })
     expect(m.publish).toHaveBeenCalledWith({ type: 'muestra_avisada', leadId: 'lead-1', assignedTo: 'agente-1' })
     expect(r.pedidoId).toBe(PEDIDO.id)
+  })
+
+  it('reenvío: manda de nuevo, la nota dice "reenviado" y actualiza la fecha de aviso', async () => {
+    m.findLead.mockResolvedValue({ ...LEAD, muestraAvisadaAt: new Date('2026-09-09T10:00:00.000Z') })
+    await expect(enviarAvisoMuestra('lead-1', { id: 'u', name: null })).rejects.toThrow(/Ya se avisó/)
+    expect(m.sendTemplate).not.toHaveBeenCalled()
+
+    const r = await enviarAvisoMuestra('lead-1', { id: 'u', name: null }, { reenviar: true })
+    expect(m.sendTemplate).toHaveBeenCalledTimes(1)
+    const nota = m.insertValues.mock.calls.map((c) => c[0] as { action?: string; metadata?: { texto?: string } }).find((v) => v.action === 'note_added')
+    expect(nota?.metadata?.texto).toMatch(/reenviado por WhatsApp/)
+    expect(m.updateSet.mock.calls[0]![0]).toMatchObject({ muestraAvisadaAt: r.avisadaAt })
   })
 
   it('si no se puede mandar, lanza con el motivo y no toca Meta ni la base', async () => {

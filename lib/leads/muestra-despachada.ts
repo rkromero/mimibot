@@ -132,6 +132,11 @@ async function pedidoMuestraEntregado(leadId: string): Promise<PedidoAviso | nul
   return pedido ?? null
 }
 
+export type OpcionesAviso = {
+  /** Mandarlo aunque ya se haya avisado (el cliente lo perdió, o quedó marcado por la migración) */
+  reenviar?: boolean
+}
+
 /**
  * Arma el aviso sin mandarlo. `vendedorNombre` es el nombre de quien está por
  * mandar; se usa solo si el lead no tiene vendedor asignado.
@@ -139,6 +144,7 @@ async function pedidoMuestraEntregado(leadId: string): Promise<PedidoAviso | nul
 export async function prepararAvisoMuestra(
   leadId: string,
   vendedorNombre: string | null,
+  opts: OpcionesAviso = {},
 ): Promise<PreparacionAvisoMuestra> {
   const lead = await db.query.leads.findFirst({
     where: and(eq(leads.id, leadId), isNull(leads.deletedAt)),
@@ -161,7 +167,7 @@ export async function prepararAvisoMuestra(
     ({ ...base, ...extra, ok: false, motivo })
 
   if (!lead.muestraEntregadaAt) return noDisponible('La muestra todavía no se marcó como entregada')
-  if (lead.muestraAvisadaAt) {
+  if (lead.muestraAvisadaAt && !opts.reenviar) {
     return noDisponible(`Ya se avisó el ${formatFechaInstanteAR(lead.muestraAvisadaAt)}`)
   }
   if (!pedido) return noDisponible('No encontré el pedido de muestra entregado de este lead')
@@ -272,8 +278,9 @@ export async function prepararAvisoMuestra(
 export async function enviarAvisoMuestra(
   leadId: string,
   user: { id: string; name: string | null },
+  opts: OpcionesAviso = {},
 ): Promise<{ body: string; avisadaAt: Date; pedidoId: string }> {
-  const prep = await prepararAvisoMuestra(leadId, user.name)
+  const prep = await prepararAvisoMuestra(leadId, user.name, opts)
   if (!prep.ok) throw new ValidationError(prep.motivo)
   const { lead, pedido, conversationId, waContactPhone, templateName, templateLang, headerFormat, valores, body, archivo } = prep
 
@@ -315,7 +322,7 @@ export async function enviarAvisoMuestra(
 
   await marcarAvisada(lead, user.id, ahora, {
     pedidoId: pedido.id,
-    texto: `Aviso de muestra despachada enviado por WhatsApp — pedido #${numeroPedidoCorto(pedido.id)}`,
+    texto: `Aviso de muestra despachada ${lead.muestraAvisadaAt ? 'reenviado' : 'enviado'} por WhatsApp — pedido #${numeroPedidoCorto(pedido.id)}`,
   })
 
   return { body, avisadaAt: ahora, pedidoId: pedido.id }

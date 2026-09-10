@@ -83,7 +83,8 @@ function AvisoMuestraModal({ leadId, onClose }: { leadId: string; onClose: () =>
 
   useEffect(() => {
     let activo = true
-    fetch(`/api/leads/${leadId}/muestra/aviso`)
+    // reenviar=1: la vista previa se arma aunque ya se haya avisado, para poder mandarlo de nuevo
+    fetch(`/api/leads/${leadId}/muestra/aviso?reenviar=1`)
       .then(async (res) => {
         const json = await res.json() as { data?: Preview; error?: string }
         if (!activo) return
@@ -119,20 +120,20 @@ function AvisoMuestraModal({ leadId, onClose }: { leadId: string; onClose: () =>
     }
   }
 
-  async function enviar(soloMarcar: boolean) {
+  async function enviar(soloMarcar: boolean, reenviar = false) {
     setSaving(true)
     try {
       const res = await fetch(`/api/leads/${leadId}/muestra/aviso`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soloMarcar }),
+        body: JSON.stringify({ soloMarcar, reenviar }),
       })
       const json = await res.json() as { data?: { enviado: boolean }; error?: string }
       if (!res.ok || !json.data) {
         toast.error(json.error ?? 'No se pudo mandar el aviso')
         return
       }
-      toast.success(soloMarcar ? 'Muestra marcada como avisada' : 'Aviso enviado con la guía de envío')
+      toast.success(soloMarcar ? 'Muestra marcada como avisada' : reenviar ? 'Aviso reenviado con la guía de envío' : 'Aviso enviado con la guía de envío')
       refrescar()
       onClose()
     } catch {
@@ -161,7 +162,7 @@ function AvisoMuestraModal({ leadId, onClose }: { leadId: string; onClose: () =>
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               {yaAvisada
-                ? `Se le avisó al cliente el ${formatFechaInstanteAR(preview!.avisadaAt!)}.`
+                ? `Se le avisó al cliente el ${formatFechaInstanteAR(preview!.avisadaAt!)}. Si hace falta, podés mandarlo de nuevo.`
                 : 'Se manda la plantilla por WhatsApp con la foto de la guía de envío arriba del texto.'}
             </p>
           </div>
@@ -193,7 +194,7 @@ function AvisoMuestraModal({ leadId, onClose }: { leadId: string; onClose: () =>
             {preview.expresoNombre && (
               <p className="text-xs text-muted-foreground">Salió por {preview.expresoNombre}.</p>
             )}
-            {!preview.disponible && !yaAvisada && (
+            {!preview.disponible && (
               <p className="text-sm text-red-600 dark:text-red-400">{preview.motivo}</p>
             )}
             {preview.pedidoId && (
@@ -227,17 +228,20 @@ function AvisoMuestraModal({ leadId, onClose }: { leadId: string; onClose: () =>
               Ya le avisé
             </button>
           )}
-          {!yaAvisada && (
-            <button
-              type="button"
-              onClick={() => void enviar(false)}
-              disabled={saving || cargando || !preview?.disponible}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              <Send size={13} />
-              {saving ? 'Enviando…' : 'Enviar con la guía'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void enviar(false, yaAvisada)}
+            disabled={saving || cargando || !preview?.disponible}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md disabled:opacity-50 transition-colors',
+              yaAvisada
+                ? 'border border-border text-foreground hover:bg-accent'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90',
+            )}
+          >
+            <Send size={13} />
+            {saving ? 'Enviando…' : yaAvisada ? 'Enviar de nuevo' : 'Enviar con la guía'}
+          </button>
         </div>
       </div>
     </div>
