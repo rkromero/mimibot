@@ -115,12 +115,15 @@ export default function WhatsappTemplatesPage() {
         const err = await res.json() as { error: string }
         throw new Error(err.error)
       }
-      return res.json() as Promise<{ data: { synced: number; deleted: number } }>
+      return res.json() as Promise<{ data: { synced: number; deleted: number; imported?: number } }>
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['wa-templates'] })
-      const { synced, deleted } = data.data
+      const { synced, deleted, imported = 0 } = data.data
       const parts = [`Sincronizadas ${synced} plantilla(s) desde Meta.`]
+      if (imported > 0) {
+        parts.push(`Se importaron ${imported} plantilla(s) creadas en el Administrador de WhatsApp.`)
+      }
       if (deleted > 0) {
         parts.push(`Se eliminaron ${deleted} plantilla(s) que no existen en la cuenta WhatsApp Business actual.`)
       }
@@ -405,6 +408,14 @@ export default function WhatsappTemplatesPage() {
                     <span className="text-xs px-1.5 py-0.5 rounded bg-accent text-muted-foreground">
                       {t.category}
                     </span>
+                    {(t.headerFormat === 'IMAGE' || t.headerFormat === 'DOCUMENT' || t.headerFormat === 'VIDEO') && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                        title="Lleva un archivo en el encabezado (se adjunta al enviar)"
+                      >
+                        {t.headerFormat === 'IMAGE' ? 'Imagen' : t.headerFormat === 'DOCUMENT' ? 'Documento' : 'Video'}
+                      </span>
+                    )}
                     <span
                       className={cn(
                         'text-xs px-2 py-0.5 rounded-full font-medium',

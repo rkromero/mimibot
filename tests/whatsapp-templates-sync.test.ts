@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planTemplateSync, templateKey, type MetaTemplateSummary } from '@/lib/whatsapp/templates'
+import { planTemplateSync, templateKey, parseMetaComponents, type MetaTemplateSummary } from '@/lib/whatsapp/templates'
 
 const meta = (name: string, language: string, status = 'APPROVED', extra?: Partial<MetaTemplateSummary>): MetaTemplateSummary =>
   ({ id: `meta_${name}_${language}`, name, language, status, ...extra })
@@ -10,6 +10,7 @@ describe('planTemplateSync', () => {
     const plan = planTemplateSync(local, [meta('bienvenida', 'es', 'REJECTED', { rejected_reason: 'INVALID_FORMAT' })])
 
     expect(plan.deleteIds).toEqual([])
+    expect(plan.inserts).toEqual([])
     expect(plan.updates).toEqual([
       { localId: 'l1', meta: { id: 'meta_bienvenida_es', name: 'bienvenida', language: 'es', status: 'REJECTED', rejected_reason: 'INVALID_FORMAT' } },
     ])
@@ -46,13 +47,43 @@ describe('planTemplateSync', () => {
     expect(plan.deleteIds).toEqual(['l1'])
   })
 
-  it('ignora plantillas de Meta que no están cargadas localmente (no las importa)', () => {
-    const plan = planTemplateSync([], [meta('bienvenida', 'es'), meta('otra', 'es')])
-    expect(plan.updates).toEqual([])
+  it('importa las plantillas de Meta que no están cargadas localmente (creadas en el Administrador de WhatsApp)', () => {
+    const plan = planTemplateSync([{ id: 'l1', name: 'bienvenida', language: 'es' }], [meta('bienvenida', 'es'), meta('muestra_despachada', 'es')])
+    expect(plan.updates.map((u) => u.localId)).toEqual(['l1'])
     expect(plan.deleteIds).toEqual([])
+    expect(plan.inserts.map((m) => m.name)).toEqual(['muestra_despachada'])
   })
 
   it('templateKey combina nombre e idioma', () => {
     expect(templateKey({ name: 'a', language: 'es' })).toBe('a|es')
+  })
+})
+
+describe('parseMetaComponents', () => {
+  it('plantilla con imagen en el encabezado: headerFormat IMAGE y sin texto de encabezado', () => {
+    const c = parseMetaComponents([
+      { type: 'HEADER', format: 'IMAGE' },
+      { type: 'BODY', text: 'Hola {{1}}, salió tu muestra por {{2}}.' },
+      { type: 'FOOTER', text: 'ALIPRO' },
+      { type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: 'Gracias' }] },
+    ])
+    expect(c).toEqual({
+      bodyText: 'Hola {{1}}, salió tu muestra por {{2}}.',
+      headerText: null,
+      headerFormat: 'IMAGE',
+      footerText: 'ALIPRO',
+      buttons: [{ type: 'QUICK_REPLY', text: 'Gracias' }],
+    })
+  })
+
+  it('encabezado de texto conserva el texto; sin encabezado → headerFormat null', () => {
+    expect(parseMetaComponents([{ type: 'HEADER', format: 'TEXT', text: 'Novedades' }, { type: 'BODY', text: 'x' }]))
+      .toMatchObject({ headerText: 'Novedades', headerFormat: 'TEXT' })
+    expect(parseMetaComponents([{ type: 'BODY', text: 'x' }])).toMatchObject({ headerText: null, headerFormat: null })
+  })
+
+  it('tolera componentes vacíos o desconocidos', () => {
+    expect(parseMetaComponents(undefined)).toEqual({ bodyText: '', headerText: null, headerFormat: null, footerText: null, buttons: [] })
+    expect(parseMetaComponents([{ type: 'CAROUSEL' }])).toMatchObject({ bodyText: '' })
   })
 })

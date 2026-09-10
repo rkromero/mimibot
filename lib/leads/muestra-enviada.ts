@@ -12,6 +12,8 @@ type PedidoParaMuestra = {
   tipo: 'venta' | 'muestra'
   leadId: string | null
   entregadoAt?: Date | null
+  /** Foto de la guía de envío (expreso): con esto se puede avisar al cliente */
+  remitoFotoUrl?: string | null
 }
 
 export type ResultadoMuestraEntregada = {
@@ -34,6 +36,9 @@ const NO_PROCESADO: ResultadoMuestraEntregada = { procesado: false, etapaMovida:
  * - Mueve el lead a la etapa "Muestra enviada" desde cualquier etapa abierta.
  *   Si el lead está cerrado (ganado/perdido) no lo toca; si la etapa no existe
  *   (la borraron del pipeline), registra la nota igual pero no lo mueve.
+ * - Avisa en tiempo real (`muestra_despachada`) al vendedor y a los admins para
+ *   que le manden al cliente la guía de envío; si en Ajustes → WhatsApp está
+ *   activado el envío automático, lo manda solo (ver muestra-despachada.ts).
  *
  * Idempotente: si el lead ya tiene `muestraEntregadaAt`, no hace nada (un
  * pedido puede "entregarse" dos veces, p. ej. reparto + confirmación de MP).
@@ -48,6 +53,7 @@ export async function registrarMuestraEntregada(
   const lead = await drizzleDb.query.leads.findFirst({
     where: and(eq(leads.id, pedido.leadId), isNull(leads.deletedAt)),
     columns: { id: true, stageId: true, isOpen: true, assignedTo: true, muestraEntregadaAt: true },
+    with: { contact: { columns: { name: true } } },
   })
   if (!lead || lead.muestraEntregadaAt) return NO_PROCESADO
 
@@ -99,7 +105,39 @@ export async function registrarMuestraEntregada(
     })
   }
 
+  // Aviso interno: "salió la muestra de X, avisale al cliente"
+  await publishCrmEvent({
+    type: 'muestra_despachada',
+    leadId: lead.id,
+    assignedTo: lead.assignedTo,
+    pedidoId: pedido.id,
+    contactName: lead.contact?.name ?? '',
+    conFoto: !!pedido.remitoFotoUrl,
+  })
+
+  if (pedido.remitoFotoUrl) await enviarAvisoAutomatico(lead.id, userId, drizzleDb)
+
   return { procesado: true, etapaMovida: mover, stageId: etapa?.id ?? null }
+}
+
+/**
+ * Si en Ajustes → WhatsApp está activado el aviso automático, manda la
+ * plantilla con la guía apenas se entrega. Best-effort: si falla (plantilla
+ * sin aprobar, sin teléfono, Meta caído) el lead queda pendiente de aviso y
+ * se manda a mano desde el panel.
+ */
+async function enviarAvisoAutomatico(leadId: string, userId: string, drizzleDb: Db): Promise<void> {
+  try {
+    const config = await drizzleDb.query.whatsappConfig.findFirst({ columns: { muestraAuto: true } })
+    if (!config?.muestraAuto) return
+    const { enviarAvisoMuestra } = await import('./muestra-despachada')
+    // Sin esperar: que la entrega de fábrica no dependa de Meta ni de R2
+    void enviarAvisoMuestra(leadId, { id: userId, name: null }).catch((err: unknown) => {
+      console.warn(`[muestra-enviada] Falló el aviso automático del lead ${leadId}:`, err)
+    })
+  } catch (err) {
+    console.warn(`[muestra-enviada] No se pudo mandar el aviso automático del lead ${leadId}:`, err)
+  }
 }
 
 /**
@@ -115,7 +153,7 @@ export async function onPedidoEntregado(
   try {
     const pedido = await drizzleDb.query.pedidos.findFirst({
       where: eq(pedidos.id, pedidoId),
-      columns: { id: true, tipo: true, leadId: true, entregadoAt: true },
+      columns: { id: true, tipo: true, leadId: true, entregadoAt: true, remitoFotoUrl: true },
     })
     if (!pedido) return NO_PROCESADO
     return await registrarMuestraEntregada(pedido, userId, drizzleDb)

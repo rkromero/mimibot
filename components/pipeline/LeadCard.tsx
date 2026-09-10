@@ -11,6 +11,7 @@ import { Trash2, FlaskConical } from 'lucide-react'
 import GradoBadge from '@/components/shared/GradoBadge'
 import RecordatorioChip from '@/components/shared/RecordatorioChip'
 import { formatFechaInstanteAR } from '@/lib/dates'
+import { esperaAvisoMuestra } from '@/lib/leads/muestra-aviso'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { LeadWithContact } from '@/types/db'
@@ -118,14 +119,25 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
           )}
         </div>
 
-        {/* Muestra CDA entregada — fecha visible en la card para seguimiento rápido */}
+        {/* Muestra CDA entregada — fecha visible en la card para seguimiento rápido;
+            "Sin avisar" mientras falte mandarle al cliente la guía de envío */}
         {lead.muestraEntregadaAt && (
-          <span
-            className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-            title={`Muestra entregada el ${formatFechaInstanteAR(lead.muestraEntregadaAt)}`}
-          >
-            <FlaskConical size={11} />
-            Muestra {formatFechaInstanteAR(lead.muestraEntregadaAt, true)}
+          <span className="flex items-center gap-1 self-start">
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+              title={`Muestra entregada el ${formatFechaInstanteAR(lead.muestraEntregadaAt)}`}
+            >
+              <FlaskConical size={11} />
+              Muestra {formatFechaInstanteAR(lead.muestraEntregadaAt, true)}
+            </span>
+            {esperaAvisoMuestra(lead) && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-600 text-white"
+                title="Falta avisarle al cliente que salió la muestra"
+              >
+                Sin avisar
+              </span>
+            )}
           </span>
         )}
 

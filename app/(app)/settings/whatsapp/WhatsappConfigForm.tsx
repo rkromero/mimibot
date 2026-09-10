@@ -5,7 +5,7 @@ import { Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsappConfig } from '@/types/db'
 
-type TemplateRecord = { id: string; name: string; language: string; bodyText: string; status: string }
+type TemplateRecord = { id: string; name: string; language: string; bodyText: string; status: string; headerFormat?: string | null }
 
 function WebhookUrlBlock() {
   const [copied, setCopied] = useState(false)
@@ -60,6 +60,9 @@ type FormState = {
   pedidoCreadoEnabled: boolean
   pedidoCreadoTemplateName: string
   pedidoCreadoTemplateLang: string
+  muestraTemplateName: string
+  muestraTemplateLang: string
+  muestraAuto: boolean
 }
 
 export default function WhatsappConfigForm({ initialConfig }: Props) {
@@ -82,6 +85,9 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     pedidoCreadoEnabled: initialConfig?.pedidoCreadoEnabled ?? false,
     pedidoCreadoTemplateName: initialConfig?.pedidoCreadoTemplateName ?? '',
     pedidoCreadoTemplateLang: initialConfig?.pedidoCreadoTemplateLang ?? '',
+    muestraTemplateName: initialConfig?.muestraTemplateName ?? '',
+    muestraTemplateLang: initialConfig?.muestraTemplateLang ?? '',
+    muestraAuto: initialConfig?.muestraAuto ?? false,
   })
 
   useEffect(() => {
@@ -408,6 +414,82 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
               )}
             </div>
           )}
+        </div>
+
+        {/* Aviso de muestra despachada */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div>
+            <h2 className="text-md font-semibold mb-0.5">Aviso de muestra despachada</h2>
+            <p className="text-sm text-muted-foreground">
+              Cuando fábrica marca entregada una muestra CDA por expreso, se le avisa al cliente con esta plantilla
+              y la foto de la guía de envío en el encabezado. Como suele pasar fuera de la ventana de 24 hs, tiene
+              que ser una plantilla aprobada con encabezado de tipo <span className="font-medium">Imagen</span>:
+              creala en el Administrador de WhatsApp de Meta y sincronizá las plantillas para que aparezca acá.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium">Plantilla del aviso</label>
+            <select
+              value={form.muestraTemplateName && form.muestraTemplateLang
+                ? `${form.muestraTemplateName}::${form.muestraTemplateLang}`
+                : ''}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setForm(p => ({ ...p, muestraTemplateName: '', muestraTemplateLang: '' }))
+                  return
+                }
+                const parts = e.target.value.split('::')
+                setForm(p => ({ ...p, muestraTemplateName: parts[0] ?? '', muestraTemplateLang: parts[1] ?? '' }))
+              }}
+              className={inputClass}
+            >
+              <option value="">— Sin aviso de muestra —</option>
+              {approvedTemplates.map(t => (
+                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                  {t.name} ({t.language}){t.headerFormat === 'IMAGE' ? ' · imagen' : t.headerFormat === 'DOCUMENT' ? ' · documento' : ' · sin archivo'}
+                </option>
+              ))}
+            </select>
+            {form.muestraTemplateName && !approvedTemplates.some(
+              t => t.name === form.muestraTemplateName && (t.headerFormat === 'IMAGE' || t.headerFormat === 'DOCUMENT'),
+            ) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Esta plantilla no tiene encabezado de imagen: la guía de envío no se va a poder adjuntar.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Variables: las configuradas en la plantilla. Si se importó de Meta sin configurar, van por posición:
+              <span className="font-mono"> {'{{1}}'}</span> nombre del cliente, <span className="font-mono">{'{{2}}'}</span> expreso,
+              <span className="font-mono"> {'{{3}}'}</span> nº de pedido, <span className="font-mono">{'{{4}}'}</span> vendedor.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Mandar el aviso automáticamente</p>
+              <p className="text-xs text-muted-foreground">
+                Apenas fábrica marca entregada la muestra con la foto. Si está apagado, se manda a mano desde el lead.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.muestraAuto}
+              onClick={() => setForm(p => ({ ...p, muestraAuto: !p.muestraAuto }))}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                'transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                form.muestraAuto ? 'bg-primary' : 'bg-input',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg',
+                  'transform transition duration-200',
+                  form.muestraAuto ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

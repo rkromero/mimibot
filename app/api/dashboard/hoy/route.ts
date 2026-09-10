@@ -22,7 +22,7 @@ export async function GET() {
         data: {
           nombre: session.user.name?.split(' ')[0] ?? 'usuario',
           meta: null,
-          paraHoy: { leadsInactivos: 0, visitasHoy: 0, cobranzasVencidas: 0, pedidosPorEntregar: 0, recordatoriosHoy: 0 },
+          paraHoy: { leadsInactivos: 0, visitasHoy: 0, cobranzasVencidas: 0, pedidosPorEntregar: 0, recordatoriosHoy: 0, muestrasSinAvisar: 0 },
           ultimosMovimientos: [],
         },
       })
@@ -42,6 +42,7 @@ export async function GET() {
       cobranzasResult,
       porEntregarResult,
       recordatoriosResult,
+      muestrasResult,
       ultimosPedidos,
     ] = await Promise.all([
       // ── Meta del mes ──────────────────────────────────────────────────────────
@@ -81,6 +82,11 @@ export async function GET() {
         .from(leads)
         .where(and(eq(leads.assignedTo, userId), eq(leads.isOpen, true), isNull(leads.deletedAt), isNotNull(leads.recordatorioAt), lte(leads.recordatorioAt, todayStrAR()))),
 
+      // ── Muestras entregadas sin avisar al cliente (ver lib/leads/muestra-aviso.ts) ──
+      db.select({ total: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(eq(leads.assignedTo, userId), isNull(leads.deletedAt), isNotNull(leads.muestraEntregadaAt), isNull(leads.muestraAvisadaAt))),
+
       // ── Últimos 5 pedidos ─────────────────────────────────────────────────────
       db.select({ id: pedidos.id, estado: pedidos.estado, total: pedidos.total, createdAt: pedidos.createdAt, clienteNombre: clientes.nombre, clienteApellido: clientes.apellido })
         .from(pedidos)
@@ -97,6 +103,7 @@ export async function GET() {
     const [cobranzasRow] = cobranzasResult
     const [porEntregarRow] = porEntregarResult
     const [recordatoriosRow] = recordatoriosResult
+    const [muestrasRow] = muestrasResult
 
     const ultimosMovimientos = ultimosPedidos.map((p) => ({
       tipo: 'pedido',
@@ -117,6 +124,7 @@ export async function GET() {
           cobranzasVencidas: cobranzasRow?.total ?? 0,
           pedidosPorEntregar: porEntregarRow?.total ?? 0,
           recordatoriosHoy: recordatoriosRow?.total ?? 0,
+          muestrasSinAvisar: muestrasRow?.total ?? 0,
         },
         ultimosMovimientos,
       },

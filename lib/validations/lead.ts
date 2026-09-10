@@ -168,6 +168,8 @@ export const leadFiltersSchema = z.object({
   stageId: z.string().uuid().optional(),
   /** 'hoy' = recordatorio de llamada de hoy o vencido · 'todos' = con recordatorio */
   recordatorio: z.enum(['hoy', 'todos']).optional(),
+  /** 'sin_avisar' = muestra entregada a la que todavía no se le avisó al cliente (ver lib/leads/muestra-aviso.ts) */
+  muestra: z.enum(['sin_avisar']).optional(),
 })
 
 // ─── Recordatorio de llamada del lead ─────────────────────────────────────────

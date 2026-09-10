@@ -5,11 +5,13 @@
  *
  *  1. Pedido de venta (o sin leadId) → no hace nada.
  *  2. Lead ya procesado (muestraEntregadaAt) → idempotente, no duplica nota.
- *  3. Caso feliz → guarda fecha + stageId, nota de sistema, stage_changed y evento realtime.
+ *  3. Caso feliz → guarda fecha + stageId, nota de sistema, stage_changed, evento realtime
+ *     y aviso interno `muestra_despachada` (con o sin foto de la guía).
  *  4. Lead cerrado → guarda fecha y nota, pero no lo mueve de etapa.
  *  5. Etapa inexistente → guarda fecha y nota, no mueve.
  *  6. Lead ya en "Muestra enviada" → guarda fecha y nota, no duplica stage_changed.
  *  7. onPedidoEntregado busca el pedido y delega; si falla, no lanza.
+ *  8. Aviso automático al cliente solo si está activado en Ajustes y hay foto de la guía.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -17,18 +19,22 @@ const {
   mockFindLead,
   mockFindStage,
   mockFindPedido,
+  mockFindConfig,
   mockUpdateSet,
   mockUpdateWhere,
   mockInsertValues,
   mockPublish,
+  mockEnviarAviso,
 } = vi.hoisted(() => ({
   mockFindLead: vi.fn(),
   mockFindStage: vi.fn(),
   mockFindPedido: vi.fn(),
+  mockFindConfig: vi.fn(),
   mockUpdateSet: vi.fn(),
   mockUpdateWhere: vi.fn().mockResolvedValue(undefined),
   mockInsertValues: vi.fn().mockResolvedValue(undefined),
   mockPublish: vi.fn().mockResolvedValue(undefined),
+  mockEnviarAviso: vi.fn().mockResolvedValue({ body: '', avisadaAt: new Date(), pedidoId: 'p' }),
 }))
 
 vi.mock('@/db', () => ({
@@ -37,6 +43,7 @@ vi.mock('@/db', () => ({
       leads: { findFirst: mockFindLead },
       pipelineStages: { findFirst: mockFindStage },
       pedidos: { findFirst: mockFindPedido },
+      whatsappConfig: { findFirst: mockFindConfig },
     },
     update: () => ({
       set: (values: unknown) => {
@@ -49,6 +56,7 @@ vi.mock('@/db', () => ({
 }))
 
 vi.mock('@/lib/realtime/broker', () => ({ publishCrmEvent: mockPublish }))
+vi.mock('@/lib/leads/muestra-despachada', () => ({ enviarAvisoMuestra: mockEnviarAviso }))
 
 import {
   registrarMuestraEntregada,
@@ -65,10 +73,15 @@ function acciones() {
   return mockInsertValues.mock.calls.map((c) => (c[0] as { action: string }).action)
 }
 
+function eventos() {
+  return mockPublish.mock.calls.map((c) => (c[0] as { type: string }).type)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  mockFindLead.mockResolvedValue(LEAD)
+  mockFindLead.mockResolvedValue({ ...LEAD, contact: { name: 'Juan Pérez' } })
   mockFindStage.mockResolvedValue({ id: STAGE_ID })
+  mockFindConfig.mockResolvedValue({ muestraAuto: false })
 })
 
 describe('registrarMuestraEntregada', () => {
@@ -119,6 +132,21 @@ describe('registrarMuestraEntregada', () => {
       stageId: STAGE_ID,
       oldStageId: 'stage-nuevo',
     })
+    // Aviso interno para que el vendedor / admin le mande la guía al cliente
+    expect(mockPublish).toHaveBeenCalledWith({
+      type: 'muestra_despachada',
+      leadId: 'lead-1',
+      assignedTo: 'agente-1',
+      pedidoId: PEDIDO.id,
+      contactName: 'Juan Pérez',
+      conFoto: false,
+    })
+    expect(eventos()).toEqual(['lead_updated', 'muestra_despachada'])
+  })
+
+  it('con foto de la guía el aviso interno lo dice (conFoto)', async () => {
+    await registrarMuestraEntregada({ ...PEDIDO, remitoFotoUrl: 'firmas/guia.png' }, 'admin')
+    expect(mockPublish).toHaveBeenCalledWith(expect.objectContaining({ type: 'muestra_despachada', conFoto: true }))
   })
 
   it('sin entregadoAt usa la fecha actual', async () => {
@@ -134,7 +162,8 @@ describe('registrarMuestraEntregada', () => {
     expect(r).toEqual({ procesado: true, etapaMovida: false, stageId: STAGE_ID })
     expect(mockUpdateSet.mock.calls[0]![0]).not.toHaveProperty('stageId')
     expect(acciones()).toEqual(['note_added'])
-    expect(mockPublish).not.toHaveBeenCalled()
+    // Sin cambio de etapa no hay lead_updated, pero el aviso interno sale igual
+    expect(eventos()).toEqual(['muestra_despachada'])
   })
 
   it('etapa inexistente → registra fecha y nota, no mueve', async () => {
@@ -150,7 +179,42 @@ describe('registrarMuestraEntregada', () => {
     const r = await registrarMuestraEntregada(PEDIDO, 'admin')
     expect(r).toEqual({ procesado: true, etapaMovida: false, stageId: STAGE_ID })
     expect(acciones()).toEqual(['note_added'])
-    expect(mockPublish).not.toHaveBeenCalled()
+    expect(eventos()).toEqual(['muestra_despachada'])
+  })
+})
+
+describe('aviso automático al cliente', () => {
+  const CON_FOTO = { ...PEDIDO, remitoFotoUrl: 'firmas/guia.png' }
+
+  it('apagado en Ajustes → no manda nada', async () => {
+    await registrarMuestraEntregada(CON_FOTO, 'admin')
+    expect(mockEnviarAviso).not.toHaveBeenCalled()
+  })
+
+  it('activado y con foto → manda el aviso con el usuario que entregó', async () => {
+    mockFindConfig.mockResolvedValue({ muestraAuto: true })
+    await registrarMuestraEntregada(CON_FOTO, 'fabrica-1')
+    // El envío corre sin esperar: dejamos pasar el tick
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mockEnviarAviso).toHaveBeenCalledWith('lead-1', { id: 'fabrica-1', name: null })
+  })
+
+  it('activado pero sin foto (retiro en fábrica / sin guía) → no manda', async () => {
+    mockFindConfig.mockResolvedValue({ muestraAuto: true })
+    await registrarMuestraEntregada(PEDIDO, 'admin')
+    expect(mockFindConfig).not.toHaveBeenCalled()
+    expect(mockEnviarAviso).not.toHaveBeenCalled()
+  })
+
+  it('si el envío falla, la entrega no se cae', async () => {
+    mockFindConfig.mockResolvedValue({ muestraAuto: true })
+    mockEnviarAviso.mockRejectedValueOnce(new Error('Meta caído'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await registrarMuestraEntregada(CON_FOTO, 'admin')
+    await new Promise((res) => setTimeout(res, 0))
+    expect(r.procesado).toBe(true)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 

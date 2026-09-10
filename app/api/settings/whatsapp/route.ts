@@ -19,6 +19,9 @@ const updateWhatsappSchema = z.object({
   pedidoCreadoEnabled: z.boolean().optional(),
   pedidoCreadoTemplateName: z.string().max(200).nullable().optional(),
   pedidoCreadoTemplateLang: z.string().max(20).nullable().optional(),
+  muestraTemplateName: z.string().max(200).nullable().optional(),
+  muestraTemplateLang: z.string().max(20).nullable().optional(),
+  muestraAuto: z.boolean().optional(),
 })
 
 export async function GET() {
@@ -93,6 +96,9 @@ export async function PATCH(req: NextRequest) {
         pedidoCreadoEnabled: parsed.data.pedidoCreadoEnabled ?? false,
         pedidoCreadoTemplateName: parsed.data.pedidoCreadoTemplateName ?? null,
         pedidoCreadoTemplateLang: parsed.data.pedidoCreadoTemplateLang ?? null,
+        muestraTemplateName: parsed.data.muestraTemplateName?.trim() || null,
+        muestraTemplateLang: parsed.data.muestraTemplateLang?.trim() || null,
+        muestraAuto: parsed.data.muestraAuto ?? false,
         isConfigured: true,
         updatedBy: user.id,
         updatedAt: new Date(),

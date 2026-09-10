@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Clock, MapPin, AlertCircle, Truck, CalendarClock } from 'lucide-react'
+import { Clock, MapPin, AlertCircle, Truck, CalendarClock, FlaskConical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type ParaHoy = {
@@ -11,6 +11,8 @@ type ParaHoy = {
   pedidosPorEntregar: number
   /** Recordatorios de llamada de hoy + vencidos */
   recordatoriosHoy: number
+  /** Muestras entregadas a las que falta avisarle al cliente */
+  muestrasSinAvisar: number
 }
 
 type Props = {
@@ -33,6 +35,13 @@ const CARDS: CardDef[] = [
     icon: CalendarClock,
     href: '/pipeline?recordatorio=hoy',
     activeColor: 'text-amber-600',
+  },
+  {
+    key: 'muestrasSinAvisar',
+    label: 'Muestras por avisar',
+    icon: FlaskConical,
+    href: '/pipeline?muestra=sin_avisar',
+    activeColor: 'text-purple-600',
   },
   {
     key: 'leadsInactivos',

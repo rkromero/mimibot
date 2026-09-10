@@ -41,6 +41,7 @@ export default function KanbanColumn({ stage, filters, onLeadClick, isTargetColu
       if (filters.source) params.set('source', filters.source)
       if (filters.search) params.set('search', filters.search)
       if (filters.recordatorio) params.set('recordatorio', filters.recordatorio)
+      if (filters.muestra) params.set('muestra', filters.muestra)
       if (typeof pageParam === 'string') params.set('cursor', pageParam)
       const res = await fetch(`/api/leads?${params.toString()}`)
       if (!res.ok) throw new Error('Error al cargar leads')

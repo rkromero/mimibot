@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
     }
 
-    const { agentId, tagId, source, search, stageId, recordatorio } = filters.data
+    const { agentId, tagId, source, search, stageId, recordatorio, muestra } = filters.data
 
     // ── Role scoping ──────────────────────────────────────────────────────────
     let effectiveAgentId: string | undefined = agentId
@@ -101,6 +101,11 @@ export async function GET(req: NextRequest) {
     if (recordatorio) {
       baseConditions.push(isNotNull(leads.recordatorioAt))
       if (recordatorio === 'hoy') baseConditions.push(lte(leads.recordatorioAt, todayStrAR()))
+    }
+
+    // Muestra entregada sin avisar al cliente (Mi día / popup → pipeline)
+    if (muestra === 'sin_avisar') {
+      baseConditions.push(isNotNull(leads.muestraEntregadaAt), isNull(leads.muestraAvisadaAt))
     }
 
     // ── Per-column cursor pagination (when stageId is provided) ───────────────

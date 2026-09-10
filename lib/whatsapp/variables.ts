@@ -11,6 +11,8 @@ export type TemplateVarCtx = {
   empresaNombre?: string
   pedidoNumero?: string
   pedidoTotal?: string
+  /** Expreso / transporte por el que salió el pedido (aviso de muestra despachada) */
+  pedidoExpreso?: string
   /** Producto que el lead marcó en el formulario del landing (solo conversaciones de lead) */
   productoInteres?: string
 }
@@ -24,6 +26,7 @@ export const TEMPLATE_VAR_SOURCES = [
   { value: 'empresa_nombre',          label: 'Nombre de la empresa' },
   { value: 'pedido_numero',           label: 'Número de pedido' },
   { value: 'pedido_total',            label: 'Total del pedido' },
+  { value: 'pedido_expreso',          label: 'Expreso por el que salió el pedido' },
   { value: 'texto_fijo',              label: 'Texto fijo' },
 ] as const
 
@@ -63,6 +66,7 @@ export function resolveTemplateVariables(
       case 'empresa_nombre':          return oSample(ctx.empresaNombre, v.sample)
       case 'pedido_numero':           return oSample(ctx.pedidoNumero, v.sample)
       case 'pedido_total':            return oSample(ctx.pedidoTotal, v.sample)
+      case 'pedido_expreso':          return oSample(ctx.pedidoExpreso, v.sample)
       case 'texto_fijo':              return v.sample
       default:                        return v.sample
     }

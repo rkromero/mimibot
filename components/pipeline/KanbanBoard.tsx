@@ -50,11 +50,13 @@ export default function KanbanBoard({ stages, user }: Props) {
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'board',
   )
   // /pipeline?recordatorio=hoy (desde Mi día y el popup de recordatorios) abre
-  // el tablero ya filtrado por "Para llamar hoy"
+  // el tablero ya filtrado por "Para llamar hoy"; ?muestra=sin_avisar por
+  // "Muestras sin avisar"
   const searchParams = useSearchParams()
-  const [filters, setFilters] = useState<LeadFilters>(() =>
-    searchParams.get('recordatorio') === 'hoy' ? { recordatorio: 'hoy' } : {},
-  )
+  const [filters, setFilters] = useState<LeadFilters>(() => ({
+    ...(searchParams.get('recordatorio') === 'hoy' ? { recordatorio: 'hoy' as const } : {}),
+    ...(searchParams.get('muestra') === 'sin_avisar' ? { muestra: 'sin_avisar' as const } : {}),
+  }))
   const [mobileStageId, setMobileStageId] = useState<string>('all')
   const canImport = user.role === 'admin' || user.role === 'gerente'
   const filtersKey = JSON.stringify(filters)
@@ -78,6 +80,7 @@ export default function KanbanBoard({ stages, user }: Props) {
       if (filters.source) params.set('source', filters.source)
       if (filters.search) params.set('search', filters.search)
       if (filters.recordatorio) params.set('recordatorio', filters.recordatorio)
+      if (filters.muestra) params.set('muestra', filters.muestra)
       const res = await fetch(`/api/leads?${params.toString()}`)
       if (!res.ok) throw new Error('Error al cargar leads')
       const json = await res.json() as { data: LeadWithContact[] }
@@ -123,7 +126,12 @@ export default function KanbanBoard({ stages, user }: Props) {
     es.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data as string) as { type: string }
-        if (event.type === 'new_message' || event.type === 'lead_updated') {
+        if (
+          event.type === 'new_message' ||
+          event.type === 'lead_updated' ||
+          event.type === 'muestra_despachada' ||
+          event.type === 'muestra_avisada'
+        ) {
           void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
           void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
         }

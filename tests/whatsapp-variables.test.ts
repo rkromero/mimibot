@@ -29,8 +29,14 @@ describe('resolveTemplateVariables', () => {
     vendedorNombre: 'Rodo',
     pedidoNumero: 'ABC123',
     pedidoTotal: '$100,00',
+    pedidoExpreso: 'Vía Cargo',
     productoInteres: 'Alfajores',
   }
+
+  it('pedido_expreso resuelve el transporte por el que salió el pedido (aviso de muestra)', () => {
+    expect(resolveTemplateVariables([{ index: 1, source: 'pedido_expreso', sample: 'el expreso' }], ctx)).toEqual(['Vía Cargo'])
+    expect(resolveTemplateVariables([{ index: 1, source: 'pedido_expreso', sample: 'el expreso' }], {})).toEqual(['el expreso'])
+  })
 
   it('cliente_nombre manda solo el primer nombre; cliente_nombre_completo manda todo', () => {
     expect(resolveTemplateVariables([{ index: 1, source: 'cliente_nombre', sample: 'X' }], ctx)).toEqual(['Juan'])

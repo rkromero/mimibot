@@ -67,7 +67,7 @@ export async function resolverConversacionParaEnvio(
 }
 
 /** Orígenes que solo tienen sentido en la notificación de pedido: no se pueden resolver desde el chat. */
-const SOURCES_SOLO_PEDIDO = new Set(['pedido_numero', 'pedido_total'])
+const SOURCES_SOLO_PEDIDO = new Set(['pedido_numero', 'pedido_total', 'pedido_expreso'])
 
 /**
  * Variables con las que se manda una plantilla desde el chat: las configuradas

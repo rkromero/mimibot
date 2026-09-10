@@ -28,7 +28,7 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
   })
 
   const hasActiveFilters =
-    filters.agentId || filters.tagId || filters.source || filters.search || filters.recordatorio
+    filters.agentId || filters.tagId || filters.source || filters.search || filters.recordatorio || filters.muestra
 
   return (
     <div className="flex items-center gap-2 px-4 h-11 border-b border-border bg-background shrink-0">
@@ -110,6 +110,26 @@ export default function PipelineFilters({ user, filters, onChange }: Props) {
         <option value="">Recordatorios</option>
         <option value="hoy">Para llamar hoy</option>
         <option value="todos">Con recordatorio</option>
+      </select>
+
+      {/* Filtro por muestra entregada sin avisar al cliente */}
+      <select
+        value={filters.muestra ?? ''}
+        onChange={(e) =>
+          onChange({
+            ...filters,
+            muestra: (e.target.value as LeadFilters['muestra']) || undefined,
+          })
+        }
+        className={cn(
+          'py-1.5 pl-2.5 pr-7 text-sm rounded-md border',
+          'border-border bg-background text-foreground',
+          'focus:outline-none focus:ring-1 focus:ring-ring',
+        )}
+        aria-label="Filtrar por muestra sin avisar"
+      >
+        <option value="">Muestras</option>
+        <option value="sin_avisar">Muestra sin avisar</option>
       </select>
 
       {/* Limpiar filtros */}

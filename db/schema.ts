@@ -147,6 +147,10 @@ export const leads = pgTable('leads', {
   // Se muestra en la card del kanban; también marca que ya se procesó el paso
   // a "Muestra enviada" (idempotencia).
   muestraEntregadaAt: timestamp('muestra_entregada_at', { mode: 'date', withTimezone: true }),
+  // Cuándo se le avisó al cliente por WhatsApp que salió la muestra (plantilla
+  // con la foto de la guía). null con muestraEntregadaAt = aviso pendiente.
+  // Ver lib/leads/muestra-despachada.ts.
+  muestraAvisadaAt: timestamp('muestra_avisada_at', { mode: 'date', withTimezone: true }),
   // Respuesta del bot pendiente: momento a partir del cual debe contestar
   // (espera configurable tras el último mensaje). Red de seguridad del timer
   // en memoria: si el server se reinicia, el scheduler la retoma.
@@ -717,6 +721,11 @@ export const whatsappConfig = pgTable('whatsapp_config', {
   pedidoCreadoEnabled: boolean('pedido_creado_enabled').notNull().default(false),
   pedidoCreadoTemplateName: text('pedido_creado_template_name'),
   pedidoCreadoTemplateLang: text('pedido_creado_template_lang'),
+  /** Plantilla (con encabezado de imagen) del aviso "salió tu muestra" — ver lib/leads/muestra-despachada.ts */
+  muestraTemplateName: text('muestra_template_name'),
+  muestraTemplateLang: text('muestra_template_lang'),
+  /** Mandar el aviso solo, apenas fábrica marca entregada la muestra con la foto de la guía */
+  muestraAuto: boolean('muestra_auto').notNull().default(false),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
@@ -732,6 +741,8 @@ export const whatsappTemplates = pgTable('whatsapp_templates', {
   status: text('status').notNull().default('PENDING'),
   bodyText: text('body_text').notNull(),
   headerText: text('header_text'),
+  /** Formato del encabezado según Meta: TEXT / IMAGE / DOCUMENT / VIDEO; null = sin encabezado */
+  headerFormat: text('header_format'),
   footerText: text('footer_text'),
   buttons: jsonb('buttons').notNull().default('[]'),
   variables: jsonb('variables').notNull().default('[]'),

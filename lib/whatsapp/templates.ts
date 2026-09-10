@@ -18,12 +18,12 @@ export async function getWabaConfig(): Promise<{ wabaId: string; accessToken: st
   return { wabaId, accessToken }
 }
 
-type MetaTemplateButton =
+export type MetaTemplateButton =
   | { type: 'QUICK_REPLY'; text: string }
   | { type: 'URL'; text: string; url: string }
   | { type: 'PHONE_NUMBER'; text: string; phone_number: string }
 
-type MetaComponent = {
+export type MetaComponent = {
   type: string
   format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
   text?: string
@@ -112,6 +112,9 @@ export type MetaTemplateSummary = {
   language: string
   status: string
   rejected_reason?: string
+  category?: string
+  /** Componentes tal como los devuelve Meta (cuerpo, encabezado, pie, botones) */
+  components?: MetaComponent[]
 }
 
 /**
@@ -122,7 +125,7 @@ export async function listMetaTemplates(): Promise<MetaTemplateSummary[]> {
 
   const all: MetaTemplateSummary[] = []
   let url: string | null =
-    `${WA_API_BASE}/${wabaId}/message_templates?fields=id,name,language,status,rejected_reason&limit=100`
+    `${WA_API_BASE}/${wabaId}/message_templates?fields=id,name,language,status,category,rejected_reason,components&limit=100`
 
   while (url) {
     const res = await fetch(url, {
@@ -156,21 +159,74 @@ export type TemplateSyncPlan = {
   updates: Array<{ localId: string; meta: MetaTemplateSummary }>
   /** Plantillas locales que NO existen en la WABA actual (quedaron de otra cuenta o se borraron en Meta). */
   deleteIds: string[]
+  /**
+   * Plantillas que están en la WABA pero no localmente (creadas desde el
+   * Administrador de WhatsApp de Meta, p. ej. las que llevan imagen en el
+   * encabezado, que hoy no se pueden crear desde acá). Se importan.
+   */
+  inserts: MetaTemplateSummary[]
 }
 
 /**
  * Compara las plantillas guardadas localmente contra las que devuelve Meta para la WABA configurada.
- * La WABA es la fuente de verdad: lo que no está en Meta no se puede usar para enviar, así que se marca para borrar.
+ * La WABA es la fuente de verdad: lo que no está en Meta no se puede usar para enviar, así que se marca
+ * para borrar; lo que está en Meta y acá no, se importa.
  */
 export function planTemplateSync(local: LocalTemplateRef[], meta: MetaTemplateSummary[]): TemplateSyncPlan {
   const byKey = new Map<string, MetaTemplateSummary>()
   for (const m of meta) byKey.set(templateKey(m), m)
 
-  const plan: TemplateSyncPlan = { updates: [], deleteIds: [] }
+  const plan: TemplateSyncPlan = { updates: [], deleteIds: [], inserts: [] }
+  const vistas = new Set<string>()
   for (const l of local) {
-    const m = byKey.get(templateKey(l))
-    if (m) plan.updates.push({ localId: l.id, meta: m })
-    else plan.deleteIds.push(l.id)
+    const key = templateKey(l)
+    const m = byKey.get(key)
+    if (m) {
+      plan.updates.push({ localId: l.id, meta: m })
+      vistas.add(key)
+    } else {
+      plan.deleteIds.push(l.id)
+    }
+  }
+  for (const m of meta) {
+    if (!vistas.has(templateKey(m))) plan.inserts.push(m)
   }
   return plan
+}
+
+export type MetaTemplateHeaderFormat = 'TEXT' | 'IMAGE' | 'DOCUMENT' | 'VIDEO'
+
+export type ContenidoPlantillaMeta = {
+  bodyText: string
+  headerText: string | null
+  /** null = la plantilla no tiene encabezado */
+  headerFormat: MetaTemplateHeaderFormat | null
+  footerText: string | null
+  buttons: MetaTemplateButton[]
+}
+
+const HEADER_FORMATS: ReadonlySet<string> = new Set(['TEXT', 'IMAGE', 'DOCUMENT', 'VIDEO'])
+
+/**
+ * Traduce los `components` que devuelve Meta al shape que guardamos en
+ * `whatsapp_templates`. Tolerante a lo que falte: una plantilla sin BODY queda
+ * con cuerpo vacío en vez de romper la sincronización.
+ */
+export function parseMetaComponents(components: MetaComponent[] | undefined): ContenidoPlantillaMeta {
+  const out: ContenidoPlantillaMeta = { bodyText: '', headerText: null, headerFormat: null, footerText: null, buttons: [] }
+  for (const c of components ?? []) {
+    const tipo = (c.type ?? '').toUpperCase()
+    if (tipo === 'BODY') {
+      out.bodyText = c.text ?? ''
+    } else if (tipo === 'HEADER') {
+      const fmt = (c.format ?? 'TEXT').toUpperCase()
+      out.headerFormat = HEADER_FORMATS.has(fmt) ? (fmt as MetaTemplateHeaderFormat) : null
+      out.headerText = fmt === 'TEXT' ? (c.text ?? null) : null
+    } else if (tipo === 'FOOTER') {
+      out.footerText = c.text ?? null
+    } else if (tipo === 'BUTTONS') {
+      out.buttons = c.buttons ?? []
+    }
+  }
+  return out
 }

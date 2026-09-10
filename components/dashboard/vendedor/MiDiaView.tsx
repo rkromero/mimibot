@@ -19,6 +19,8 @@ type ParaHoy = {
   cobranzasVencidas: number
   pedidosPorEntregar: number
   recordatoriosHoy: number
+  /** Muestras entregadas a las que falta avisarle al cliente */
+  muestrasSinAvisar: number
 }
 
 type HoyData = {
@@ -45,6 +47,7 @@ const EMPTY_PARA_HOY: ParaHoy = {
   cobranzasVencidas: 0,
   pedidosPorEntregar: 0,
   recordatoriosHoy: 0,
+  muestrasSinAvisar: 0,
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────

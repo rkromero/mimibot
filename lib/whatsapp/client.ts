@@ -58,14 +58,45 @@ export async function sendTextMessage(to: string, body: string): Promise<string>
   return data.messages[0]!.id
 }
 
-type TemplateComponent = {
+export type TemplateParameter =
+  | { type: 'text'; text: string }
+  | { type: 'image'; image: { id: string } }
+  | { type: 'document'; document: { id: string; filename?: string } }
+  | { type: 'video'; video: { id: string } }
+
+export type TemplateComponent = {
   type: 'body' | 'header'
-  parameters: Array<{ type: 'text'; text: string }>
+  parameters: TemplateParameter[]
 }
+
+/** Formato del encabezado de una plantilla con archivo (como lo define Meta). */
+export type TemplateHeaderMediaFormat = 'IMAGE' | 'DOCUMENT' | 'VIDEO'
 
 export function buildBodyComponents(values: string[]): TemplateComponent[] | undefined {
   if (values.length === 0) return undefined
   return [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
+}
+
+/**
+ * Componente de encabezado con un archivo ya subido a Meta (`mediaId`). El
+ * formato tiene que coincidir con el que se declaró al crear la plantilla.
+ */
+export function buildHeaderMediaComponent(
+  format: TemplateHeaderMediaFormat,
+  mediaId: string,
+  filename?: string,
+): TemplateComponent {
+  switch (format) {
+    case 'IMAGE':
+      return { type: 'header', parameters: [{ type: 'image', image: { id: mediaId } }] }
+    case 'VIDEO':
+      return { type: 'header', parameters: [{ type: 'video', video: { id: mediaId } }] }
+    case 'DOCUMENT':
+      return {
+        type: 'header',
+        parameters: [{ type: 'document', document: { id: mediaId, ...(filename ? { filename } : {}) } }],
+      }
+  }
 }
 
 export async function sendTemplateMessage(

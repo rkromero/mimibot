@@ -20,6 +20,7 @@ import GradoBadge from '@/components/shared/GradoBadge'
 import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import MuestraModal from './MuestraModal'
+import AvisoMuestraButton from './AvisoMuestraLead'
 import EtapaLeadSelector from './EtapaLeadSelector'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { VariablesRespuesta } from '@/lib/inbox/respuestas-rapidas'
@@ -247,7 +248,7 @@ export default function LeadPanel({
       inner = (
         <div className="flex flex-col w-full h-full min-h-0">
           {!isClienteMode && leadId && (
-            <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
+            <MuestraCda leadId={leadId} aviso={lead} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
           )}
           {muestraModalOpen && leadId && (
             <MuestraModal
@@ -593,7 +594,7 @@ export default function LeadPanel({
           </button>
         </div>
 
-        <MuestraCda pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
+        <MuestraCda leadId={leadId!} aviso={lead} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
         {muestraModalOpen && leadId && (
           <MuestraModal
             leadId={leadId}
@@ -704,14 +705,27 @@ function BotonRespuestasRapidas({ abierto, onClick }: { abierto: boolean; onClic
 }
 
 function MuestraCda({
+  leadId,
+  aviso,
   pedidoId,
   onEnviar,
   mobile,
 }: {
+  leadId: string
+  /** Lead cargado: define si la muestra ya se entregó y si falta avisarle al cliente */
+  aviso: { muestraEntregadaAt: Date | string | null; muestraAvisadaAt: Date | string | null } | null | undefined
   pedidoId: string | null
   onEnviar: () => void
   mobile?: boolean
 }) {
+  // Muestra ya entregada: el paso que sigue es avisarle al cliente con la guía
+  if (aviso?.muestraEntregadaAt) {
+    return (
+      <div className={cn('px-4 py-2.5 border-b border-border flex flex-wrap items-center gap-2', mobile && 'shrink-0')}>
+        <AvisoMuestraButton leadId={leadId} aviso={aviso} mobile={mobile} />
+      </div>
+    )
+  }
   return (
     <div className={cn('px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
       {pedidoId ? (

@@ -31,6 +31,10 @@ export type CrmEvent =
   | { type: 'new_message'; conversationId: string; leadId: string | null; assignedTo: string | null; direction: string }
   | { type: 'lead_updated'; leadId: string; assignedTo: string | null; oldAssigned: string | null; stageId: string; oldStageId: string }
   | { type: 'message_status'; conversationId: string; leadId: string | null; assignedTo: string | null; status: string }
+  /** Fábrica marcó entregada una muestra CDA: hay que avisarle al cliente (ver lib/leads/muestra-despachada.ts) */
+  | { type: 'muestra_despachada'; leadId: string; assignedTo: string | null; pedidoId: string; contactName: string; conFoto: boolean }
+  /** Se mandó (o se marcó como mandado) el aviso de muestra despachada */
+  | { type: 'muestra_avisada'; leadId: string; assignedTo: string | null }
 
 export function emitLeadEvent(event: CrmEvent) {
   const payload = JSON.stringify(event)
