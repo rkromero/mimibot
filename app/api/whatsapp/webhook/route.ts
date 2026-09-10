@@ -102,7 +102,7 @@ async function handleWebhookEntries(
 
       for (const msg of value.messages ?? []) {
         const contactPhone = `+${msg.from}` // normalizar a E.164 con +
-        const contactName = value.contacts?.find((c) => c.wa_id === msg.from)?.profile.name ?? 'Desconocido'
+        const contactName = value.contacts?.find((c) => c.wa_id === msg.from)?.profile?.name ?? 'Desconocido'
 
         // Admin: interceptar ANTES de cualquier lógica de lead/bot
         if (isAdminPhone(contactPhone)) {

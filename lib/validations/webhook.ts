@@ -18,7 +18,10 @@ const waMessageSchema = z.object({
   from: z.string(),    // phone en E.164 sin el +
   id: z.string(),      // wamid.XXX
   timestamp: z.string(),
-  type: z.enum(['text', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'button', 'interactive', 'system', 'unknown']),
+  // Cualquier tipo: los que no manejamos (reaction, contacts, order, etc.) se
+  // saltean en el webhook. Un enum cerrado hacía rechazar el payload entero,
+  // y con él los demás mensajes y avisos de estado que vinieran juntos.
+  type: z.string(),
   text: z.object({ body: z.string() }).optional(),
   image: waMediaObjectSchema.optional(),
   audio: waMediaObjectSchema.optional(),
@@ -38,8 +41,11 @@ export const waWebhookSchema = z.object({
           display_phone_number: z.string(),
           phone_number_id: z.string(),
         }),
+        // En los avisos de estado (sent/delivered/read) Meta manda `contacts`
+        // solo con wa_id, sin profile: si fuera obligatorio, se rechazaría el
+        // payload entero y los tildes del chat nunca se actualizarían.
         contacts: z.array(z.object({
-          profile: z.object({ name: z.string() }),
+          profile: z.object({ name: z.string() }).optional(),
           wa_id: z.string(),
         })).optional(),
         messages: z.array(waMessageSchema).optional(),
