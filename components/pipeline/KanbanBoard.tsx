@@ -57,7 +57,8 @@ export default function KanbanBoard({ stages, user }: Props) {
     ...(searchParams.get('recordatorio') === 'hoy' ? { recordatorio: 'hoy' as const } : {}),
     ...(searchParams.get('muestra') === 'sin_avisar' ? { muestra: 'sin_avisar' as const } : {}),
   }))
-  const [mobileStageId, setMobileStageId] = useState<string>('all')
+  // Vista de lista: filtro por etapa (chips arriba del listado), en celular y escritorio
+  const [listStageId, setListStageId] = useState<string>('all')
   const canImport = user.role === 'admin' || user.role === 'gerente'
   const filtersKey = JSON.stringify(filters)
 
@@ -279,8 +280,9 @@ export default function KanbanBoard({ stages, user }: Props) {
 
       {view === 'list' ? (
         <>
-          <div className="md:hidden px-4 py-2 border-b border-border">
+          <div className="px-4 py-2 border-b border-border">
             <ChipFilter
+              compactDesktop
               options={[
                 { key: 'all', label: 'Todos', count: leadsListQuery.data?.length ?? 0 },
                 ...stages.map((s) => ({
@@ -289,13 +291,13 @@ export default function KanbanBoard({ stages, user }: Props) {
                   count: leadsListQuery.data?.filter((l) => l.stageId === s.id).length ?? 0,
                 })),
               ]}
-              value={mobileStageId}
-              onChange={setMobileStageId}
+              value={listStageId}
+              onChange={setListStageId}
             />
           </div>
           <LeadList
             leads={(leadsListQuery.data ?? []).filter(
-              (l) => mobileStageId === 'all' || l.stageId === mobileStageId,
+              (l) => listStageId === 'all' || l.stageId === listStageId,
             )}
             stages={stages}
             loading={leadsListQuery.isLoading}

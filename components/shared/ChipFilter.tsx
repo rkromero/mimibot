@@ -13,6 +13,8 @@ type Props<T extends string> = {
   value: T
   onChange: (key: T) => void
   className?: string
+  /** En escritorio, chips más chicos (la altura de 44px es para el dedo en el celular) */
+  compactDesktop?: boolean
 }
 
 export default function ChipFilter<T extends string>({
@@ -20,6 +22,7 @@ export default function ChipFilter<T extends string>({
   value,
   onChange,
   className,
+  compactDesktop = false,
 }: Props<T>) {
   return (
     <div className={cn('flex gap-2 overflow-x-auto scrollbar-hide px-1 py-1', className)}>
@@ -31,6 +34,7 @@ export default function ChipFilter<T extends string>({
             onClick={() => onChange(option.key)}
             className={cn(
               'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors min-h-[44px]',
+              compactDesktop && 'md:min-h-0 md:px-2.5 md:py-1 md:text-xs',
               isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:text-foreground'
