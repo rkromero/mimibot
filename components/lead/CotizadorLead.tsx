@@ -421,6 +421,11 @@ export function PropuestasList({ leadId, mobile }: { leadId: string; mobile?: bo
       }
       void queryClient.invalidateQueries({ queryKey: ['lead-propuestas', leadId] })
       void queryClient.invalidateQueries({ queryKey: ['activity', leadId] })
+      // El lead pasa a "Propuesta enviada": refrescar panel y kanban
+      void queryClient.invalidateQueries({ queryKey: ['lead', leadId] })
+      void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
+      void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+      void queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] })
       toast.success(
         via === 'whatsapp' ? 'Propuesta enviada por WhatsApp'
         : via === 'email' ? 'Propuesta enviada por email'

@@ -15,6 +15,7 @@ import { uploadMediaToMeta, sendMediaMessage } from '@/lib/whatsapp/client'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { validateUuidParam } from '@/lib/api/validate-params'
 import { programarSeguimientoPropuesta } from '@/lib/followup/engine'
+import { onPropuestaEnviada } from '@/lib/leads/propuesta-enviada'
 import type { Session } from 'next-auth'
 
 const enviarSchema = z.object({
@@ -27,7 +28,8 @@ type Via = z.infer<typeof enviarSchema>['via']
 
 // Entrega de la propuesta: por WhatsApp (documento en la conversación del
 // lead), por email (Resend con el PDF adjunto) o registro de descarga manual.
-// Cualquiera de las tres pasa la propuesta a 'enviada' y deja actividad.
+// Cualquiera de las tres pasa la propuesta a 'enviada', deja actividad y
+// mueve el lead a la etapa "Propuesta enviada" (lib/leads/propuesta-enviada.ts).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -73,12 +75,15 @@ export async function POST(
 
     await marcarEnviada(id, propuesta.leadId, pdf.numero, parsed.data.via, session.user.id)
 
+    // Con al menos una propuesta enviada, el lead pasa a "Propuesta enviada" (best-effort)
+    const etapa = await onPropuestaEnviada(propuesta.leadId, session.user.id, id)
+
     // Seguimiento automático al día siguiente (Ajustes → Seguimiento). Best-effort.
     void programarSeguimientoPropuesta(propuesta.leadId).catch((err) => {
       console.error('[propuesta] no se pudo programar el seguimiento:', err)
     })
 
-    return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada' } })
+    return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada', etapaMovida: etapa.etapaMovida } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
