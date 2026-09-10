@@ -22,6 +22,8 @@ import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
 import CotizadorLead, { PropuestasList } from './CotizadorLead'
 import MuestraModal from './MuestraModal'
 import AvisoMuestraButton from './AvisoMuestraLead'
+import ResumenLeadChips from './ResumenLeadChips'
+import BottomSheet from '@/components/shared/BottomSheet'
 import EtapaLeadSelector from './EtapaLeadSelector'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { VariablesRespuesta } from '@/lib/inbox/respuestas-rapidas'
@@ -197,10 +199,13 @@ export default function LeadPanel({
   // se crea desde el modal y acá solo guardamos el id para linkearlo.
   const [muestraPedidoId, setMuestraPedidoId] = useState<string | null>(null)
   const [muestraModalOpen, setMuestraModalOpen] = useState(false)
+  // Celular: hoja inferior con las acciones del lead (ver ResumenLeadChips)
+  const [accionesOpen, setAccionesOpen] = useState(false)
 
   useEffect(() => {
     setMuestraPedidoId(null)
     setMuestraModalOpen(false)
+    setAccionesOpen(false)
   }, [leadId])
 
   // Abrir el panel marca el lead como visto (lo hace el GET): se invalidan
@@ -248,10 +253,13 @@ export default function LeadPanel({
         </div>
       )
     } else {
+      // El chat ocupa toda la pantalla. Lo que antes se apilaba arriba (muestra,
+      // cotizar / llamada / recordar / último seguimiento, etapa, propuestas)
+      // vive en la hoja "Acciones"; una línea de chips resume el estado.
       inner = (
         <div className="flex flex-col w-full h-full min-h-0">
-          {!isClienteMode && leadId && (
-            <MuestraCda leadId={leadId} aviso={lead} muestraPedido={lead?.muestraPedido} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
+          {!isClienteMode && leadId && lead && (
+            <ResumenLeadChips leadId={leadId} lead={lead} onAbrir={() => setAccionesOpen(true)} />
           )}
           {muestraModalOpen && leadId && (
             <MuestraModal
@@ -260,28 +268,34 @@ export default function LeadPanel({
               onCreated={(pedidoId) => { setMuestraPedidoId(pedidoId); setMuestraModalOpen(false) }}
             />
           )}
-          {!isClienteMode && leadId && (
-            <CotizadorLead
-              leadId={leadId}
-              stage={lead?.stage}
-              recordatorioAt={lead?.recordatorioAt}
-              recordatorioNota={lead?.recordatorioNota}
-              seguimiento={lead}
-              mobile
-            />
-          )}
           {!isClienteMode && leadId && lead && (
-            <EtapaLeadSelector
-              leadId={leadId}
-              stage={lead.stage}
-              leadName={lead.contact?.name ?? nombre ?? null}
-              mobile
-            />
-          )}
-          {!isClienteMode && leadId && (
-            <div className="max-h-56 overflow-y-auto shrink-0">
-              <PropuestasList leadId={leadId} mobile />
-            </div>
+            <BottomSheet open={accionesOpen} onClose={() => setAccionesOpen(false)} title="Acciones del lead">
+              <div className="-mx-4 -mt-1">
+                <CotizadorLead
+                  leadId={leadId}
+                  stage={lead.stage}
+                  recordatorioAt={lead.recordatorioAt}
+                  recordatorioNota={lead.recordatorioNota}
+                  seguimiento={lead}
+                  mobile
+                />
+                <MuestraCda
+                  leadId={leadId}
+                  aviso={lead}
+                  muestraPedido={lead.muestraPedido}
+                  pedidoId={muestraPedidoId}
+                  onEnviar={() => { setAccionesOpen(false); setMuestraModalOpen(true) }}
+                  mobile
+                />
+                <EtapaLeadSelector
+                  leadId={leadId}
+                  stage={lead.stage}
+                  leadName={lead.contact?.name ?? nombre ?? null}
+                  mobile
+                />
+                <PropuestasList leadId={leadId} mobile />
+              </div>
+            </BottomSheet>
           )}
           {effectiveConvId ? (
             <>

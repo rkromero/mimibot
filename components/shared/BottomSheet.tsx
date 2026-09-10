@@ -41,7 +41,11 @@ export default function BottomSheet({ open, onClose, title, children }: Props) {
           'relative w-full bg-card rounded-t-2xl shadow-xl p-4',
           'max-h-[90dvh] overflow-y-auto',
           'transition-transform duration-300 ease-out',
-          open ? 'translate-y-0' : 'translate-y-full'
+          // Abierta, sin transform: un elemento con transform es "containing
+          // block" de sus hijos fixed, y los modales que se abren desde adentro
+          // de la hoja (cotizar, recordatorio, aviso de muestra) quedarían
+          // recortados dentro de ella en vez de cubrir la pantalla.
+          open ? 'transform-none' : 'translate-y-full'
         )}
         onClick={(e) => e.stopPropagation()}
       >
