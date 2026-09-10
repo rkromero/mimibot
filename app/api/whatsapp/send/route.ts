@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { messages, whatsappConfig, whatsappTemplates } from '@/db/schema'
+import { messages, conversations, whatsappConfig, whatsappTemplates } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendTextMessage, sendMediaMessage, uploadMediaToMeta, sendTemplateMessage, buildBodyComponents } from '@/lib/whatsapp/client'
@@ -13,6 +13,7 @@ import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType, contentTypeFromExt } from '@/lib/whatsapp/mime'
 import { toApiError, ValidationError } from '@/lib/errors'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
+import { esPlantillaUltimoSeguimiento, enviarUltimoSeguimiento } from '@/lib/followup/engine'
 import type { Session } from 'next-auth'
 
 type SessionUser = Session['user']
@@ -35,11 +36,13 @@ export async function POST(req: NextRequest) {
 
     const contentType = req.headers.get('content-type') ?? ''
 
+    // `await` adentro del try: si se devuelve la promesa sin esperar, un error
+    // del handler (validación, acceso, Meta) no pasa por el catch y sale como 500
     if (contentType.includes('multipart/form-data')) {
-      return handleMediaSend(req, session.user)
+      return await handleMediaSend(req, session.user)
     }
 
-    return handleTextSend(req, session.user)
+    return await handleTextSend(req, session.user)
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
@@ -97,6 +100,23 @@ async function handleTextSend(req: NextRequest, user: SessionUser) {
         },
         { status: 422 },
       )
+    }
+
+    // La plantilla de último seguimiento elegida desde el chat hace lo mismo que
+    // el botón del panel: manda, deja la nota y programa el cierre a Perdido si
+    // no responde. Si no se puede (lead cerrado, ya esperando), el motor lo dice.
+    if (await esPlantillaUltimoSeguimiento(templateName, templateLang)) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId),
+        columns: { leadId: true },
+      })
+      if (conv?.leadId) {
+        const r = await enviarUltimoSeguimiento(conv.leadId, { id: user.id, name: user.name ?? null })
+        return NextResponse.json(
+          { data: { body: r.body, cierraEl: r.cierraEl.toISOString() }, sentAsTemplate: true, ultimoSeguimiento: true },
+          { status: 201 },
+        )
+      }
     }
 
     const varsToUse = variablesParaChat(tmpl.bodyText, tmpl.variables)

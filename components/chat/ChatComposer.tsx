@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Send, Paperclip, AlertCircle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatFechaHoraAR } from '@/lib/dates'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { suscribirInsertarTexto, suscribirEnviarTexto, combinarTexto } from '@/lib/inbox/composer-events'
 import { useRespuestasRapidas } from '@/lib/inbox/use-respuestas-rapidas'
@@ -45,6 +46,8 @@ export default function ChatComposer({ conversationId, leadId, variables = {} }:
   const [isNote, setIsNote] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [templateNotice, setTemplateNotice] = useState(false)
+  // Plantilla de último seguimiento mandada desde el chat: cuándo cierra el lead si no responde
+  const [cierreUltimoSeguimiento, setCierreUltimoSeguimiento] = useState<string | null>(null)
   const [plantillaKey, setPlantillaKey] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -246,7 +249,17 @@ export default function ChatComposer({ conversationId, leadId, variables = {} }:
         return
       }
 
+      const data = await res.json() as { ultimoSeguimiento?: boolean; data?: { cierraEl?: string } }
       refrescar()
+      if (data.ultimoSeguimiento) {
+        // Cambió el estado del lead (cierre programado): refrescar panel y kanban
+        if (leadId) void queryClient.invalidateQueries({ queryKey: ['lead', leadId] })
+        void queryClient.invalidateQueries({ queryKey: ['leads-col'] })
+        void queryClient.invalidateQueries({ queryKey: ['leads-list'] })
+        setCierreUltimoSeguimiento(data.data?.cierraEl ?? null)
+        setTimeout(() => setCierreUltimoSeguimiento(null), 10000)
+        return
+      }
       setTemplateNotice(true)
       setTimeout(() => setTemplateNotice(false), 6000)
     })
@@ -280,6 +293,13 @@ export default function ChatComposer({ conversationId, leadId, variables = {} }:
         <div className="px-3 pt-2 pb-1">
           <p className="text-xs text-blue-600 dark:text-blue-400">
             Plantilla enviada. Cuando la persona responda vas a poder escribir libremente.
+          </p>
+        </div>
+      )}
+      {cierreUltimoSeguimiento && (
+        <div className="px-3 pt-2 pb-1">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Último seguimiento enviado. Si no responde antes del {formatFechaHoraAR(cierreUltimoSeguimiento)} el lead pasa a Perdido.
           </p>
         </div>
       )}

@@ -782,6 +782,18 @@ function plantillaUltimoSeguimiento(config: FollowUpCfg): { templateName: string
   }
 }
 
+/**
+ * ¿Esta plantilla es la de último seguimiento (Ajustes → Seguimiento)? Lo usa
+ * el envío de plantillas del chat: si el vendedor la elige desde el selector,
+ * tiene que pasar lo mismo que con el botón (plazo de cierre + nota), y no
+ * quedar el lead colgado sin cierre.
+ */
+export async function esPlantillaUltimoSeguimiento(templateName: string, templateLang: string): Promise<boolean> {
+  const config = await db.query.followUpConfig.findFirst()
+  const ult = plantillaUltimoSeguimiento(config)
+  return templateName === ult.templateName && templateLang === ult.templateLang
+}
+
 function cierreUltimoSeguimiento(desde: Date, config: FollowUpCfg): Date {
   return calcularCierreUltimoSeguimiento(
     desde,
