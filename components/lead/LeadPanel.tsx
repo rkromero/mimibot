@@ -2,13 +2,14 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package, Zap, ArrowLeft } from 'lucide-react'
+import { X, Bot, Phone, ExternalLink, Mail, MapPin, CreditCard, ShoppingBag, Package, Zap, ArrowLeft, FlaskConical } from 'lucide-react'
 import RespuestasRapidasPanel from '@/components/chat/RespuestasRapidasPanel'
 import QuickReplies from '@/components/chat/QuickReplies'
 import { usePanelRespuestasRapidas } from '@/lib/inbox/use-respuestas-rapidas'
 import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
 import { useEsMobile } from '@/lib/ui/use-es-mobile'
 import { cn } from '@/lib/utils'
+import { formatFechaHoraAR } from '@/lib/dates'
 import Link from 'next/link'
 import Avatar from '@/components/shared/Avatar'
 import LeadDetails from './LeadDetails'
@@ -31,6 +32,8 @@ import type { Session } from 'next-auth'
 type LeadWithConversation = Omit<LeadWithContact, 'tags'> & {
   tags: Tag[] | LeadTagRow[]
   conversation?: { id: string }
+  /** Pedido de muestra CDA más reciente del lead (null si nunca se cargó) */
+  muestraPedido?: MuestraPedidoResumen | null
 }
 
 type ClienteDetail = {
@@ -248,7 +251,7 @@ export default function LeadPanel({
       inner = (
         <div className="flex flex-col w-full h-full min-h-0">
           {!isClienteMode && leadId && (
-            <MuestraCda leadId={leadId} aviso={lead} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
+            <MuestraCda leadId={leadId} aviso={lead} muestraPedido={lead?.muestraPedido} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} mobile />
           )}
           {muestraModalOpen && leadId && (
             <MuestraModal
@@ -594,7 +597,7 @@ export default function LeadPanel({
           </button>
         </div>
 
-        <MuestraCda leadId={leadId!} aviso={lead} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
+        <MuestraCda leadId={leadId!} aviso={lead} muestraPedido={lead.muestraPedido} pedidoId={muestraPedidoId} onEnviar={() => setMuestraModalOpen(true)} />
         {muestraModalOpen && leadId && (
           <MuestraModal
             leadId={leadId}
@@ -704,9 +707,25 @@ function BotonRespuestasRapidas({ abierto, onClick }: { abierto: boolean; onClic
   )
 }
 
+/** Resumen del pedido de muestra CDA del lead (viene con GET /api/leads/[id]). */
+type MuestraPedidoResumen = {
+  id: string
+  estado: string
+  metodoEntrega: string | null
+  expresoNombre: string | null
+  entregadoAt: Date | string | null
+  conFoto: boolean
+}
+
+/**
+ * Bloque "Muestra CDA" del panel: estado del pedido de muestra a la izquierda
+ * (pendiente → confirmado → en reparto → entregado), link al pedido y, según
+ * el estado, el botón para cargarla o el aviso al cliente con la guía.
+ */
 function MuestraCda({
   leadId,
   aviso,
+  muestraPedido,
   pedidoId,
   onEnviar,
   mobile,
@@ -714,43 +733,71 @@ function MuestraCda({
   leadId: string
   /** Lead cargado: define si la muestra ya se entregó y si falta avisarle al cliente */
   aviso: { muestraEntregadaAt: Date | string | null; muestraAvisadaAt: Date | string | null } | null | undefined
+  muestraPedido: MuestraPedidoResumen | null | undefined
+  /** Pedido recién creado en esta sesión (hasta que el lead se refresque) */
   pedidoId: string | null
   onEnviar: () => void
   mobile?: boolean
 }) {
-  // Muestra ya entregada: el paso que sigue es avisarle al cliente con la guía
-  if (aviso?.muestraEntregadaAt) {
-    return (
-      <div className={cn('px-4 py-2.5 border-b border-border flex flex-wrap items-center gap-2', mobile && 'shrink-0')}>
-        <AvisoMuestraButton leadId={leadId} aviso={aviso} mobile={mobile} />
-      </div>
-    )
-  }
+  const pedido: MuestraPedidoResumen | null =
+    muestraPedido ??
+    (pedidoId
+      ? { id: pedidoId, estado: 'pendiente_aprobacion', metodoEntrega: null, expresoNombre: null, entregadoAt: null, conFoto: false }
+      : null)
+  const activa = !!pedido && pedido.estado !== 'cancelado'
+  const entregada = !!aviso?.muestraEntregadaAt || pedido?.estado === 'entregado'
+
+  const botonEnviar = (
+    <button
+      onClick={onEnviar}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors',
+        activa
+          ? 'border border-border text-muted-foreground hover:bg-accent'
+          : 'bg-primary text-primary-foreground hover:bg-primary/90',
+        mobile && 'min-h-[44px] flex-1 justify-center text-sm',
+      )}
+    >
+      <Package size={13} />
+      {activa ? 'Otra muestra' : 'Enviar muestra CDA'}
+    </button>
+  )
+
   return (
-    <div className={cn('px-4 py-2.5 border-b border-border', mobile && 'shrink-0')}>
-      {pedidoId ? (
-        <Link
-          href={`/crm/pedidos/${pedidoId}`}
+    <div className={cn('px-4 py-2.5 border-b border-border flex flex-wrap items-center gap-2', mobile && 'shrink-0')}>
+      {pedido && (
+        <span
           className={cn(
-            'inline-flex items-center gap-1.5 text-xs text-primary hover:underline',
-            mobile && 'min-h-[44px] w-full justify-center',
+            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium',
+            ESTADO_COLOR[pedido.estado] ?? 'bg-muted text-muted-foreground',
           )}
+          title={
+            pedido.estado === 'entregado' && pedido.entregadoAt
+              ? `Muestra entregada el ${formatFechaHoraAR(pedido.entregadoAt)}${pedido.expresoNombre ? ` por ${pedido.expresoNombre}` : ''}`
+              : pedido.metodoEntrega === 'expreso'
+                ? `Muestra por expreso${pedido.expresoNombre ? ` (${pedido.expresoNombre})` : ''}`
+                : pedido.metodoEntrega === 'retiro_fabrica'
+                  ? 'Muestra para retirar en fábrica'
+                  : 'Pedido de muestra CDA'
+          }
+        >
+          <FlaskConical size={11} />
+          Muestra: {ESTADO_LABEL[pedido.estado] ?? pedido.estado}
+        </span>
+      )}
+      {pedido && (
+        <Link
+          href={`/crm/pedidos/${pedido.id}`}
+          className={cn('inline-flex items-center gap-1 text-xs text-primary hover:underline', mobile && 'min-h-[44px]')}
         >
           <ExternalLink size={12} />
-          Muestra cargada — ver pedido
+          Ver pedido
         </Link>
-      ) : (
-        <button
-          onClick={onEnviar}
-          className={cn(
-            'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors',
-            mobile && 'min-h-[44px] w-full justify-center text-sm',
-          )}
-        >
-          <Package size={13} />
-          Enviar muestra CDA
-        </button>
       )}
+      {/* Entregada: el paso que sigue es avisarle al cliente con la guía */}
+      {entregada && aviso && <AvisoMuestraButton leadId={leadId} aviso={aviso} mobile={mobile} />}
+      {/* Sin muestra activa: cargarla. Entregada o cancelada: se puede mandar otra. */}
+      {(!activa || pedido?.estado === 'entregado') && botonEnviar}
     </div>
   )
 }

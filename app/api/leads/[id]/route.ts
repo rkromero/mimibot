@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { leads, pipelineStages, activityLog, conversations } from '@/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { leads, pipelineStages, activityLog, conversations, pedidos } from '@/db/schema'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { updateLeadSchema } from '@/lib/validations/lead'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError } from '@/lib/errors'
@@ -45,7 +45,25 @@ export async function GET(
 
     if (!lead) throw new NotFoundError('Lead')
 
-    return NextResponse.json({ data: lead })
+    // Pedido de muestra CDA del lead (el más reciente): el panel muestra su
+    // estado al lado del botón "Enviar muestra" y, entregado, el aviso al cliente.
+    const muestra = await db.query.pedidos.findFirst({
+      where: and(eq(pedidos.leadId, id), eq(pedidos.tipo, 'muestra'), isNull(pedidos.deletedAt)),
+      orderBy: [desc(pedidos.createdAt)],
+      columns: { id: true, estado: true, metodoEntrega: true, expresoNombre: true, entregadoAt: true, remitoFotoUrl: true },
+    })
+    const muestraPedido = muestra
+      ? {
+          id: muestra.id,
+          estado: muestra.estado,
+          metodoEntrega: muestra.metodoEntrega,
+          expresoNombre: muestra.expresoNombre,
+          entregadoAt: muestra.entregadoAt,
+          conFoto: !!muestra.remitoFotoUrl,
+        }
+      : null
+
+    return NextResponse.json({ data: { ...lead, muestraPedido } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
