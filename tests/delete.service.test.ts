@@ -27,10 +27,11 @@ vi.mock('@/db/schema', () => ({
 }))
 
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({
-  calcularDistribucionFIFO: vi.fn(),
+  reconciliarCuentaCliente: vi.fn().mockResolvedValue([]),
 }))
 
 import { db } from '@/db'
+import { reconciliarCuentaCliente } from '@/lib/cuenta-corriente/pago.service'
 import { deleteCliente, deletePedido, deleteProducto, deleteLead } from '@/lib/delete/delete.service'
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors'
 
@@ -253,9 +254,6 @@ describe('deletePedido', () => {
       // Latest saldo for product (stock is at 173 after the pedido was created)
       .mockReturnValueOnce(selectOrdered([{ saldo: 173 }]))
 
-    // FIFO: no active credits/pedidos
-    mockTx.query.movimientosCC.findMany.mockResolvedValueOnce([])
-    mockTx.query.pedidos.findMany.mockResolvedValueOnce([])
     mockTx.update.mockReturnValue(txUpdateChain())
 
     // Capture insert calls
@@ -304,8 +302,6 @@ describe('deletePedido', () => {
         { productoId: PRODUCTO_ID, tipo: 'entrada', cantidad: 12 }, // prior reversal
       ]))
 
-    mockTx.query.movimientosCC.findMany.mockResolvedValueOnce([])
-    mockTx.query.pedidos.findMany.mockResolvedValueOnce([])
     mockTx.update.mockReturnValue(txUpdateChain())
 
     await deletePedido(PEDIDO_ID, 'admin-1')
@@ -327,12 +323,45 @@ describe('deletePedido', () => {
     // No stock movements for this pedido
     mockTx.select.mockReturnValueOnce(selectDirect([]))
 
-    mockTx.query.movimientosCC.findMany.mockResolvedValueOnce([])
-    mockTx.query.pedidos.findMany.mockResolvedValueOnce([])
     mockTx.update.mockReturnValue(txUpdateChain())
 
     await expect(deletePedido('pedido-sin-pagos', 'admin-1')).resolves.toBeUndefined()
     expect(mockTx.update).toHaveBeenCalled()
     expect(mockTx.insert).not.toHaveBeenCalled() // no stock to revert
+  })
+
+  // ── Bug 3: doble conteo de créditos ──────────────────────────────────────
+
+  /**
+   * BUG ESCENARIO (pre-fix):
+   * Cliente con créditos $1.3M ya imputados (aplicaciones_pago) a pedidos A y B
+   * (pagados). Se elimina el pedido D (impago). El recálculo redistribuía TODOS
+   * los créditos desde cero sobre los pedidos no pagados (C, E), ignorando que
+   * ya estaban consumidos → C y E quedaban "pagados" sin respaldo y el saldo de
+   * CC no coincidía con la suma de saldos pendientes de los pedidos.
+   *
+   * AFTER FIX: se delega en reconciliarCuentaCliente, que parte del crédito
+   * realmente disponible (monto - aplicaciones vivas) y de los pedidos con
+   * saldo pendiente real.
+   */
+  it('(f) reconcilia la cuenta del cliente desde aplicaciones_pago en vez de redistribuir créditos', async () => {
+    mockTx.query.pedidos.findFirst.mockResolvedValueOnce({
+      id: 'pedido-d',
+      clienteId: 'cliente-1',
+      total: '999020.00',
+      fecha: new Date('2026-08-23'),
+    })
+    mockTx.query.aplicacionesPago.findFirst.mockResolvedValueOnce(null)
+    mockTx.query.movimientosCC.findFirst.mockResolvedValueOnce({ id: 'debito-d' })
+    mockTx.select.mockReturnValueOnce(selectDirect([]))
+    mockTx.update.mockReturnValue(txUpdateChain())
+
+    await deletePedido('pedido-d', 'admin-1')
+
+    expect(reconciliarCuentaCliente).toHaveBeenCalledOnce()
+    expect(reconciliarCuentaCliente).toHaveBeenCalledWith(mockTx, 'cliente-1')
+    // No debe consultar créditos/pedidos para redistribuir por su cuenta
+    expect(mockTx.query.movimientosCC.findMany).not.toHaveBeenCalled()
+    expect(mockTx.query.pedidos.findMany).not.toHaveBeenCalled()
   })
 })

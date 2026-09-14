@@ -1,5 +1,5 @@
-import { eq, and, isNull, ne, sql, inArray, or } from 'drizzle-orm'
-import { db } from '@/db'
+import { eq, and, isNull, sql, inArray, or } from 'drizzle-orm'
+import { db, type Db } from '@/db'
 import {
   clientes,
   pedidos,
@@ -19,7 +19,7 @@ import {
   productos,
 } from '@/db/schema'
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors'
-import { calcularDistribucionFIFO, type PedidoPendiente } from '@/lib/cuenta-corriente/pago.service'
+import { reconciliarCuentaCliente } from '@/lib/cuenta-corriente/pago.service'
 
 // ─── deleteCliente ─────────────────────────────────────────────────────────────
 
@@ -282,84 +282,15 @@ export async function deletePedido(pedidoId: string, deletedBy: string): Promise
       .set({ deletedAt: new Date() })
       .where(eq(pedidos.id, pedidoId))
 
-    // 8. Recalculate FIFO for remaining active pedidos of this client
-    const clienteId = pedido.clienteId
-
-    // Fetch all active créditos for this client ordered by fecha ASC
-    const creditos = await tx.query.movimientosCC.findMany({
-      where: and(
-        eq(movimientosCC.clienteId, clienteId),
-        eq(movimientosCC.tipo, 'credito'),
-        isNull(movimientosCC.deletedAt),
-      ),
-      columns: { id: true, monto: true, fecha: true },
-      orderBy: (m, { asc }) => [asc(m.fecha)],
-    })
-
-    // Fetch all active pedidos that are not fully paid, ordered by fecha ASC
-    const pedidosActivos = await tx.query.pedidos.findMany({
-      where: and(
-        eq(pedidos.clienteId, clienteId),
-        isNull(pedidos.deletedAt),
-        ne(pedidos.estadoPago, 'pagado'),
-      ),
-      columns: { id: true, fecha: true, total: true },
-      orderBy: (p, { asc }) => [asc(p.fecha)],
-    })
-
-    // Reset all active pedidos montoPagado/saldoPendiente/estadoPago to recalculate from scratch
-    for (const p of pedidosActivos) {
-      await tx
-        .update(pedidos)
-        .set({
-          montoPagado: '0.00',
-          saldoPendiente: p.total,
-          estadoPago: 'impago',
-          updatedAt: new Date(),
-        })
-        .where(eq(pedidos.id, p.id))
-    }
-
-    // Re-apply each crédito via FIFO distribution
-    const pendientesParaFIFO: PedidoPendiente[] = pedidosActivos.map((p) => ({
-      id: p.id,
-      fecha: p.fecha,
-      saldoPendiente: p.total,
-    }))
-
-    // Track running saldos
-    const saldoMap: Map<string, string> = new Map(
-      pendientesParaFIFO.map((p) => [p.id, p.saldoPendiente]),
-    )
-
-    for (const credito of creditos) {
-      const pendientes: PedidoPendiente[] = pendientesParaFIFO
-        .map((p) => ({ ...p, saldoPendiente: saldoMap.get(p.id) ?? p.saldoPendiente }))
-        .filter((p) => parseFloat(p.saldoPendiente) > 0)
-
-      if (pendientes.length === 0) break
-
-      const distribucion = calcularDistribucionFIFO(credito.monto, pendientes)
-
-      for (const aplicacion of distribucion.aplicaciones) {
-        const pedidoTotal = parseFloat(
-          pedidosActivos.find((p) => p.id === aplicacion.pedidoId)!.total,
-        )
-        const newMontoPagado = Math.max(0, pedidoTotal - parseFloat(aplicacion.saldoRestante)).toFixed(2)
-
-        saldoMap.set(aplicacion.pedidoId, aplicacion.saldoRestante)
-
-        await tx
-          .update(pedidos)
-          .set({
-            montoPagado: newMontoPagado,
-            saldoPendiente: aplicacion.saldoRestante,
-            estadoPago: aplicacion.estadoPago,
-            updatedAt: new Date(),
-          })
-          .where(eq(pedidos.id, aplicacion.pedidoId))
-      }
-    }
+    // 8. Reconciliar la cuenta del cliente desde la fuente de verdad
+    //    (aplicaciones_pago). Si el borrado liberó crédito o el cliente tenía
+    //    saldo a favor sin imputar, se aplica FIFO a los pedidos pendientes.
+    //
+    //    NO redistribuir todos los créditos "desde cero" sobre los pedidos no
+    //    pagados: eso ignora los créditos ya consumidos por pedidos pagados y
+    //    los cuenta dos veces, marcando como "pagado" pedidos sin respaldo real
+    //    (bug histórico: saldo CC != suma de saldos pendientes de pedidos).
+    await reconciliarCuentaCliente(tx as unknown as Db, pedido.clienteId)
   })
 }
 
