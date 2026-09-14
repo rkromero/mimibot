@@ -9,7 +9,15 @@ import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { programarSeguimientoIndagacion } from '@/lib/followup/engine'
 import { assignLeadByRule } from '@/lib/assignment'
-import { armarContextoLead, armarHistorialClaude, separarResumen, extraerScore, HANDOFF_MARKER } from './bot-context'
+import {
+  armarContextoLead,
+  armarHistorialClaude,
+  armarInstruccionEmpresa,
+  separarResumen,
+  extraerEmpresa,
+  extraerScore,
+  HANDOFF_MARKER,
+} from './bot-context'
 
 const DEFAULT_SYSTEM_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -162,7 +170,9 @@ export async function construirContextoBot(
   // Lo que ya sabemos del lead (formulario del landing, notas) para que el bot
   // no vuelva a saludar ni a preguntar lo que ya está cargado.
   const customFields = (lead.customFields ?? {}) as Record<string, unknown>
-  const empresa = typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null
+  const empresa =
+    lead.empresa?.trim() ||
+    (typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null)
   const contextoLead = armarContextoLead(
     {
       contactName: lead.contact?.name ?? null,
@@ -176,8 +186,10 @@ export async function construirContextoBot(
   )
 
   const basePrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
-  const systemPrompt = contextoLead ? `${basePrompt}\n\n${contextoLead}` : basePrompt
-  return { systemPrompt, claudeMessages }
+  // La empresa / marca se pregunta si falta y se pide en el [RESUMEN] para
+  // guardarla en el lead al calificar (qualifyAndAssign).
+  const partes = [basePrompt, contextoLead, armarInstruccionEmpresa(empresa)].filter(Boolean)
+  return { systemPrompt: partes.join('\n\n'), claudeMessages }
 }
 
 /**
@@ -242,13 +254,16 @@ async function qualifyAndAssign(
 
   // Si el lead ya tiene vendedor (asignado al crearse desde la landing o a
   // mano), se respeta; la regla solo se usa para los que llegan sin dueño.
-  const actual = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { assignedTo: true } })
+  const actual = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { assignedTo: true, empresa: true } })
   const agentId = actual?.assignedTo ?? await assignLeadByRule()
   if (agentId === null) {
     console.warn('[bot] qualifyAndAssign: sin agentes elegibles, lead sin asignar', { leadId })
   }
 
   const { score, grado } = extraerScore(resumen)
+  // Empresa / marca que el bot averiguó en la charla: se guarda solo si el
+  // lead no la tenía (lo cargado a mano o por la landing manda).
+  const empresaBot = actual?.empresa?.trim() ? null : extraerEmpresa(resumen)
 
   await db.update(leads)
     .set({
@@ -258,6 +273,7 @@ async function qualifyAndAssign(
       ...(agentId !== null ? { assignedTo: agentId } : {}),
       ...(score !== null ? { botScore: score } : {}),
       ...(grado ? { botGrado: grado } : {}),
+      ...(empresaBot ? { empresa: empresaBot } : {}),
       updatedAt: new Date(),
     })
     .where(eq(leads.id, leadId))

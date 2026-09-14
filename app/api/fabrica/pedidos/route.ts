@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
             id: true,
             nombre: true,
             apellido: true,
+            empresa: true,
             direccion: true,
             localidad: true,
             provincia: true,

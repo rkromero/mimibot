@@ -10,6 +10,7 @@ import EntregarSheet from '@/components/repartidor/EntregarSheet'
 import type { Pedido } from '@/components/repartidor/PedidoCard'
 import { useRouter } from 'next/navigation'
 import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ type ExpresoPendiente = {
     id: string
     nombre: string
     apellido: string
+    empresa?: string | null
     direccion: string | null
     localidad: string | null
     provincia: string | null
@@ -46,6 +48,7 @@ type RetiroPendiente = {
     id: string
     nombre: string
     apellido: string
+    empresa?: string | null
     direccion: string | null
     localidad: string | null
     provincia: string | null
@@ -91,7 +94,7 @@ function ExpresoPendienteCard({
   onAceptar: (id: string) => void
   loading: boolean
 }) {
-  const nombreDestino = pedido.expresoNombre ?? `${pedido.cliente.nombre} ${pedido.cliente.apellido}`
+  const nombreDestino = pedido.expresoNombre ?? nombreCompleto(pedido.cliente)
   const direccion = pedido.expresoDireccion
     ?? [pedido.cliente.direccion, pedido.cliente.localidad, pedido.cliente.provincia]
         .filter(Boolean).join(', ')
@@ -104,9 +107,12 @@ function ExpresoPendienteCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-bold text-base text-foreground truncate">
-            {[pedido.cliente.nombre, pedido.cliente.apellido].filter(Boolean).join(' ')}
+            {nombrePrincipal(pedido.cliente)}
             <MuestraBadge tipo={pedido.tipo} className="ml-2 align-middle" />
           </p>
+          {nombreSecundario(pedido.cliente) && (
+            <p className="text-xs text-muted-foreground truncate">{nombreSecundario(pedido.cliente)}</p>
+          )}
           <div className="flex items-center gap-1.5 mb-0.5">
             <Send size={14} className="text-blue-500 shrink-0" />
             <p className="text-sm text-muted-foreground truncate">{nombreDestino}</p>
@@ -163,7 +169,7 @@ function RutaExpresoPedidoCard({ pedido, onDelivered }: { pedido: Pedido; onDeli
     setTimeout(() => onDelivered(), 350)
   }
 
-  const nombreDestino = `${pedido.cliente.nombre} ${pedido.cliente.apellido}`
+  const nombreDestino = nombreCompleto(pedido.cliente)
   const direccion = [pedido.cliente.direccion, pedido.cliente.localidad, pedido.cliente.provincia]
     .filter(Boolean).join(', ')
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(direccion || nombreDestino)}`
@@ -254,7 +260,7 @@ function RetiroPendienteCard({ pedido, onDelivered }: { pedido: RetiroPendiente;
     setTimeout(() => onDelivered(), 350)
   }
 
-  const nombre = [pedido.cliente.nombre, pedido.cliente.apellido].filter(Boolean).join(' ')
+  const nombre = nombreCompleto(pedido.cliente)
   const itemsText = pedido.items.slice(0, 2).map((i) => `${i.cantidad}× ${i.producto.nombre}`).join(' · ')
   const extraCount = pedido.items.length > 2 ? ` +${pedido.items.length - 2}` : ''
   const totalStr = Number(pedido.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })

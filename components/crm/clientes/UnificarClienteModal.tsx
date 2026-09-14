@@ -5,11 +5,13 @@ import { X, ArrowLeft, Search, Merge, AlertTriangle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/shared/ToastProvider'
+import { limpiarEmpresa, nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
 type ClienteBase = {
   id: string
   nombre: string
   apellido: string
+  empresa?: string | null
   telefono: string | null
 }
 
@@ -17,6 +19,7 @@ type ClienteOption = {
   id: string
   nombre: string
   apellido: string
+  empresa?: string | null
   telefono: string | null
   cuit: string | null
   localidad: string | null
@@ -48,7 +51,10 @@ function esPosibleDuplicado(c: ClienteOption, target: ClienteBase): boolean {
     c.nombre.trim().toLowerCase() === target.nombre.trim().toLowerCase() &&
     c.apellido.trim().toLowerCase() === target.apellido.trim().toLowerCase()
   const mismoTelefono = Boolean(c.telefono && target.telefono && c.telefono === target.telefono)
-  return mismoNombre || mismoTelefono
+  const empresaA = limpiarEmpresa(c.empresa)?.toLowerCase()
+  const empresaB = limpiarEmpresa(target.empresa)?.toLowerCase()
+  const mismaEmpresa = Boolean(empresaA && empresaB && empresaA === empresaB)
+  return mismoNombre || mismoTelefono || mismaEmpresa
 }
 
 export default function UnificarClienteModal({ target, onClose, onSuccess }: Props) {
@@ -64,8 +70,8 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
     return () => clearTimeout(t)
   }, [search])
 
-  // Sin búsqueda, sugerir posibles duplicados: mismo apellido que la base
-  const term = debouncedSearch || target.apellido
+  // Sin búsqueda, sugerir posibles duplicados: misma empresa (si tiene) o mismo apellido que la base
+  const term = debouncedSearch || limpiarEmpresa(target.empresa) || target.apellido
   const { data: candidatos = [], isLoading: isLoadingList } = useQuery<ClienteOption[]>({
     queryKey: ['fusion-candidatos', target.id, term],
     queryFn: async () => {
@@ -77,7 +83,7 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
     staleTime: 30_000,
   })
 
-  // Duplicados probables primero (mismo nombre+apellido o mismo teléfono)
+  // Duplicados probables primero (mismo nombre+apellido, mismo teléfono o misma empresa)
   const ordenados = [...candidatos].sort((a, b) =>
     Number(esPosibleDuplicado(b, target)) - Number(esPosibleDuplicado(a, target)),
   )
@@ -145,8 +151,11 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
               Base — se conserva
             </p>
             <p className="text-sm font-semibold text-foreground">
-              {target.nombre} {target.apellido}
+              {nombrePrincipal(target)}
             </p>
+            {nombreSecundario(target) && (
+              <p className="text-xs text-muted-foreground">{nombreSecundario(target)}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5">
               Todos los pedidos, movimientos y actividades del cliente elegido abajo pasarán a esta ficha.
             </p>
@@ -169,7 +178,7 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
             </div>
             {!debouncedSearch && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                Sugerencias: posibles duplicados de {target.nombre} {target.apellido}
+                Sugerencias: posibles duplicados de {nombreCompleto(target)}
               </p>
             )}
 
@@ -192,8 +201,11 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-sm text-foreground font-medium">
-                      {c.nombre} {c.apellido}
+                      {nombrePrincipal(c)}
                     </span>
+                    {nombreSecundario(c) && (
+                      <span className="text-xs text-muted-foreground">{nombreSecundario(c)}</span>
+                    )}
                     {esPosibleDuplicado(c, target) && (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                         Posible duplicado
@@ -227,7 +239,7 @@ export default function UnificarClienteModal({ target, onClose, onSuccess }: Pro
                 </ul>
               )}
               <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                {selected.nombre} {selected.apellido} quedará dado de baja. Esta acción no se puede deshacer.
+                {nombreCompleto(selected)} quedará dado de baja. Esta acción no se puede deshacer.
               </p>
             </div>
           )}

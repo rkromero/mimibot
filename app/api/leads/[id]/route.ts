@@ -97,6 +97,7 @@ export async function PATCH(
     }
 
     if (parsed.data.stageId !== undefined) updates.stageId = parsed.data.stageId
+    if (parsed.data.empresa !== undefined) updates.empresa = parsed.data.empresa?.trim() || null
     if (parsed.data.assignedTo !== undefined) updates.assignedTo = parsed.data.assignedTo
     if (parsed.data.budget !== undefined) updates.budget = parsed.data.budget
     if (parsed.data.productInterest !== undefined) updates.productInterest = parsed.data.productInterest

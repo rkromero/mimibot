@@ -5,6 +5,8 @@ export type EtiquetaData = {
   pedidoId: string
   clienteNombre: string
   clienteApellido: string
+  /** Empresa / marca: va como destinatario principal, con la persona debajo */
+  clienteEmpresa?: string
   clienteTelefono?: string
   /** Resolved delivery address lines (ready to display) */
   entregaLineas: string[]
@@ -41,6 +43,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     marginBottom: 12,
     lineHeight: 1.2,
+  },
+  // Persona de contacto debajo de la empresa / marca
+  destinatarioPersona: {
+    fontSize: 11,
+    color: '#333333',
+    marginTop: -8,
+    marginBottom: 12,
   },
   divider: {
     borderBottomWidth: 0.5,
@@ -108,9 +117,18 @@ export function EtiquetaDocument({ data }: { data: EtiquetaData }) {
 
         {/* Destinatario */}
         <Text style={styles.paraLabel}>Para</Text>
-        <Text style={styles.destinatario}>
-          {data.clienteNombre} {data.clienteApellido}
-        </Text>
+        {data.clienteEmpresa ? (
+          <>
+            <Text style={styles.destinatario}>{data.clienteEmpresa}</Text>
+            <Text style={styles.destinatarioPersona}>
+              {data.clienteNombre} {data.clienteApellido}
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.destinatario}>
+            {data.clienteNombre} {data.clienteApellido}
+          </Text>
+        )}
 
         <View style={styles.divider} />
 

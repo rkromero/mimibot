@@ -22,11 +22,14 @@ export type RespuestaRapida = {
 export type VariablesRespuesta = {
   nombre?: string | null
   producto?: string | null
+  /** Empresa / marca del lead o cliente */
+  empresa?: string | null
 }
 
 /** Variables que se pueden usar en el texto, con su descripción para la UI. */
 export const VARIABLES_RESPUESTA: ReadonlyArray<{ token: string; descripcion: string }> = [
   { token: '{nombre}', descripcion: 'Primer nombre del contacto' },
+  { token: '{empresa}', descripcion: 'Empresa / marca del contacto' },
   { token: '{producto}', descripcion: 'Producto de interés del lead' },
 ]
 
@@ -40,8 +43,10 @@ export const VARIABLES_RESPUESTA: ReadonlyArray<{ token: string; descripcion: st
 export function reemplazarVariables(body: string, vars: VariablesRespuesta = {}): string {
   const nombre = primerNombre(vars.nombre)
   const producto = vars.producto?.trim()
+  const empresa = vars.empresa?.trim()
   return body
     .replace(/\{nombre\}/g, nombre || '{nombre}')
+    .replace(/\{empresa\}/g, empresa || '{empresa}')
     .replace(/\{producto\}/g, producto || '{producto}')
 }
 

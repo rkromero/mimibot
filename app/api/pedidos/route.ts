@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
       const orParts = [
         ilike(clientes.nombre, like),
         ilike(clientes.apellido, like),
+        ilike(clientes.empresa, like),
         ilike(sql`${clientes.nombre} || ' ' || ${clientes.apellido}`, like),
         ilike(clientes.cuit, like),
         ilike(clientes.direccion, like),
@@ -109,6 +110,7 @@ export async function GET(req: NextRequest) {
           id: clientes.id,
           nombre: clientes.nombre,
           apellido: clientes.apellido,
+          empresa: clientes.empresa,
         },
         vendedor: {
           id: users.id,
@@ -128,6 +130,7 @@ export async function GET(req: NextRequest) {
       ...r.pedido,
       clienteNombre: r.cliente.nombre,
       clienteApellido: r.cliente.apellido,
+      clienteEmpresa: r.cliente.empresa,
       vendedorNombre: r.vendedor.name ?? null,
     }))
 

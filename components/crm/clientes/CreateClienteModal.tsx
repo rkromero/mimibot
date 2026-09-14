@@ -41,6 +41,7 @@ export default function CreateClienteModal({ onClose }: Props) {
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
+    empresa: '',
     email: '',
     telefono: '',
     direccion: '',
@@ -139,6 +140,7 @@ export default function CreateClienteModal({ onClose }: Props) {
         body: JSON.stringify({
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
+          empresa: form.empresa.trim() || undefined,
           email: form.email.trim() || undefined,
           telefono: form.telefono.trim() || undefined,
           direccion: form.direccion.trim() || undefined,
@@ -211,6 +213,16 @@ export default function CreateClienteModal({ onClose }: Props) {
                   className={inputClass}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm md:text-xs text-muted-foreground mb-1.5">Empresa / marca</label>
+              <input
+                value={form.empresa}
+                onChange={(e) => set('empresa', e.target.value)}
+                placeholder="Razón social o nombre de fantasía (opcional)"
+                className={inputClass}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

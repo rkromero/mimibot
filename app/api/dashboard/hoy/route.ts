@@ -88,7 +88,7 @@ export async function GET() {
         .where(and(eq(leads.assignedTo, userId), isNull(leads.deletedAt), isNotNull(leads.muestraEntregadaAt), isNull(leads.muestraAvisadaAt))),
 
       // ── Últimos 5 pedidos ─────────────────────────────────────────────────────
-      db.select({ id: pedidos.id, estado: pedidos.estado, total: pedidos.total, createdAt: pedidos.createdAt, clienteNombre: clientes.nombre, clienteApellido: clientes.apellido })
+      db.select({ id: pedidos.id, estado: pedidos.estado, total: pedidos.total, createdAt: pedidos.createdAt, clienteNombre: clientes.nombre, clienteApellido: clientes.apellido, clienteEmpresa: clientes.empresa })
         .from(pedidos)
         .innerJoin(clientes, eq(pedidos.clienteId, clientes.id))
         .where(and(eq(pedidos.vendedorId, userId), isNull(pedidos.deletedAt)))

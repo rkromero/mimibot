@@ -9,6 +9,7 @@ import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { nombreCompleto } from '@/lib/clientes/nombre'
 import { formatFechaAR, formatFechaInstanteAR, fechaISO_AR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
@@ -47,6 +48,7 @@ type Pedido = {
   clienteId: string
   clienteNombre: string
   clienteApellido: string
+  clienteEmpresa?: string | null
   vendedorNombre: string | null
   vendedorId: string
   fecha: string
@@ -764,7 +766,7 @@ export default function PedidoDetail({ id }: Props) {
           <div className="flex gap-2 text-sm">
             <span className="text-muted-foreground w-24 shrink-0">Cliente:</span>
             <Link href={`/crm/clientes/${pedido.clienteId}`} className="text-primary hover:underline">
-              {pedido.clienteNombre} {pedido.clienteApellido}
+              {nombreCompleto({ nombre: pedido.clienteNombre, apellido: pedido.clienteApellido, empresa: pedido.clienteEmpresa })}
             </Link>
           </div>
           <div className="flex gap-2 text-sm">

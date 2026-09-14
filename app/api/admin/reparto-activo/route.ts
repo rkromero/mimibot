@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
           aceptadoAt: pedidos.aceptadoAt,
           clienteNombre: clientes.nombre,
           clienteApellido: clientes.apellido,
+          clienteEmpresa: clientes.empresa,
           repartidorId: pedidos.repartidorId,
           repartidorNombre: repartidoresT.name,
         })

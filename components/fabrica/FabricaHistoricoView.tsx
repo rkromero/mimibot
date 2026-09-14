@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { formatFechaInstanteAR } from '@/lib/dates'
 import { cn } from '@/lib/utils'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
@@ -31,6 +32,7 @@ type PedidoHistorico = {
     id: string
     nombre: string
     apellido: string
+    empresa?: string | null
     direccion: string | null
     localidad: string | null
     provincia: string | null
@@ -104,7 +106,7 @@ export default function FabricaHistoricoView() {
     if (!search.trim()) return all
     const q = search.toLowerCase()
     return all.filter((p) => {
-      const clienteNombre = `${p.cliente?.nombre ?? ''} ${p.cliente?.apellido ?? ''}`.toLowerCase()
+      const clienteNombre = (p.cliente ? nombreCompleto(p.cliente) : '').toLowerCase()
       const fechaStr = formatFechaInstanteAR(p.fecha).toLowerCase()
       const idSuffix = p.id.slice(-8).toLowerCase()
       return clienteNombre.includes(q) || fechaStr.includes(q) || idSuffix.includes(q)
@@ -192,8 +194,11 @@ export default function FabricaHistoricoView() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
-                        {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                        {pedido.cliente ? nombrePrincipal(pedido.cliente) : ''}
                         <MuestraBadge tipo={pedido.tipo} className="ml-2" />
+                        {pedido.cliente && nombreSecundario(pedido.cliente) && (
+                          <span className="block text-xs font-normal text-muted-foreground">{nombreSecundario(pedido.cliente)}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {formatFechaInstanteAR(pedido.fecha)}
@@ -271,8 +276,11 @@ export default function FabricaHistoricoView() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-foreground">
-                          {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                          {pedido.cliente ? nombrePrincipal(pedido.cliente) : ''}
                         </span>
+                        {pedido.cliente && nombreSecundario(pedido.cliente) && (
+                          <span className="text-xs text-muted-foreground">{nombreSecundario(pedido.cliente)}</span>
+                        )}
                         <MuestraBadge tipo={pedido.tipo} />
                         <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                           #{pedido.id.slice(-8).toUpperCase()}

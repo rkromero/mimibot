@@ -4,6 +4,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import type { LeadWithContact, PipelineStage } from '@/types/db'
+import { nombreLead } from '@/lib/clientes/nombre'
 
 type Props = {
   leads: LeadWithContact[]
@@ -76,7 +77,7 @@ export default function LeadList({ leads, stages, loading, onLeadClick }: Props)
                     'text-base truncate',
                     lead.unreadCount > 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground',
                   )}>
-                    {lead.contact.name}
+                    {nombreLead(lead.contact.name, lead.empresa).principal}
                   </span>
                   {!lead.vistoAt && (
                     <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500 text-white">
@@ -94,6 +95,11 @@ export default function LeadList({ leads, stages, loading, onLeadClick }: Props)
                     </span>
                   </div>
                 </div>
+                {nombreLead(lead.contact.name, lead.empresa).secundario && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {nombreLead(lead.contact.name, lead.empresa).secundario}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground mt-0.5">{stage?.name ?? '—'}</p>
                 {preview && (
                   <p className="text-xs text-muted-foreground mt-1 truncate">{preview}</p>
@@ -125,7 +131,14 @@ export default function LeadList({ leads, stages, loading, onLeadClick }: Props)
                 onClick={() => onLeadClick(lead.id)}
                 className="border-b border-border last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
               >
-                <td className="py-2.5 px-3 font-medium text-foreground">{lead.contact.name}</td>
+                <td className="py-2.5 px-3 font-medium text-foreground">
+                  {nombreLead(lead.contact.name, lead.empresa).principal}
+                  {nombreLead(lead.contact.name, lead.empresa).secundario && (
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      {nombreLead(lead.contact.name, lead.empresa).secundario}
+                    </span>
+                  )}
+                </td>
                 <td className="py-2.5 px-3 text-muted-foreground hidden sm:table-cell">
                   {lead.contact.phone ?? '—'}
                 </td>

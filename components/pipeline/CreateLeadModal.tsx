@@ -25,6 +25,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
 
   const [form, setForm] = useState({
     contactName: '',
+    empresa: '',
     contactPhone: '',
     contactEmail: '',
     stageId: stages[0]?.id ?? '',
@@ -75,6 +76,7 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contactName: form.contactName.trim(),
+          empresa: form.empresa.trim() || undefined,
           contactPhone: form.contactPhone.trim() || undefined,
           contactEmail: form.contactEmail.trim() || undefined,
           stageId: form.stageId,
@@ -133,6 +135,17 @@ export default function CreateLeadModal({ stages, onClose }: Props) {
               value={form.contactName}
               onChange={(e) => set('contactName', e.target.value)}
               placeholder="Nombre del contacto"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Empresa / marca</label>
+            <input
+              value={form.empresa}
+              onChange={(e) => set('empresa', e.target.value)}
+              placeholder="Razón social o nombre de fantasía"
+              maxLength={200}
               className={inputClass}
             />
           </div>

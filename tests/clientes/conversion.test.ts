@@ -281,6 +281,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
     id: LEAD_ID,
     isOpen: true,
     assignedTo: null,
+    empresa: 'Panadería La Espiga',
     direccion: 'Av. Siempre Viva 742',
     localidad: 'Springfield',
     provincia: 'Buenos Aires',
@@ -292,6 +293,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
   const clienteVacio = {
     id: 'cliente-existing',
     email: 'homero@example.com',
+    empresa: null,
     direccion: null,
     localidad: null,
     provincia: null,
@@ -336,6 +338,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
     expect(r.wasNew).toBe(true)
     // Busca por leadId, por email y por CUIT antes de crear
     expect(mockTxQueryClientesFindFirst).toHaveBeenCalledTimes(3)
+    expect(valuesInsert.mock.calls[0]![0]).toMatchObject({ empresa: 'Panadería La Espiga' })
     expect(valuesInsert.mock.calls[0]![0]).toMatchObject({
       direccion: 'Av. Siempre Viva 742',
       localidad: 'Springfield',
@@ -407,15 +410,27 @@ describe('dirección completa y CUIT/DNI del lead', () => {
 
       expect(r).toEqual({ id: 'cliente-existing' })
       const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
-      expect(set).toMatchObject({ provincia: 'Buenos Aires', codigoPostal: '1900', cuit: CUIT })
+      expect(set).toMatchObject({ provincia: 'Buenos Aires', codigoPostal: '1900', cuit: CUIT, empresa: 'Panadería La Espiga' })
       expect(set).not.toHaveProperty('direccion')
       expect(set).not.toHaveProperty('localidad')
+    })
+
+    it('no pisa la empresa / marca que el cliente ya tenía', async () => {
+      mockTxQueryClientesFindFirst.mockResolvedValue(undefined)
+      const setCliente = armarUpdates()
+      const cliente = { ...clienteVacio, empresa: 'La Espiga SRL' }
+
+      await completarClienteDesdeLead(makeTx() as never, cliente as never, leadCompleto)
+
+      const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+      expect(set).not.toHaveProperty('empresa')
     })
 
     it('no toca la ficha si no le falta nada', async () => {
       armarUpdates()
       const cliente = {
         ...clienteVacio,
+        empresa: 'La Espiga SRL',
         direccion: 'Calle 1',
         localidad: 'Lanús',
         provincia: 'Buenos Aires',

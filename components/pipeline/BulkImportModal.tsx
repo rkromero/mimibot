@@ -12,7 +12,7 @@ type Props = {
   onClose: () => void
 }
 
-type ParsedRow = { name: string; phone: string; email: string; notes: string }
+type ParsedRow = { name: string; phone: string; email: string; notes: string; empresa: string }
 
 function parseCSV(text: string): ParsedRow[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -25,6 +25,8 @@ function parseCSV(text: string): ParsedRow[] {
       phone: cols[1] ?? '',
       email: cols[2] ?? '',
       notes: cols[3] ?? '',
+      // Columna opcional al final para no romper los CSV que ya se usaban
+      empresa: cols[4] ?? '',
     }
   }).filter((r) => r.name.length > 0)
 }
@@ -120,11 +122,11 @@ export default function BulkImportModal({ stages, userRole, onClose }: Props) {
           {/* Instructions */}
           <div className="bg-muted/40 border border-border rounded-lg p-3 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">Formato del CSV</p>
-            <p>Columnas en orden: <span className="font-mono">nombre, telefono, email, notas</span></p>
+            <p>Columnas en orden: <span className="font-mono">nombre, telefono, email, notas, empresa</span> (la empresa / marca es opcional)</p>
             <p className="font-mono bg-background border border-border rounded px-2 py-1 mt-1 select-all">
-              nombre,telefono,email,notas<br />
-              Juan Pérez,+5491155551234,juan@email.com,Interesado en X<br />
-              María García,,maria@email.com,
+              nombre,telefono,email,notas,empresa<br />
+              Juan Pérez,+5491155551234,juan@email.com,Interesado en X,Panadería La Espiga<br />
+              María García,,maria@email.com,,
             </p>
             <p>La primera fila (encabezado) se ignora. Todos los leads se crean con fuente <strong>Manual</strong>.</p>
           </div>

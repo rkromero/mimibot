@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed, Merge, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
 import PedidosTab from './tabs/PedidosTab'
 import CuentaCorrienteTab from './tabs/CuentaCorrienteTab'
@@ -23,6 +24,7 @@ type Cliente = {
   id: string
   nombre: string
   apellido: string
+  empresa: string | null
   email: string | null
   telefono: string | null
   direccion: string | null
@@ -257,6 +259,7 @@ export default function ClienteDetail({ id }: Props) {
         body: JSON.stringify({
           nombre: getField('nombre'),
           apellido: getField('apellido'),
+          empresa: getField('empresa') || null,
           email: getField('email') || null,
           telefono: getField('telefono') || null,
           direccion: getField('direccion') || null,
@@ -432,6 +435,20 @@ export default function ClienteDetail({ id }: Props) {
             <p className={readValueClass}>{getField('apellido') || '—'}</p>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm md:text-xs text-muted-foreground mb-1.5 md:mb-1">Empresa / marca</label>
+        {isEditing ? (
+          <input
+            value={getField('empresa') ?? ''}
+            onChange={(e) => setField('empresa', e.target.value)}
+            placeholder="Razón social o nombre de fantasía"
+            className={inputClass}
+          />
+        ) : (
+          <p className={readValueClass}>{getField('empresa') || '—'}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -803,8 +820,11 @@ export default function ClienteDetail({ id }: Props) {
             </Link>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
-                {cliente.nombre} {cliente.apellido}
+                {nombrePrincipal(cliente)}
               </h1>
+              {nombreSecundario(cliente) && (
+                <p className="text-xs text-muted-foreground truncate">{nombreSecundario(cliente)}</p>
+              )}
               {cliente.estadoActividad && (
                 <span className={cn('inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
                   {estadoActividadLabels[cliente.estadoActividad]}
@@ -961,8 +981,11 @@ export default function ClienteDetail({ id }: Props) {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-semibold text-foreground">
-                  {cliente.nombre} {cliente.apellido}
+                  {nombrePrincipal(cliente)}
                 </h1>
+                {nombreSecundario(cliente) && (
+                  <span className="text-sm text-muted-foreground">{nombreSecundario(cliente)}</span>
+                )}
                 {cliente.estadoActividad && (
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoActividadColors[cliente.estadoActividad])}>
                     {estadoActividadLabels[cliente.estadoActividad]}
@@ -1065,7 +1088,7 @@ export default function ClienteDetail({ id }: Props) {
             <PedidosTab clienteId={id} />
             <CuentaCorrienteTab
               clienteId={id}
-              clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+              clienteNombre={nombreCompleto(cliente)}
               clienteTelefono={cliente.telefono ?? null}
               showPago={showRegistrarPago}
               onClosePago={() => setShowRegistrarPago(false)}
@@ -1085,7 +1108,7 @@ export default function ClienteDetail({ id }: Props) {
           <PedidosTab clienteId={id} />
           <CuentaCorrienteTab
             clienteId={id}
-            clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+            clienteNombre={nombreCompleto(cliente)}
             clienteTelefono={cliente.telefono ?? null}
             showPago={showRegistrarPago}
             onClosePago={() => setShowRegistrarPago(false)}
@@ -1143,7 +1166,7 @@ export default function ClienteDetail({ id }: Props) {
         <ClienteChatDrawer
           clienteId={id}
           conversationId={chatConversationId}
-          nombre={`${cliente.nombre} ${cliente.apellido}`.trim()}
+          nombre={nombreCompleto(cliente)}
           telefono={cliente.telefono}
           user={session.user}
           onClose={() => setChatConversationId(null)}
@@ -1152,7 +1175,7 @@ export default function ClienteDetail({ id }: Props) {
 
       {showUnificar && cliente && (
         <UnificarClienteModal
-          target={{ id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido, telefono: cliente.telefono }}
+          target={{ id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido, empresa: cliente.empresa, telefono: cliente.telefono }}
           onClose={() => setShowUnificar(false)}
           onSuccess={() => {
             // La ficha, la lista y los tabs (pedidos/cc usan prefijo 'clientes')
@@ -1183,7 +1206,7 @@ export default function ClienteDetail({ id }: Props) {
             </div>
             <div className="flex-1 md:flex-none overflow-y-auto p-4 space-y-3">
               <p className="text-sm text-foreground">
-                ¿Eliminar permanentemente a <strong>{cliente.nombre} {cliente.apellido}</strong>?
+                ¿Eliminar permanentemente a <strong>{nombreCompleto(cliente)}</strong>?
               </p>
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive space-y-1">
                 <p className="font-semibold">Se borrarán de forma permanente e irreversible:</p>
@@ -1227,7 +1250,7 @@ export default function ClienteDetail({ id }: Props) {
         return (
           <ConfirmDeleteModal
             title="Eliminar cliente"
-            description={`¿Eliminar a ${cliente.nombre} ${cliente.apellido}? Esta acción no se puede deshacer.`}
+            description={`¿Eliminar a ${nombreCompleto(cliente)}? Esta acción no se puede deshacer.`}
             details={
               pedidosCount > 0 || saldoPendiente > 0 ? (
                 <div className="space-y-1">

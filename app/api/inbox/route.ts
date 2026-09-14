@@ -117,6 +117,10 @@ export async function GET(req: NextRequest) {
               WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${contacts.name}
               WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.nombre} || ' ' || ${clientes.apellido}
               ELSE ${contacts.name} END`,
+            empresa: sql<string | null>`CASE
+              WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${leads.empresa}
+              WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.empresa}
+              ELSE ${leads.empresa} END`,
             unreadCount: conversations.unreadCount,
             lastMessageAt: conversations.lastMessageAt,
             lastMessageBody: sql<string | null>`(
@@ -173,6 +177,10 @@ export async function GET(req: NextRequest) {
           WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${contacts.phone}
           WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.telefono}
           ELSE ${contacts.phone} END`,
+        empresa: sql<string | null>`CASE
+          WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${leads.empresa}
+          WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.empresa}
+          ELSE ${leads.empresa} END`,
         unreadCount: conversations.unreadCount,
         lastMessageAt: conversations.lastMessageAt,
         lastMessageBody: sql<string>`(

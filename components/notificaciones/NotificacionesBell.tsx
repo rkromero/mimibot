@@ -11,10 +11,12 @@ import { previewMensaje } from '@/lib/push/aviso'
 import { abrirConversacion } from '@/lib/inbox/conversacion-activa'
 import { usePush, type EstadoPush } from '@/lib/push/use-push'
 import { setSonidoActivado, sonidoActivado } from '@/lib/notificaciones/sonido'
+import { nombreLead } from '@/lib/clientes/nombre'
 
 type NoLeido = {
   conversationId: string
   nombre: string
+  empresa: string | null
   unreadCount: number
   lastMessageAt: string | null
   lastMessageBody: string | null
@@ -128,14 +130,17 @@ function Panel({ onCerrar }: { onCerrar: () => void }) {
               onClick={() => abrir(c.conversationId)}
               className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/60 transition-colors border-b border-border/60 last:border-b-0"
             >
-              <Avatar name={c.nombre} color={c.assignedUserColor ?? '#6b7280'} size="sm" />
+              <Avatar name={nombreLead(c.nombre, c.empresa).principal} color={c.assignedUserColor ?? '#6b7280'} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold truncate">{c.nombre}</span>
+                  <span className="text-sm font-semibold truncate">{nombreLead(c.nombre, c.empresa).principal}</span>
                   {c.lastMessageAt && (
                     <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(c.lastMessageAt)}</span>
                   )}
                 </div>
+                {nombreLead(c.nombre, c.empresa).secundario && (
+                  <p className="text-[11px] text-muted-foreground truncate">{nombreLead(c.nombre, c.empresa).secundario}</p>
+                )}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {previewMensaje(c.lastMessageType ?? 'text', c.lastMessageBody)}
                 </p>

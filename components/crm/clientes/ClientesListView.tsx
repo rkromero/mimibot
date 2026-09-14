@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Phone, ChevronRight, Download, Map, List, AlertTriangle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
+import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import CreateClienteModal from './CreateClienteModal'
 import dynamic from 'next/dynamic'
 import DataTable from '@/components/data-table/DataTable'
@@ -22,6 +23,7 @@ type Cliente = {
   id: string
   nombre: string
   apellido: string
+  empresa: string | null
   email: string | null
   direccion: string | null
   localidad: string | null
@@ -99,8 +101,11 @@ export default function ClientesListView() {
       label: 'Nombre',
       sortable: true,
       render: (row: Cliente) => (
-        <span className="font-medium text-foreground">
-          {row.nombre} {row.apellido}
+        <span className="flex flex-col min-w-0">
+          <span className="font-medium text-foreground truncate">{nombrePrincipal(row)}</span>
+          {nombreSecundario(row) && (
+            <span className="text-xs text-muted-foreground truncate">{nombreSecundario(row)}</span>
+          )}
         </span>
       ),
     },
@@ -279,7 +284,7 @@ export default function ClientesListView() {
           columns={columns}
           extraParams={filterEstado ? { estadoActividad: filterEstado } : {}}
           defaultPageSize={50}
-          searchPlaceholder="Buscar por nombre, dirección, email, CUIT..."
+          searchPlaceholder="Buscar por nombre, empresa, dirección, email, CUIT..."
           onRowClick={(row) => router.push(`/crm/clientes/${row.id}`)}
           renderMobileCard={(c) => {
             const bal = c.balance ?? 0
@@ -291,8 +296,11 @@ export default function ClientesListView() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-foreground text-base truncate">
-                    {c.nombre} {c.apellido}
+                    {nombrePrincipal(c)}
                   </p>
+                  {nombreSecundario(c) && (
+                    <p className="text-xs text-muted-foreground truncate">{nombreSecundario(c)}</p>
+                  )}
                   {c.telefono && (
                     <a
                       href={`tel:${c.telefono}`}

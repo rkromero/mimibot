@@ -6,6 +6,7 @@ import { MapPin, Package, RefreshCw, CheckSquare, Square, Truck, AlertCircle, Se
 import { useToast } from '@/components/shared/ToastProvider'
 import { formatFechaInstanteAR } from '@/lib/dates'
 import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
+import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
 type PedidoListo = {
   id: string
@@ -19,6 +20,7 @@ type PedidoListo = {
   cliente: {
     nombre: string
     apellido: string
+    empresa?: string | null
     direccion: string | null
     localidad: string | null
     provincia: string | null
@@ -120,8 +122,11 @@ function PedidoList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold text-foreground leading-tight">
-                    {pedido.cliente.nombre} {pedido.cliente.apellido}
+                    {nombrePrincipal(pedido.cliente)}
                     <MuestraBadge tipo={pedido.tipo} className="ml-2 align-middle" />
+                    {nombreSecundario(pedido.cliente) && (
+                      <span className="block text-xs font-normal text-muted-foreground">{nombreSecundario(pedido.cliente)}</span>
+                    )}
                   </p>
                   <span className="text-sm font-bold text-foreground shrink-0 tabular-nums">
                     {formatMoney(pedido.total)}

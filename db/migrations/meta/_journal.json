@@ -547,6 +547,13 @@
       "when": 1787655769715,
       "tag": "0077_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1787655829715,
+      "tag": "0078_empresa_lead_cliente",
+      "breakpoints": true
     }
   ]
 }

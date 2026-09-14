@@ -6,6 +6,7 @@ import { X, ImageIcon, Loader2, AlertCircle, DollarSign, MapPin, Check, AlertTri
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { useToast } from '@/components/shared/ToastProvider'
+import { nombreCompleto } from '@/lib/clientes/nombre'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,7 @@ type Entrega = {
   cobradorNombre: string | null
   clienteNombre: string | null
   clienteApellido: string | null
+  clienteEmpresa?: string | null
   clienteLocalidad: string | null
   repartidorNombre: string | null
   repartidorId: string | null
@@ -181,7 +183,11 @@ function PagoModal({ entrega, onClose }: { entrega: Entrega; onClose: () => void
 
   const montoNum = parseFloat(monto)
   const isValid = !isNaN(montoNum) && montoNum > 0
-  const clienteLabel = [entrega.clienteNombre, entrega.clienteApellido].filter(Boolean).join(' ') || 'Sin nombre'
+  const clienteLabel = nombreCompleto({
+    nombre: entrega.clienteNombre ?? '',
+    apellido: entrega.clienteApellido,
+    empresa: entrega.clienteEmpresa,
+  }) || 'Sin nombre'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -695,7 +701,7 @@ export default function AdminEntregasPage() {
                           {formatDateTime(e.entregadoAt)}
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">
-                          {[e.clienteNombre, e.clienteApellido].filter(Boolean).join(' ') || '—'}
+                          {nombreCompleto({ nombre: e.clienteNombre ?? '', apellido: e.clienteApellido, empresa: e.clienteEmpresa }) || '—'}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{e.clienteLocalidad ?? '—'}</td>
                         <td className="px-4 py-3 text-muted-foreground">{e.repartidorNombre ?? '—'}</td>

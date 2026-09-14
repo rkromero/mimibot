@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
           cobradorNombre: cobradoresT.name,
           clienteNombre: clientes.nombre,
           clienteApellido: clientes.apellido,
+          clienteEmpresa: clientes.empresa,
           clienteLocalidad: clientes.localidad,
           repartidorNombre: repartidoresT.name,
           repartidorId: pedidos.entregadoPor,

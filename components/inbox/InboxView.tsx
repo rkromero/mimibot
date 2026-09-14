@@ -13,6 +13,7 @@ import type { Session } from 'next-auth'
 import { esRolVentas } from '@/lib/authz/roles'
 import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
 import { escucharAbrirConversacion, setConversacionActiva } from '@/lib/inbox/conversacion-activa'
+import { nombreLead } from '@/lib/clientes/nombre'
 
 type Filter = 'mine' | 'unassigned' | 'all'
 
@@ -22,6 +23,8 @@ type InboxItem = {
   leadId: string | null
   clienteId: string | null
   nombre: string
+  /** Empresa / marca del lead o del cliente */
+  empresa: string | null
   contactPhone: string | null
   unreadCount: number
   lastMessageAt: string | null
@@ -142,12 +145,12 @@ export default function InboxView({ user }: Props) {
 
   // Nombre para el encabezado y las respuestas rápidas cuando la conversación
   // no está en el listado. Misma key que LeadPanel: una sola consulta.
-  const { data: clienteInicial } = useQuery<{ nombre: string; apellido: string | null }>({
+  const { data: clienteInicial } = useQuery<{ nombre: string; apellido: string | null; empresa: string | null }>({
     queryKey: ['cliente-detail', panelClienteId],
     queryFn: async () => {
       const res = await fetch(`/api/clientes/${panelClienteId}`)
       if (!res.ok) throw new Error('Error al cargar cliente')
-      const json = await res.json() as { data: { nombre: string; apellido: string | null } }
+      const json = await res.json() as { data: { nombre: string; apellido: string | null; empresa: string | null } }
       return json.data
     },
     enabled: esConvInicialDeCliente && !!panelClienteId,
@@ -155,6 +158,8 @@ export default function InboxView({ user }: Props) {
   })
   const panelNombre = selectedItem?.nombre
     ?? (clienteInicial ? [clienteInicial.nombre, clienteInicial.apellido].filter(Boolean).join(' ') : undefined)
+  const panelEmpresa = selectedItem?.empresa ?? clienteInicial?.empresa ?? null
+  const panelEncabezado = nombreLead(panelNombre ?? null, panelEmpresa)
 
   const totalUnread = items.reduce((sum, i) => sum + (i.unreadCount ?? 0), 0)
   const formatCount = (n: number) => (n > 99 ? '99+' : String(n))
@@ -179,8 +184,11 @@ export default function InboxView({ user }: Props) {
             </button>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground truncate">
-                {selectedItem?.nombre ?? '...'}
+                {panelEncabezado.principal || '...'}
               </p>
+              {panelEncabezado.secundario && (
+                <p className="text-xs text-muted-foreground truncate">{panelEncabezado.secundario}</p>
+              )}
             </div>
             {selectedItem?.tipo === 'lead' && selectedItem.leadId && (
               <BotToggle
@@ -204,6 +212,7 @@ export default function InboxView({ user }: Props) {
                 leadId={selectedItem?.leadId}
                 clienteId={panelClienteId}
                 nombre={panelNombre}
+                empresa={panelEmpresa}
                 contactPhone={selectedItem?.contactPhone}
                 onClose={handleCloseConversation}
                 user={user}
@@ -306,7 +315,7 @@ export default function InboxView({ user }: Props) {
                 )}
               >
                 <Avatar
-                  name={item.nombre}
+                  name={nombreLead(item.nombre, item.empresa).principal}
                   color={item.assignedUserColor ?? '#6b7280'}
                   size="md"
                 />
@@ -317,7 +326,7 @@ export default function InboxView({ user }: Props) {
                         'text-sm truncate',
                         item.unreadCount > 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground',
                       )}>
-                        {item.nombre}
+                        {nombreLead(item.nombre, item.empresa).principal}
                       </span>
                       <span className={cn(
                         'shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full',
@@ -344,6 +353,11 @@ export default function InboxView({ user }: Props) {
                       )}
                     </div>
                   </div>
+                  {nombreLead(item.nombre, item.empresa).secundario && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {nombreLead(item.nombre, item.empresa).secundario}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {previewMessage(item)}
                   </p>
@@ -363,6 +377,7 @@ export default function InboxView({ user }: Props) {
             leadId={selectedItem?.leadId}
             clienteId={panelClienteId}
             nombre={panelNombre}
+            empresa={panelEmpresa}
             contactPhone={selectedItem?.contactPhone}
             onClose={() => setSelectedConvId(null)}
             user={user}
@@ -383,7 +398,7 @@ export default function InboxView({ user }: Props) {
           if (selectedConvId) emitirInsertarTexto({ conversationId: selectedConvId, text })
           setQrOpen(false)
         }}
-        variables={{ nombre: panelNombre }}
+        variables={{ nombre: panelNombre, empresa: panelEmpresa }}
       />
     </div>
   )

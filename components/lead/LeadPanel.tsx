@@ -29,6 +29,7 @@ import BottomSheet from '@/components/shared/BottomSheet'
 import EtapaLeadSelector from './EtapaLeadSelector'
 import type { LeadWithContact, LeadTagRow, Tag } from '@/types/db'
 import type { VariablesRespuesta } from '@/lib/inbox/respuestas-rapidas'
+import { nombreLead } from '@/lib/clientes/nombre'
 import type { Session } from 'next-auth'
 
 // GET /api/leads/[id] devuelve tags como filas de lead_tags con el tag anidado
@@ -44,6 +45,7 @@ type ClienteDetail = {
   id: string
   nombre: string
   apellido: string | null
+  empresa: string | null
   telefono: string | null
   email: string | null
   direccion: string | null
@@ -74,8 +76,10 @@ type Props = {
   /** Explicit conversation ID — preferred over lead.conversation.id when provided */
   conversationId?: string | null
   tipo?: 'cliente' | 'lead'
-  /** Display name from inbox list */
+  /** Display name from inbox list (nombre de la persona) */
   nombre?: string | null
+  /** Empresa / marca from inbox list (hasta que carguen el lead o el cliente) */
+  empresa?: string | null
   contactPhone?: string | null
   onClose: () => void
   user: Session['user']
@@ -132,6 +136,7 @@ export default function LeadPanel({
   conversationId,
   tipo,
   nombre,
+  empresa: empresaInicial,
   contactPhone,
   onClose,
   user,
@@ -181,10 +186,13 @@ export default function LeadPanel({
   // Tags normalizados a Tag[] sin importar el shape (plano o anidado)
   const tagList: Tag[] = (lead?.tags ?? []).map((t) => ('tag' in t ? t.tag : t))
 
-  // Datos con los que se completan {nombre} y {producto} en las respuestas rápidas
+  // Datos con los que se completan {nombre}, {empresa} y {producto} en las respuestas rápidas
+  const empresaActual = (isClienteMode ? cliente?.empresa : lead?.empresa) ?? empresaInicial ?? null
   const variablesRespuesta: VariablesRespuesta = isClienteMode
-    ? { nombre: nombre ?? [cliente?.nombre, cliente?.apellido].filter(Boolean).join(' ') }
-    : { nombre: lead?.contact?.name ?? nombre, producto: lead?.productInterest }
+    ? { nombre: nombre ?? [cliente?.nombre, cliente?.apellido].filter(Boolean).join(' '), empresa: empresaActual }
+    : { nombre: lead?.contact?.name ?? nombre, empresa: empresaActual, producto: lead?.productInterest }
+  // Cabeceras: empresa como línea principal y la persona debajo (si hay empresa)
+  const encabezado = nombreLead(variablesRespuesta.nombre ?? null, empresaActual)
 
   // Panel de respuestas rápidas al lado del chat (desktop); el botón ⚡ de la
   // cabecera "Conversación" lo abre y cierra.
@@ -335,8 +343,9 @@ export default function LeadPanel({
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-foreground truncate">{variablesRespuesta.nombre || '...'}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <p className="font-semibold text-foreground truncate">{encabezado.principal || '...'}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+              {encabezado.secundario && <span className="truncate">{encabezado.secundario} ·</span>}
               {!isClienteMode && lead?.botEnabled ? (
                 <>
                   <Bot size={11} />
@@ -383,6 +392,7 @@ export default function LeadPanel({
     const displayName = cliente
       ? [cliente.nombre, cliente.apellido].filter(Boolean).join(' ')
       : (nombre ?? 'Cliente')
+    const displayEmpresa = nombreLead(displayName, cliente?.empresa ?? empresaInicial)
 
     const saldo = Number(cliente?.pedidosSummary?.saldoPendiente ?? 0)
     const ultimosPedidos = pedidosData?.data?.slice(0, 5) ?? []
@@ -394,8 +404,13 @@ export default function LeadPanel({
           {/* Header */}
           <div className="flex items-center justify-between px-4 h-12 border-b border-border shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <Avatar name={displayName} color="#6b7280" size="md" />
-              <span className="text-sm font-semibold text-foreground truncate">{displayName}</span>
+              <Avatar name={displayEmpresa.principal} color="#6b7280" size="md" />
+              <span className="flex flex-col min-w-0">
+                <span className="text-sm font-semibold text-foreground truncate">{displayEmpresa.principal}</span>
+                {displayEmpresa.secundario && (
+                  <span className="text-xs text-muted-foreground truncate">{displayEmpresa.secundario}</span>
+                )}
+              </span>
             </div>
             <button
               onClick={onClose}
@@ -565,9 +580,16 @@ export default function LeadPanel({
       <div className="flex flex-col w-72 shrink-0 border-r border-border overflow-y-auto">
         <div className="flex items-center justify-between px-4 h-12 border-b border-border shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <Avatar name={lead.contact.name} color="#6b7280" size="md" />
-            <span className="text-sm font-semibold text-foreground truncate">
-              {lead.contact.name}
+            <Avatar name={nombreLead(lead.contact.name, lead.empresa).principal} color="#6b7280" size="md" />
+            <span className="flex flex-col min-w-0">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {nombreLead(lead.contact.name, lead.empresa).principal}
+              </span>
+              {nombreLead(lead.contact.name, lead.empresa).secundario && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {nombreLead(lead.contact.name, lead.empresa).secundario}
+                </span>
+              )}
             </span>
           </div>
           <button

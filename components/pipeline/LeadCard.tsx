@@ -15,6 +15,7 @@ import { esperaAvisoMuestra } from '@/lib/leads/muestra-aviso'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { LeadWithContact } from '@/types/db'
+import { nombreLead } from '@/lib/clientes/nombre'
 
 type Props = {
   lead: LeadWithContact
@@ -103,7 +104,7 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
         <div className="flex items-start justify-between gap-1">
           <span className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium text-foreground leading-tight truncate">
-              {lead.contact.name}
+              {nombreLead(lead.contact.name, lead.empresa).principal}
             </span>
             {!lead.vistoAt && (
               <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500 text-white animate-pulse">
@@ -118,6 +119,12 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
             </span>
           )}
         </div>
+        {/* Con empresa arriba, la persona va debajo */}
+        {nombreLead(lead.contact.name, lead.empresa).secundario && (
+          <span className="text-xs text-muted-foreground leading-tight truncate -mt-0.5">
+            {nombreLead(lead.contact.name, lead.empresa).secundario}
+          </span>
+        )}
 
         {/* Muestra CDA entregada — fecha visible en la card para seguimiento rápido;
             "Sin avisar" mientras falte mandarle al cliente la guía de envío */}

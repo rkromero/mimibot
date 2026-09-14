@@ -208,6 +208,7 @@ export async function PATCH(
     // Fields all roles can update
     if (parsed.data.nombre !== undefined) updates.nombre = parsed.data.nombre
     if (parsed.data.apellido !== undefined) updates.apellido = parsed.data.apellido
+    if (parsed.data.empresa !== undefined) updates.empresa = parsed.data.empresa?.trim() || null
     if (parsed.data.email !== undefined) updates.email = parsed.data.email
     if (parsed.data.telefono !== undefined) updates.telefono = parsed.data.telefono
     if (parsed.data.direccion !== undefined) updates.direccion = parsed.data.direccion

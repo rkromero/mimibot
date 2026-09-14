@@ -100,9 +100,12 @@ export async function generarPropuestaPdf(propuestaId: string): Promise<GenerarP
     .where(eq(empresaConfig.id, 1))
     .limit(1)
 
-  // La empresa del cliente vive en customFields.empresa del lead
-  const customFields = propuesta.lead.customFields as Record<string, unknown>
-  const empresaLead = typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null
+  // Empresa / marca del lead (columna propia; customFields.empresa es el
+  // dato viejo de las landings, por si algún lead no se migró)
+  const customFields = (propuesta.lead.customFields ?? {}) as Record<string, unknown>
+  const empresaLead =
+    propuesta.lead.empresa?.trim() ||
+    (typeof customFields['empresa'] === 'string' ? customFields['empresa'] : null)
 
   const data = armarDatosPropuestaPdf(
     propuesta,

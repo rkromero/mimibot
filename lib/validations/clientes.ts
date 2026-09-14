@@ -41,6 +41,8 @@ export function esProvinciaCABA(provincia: string | null | undefined): boolean {
 export const createClienteSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').max(200),
   apellido: z.string().min(1, 'El apellido es requerido').max(200),
+  /** Empresa / marca (razón social o nombre de fantasía) */
+  empresa: z.string().max(200).optional().nullable(),
   email: z.string().email('Email inválido').optional().nullable(),
   telefono: z.string().max(30).optional().nullable(),
   direccion: z.string().max(500).optional().nullable(),
@@ -67,6 +69,7 @@ export const createClienteAgentSchema = createClienteSchema.extend({
 export const updateClienteSchema = z.object({
   nombre: z.string().min(1).max(200).optional(),
   apellido: z.string().min(1).max(200).optional(),
+  empresa: z.string().max(200).nullable().optional(),
   email: z.string().email('Email inválido').nullable().optional(),
   telefono: z.string().max(30).nullable().optional(),
   direccion: z.string().max(500).nullable().optional(),

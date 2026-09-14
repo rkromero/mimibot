@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
         .set({
           notes: openLead.notes ? `${openLead.notes}\n\n---\n${resumen}` : resumen,
           productInterest: openLead.productInterest ?? data.producto,
+          empresa: openLead.empresa ?? data.empresa,
           direccion: openLead.direccion ?? data.direccion,
           localidad: openLead.localidad ?? data.localidad,
           updatedAt: new Date(),
@@ -145,6 +146,7 @@ export async function POST(req: NextRequest) {
           contactId,
           stageId: firstStage.id,
           source: 'landing',
+          empresa: data.empresa,
           productInterest: data.producto,
           direccion: data.direccion,
           localidad: data.localidad,

@@ -38,6 +38,7 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
         columns: {
           nombre: true,
           apellido: true,
+          empresa: true,
           direccion: true,
           localidad: true,
           codigoPostal: true,
@@ -79,6 +80,7 @@ export async function generarEtiquetaEnvio(pedidoId: string): Promise<Buffer> {
     pedidoId: pedido.id,
     clienteNombre: pedido.cliente.nombre,
     clienteApellido: pedido.cliente.apellido,
+    clienteEmpresa: pedido.cliente.empresa ?? undefined,
     clienteTelefono: pedido.cliente.telefono ?? undefined,
     entregaLineas,
     empresa: { nombre: config?.nombre ?? '' },

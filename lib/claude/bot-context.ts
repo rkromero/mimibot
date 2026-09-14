@@ -127,6 +127,48 @@ export function separarResumen(respuesta: string): { visible: string; resumen: s
   return { visible, resumen: resumen || null, handoff }
 }
 
+/**
+ * Instrucción fija (va siempre al system prompt, con o sin datos previos):
+ * si no sabemos la empresa / marca, el bot la pregunta una vez en un momento
+ * natural, y en el bloque [RESUMEN] deja una línea "Empresa: ..." para que
+ * el sistema la guarde en el lead (ver extraerEmpresa).
+ */
+export function armarInstruccionEmpresa(empresaConocida: string | null | undefined): string {
+  const lineas = ['## Empresa / marca']
+  if (empresaConocida?.trim()) {
+    lineas.push(`Ya sabemos que es de "${empresaConocida.trim()}": no lo vuelvas a preguntar.`)
+  } else {
+    lineas.push(
+      'Todavía no sabemos el nombre de su empresa, negocio o marca. Preguntalo UNA sola vez, en un momento natural ' +
+        '(por ejemplo, después de saber qué busca): "¿Cómo se llama tu empresa o marca?". Si dice que es particular o ' +
+        'no tiene, no insistas.',
+    )
+  }
+  lineas.push(
+    'En el bloque [RESUMEN] final incluí siempre una línea con el formato exacto "Empresa: <nombre>" ' +
+      '(o "Empresa: -" si no tiene o no lo dijo).',
+  )
+  return lineas.join('\n')
+}
+
+const EMPRESA_VACIA = new Set([
+  '-', '--', '—', 'no', 'n/a', 'na', 'ninguna', 'ninguno', 'no tiene', 'no dijo', 'no lo dijo', 'no indica',
+  'no especificada', 'no especificado', 'sin datos', 'sin empresa', 'particular', 'desconocida', 'desconocido',
+  'no aplica', 'null', 'ndc', 'n.d.', 'nd',
+])
+
+/** Lee "Empresa: X" (o "Empresa / marca: X") del bloque [RESUMEN]; null si falta o dice que no tiene. */
+export function extraerEmpresa(resumen: string | null | undefined): string | null {
+  if (!resumen) return null
+  const m = /^\s*[-*•]?\s*empresa(?:\s*(?:\/|o)\s*marca)?\s*:\s*(.+?)\s*$/im.exec(resumen)
+  if (!m) return null
+  const valor = m[1]!.replace(/^["'“”]+|["'“”.]+$/g, '').replace(/\s+/g, ' ').trim()
+  if (!valor || valor.length > 200) return null
+  if (EMPRESA_VACIA.has(valor.toLowerCase())) return null
+  if (/^(no |sin |ningun)/i.test(valor)) return null
+  return valor
+}
+
 /** Lee "Score: X/14, grado A/B/C" del bloque [RESUMEN] (tolerante al formato). */
 export function extraerScore(resumen: string | null | undefined): { score: number | null; grado: 'A' | 'B' | 'C' | null } {
   if (!resumen) return { score: null, grado: null }

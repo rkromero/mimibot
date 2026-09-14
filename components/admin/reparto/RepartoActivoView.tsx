@@ -6,6 +6,7 @@ import { Loader2, Truck, Clock, RotateCcw, User } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { useToast } from '@/components/shared/ToastProvider'
+import { nombreCompleto } from '@/lib/clientes/nombre'
 
 type EstadoPago = 'impago' | 'parcial' | 'pagado'
 
@@ -19,6 +20,7 @@ type Pedido = {
   aceptadoAt: string | null
   clienteNombre: string | null
   clienteApellido: string | null
+  clienteEmpresa?: string | null
   repartidorId: string | null
   repartidorNombre: string | null
 }
@@ -92,7 +94,11 @@ function PedidoRow({
   onCancelConfirm: () => void
   onConfirm: () => void
 }) {
-  const cliente = [pedido.clienteNombre, pedido.clienteApellido].filter(Boolean).join(' ') || 'Sin nombre'
+  const cliente = nombreCompleto({
+    nombre: pedido.clienteNombre ?? '',
+    apellido: pedido.clienteApellido,
+    empresa: pedido.clienteEmpresa,
+  }) || 'Sin nombre'
 
   return (
     <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

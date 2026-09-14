@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
         or(
           ilike(clientes.nombre, `%${search}%`),
           ilike(clientes.apellido, `%${search}%`),
+          ilike(clientes.empresa, `%${search}%`),
           ilike(clientes.email, `%${search}%`),
           ilike(clientes.cuit, `%${search}%`),
           ilike(clientes.direccion, `%${search}%`),
@@ -242,6 +243,7 @@ export async function POST(req: NextRequest) {
       .values({
         nombre: input.nombre,
         apellido: input.apellido,
+        empresa: input.empresa?.trim() || null,
         email: input.email ?? null,
         telefono: input.telefono ?? null,
         direccion: input.direccion ?? null,

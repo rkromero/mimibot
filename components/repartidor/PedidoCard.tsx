@@ -7,6 +7,7 @@ import { Phone, MessageCircle, Navigation, CheckCircle, Package } from 'lucide-r
 import EntregarSheet from './EntregarSheet'
 import { construirMapsUrl } from '@/lib/repartidor/route-ui'
 import { formatFechaInstanteAR } from '@/lib/dates'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
 type Item = {
   id: string
@@ -18,6 +19,7 @@ type Cliente = {
   id: string
   nombre: string
   apellido: string
+  empresa?: string | null
   direccion: string | null
   localidad: string | null
   provincia: string | null
@@ -101,8 +103,11 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-lg leading-tight text-foreground truncate">
-              {cliente.nombre} {cliente.apellido}
+              {nombrePrincipal(cliente)}
             </p>
+            {nombreSecundario(cliente) && (
+              <p className="text-xs text-muted-foreground truncate">{nombreSecundario(cliente)}</p>
+            )}
             <p className="text-sm text-muted-foreground mt-0.5 leading-snug line-clamp-2">
               {fullAddress || <span className="italic">Sin dirección</span>}
             </p>
@@ -128,7 +133,7 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
             <a
               href={`tel:${cliente.telefono}`}
               className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-secondary hover:bg-secondary/80 active:bg-secondary/60 rounded-xl transition-colors text-secondary-foreground"
-              aria-label={`Llamar a ${cliente.nombre}`}
+              aria-label={`Llamar a ${nombreCompleto(cliente)}`}
             >
               <Phone size={18} strokeWidth={2} />
               <span className="text-[11px] font-medium">Llamar</span>
@@ -147,7 +152,7 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
               onClick={() => void handleOpenInbox()}
               disabled={isOpeningInbox}
               className="flex flex-col items-center justify-center gap-1 min-h-[52px] bg-green-100 hover:bg-green-200 active:bg-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 rounded-xl transition-colors text-green-700 dark:text-green-400 disabled:opacity-60"
-              aria-label={`Escribir por WhatsApp a ${cliente.nombre}`}
+              aria-label={`Escribir por WhatsApp a ${nombreCompleto(cliente)}`}
             >
               <MessageCircle size={18} strokeWidth={2} />
               <span className="text-[11px] font-medium">WhatsApp</span>
@@ -185,7 +190,7 @@ export default function PedidoCard({ id, fecha, total, saldoPendiente, metodoEnt
 
       <EntregarSheet
         pedidoId={id}
-        clienteNombre={`${cliente.nombre} ${cliente.apellido}`}
+        clienteNombre={nombreCompleto(cliente)}
         saldoPendiente={saldoPendiente}
         metodoEntrega={metodoEntrega}
         open={sheetOpen}

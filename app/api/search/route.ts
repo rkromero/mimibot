@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
           id: clientes.id,
           nombre: clientes.nombre,
           apellido: clientes.apellido,
+          empresa: clientes.empresa,
           telefono: clientes.telefono,
           email: clientes.email,
         })
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
             or(
               ilike(clientes.nombre, pattern),
               ilike(clientes.apellido, pattern),
+              ilike(clientes.empresa, pattern),
               ilike(clientes.telefono, pattern),
               ilike(clientes.email, pattern),
               ilike(clientes.cuit, pattern),

@@ -5,6 +5,8 @@ import { z } from 'zod'
 
 export const createLeadSchema = z.object({
   contactName: z.string().min(1).max(200),
+  /** Empresa / marca del contacto */
+  empresa: z.string().max(200).optional().nullable(),
   contactPhone: z.string().max(20).optional().nullable(),
   contactEmail: z.string().email().optional().nullable(),
   stageId: z.string().uuid(),
@@ -22,6 +24,7 @@ export const createLeadSchema = z.object({
 
 export const updateLeadSchema = z.object({
   stageId: z.string().uuid().optional(),
+  empresa: z.string().max(200).nullable().optional(),
   assignedTo: z.string().uuid().nullable().optional(),
   budget: z.string().nullable().optional(),
   productInterest: z.string().max(500).nullable().optional(),

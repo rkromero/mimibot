@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MapPin, Navigation } from 'lucide-react'
 import Link from 'next/link'
+import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
 type Cliente = {
   id: string
   nombre: string
   apellido: string
+  empresa?: string | null
   telefono?: string | null
 }
 
@@ -128,8 +130,11 @@ export default function ClientesMap({ clientes }: Props) {
                 className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 active:bg-accent/60 transition-colors"
               >
                 <MapPin size={14} className="text-muted-foreground shrink-0" />
-                <span className="font-medium text-sm flex-1">
-                  {c.nombre} {c.apellido}
+                <span className="flex-1 min-w-0 flex flex-col">
+                  <span className="font-medium text-sm truncate">{nombrePrincipal(c)}</span>
+                  {nombreSecundario(c) && (
+                    <span className="text-xs text-muted-foreground truncate">{nombreSecundario(c)}</span>
+                  )}
                 </span>
                 {c.telefono && (
                   <span className="text-xs text-muted-foreground">{c.telefono}</span>

@@ -30,6 +30,13 @@ describe('nombreArchivoDocumento', () => {
       .toBe('Maria Jose Nunez La Estrella - Proforma 000007')
   })
 
+  it('con empresa / marca, el archivo se llama por la empresa', () => {
+    expect(tituloDocumento('remito', { nombre: 'Juan', apellido: 'Perez', empresa: 'Panadería La Espiga' }, 9))
+      .toBe('Panaderia La Espiga - Remito 000009')
+    expect(nombreArchivoDocumento('proforma', { nombre: 'Juan', apellido: 'Perez', empresa: '   ' }, 9))
+      .toBe('Juan Perez - Proforma 000009.pdf')
+  })
+
   it('sin apellido o con nombre vacío no rompe', () => {
     expect(tituloDocumento('proforma', { nombre: 'Kiosco Sol', apellido: null }, 7))
       .toBe('Kiosco Sol - Proforma 000007')

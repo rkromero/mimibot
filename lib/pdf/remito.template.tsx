@@ -8,6 +8,8 @@ export type PedidoData = {
   fecha: Date
   clienteNombre: string
   clienteApellido: string
+  /** Empresa / marca del cliente: va como razón social, con la persona debajo */
+  clienteEmpresa?: string
   clienteDireccion?: string
   clienteBarrio?: string
   clienteLocalidad?: string
@@ -163,6 +165,12 @@ export const S = StyleSheet.create({
   clientValue: {
     fontSize: 10,
     color: '#111111',
+  },
+  // Persona de contacto debajo de la empresa / marca
+  clientPersona: {
+    fontSize: 8,
+    color: '#555555',
+    marginTop: 1,
   },
   // Section title above table
   sectionTitle: {
@@ -326,7 +334,14 @@ export function RemitoDocument({ data, numero, titulo }: Props) {
           <View style={S.clientRow}>
             <View style={S.clientCol}>
               <Text style={S.clientLabel}>Razón Social</Text>
-              <Text style={S.clientValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+              {data.clienteEmpresa ? (
+                <>
+                  <Text style={S.clientValue}>{data.clienteEmpresa}</Text>
+                  <Text style={S.clientPersona}>{data.clienteNombre} {data.clienteApellido}</Text>
+                </>
+              ) : (
+                <Text style={S.clientValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+              )}
             </View>
             <View style={S.clientCol}>
               <Text style={S.clientLabel}>CUIT / DNI</Text>

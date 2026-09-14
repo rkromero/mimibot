@@ -16,7 +16,7 @@ type ClienteUpdates = Partial<typeof clientes.$inferInsert>
 /** Dirección y documento que el lead puede aportar a la ficha del cliente. */
 type DatosLeadParaCliente = Pick<
   typeof leads.$inferSelect,
-  'direccion' | 'localidad' | 'provincia' | 'codigoPostal' | 'cuit'
+  'empresa' | 'direccion' | 'localidad' | 'provincia' | 'codigoPostal' | 'cuit'
 >
 
 export interface ConversionResult {
@@ -47,6 +47,7 @@ function camposFaltantesDesdeLead(
   cuitDisponible: boolean,
 ): ClienteUpdates {
   const updates: ClienteUpdates = {}
+  if (!cliente.empresa && lead.empresa) updates.empresa = lead.empresa
   if (!cliente.direccion && lead.direccion) updates.direccion = lead.direccion
   if (!cliente.localidad && lead.localidad) updates.localidad = lead.localidad
   if (!cliente.provincia && lead.provincia) updates.provincia = lead.provincia
@@ -157,6 +158,7 @@ export async function obtenerOCrearClienteDesdeLead(
     .values({
       nombre,
       apellido,
+      empresa: lead.empresa ?? undefined,
       email: contact.email ?? undefined,
       telefono: contact.phone ?? undefined,
       direccion: lead.direccion ?? undefined,

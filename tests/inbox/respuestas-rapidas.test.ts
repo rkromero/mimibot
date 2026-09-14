@@ -35,6 +35,12 @@ describe('reemplazarVariables', () => {
     expect(reemplazarVariables('Hola {nombre}!', { nombre: '  Juan Carlos Pérez ' })).toBe('Hola Juan!')
   })
 
+  it('{empresa} se reemplaza por la empresa / marca del contacto', () => {
+    expect(reemplazarVariables('Hola {nombre}, ¿cómo va {empresa}?', { nombre: 'Ana', empresa: ' La Espiga ' }))
+      .toBe('Hola Ana, ¿cómo va La Espiga?')
+    expect(reemplazarVariables('{empresa}', { empresa: null })).toBe('{empresa}')
+  })
+
   it('deja el marcador visible si falta el dato (para que quien envía lo note)', () => {
     expect(reemplazarVariables('Hola {nombre}', {})).toBe('Hola {nombre}')
     expect(reemplazarVariables('Hola {nombre}', { nombre: '   ' })).toBe('Hola {nombre}')

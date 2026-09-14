@@ -85,7 +85,7 @@ export async function GET(
 
     if (!pedido) throw new NotFoundError('Pedido')
 
-    const cliente = pedido.cliente as { nombre: string; apellido: string; telefono: string | null; cuit: string | null } | null
+    const cliente = pedido.cliente as { nombre: string; apellido: string; empresa: string | null; telefono: string | null; cuit: string | null } | null
     const vendedor = pedido.vendedor as { id: string; name: string | null; avatarColor: string } | null
 
     return NextResponse.json({
@@ -93,6 +93,7 @@ export async function GET(
         ...pedido,
         clienteNombre: cliente?.nombre ?? null,
         clienteApellido: cliente?.apellido ?? null,
+        clienteEmpresa: cliente?.empresa ?? null,
         clienteTelefono: cliente?.telefono ?? null,
         clienteCuit: cliente?.cuit ?? null,
         vendedorNombre: vendedor?.name ?? null,

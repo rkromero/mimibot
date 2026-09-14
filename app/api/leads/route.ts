@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       const rawCursor = sp.get('cursor') ?? null
       const conditions = [...baseConditions, eq(leads.stageId, stageId)]
 
-      if (search) conditions.push(ilike(contacts.name, `%${search}%`))
+      if (search) conditions.push(or(ilike(contacts.name, `%${search}%`), ilike(leads.empresa, `%${search}%`))!)
       if (tagId) {
         conditions.push(
           sql`EXISTS (SELECT 1 FROM ${leadTags} WHERE ${leadTags.leadId} = ${leads.id} AND ${leadTags.tagId} = ${tagId})`,
@@ -262,7 +262,7 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(leads.updatedAt))
 
     if (search) {
-      conditions.push(ilike(contacts.name, `%${search}%`))
+      conditions.push(or(ilike(contacts.name, `%${search}%`), ilike(leads.empresa, `%${search}%`))!)
     }
 
     const rows = await query
@@ -374,6 +374,7 @@ export async function POST(req: NextRequest) {
         stageId: input.stageId,
         assignedTo,
         source: input.source,
+        empresa: input.empresa?.trim() || null,
         budget: input.budget ?? null,
         productInterest: input.productInterest ?? null,
         notes: input.notes ?? null,

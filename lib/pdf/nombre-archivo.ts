@@ -21,9 +21,17 @@ export function padNumeroDocumento(numero: number): string {
   return String(numero).padStart(6, '0')
 }
 
-/** Nombre completo del cliente limpio para usar en un nombre de archivo (ASCII, sin caracteres inválidos). */
-function nombreClienteParaArchivo(cliente: { nombre: string; apellido?: string | null }): string {
-  return [cliente.nombre, cliente.apellido]
+type ClienteParaArchivo = { nombre: string; apellido?: string | null; empresa?: string | null }
+
+/**
+ * Nombre del cliente limpio para usar en un nombre de archivo (ASCII, sin
+ * caracteres inválidos). Si tiene empresa / marca, es lo que identifica el
+ * archivo; si no, nombre y apellido.
+ */
+function nombreClienteParaArchivo(cliente: ClienteParaArchivo): string {
+  const empresa = cliente.empresa?.trim()
+  const partes = empresa ? [empresa] : [cliente.nombre, cliente.apellido]
+  return partes
     .filter((p): p is string => !!p && p.trim().length > 0)
     .join(' ')
     .normalize('NFD')
@@ -33,10 +41,10 @@ function nombreClienteParaArchivo(cliente: { nombre: string; apellido?: string |
     .trim()
 }
 
-/** "Juan Perez - Proforma 000141" (también va como título del PDF). */
+/** "Juan Perez - Proforma 000141" o "La Espiga - Proforma 000141" (también va como título del PDF). */
 export function tituloDocumento(
   tipo: TipoDocumentoPedido,
-  cliente: { nombre: string; apellido?: string | null },
+  cliente: ClienteParaArchivo,
   numero: number,
 ): string {
   const nombre = nombreClienteParaArchivo(cliente) || 'Cliente'
@@ -45,7 +53,7 @@ export function tituloDocumento(
 
 export function nombreArchivoDocumento(
   tipo: TipoDocumentoPedido,
-  cliente: { nombre: string; apellido?: string | null },
+  cliente: ClienteParaArchivo,
   numero: number,
 ): string {
   return `${tituloDocumento(tipo, cliente, numero)}.pdf`

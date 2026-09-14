@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, Minus, Trash2, CheckCircle, Package, Search, X, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -39,6 +40,7 @@ type ClienteOption = {
   id: string
   nombre: string
   apellido: string
+  empresa?: string | null
   saldo?: number
   estadoActividad?: string | null
 }
@@ -123,6 +125,7 @@ export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }
         data: {
           nombre: string
           apellido: string
+          empresa?: string | null
           telefono?: string | null
           saldo?: number
           productosHabituales?: ProductoHabitual[]
@@ -202,7 +205,7 @@ export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }
   const descuentoMonto = subtotal * (descuento / 100)
   const envioMonto = Math.max(0, parseFloat(costoEnvio) || 0)
   const total = subtotal - descuentoMonto + envioMonto
-  const clienteNombre = clienteData ? `${clienteData.nombre} ${clienteData.apellido}` : ''
+  const clienteNombre = clienteData ? nombreCompleto(clienteData) : ''
 
   function changeQty(idx: number, delta: number) {
     setItems(prev =>
@@ -428,8 +431,11 @@ export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }
                         }}
                         className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-accent active:bg-accent transition-colors min-h-[56px] text-left"
                       >
-                        <span className="text-base font-medium text-foreground">
-                          {c.nombre} {c.apellido}
+                        <span className="flex flex-col min-w-0">
+                          <span className="text-base font-medium text-foreground truncate">{nombrePrincipal(c)}</span>
+                          {nombreSecundario(c) && (
+                            <span className="text-sm text-muted-foreground truncate">{nombreSecundario(c)}</span>
+                          )}
                         </span>
                       </button>
                     ))}

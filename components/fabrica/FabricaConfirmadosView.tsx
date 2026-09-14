@@ -8,6 +8,7 @@ import { useGenerarDocumento, type DocTipo } from '@/lib/pedidos/useGenerarDocum
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
+import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { Truck, Package, RefreshCw, FileText, Download, Tag, CheckCircle2, Send, X } from 'lucide-react'
 import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
 
@@ -33,6 +34,7 @@ type PedidoFabrica = {
     id: string
     nombre: string
     apellido: string
+    empresa?: string | null
     direccion: string | null
     localidad: string | null
     provincia: string | null
@@ -435,8 +437,11 @@ export default function FabricaConfirmadosView() {
                       </span>
                     </td>
                     <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
-                      {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                      {pedido.cliente ? nombrePrincipal(pedido.cliente) : ''}
                       <MuestraBadge tipo={pedido.tipo} className="ml-2" />
+                      {pedido.cliente && nombreSecundario(pedido.cliente) && (
+                        <span className="block text-xs font-normal text-muted-foreground">{nombreSecundario(pedido.cliente)}</span>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
                       {formatFechaInstanteAR(pedido.fecha)}
@@ -505,8 +510,11 @@ export default function FabricaConfirmadosView() {
                       <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-base font-semibold text-foreground">
-                          {pedido.cliente?.nombre} {pedido.cliente?.apellido}
+                          {pedido.cliente ? nombrePrincipal(pedido.cliente) : ''}
                         </span>
+                        {pedido.cliente && nombreSecundario(pedido.cliente) && (
+                          <span className="text-xs text-muted-foreground">{nombreSecundario(pedido.cliente)}</span>
+                        )}
                         <MuestraBadge tipo={pedido.tipo} />
                         <span className="text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                           #{pedido.id.slice(-8).toUpperCase()}

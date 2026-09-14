@@ -117,6 +117,10 @@ export const leads = pgTable('leads', {
   budget: decimal('budget', { precision: 12, scale: 2 }),
   productInterest: text('product_interest'),
   notes: text('notes'),
+  // Empresa / marca del lead (razón social o nombre de fantasía): la mandan
+  // las landings, la pregunta el bot si falta y se copia al cliente al
+  // convertir. Antes vivía en customFields.empresa (migración 0078).
+  empresa: text('empresa'),
   // Dirección y documento del lead (para envío de muestras); se copian a la
   // ficha del cliente al enviar la muestra o al convertir (ver
   // lib/clientes/conversion.ts). cuit = CUIT o DNI, mismo campo que clientes.cuit.
@@ -426,6 +430,8 @@ export const clientes = pgTable('clientes', {
   id: uuid('id').defaultRandom().primaryKey(),
   nombre: text('nombre').notNull(),
   apellido: text('apellido').notNull(),
+  /** Empresa / marca (razón social o nombre de fantasía); ver lib/clientes/nombre.ts */
+  empresa: text('empresa'),
   email: text('email'),
   telefono: text('telefono'),
   direccion: text('direccion'),

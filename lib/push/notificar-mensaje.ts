@@ -6,6 +6,7 @@ import { db } from '@/db'
 import { users, leads, contacts, clientes } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { publishCrmEvent } from '@/lib/realtime/broker'
+import { nombreCompleto, nombreLead } from '@/lib/clientes/nombre'
 import { armarPayloadPush, destinatariosAviso, previewMensaje } from './aviso'
 import { enviarPushAUsuarios } from './web-push'
 
@@ -18,22 +19,23 @@ type Params = {
   body: string | null
 }
 
+/** "Empresa · Persona" o solo la persona, según tenga empresa / marca. */
 async function nombreContacto(p: Params): Promise<string> {
   if (p.leadId) {
     const [row] = await db
-      .select({ name: contacts.name })
+      .select({ name: contacts.name, empresa: leads.empresa })
       .from(leads)
       .innerJoin(contacts, eq(leads.contactId, contacts.id))
       .where(eq(leads.id, p.leadId))
       .limit(1)
-    if (row?.name) return row.name
+    if (row?.name) return nombreLead(row.name, row.empresa).completo
   }
   if (p.clienteId) {
     const row = await db.query.clientes.findFirst({
       where: eq(clientes.id, p.clienteId),
-      columns: { nombre: true, apellido: true },
+      columns: { nombre: true, apellido: true, empresa: true },
     })
-    if (row) return [row.nombre, row.apellido].filter(Boolean).join(' ')
+    if (row) return nombreCompleto(row)
   }
   return 'Mensaje nuevo'
 }

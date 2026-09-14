@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, X, Users, Package, MessageSquare } from 'lucide-react'
+import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 
-type Cliente = { id: string; nombre: string; apellido: string; telefono: string | null; email: string | null }
+type Cliente = { id: string; nombre: string; apellido: string; empresa: string | null; telefono: string | null; email: string | null }
 type Producto = { id: string; nombre: string; sku: string | null; precio: string; categoria: string | null }
 type Contacto = { id: string; name: string; phone: string | null }
 
@@ -67,7 +68,7 @@ export default function GlobalSearch({ open, onClose }: Props) {
 
   // Flat list for keyboard nav
   const flatItems = [
-    ...results.clientes.map((c) => ({ type: 'cliente' as const, id: c.id, label: `${c.nombre} ${c.apellido}`, sub: c.telefono ?? c.email ?? '' })),
+    ...results.clientes.map((c) => ({ type: 'cliente' as const, id: c.id, label: nombrePrincipal(c), sub: nombreSecundario(c) ?? c.telefono ?? c.email ?? '' })),
     ...results.productos.map((p) => ({ type: 'producto' as const, id: p.id, label: p.nombre, sub: p.sku ?? '' })),
     ...results.contactos.map((c) => ({ type: 'contacto' as const, id: c.id, label: c.name, sub: c.phone ?? '' })),
   ]
@@ -164,8 +165,8 @@ export default function GlobalSearch({ open, onClose }: Props) {
                 <Section icon={<Users size={12} />} label="Clientes">
                   {sectionItems(results.clientes, (c, idx) => (
                     <ResultRow
-                      label={`${c.nombre} ${c.apellido}`}
-                      sub={c.telefono ?? c.email ?? ''}
+                      label={nombrePrincipal(c)}
+                      sub={nombreSecundario(c) ?? c.telefono ?? c.email ?? ''}
                       selected={idx === selectedIdx}
                       onClick={() => navigate({ type: 'cliente', id: c.id, label: '', sub: '' })}
                     />

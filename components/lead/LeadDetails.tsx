@@ -11,6 +11,7 @@ type Props = { lead: LeadWithContact }
 // Dirección completa y CUIT/DNI: se copian a la ficha del cliente al enviar la
 // muestra o al convertir el lead (ver lib/clientes/conversion.ts).
 type EditableField =
+  | 'empresa'
   | 'budget'
   | 'productInterest'
   | 'notes'
@@ -24,6 +25,7 @@ export default function LeadDetails({ lead }: Props) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<EditableField | null>(null)
   const [values, setValues] = useState({
+    empresa: lead.empresa ?? '',
     budget: lead.budget ?? '',
     productInterest: lead.productInterest ?? '',
     notes: lead.notes ?? '',
@@ -51,6 +53,15 @@ export default function LeadDetails({ lead }: Props) {
   return (
     <div className="py-2">
       <Section label="Contacto">
+        <InlineEdit
+          label="Empresa / marca"
+          value={values.empresa}
+          isEditing={editing === 'empresa'}
+          onEdit={() => setEditing('empresa')}
+          onChange={(v) => setValues((p) => ({ ...p, empresa: v }))}
+          onSave={() => save('empresa')}
+          onCancel={() => setEditing(null)}
+        />
         <Row label="Teléfono" value={lead.contact.phone ?? '—'} />
         <Row label="Email" value={lead.contact.email ?? '—'} />
         <InlineEdit

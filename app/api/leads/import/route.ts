@@ -15,6 +15,7 @@ const rowSchema = z.object({
   phone: z.string().max(20).optional().nullable(),
   email: z.string().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  empresa: z.string().max(200).optional().nullable(),
 })
 
 const bodySchema = z.object({
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
             stageId,
             assignedTo: assignedTo ?? null,
             source: 'manual',
+            empresa: row.empresa?.trim() || null,
             notes: row.notes ?? null,
             isOpen: !stage.isTerminal,
           })

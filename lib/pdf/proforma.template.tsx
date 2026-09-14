@@ -136,7 +136,14 @@ export function ProformaDocument({ data, numero, titulo }: Props) {
           <View style={S.clientRow}>
             <View style={S.clientCol}>
               <Text style={S.clientLabel}>Razón Social</Text>
-              <Text style={S.clientValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+              {data.clienteEmpresa ? (
+                <>
+                  <Text style={S.clientValue}>{data.clienteEmpresa}</Text>
+                  <Text style={S.clientPersona}>{data.clienteNombre} {data.clienteApellido}</Text>
+                </>
+              ) : (
+                <Text style={S.clientValue}>{data.clienteNombre} {data.clienteApellido}</Text>
+              )}
             </View>
             <View style={S.clientCol}>
               <Text style={S.clientLabel}>CUIT / DNI</Text>

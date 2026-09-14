@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { formatFechaInstanteAR } from '@/lib/dates'
 import CreatePedidoModal from './CreatePedidoModal'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
@@ -20,6 +21,7 @@ type Pedido = {
   fecha: string
   clienteNombre: string
   clienteApellido: string
+  clienteEmpresa?: string | null
   vendedorNombre: string | null
   estado: 'pendiente' | 'pendiente_aprobacion' | 'confirmado' | 'listo_para_repartir' | 'en_reparto' | 'entregado' | 'cancelado'
   total: string
@@ -260,11 +262,16 @@ export default function PedidosListView() {
       key: 'clienteNombre',
       label: 'Cliente',
       sortable: true,
-      render: (row: Pedido) => (
-        <span className="font-medium text-foreground">
-          {row.clienteNombre} {row.clienteApellido}
-        </span>
-      ),
+      render: (row: Pedido) => {
+        const c = { nombre: row.clienteNombre, apellido: row.clienteApellido, empresa: row.clienteEmpresa }
+        const persona = nombreSecundario(c)
+        return (
+          <span className="flex flex-col min-w-0">
+            <span className="font-medium text-foreground truncate">{nombrePrincipal(c)}</span>
+            {persona && <span className="text-xs text-muted-foreground truncate">{persona}</span>}
+          </span>
+        )
+      },
     },
     {
       key: 'vendedorNombre',
@@ -471,8 +478,13 @@ export default function PedidosListView() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-foreground text-base">
-                      {p.clienteNombre} {p.clienteApellido}
+                      {nombrePrincipal({ nombre: p.clienteNombre, apellido: p.clienteApellido, empresa: p.clienteEmpresa })}
                     </p>
+                    {nombreSecundario({ nombre: p.clienteNombre, apellido: p.clienteApellido, empresa: p.clienteEmpresa }) && (
+                      <p className="text-xs text-muted-foreground">
+                        {nombreSecundario({ nombre: p.clienteNombre, apellido: p.clienteApellido, empresa: p.clienteEmpresa })}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground mt-0.5">
                       {formatFechaInstanteAR(p.fecha)}
                     </p>
@@ -508,7 +520,7 @@ export default function PedidosListView() {
       {deletingPedido && (
         <ConfirmDeleteModal
           title="Eliminar pedido"
-          description={`¿Eliminar el pedido de ${deletingPedido.clienteNombre} ${deletingPedido.clienteApellido} del ${formatFechaInstanteAR(deletingPedido.fecha)}? Esta acción no se puede deshacer.`}
+          description={`¿Eliminar el pedido de ${nombreCompleto({ nombre: deletingPedido.clienteNombre, apellido: deletingPedido.clienteApellido, empresa: deletingPedido.clienteEmpresa })} del ${formatFechaInstanteAR(deletingPedido.fecha)}? Esta acción no se puede deshacer.`}
           warning={deleteError ?? undefined}
           onConfirm={handleDeletePedido}
           onClose={() => setDeletingPedido(null)}
