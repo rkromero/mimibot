@@ -11,6 +11,8 @@ import BottomNav from '@/components/shared/BottomNav'
 import GlobalSearch from '@/components/shared/GlobalSearch'
 import RecordatoriosHoyPopup from '@/components/shared/RecordatoriosHoyPopup'
 import MuestrasSinAvisarPopup from '@/components/shared/MuestrasSinAvisarPopup'
+import NotificacionesBell from '@/components/notificaciones/NotificacionesBell'
+import NotificacionesProvider from '@/components/notificaciones/NotificacionesProvider'
 import CreatePedidoModal from '@/components/crm/pedidos/CreatePedidoModal'
 import Avatar from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
@@ -191,8 +193,10 @@ export default function AppShell({ user, children }: Props) {
             <span className="flex-1 flex justify-center">
               <BrandLogo className="h-4 w-auto text-primary dark:text-white" />
             </span>
-            {/* Spacer to keep title centered */}
-            <span className="w-7" aria-hidden />
+            {/* Campanita: mismo ancho que el botón del menú para que el logo quede centrado */}
+            <span className="w-7 flex justify-end">
+              <NotificacionesBell />
+            </span>
           </header>
 
           <main className="flex-1 min-w-0 overflow-y-auto">
@@ -293,6 +297,8 @@ export default function AppShell({ user, children }: Props) {
       <RecordatoriosHoyPopup user={user} />
       {/* "Salió una muestra, avisale al cliente": toast en tiempo real + lista de pendientes */}
       <MuestrasSinAvisarPopup user={user} />
+      {/* Mensajes nuevos del inbox: tarjeta + sonido + título de la pestaña + click en push */}
+      <NotificacionesProvider user={user} />
       {newPedidoOpen && <CreatePedidoModal onClose={() => setNewPedidoOpen(false)} />}
     </>
   )

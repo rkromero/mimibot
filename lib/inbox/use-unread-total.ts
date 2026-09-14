@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCrmEvents } from '@/lib/realtime/use-crm-events'
 
 /**
  * Total de mensajes sin leer del inbox del usuario, para las burbujas del
- * menú (Sidebar y BottomNav). Vive actualizado sin F5:
- * - SSE: al llegar un mensaje nuevo se invalida y refetchea.
+ * menú (Sidebar y BottomNav) y la campanita. Vive actualizado sin F5:
+ * - SSE (stream compartido): al llegar un mensaje nuevo se invalida y refetchea.
  * - ChatFeed invalida al marcar una conversación como leída.
  * - refetchInterval de red de seguridad por si el stream se corta.
  */
@@ -26,15 +27,10 @@ export function useInboxUnreadTotal(enabled: boolean): number {
     refetchInterval: 60_000,
   })
 
-  useEffect(() => {
-    if (!enabled) return
-    const es = new EventSource('/api/realtime/stream')
-    es.onmessage = () => {
-      void queryClient.invalidateQueries({ queryKey: ['inbox-unread'] })
-    }
-    es.onerror = () => {}
-    return () => es.close()
-  }, [enabled, queryClient])
+  const onEvento = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['inbox-unread'] })
+  }, [queryClient])
+  useCrmEvents(enabled, onEvento)
 
   return data ?? 0
 }

@@ -12,6 +12,7 @@ import QuickReplies from '@/components/chat/QuickReplies'
 import type { Session } from 'next-auth'
 import { esRolVentas } from '@/lib/authz/roles'
 import { emitirInsertarTexto } from '@/lib/inbox/composer-events'
+import { escucharAbrirConversacion, setConversacionActiva } from '@/lib/inbox/conversacion-activa'
 
 type Filter = 'mine' | 'unassigned' | 'all'
 
@@ -105,6 +106,27 @@ export default function InboxView({ user }: Props) {
     }
     return () => es.close()
   }, [queryClient])
+
+  // Llegó por una notificación (push, tarjeta o campanita) estando ya en el
+  // inbox: la URL cambia sin remontar el componente, hay que seguirla. El
+  // evento cubre el caso en que la URL no cambia (misma conversación).
+  useEffect(() => {
+    if (initConvId) {
+      setSelectedConvId(initConvId)
+      setMobileView('conversation')
+    }
+  }, [initConvId])
+  useEffect(() => escucharAbrirConversacion((id) => {
+    setSelectedConvId(id)
+    setMobileView('conversation')
+  }), [])
+
+  // Publica qué conversación se está viendo, para que las notificaciones no
+  // avisen lo que ya está en pantalla y se cierren las del celular.
+  useEffect(() => {
+    setConversacionActiva(mobileView === 'conversation' || window.innerWidth >= 768 ? selectedConvId : null)
+    return () => setConversacionActiva(null)
+  }, [selectedConvId, mobileView])
 
   const allLoadedItems = [...mineData, ...unassignedData, ...allData]
   const selectedItem = selectedConvId

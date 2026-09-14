@@ -87,7 +87,12 @@ export async function GET(req: NextRequest) {
     // Total de no leídos para la burbuja del menú. Cuenta TODO lo que el
     // usuario puede ver en su inbox sin importar la pestaña: ventas lo suyo,
     // gerente sus agentes + sin asignar, admin todo (ignora `filter`).
-    if (sp.get('soloNoLeidos') === 'true') {
+    //
+    // `noLeidos=true` devuelve, con el mismo alcance, la lista de
+    // conversaciones con mensajes sin leer (campanita de notificaciones).
+    const soloNoLeidos = sp.get('soloNoLeidos') === 'true'
+    const listaNoLeidos = sp.get('noLeidos') === 'true'
+    if (soloNoLeidos || listaNoLeidos) {
       const alcance: ReturnType<typeof sql>[] = []
       if (isRestrictedRole) {
         alcance.push(sql`${effectiveOwner} = ${session.user.id}::uuid`)
@@ -102,6 +107,41 @@ export async function GET(req: NextRequest) {
           )`)
         }
       }
+      if (listaNoLeidos) {
+        const rows = await db
+          .select({
+            conversationId: conversations.id,
+            leadId: conversations.leadId,
+            clienteId: conversations.clienteId,
+            nombre: sql<string>`CASE
+              WHEN ${leads.id} IS NOT NULL AND ${leads.isOpen} THEN ${contacts.name}
+              WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.nombre} || ' ' || ${clientes.apellido}
+              ELSE ${contacts.name} END`,
+            unreadCount: conversations.unreadCount,
+            lastMessageAt: conversations.lastMessageAt,
+            lastMessageBody: sql<string | null>`(
+              SELECT body FROM messages m
+              WHERE m.conversation_id = ${conversations.id}
+              ORDER BY sent_at DESC LIMIT 1
+            )`,
+            lastMessageType: sql<string | null>`(
+              SELECT content_type FROM messages m
+              WHERE m.conversation_id = ${conversations.id}
+              ORDER BY sent_at DESC LIMIT 1
+            )`,
+            assignedUserColor: users.avatarColor,
+          })
+          .from(conversations)
+          .leftJoin(leads, eq(conversations.leadId, leads.id))
+          .leftJoin(contacts, eq(leads.contactId, contacts.id))
+          .leftJoin(clientes, eq(conversations.clienteId, clientes.id))
+          .leftJoin(users, sql`${users.id} = ${effectiveOwner}`)
+          .where(and(baseCondition, sql`${conversations.unreadCount} > 0`, ...alcance))
+          .orderBy(desc(conversations.lastMessageAt))
+          .limit(limit)
+        return NextResponse.json({ data: rows })
+      }
+
       const [row] = await db
         .select({ total: sql<number>`coalesce(sum(${conversations.unreadCount}), 0)::int` })
         .from(conversations)

@@ -19,6 +19,7 @@ import { persistInboundMedia } from '@/lib/whatsapp/media'
 import { transcripcionHabilitada, transcribirAudio } from '@/lib/whatsapp/transcripcion'
 import { waMediaType } from '@/lib/whatsapp/mime'
 import { publishCrmEvent } from '@/lib/realtime/broker'
+import { avisarMensajeEntrante } from '@/lib/push/notificar-mensaje'
 import { handleAdminMenu } from '@/lib/whatsapp/admin-menu'
 import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
 
@@ -371,12 +372,14 @@ async function handleInboundMessage(params: {
     }
   }
 
-  await publishCrmEvent({
-    type: 'new_message',
+  // Refresca el inbox por SSE y manda el push a los celulares
+  await avisarMensajeEntrante({
     conversationId,
     leadId,
+    clienteId: null,
     assignedTo,
-    direction: 'inbound',
+    contentType,
+    body,
   })
 
   const lead = await db.query.leads.findFirst({
@@ -445,12 +448,13 @@ async function handleInboundFromCliente(params: {
     }).catch((err) => console.error('[webhook] error guardando media (cliente):', err))
   }
 
-  await publishCrmEvent({
-    type: 'new_message',
+  await avisarMensajeEntrante({
     conversationId,
     leadId: null,
+    clienteId: cliente.id,
     assignedTo: cliente.asignadoA,
-    direction: 'inbound',
+    contentType,
+    body,
   })
 }
 

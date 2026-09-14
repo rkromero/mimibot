@@ -232,4 +232,76 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'FLUSH_QUEUE') {
     void flushQueue()
   }
+  // El usuario abrió una conversación: se limpian sus notificaciones pendientes
+  if (event.data?.type === 'CONVERSACION_ABIERTA' && event.data.conversationId) {
+    event.waitUntil(cerrarNotificaciones(`conv-${event.data.conversationId}`))
+  }
+})
+
+// ── Notificaciones push (mensajes nuevos del inbox) ──────────────────────────
+// Payload (ver lib/push/aviso.ts): { title, body, tag, url, conversationId }
+
+async function cerrarNotificaciones(tag) {
+  const abiertas = await self.registration.getNotifications({ tag })
+  abiertas.forEach((n) => n.close())
+}
+
+async function hayVentanaEnfocada() {
+  const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  return ventanas.some((w) => w.focused)
+}
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+  let payload
+  try {
+    payload = event.data.json()
+  } catch {
+    return
+  }
+  if (!payload || !payload.conversationId) return
+
+  event.waitUntil(
+    (async () => {
+      // Con la app en primer plano avisa la tarjeta en pantalla (y el sonido);
+      // la notificación del sistema sería un duplicado.
+      if (await hayVentanaEnfocada()) return
+
+      // Varios mensajes seguidos del mismo contacto se agrupan en una sola
+      // notificación con el contador, en vez de apilarse.
+      const previas = await self.registration.getNotifications({ tag: payload.tag })
+      const cantidad = (previas[0]?.data?.cantidad ?? 0) + 1
+      const body = cantidad > 1 ? `${cantidad} mensajes nuevos · ${payload.body}` : payload.body
+
+      await self.registration.showNotification(payload.title, {
+        body,
+        tag: payload.tag,
+        renotify: true,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        timestamp: Date.now(),
+        data: { url: payload.url, conversationId: payload.conversationId, cantidad },
+      })
+    })(),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const data = event.notification.data ?? {}
+  const url = data.url ?? '/inbox'
+
+  event.waitUntil(
+    (async () => {
+      const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const propia = ventanas.find((w) => new URL(w.url).origin === self.location.origin)
+      if (propia) {
+        // La app ya está abierta: se enfoca y navega adentro (sin recargar)
+        await propia.focus()
+        propia.postMessage({ type: 'ABRIR_CONVERSACION', conversationId: data.conversationId, url })
+        return
+      }
+      await self.clients.openWindow(url)
+    })(),
+  )
 })

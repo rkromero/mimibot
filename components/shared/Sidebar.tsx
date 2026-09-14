@@ -14,6 +14,7 @@ import Avatar from '@/components/shared/Avatar'
 import BrandLogo from '@/components/shared/BrandLogo'
 import type { Session } from 'next-auth'
 import { useInboxUnreadTotal } from '@/lib/inbox/use-unread-total'
+import NotificacionesBell from '@/components/notificaciones/NotificacionesBell'
 
 type User = Session['user']
 type Role = 'admin' | 'gerente' | 'agent' | 'vendedor' | 'fabrica' | 'rtv'
@@ -157,6 +158,7 @@ export default function Sidebar({ user, onSearchOpen }: { user: User; onSearchOp
         <span className="flex-1">
           <BrandLogo className="h-5 w-auto text-primary dark:text-white" />
         </span>
+        {tieneInbox && <NotificacionesBell className="mr-1" />}
         <button
           onClick={onSearchOpen}
           className="p-1 text-muted-foreground hover:text-foreground transition-colors"

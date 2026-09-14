@@ -768,6 +768,22 @@ export const activityLog = pgTable('activity_log', {
   index('activity_log_lead_created_idx').on(t.leadId, t.createdAt),
 ])
 
+// ─── Notificaciones push (Web Push) ──────────────────────────────────────────
+
+/** Un dispositivo/navegador suscripto a las notificaciones push del inbox. */
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('push_subscriptions_user_idx').on(t.userId),
+])
+
 // ─── Configuración global del negocio (singleton) ─────────────────────────────
 
 export const businessConfig = pgTable('business_config', {

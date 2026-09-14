@@ -28,7 +28,20 @@ export function removeSseClient(client: SseClient) {
 }
 
 export type CrmEvent =
-  | { type: 'new_message'; conversationId: string; leadId: string | null; assignedTo: string | null; direction: string }
+  /**
+   * Mensaje nuevo en una conversación. Los entrantes de WhatsApp vienen con
+   * `contactName` y `preview` para la tarjeta/campanita de notificaciones
+   * (ver lib/push/notificar-mensaje.ts); los demás solo refrescan el inbox.
+   */
+  | {
+      type: 'new_message'
+      conversationId: string
+      leadId: string | null
+      assignedTo: string | null
+      direction: string
+      contactName?: string
+      preview?: string
+    }
   | { type: 'lead_updated'; leadId: string; assignedTo: string | null; oldAssigned: string | null; stageId: string; oldStageId: string }
   | { type: 'message_status'; conversationId: string; leadId: string | null; assignedTo: string | null; status: string }
   /** Fábrica marcó entregada una muestra CDA: hay que avisarle al cliente (ver lib/leads/muestra-despachada.ts) */
