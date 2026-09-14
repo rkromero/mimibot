@@ -7,7 +7,7 @@ import { canAccessLead } from '@/lib/authz'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
 import { validateUuidParam } from '@/lib/api/validate-params'
-import { obtenerOCrearClienteDesdeLead, completarClienteDesdeLead } from '@/lib/clientes/conversion'
+import { obtenerOCrearClienteParaLead } from '@/lib/clientes/conversion'
 import { crearPedidoConItems } from '@/lib/pedidos/service'
 import { muestraLeadSchema } from '@/lib/validations/lead'
 import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
@@ -126,14 +126,9 @@ export async function POST(
         : null
 
     const { cliente, wasNew } = await db.transaction(async (tx) => {
-      const porLead = await tx.query.clientes.findFirst({
-        where: and(eq(clientes.leadId, lead.id), isNull(clientes.deletedAt)),
-      })
-      // Cliente ya vinculado: le completamos la dirección y el CUIT/DNI que se
-      // hayan cargado en el lead desde la muestra anterior (sin pisar nada).
-      const base = porLead
-        ? { cliente: await completarClienteDesdeLead(tx, porLead, lead), wasNew: false }
-        : await obtenerOCrearClienteDesdeLead(tx, lead, session.user.id)
+      // Cliente ya vinculado (le completa la dirección y el CUIT/DNI cargados
+      // en el lead desde la muestra anterior, sin pisar nada) o buscar/crear.
+      const base = await obtenerOCrearClienteParaLead(tx, lead, session.user.id)
 
       if (!expresoNuevo) return base
 

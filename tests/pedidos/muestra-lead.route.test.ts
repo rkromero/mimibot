@@ -81,9 +81,14 @@ vi.mock('@/lib/authz', () => ({ canAccessLead: vi.fn().mockResolvedValue(undefin
 vi.mock('@/lib/authz/marcas', () => ({ assertPuedeCargarProductos: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/api/validate-params', () => ({ validateUuidParam: vi.fn().mockReturnValue(null) }))
 vi.mock('@/lib/clientes/conversion', () => ({
-  obtenerOCrearClienteDesdeLead: mockObtenerOCrearCliente,
-  // Cliente ya vinculado: en estos tests no se completa nada, devuelve el mismo
-  completarClienteDesdeLead: vi.fn(async (_tx: unknown, cliente: unknown) => cliente),
+  // Misma regla que la real: cliente ya vinculado por leadId (tx.query.clientes)
+  // → se devuelve tal cual (en estos tests no se completa nada); si no, se
+  // busca/crea con obtenerOCrearClienteDesdeLead.
+  obtenerOCrearClienteParaLead: vi.fn(async (tx: { query: { clientes: { findFirst: () => Promise<unknown> } } }, lead: unknown, userId: string) => {
+    const porLead = await tx.query.clientes.findFirst()
+    if (porLead) return { cliente: porLead, wasNew: false }
+    return mockObtenerOCrearCliente(tx, lead, userId)
+  }),
 }))
 vi.mock('@/lib/pedidos/service', () => ({ crearPedidoConItems: mockCrearPedidoConItems }))
 vi.mock('@/lib/cuenta-corriente/pago.service', () => ({ registrarPagoPedido: mockRegistrarPagoPedido }))

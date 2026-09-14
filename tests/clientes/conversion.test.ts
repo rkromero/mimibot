@@ -42,7 +42,7 @@ vi.mock('@/lib/errors', () => ({
   },
 }))
 
-import { convertirLeadACliente, completarClienteDesdeLead } from '@/lib/clientes/conversion'
+import { convertirLeadACliente, completarClienteDesdeLead, obtenerOCrearClienteParaLead } from '@/lib/clientes/conversion'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -174,7 +174,9 @@ describe('convertirLeadACliente', () => {
   describe('cuando ya existe un cliente con el mismo email', () => {
     it('actualiza el cliente existente con leadId (no crea uno nuevo)', async () => {
       mockTxQueryLeadsFindFirst.mockResolvedValue(fakeLead)
-      mockTxQueryClientesFindFirst.mockResolvedValue(fakeExistingCliente)
+      mockTxQueryClientesFindFirst
+        .mockResolvedValueOnce(undefined) // por leadId: nadie vinculado todavía
+        .mockResolvedValue(fakeExistingCliente)
 
       const returningClienteUpdate = vi.fn().mockResolvedValue([
         { ...fakeExistingCliente, leadId: LEAD_ID },
@@ -197,7 +199,9 @@ describe('convertirLeadACliente', () => {
 
     it('linkea el leadId en el cliente existente', async () => {
       mockTxQueryLeadsFindFirst.mockResolvedValue(fakeLead)
-      mockTxQueryClientesFindFirst.mockResolvedValue(fakeExistingCliente)
+      mockTxQueryClientesFindFirst
+        .mockResolvedValueOnce(undefined) // por leadId
+        .mockResolvedValue(fakeExistingCliente)
 
       const returningClienteUpdate = vi.fn().mockResolvedValue([
         { ...fakeExistingCliente, leadId: LEAD_ID },
@@ -220,7 +224,9 @@ describe('convertirLeadACliente', () => {
 
     it('sigue cerrando el lead aun cuando el cliente ya existía', async () => {
       mockTxQueryLeadsFindFirst.mockResolvedValue(fakeLead)
-      mockTxQueryClientesFindFirst.mockResolvedValue(fakeExistingCliente)
+      mockTxQueryClientesFindFirst
+        .mockResolvedValueOnce(undefined) // por leadId
+        .mockResolvedValue(fakeExistingCliente)
 
       const returningClienteUpdate = vi.fn().mockResolvedValue([
         { ...fakeExistingCliente, leadId: LEAD_ID },
@@ -328,8 +334,8 @@ describe('dirección completa y CUIT/DNI del lead', () => {
     const r = await convertirLeadACliente(LEAD_ID, USER_ID)
 
     expect(r.wasNew).toBe(true)
-    // Busca por email y por CUIT antes de crear
-    expect(mockTxQueryClientesFindFirst).toHaveBeenCalledTimes(2)
+    // Busca por leadId, por email y por CUIT antes de crear
+    expect(mockTxQueryClientesFindFirst).toHaveBeenCalledTimes(3)
     expect(valuesInsert.mock.calls[0]![0]).toMatchObject({
       direccion: 'Av. Siempre Viva 742',
       localidad: 'Springfield',
@@ -341,6 +347,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
 
   it('al cliente existente (por email) le completa solo lo que le falta', async () => {
     mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce(undefined) // por leadId
       .mockResolvedValueOnce({ ...clienteVacio, direccion: 'Ya cargada 123' }) // por email
       .mockResolvedValueOnce(undefined) // por CUIT: nadie lo usa
     const setCliente = armarUpdates()
@@ -362,6 +369,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
 
   it('sin coincidencia por email, vincula el cliente activo que ya tiene ese CUIT', async () => {
     mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce(undefined) // por leadId
       .mockResolvedValueOnce(undefined) // por email
       .mockResolvedValueOnce({ ...clienteVacio, id: 'cliente-cuit', email: null, cuit: CUIT }) // por CUIT
     const setCliente = armarUpdates()
@@ -377,6 +385,7 @@ describe('dirección completa y CUIT/DNI del lead', () => {
 
   it('no copia el CUIT si otro cliente activo ya lo usa', async () => {
     mockTxQueryClientesFindFirst
+      .mockResolvedValueOnce(undefined) // por leadId
       .mockResolvedValueOnce(clienteVacio) // por email: este
       .mockResolvedValueOnce({ ...clienteVacio, id: 'cliente-otro', cuit: CUIT }) // por CUIT: otro
     const setCliente = armarUpdates()
@@ -419,6 +428,59 @@ describe('dirección completa y CUIT/DNI del lead', () => {
       expect(r).toBe(cliente)
       expect(mockTxUpdate).not.toHaveBeenCalled()
       expect(mockTxQueryClientesFindFirst).not.toHaveBeenCalled()
+    })
+  })
+
+  // "Cargar pedido" desde el chat crea el cliente vinculado por leadId; al
+  // ganar el lead después no debe aparecer una segunda ficha aunque el lead
+  // no tenga email ni CUIT (WhatsApp casi nunca los trae).
+  describe('cliente ya vinculado por leadId (pedido cargado desde el chat)', () => {
+    const leadSinDatos = {
+      ...leadCompleto,
+      cuit: null,
+      contact: { name: 'Homero Simpson', email: null, phone: '+5491100000000' },
+    }
+    const clienteVinculado = { ...clienteVacio, id: 'cliente-chat', email: null, leadId: LEAD_ID, direccion: 'Calle 1' }
+
+    it('obtenerOCrearClienteParaLead devuelve el vinculado sin buscar por email/CUIT ni crear', async () => {
+      mockTxQueryClientesFindFirst.mockResolvedValueOnce(clienteVinculado) // por leadId
+      const setCliente = armarUpdates()
+
+      const r = await obtenerOCrearClienteParaLead(makeTx() as never, leadSinDatos as never, USER_ID)
+
+      expect(r.wasNew).toBe(false)
+      expect(r.cliente.id).toBe('cliente-existing') // lo que devuelve el update (completado)
+      expect(mockTxInsert).not.toHaveBeenCalled()
+      expect(mockTxQueryClientesFindFirst).toHaveBeenCalledTimes(1)
+      const set = setCliente.mock.calls[0]![0] as Record<string, unknown>
+      expect(set).toMatchObject({ localidad: 'Springfield', provincia: 'Buenos Aires', codigoPostal: '1900' })
+      expect(set).not.toHaveProperty('leadId')
+    })
+
+    it('al ganar el lead reutiliza esa ficha y no crea otra', async () => {
+      mockTxQueryLeadsFindFirst.mockResolvedValue(leadSinDatos)
+      mockTxQueryClientesFindFirst.mockResolvedValueOnce(clienteVinculado) // por leadId
+      armarUpdates()
+
+      const r = await convertirLeadACliente(LEAD_ID, USER_ID)
+
+      expect(r.wasNew).toBe(false)
+      expect(mockTxInsert).not.toHaveBeenCalled()
+      // 1 update del cliente (completar) + lead cerrado + conversación reasignada
+      expect(mockTxUpdate).toHaveBeenCalledTimes(3)
+    })
+
+    it('sin cliente vinculado ni email ni CUIT, crea uno nuevo (una sola vez)', async () => {
+      mockTxQueryLeadsFindFirst.mockResolvedValue(leadSinDatos)
+      mockTxQueryClientesFindFirst.mockResolvedValue(undefined)
+      const valuesInsert = armarInsert()
+      armarUpdates()
+
+      const r = await convertirLeadACliente(LEAD_ID, USER_ID)
+
+      expect(r.wasNew).toBe(true)
+      expect(valuesInsert).toHaveBeenCalledTimes(1)
+      expect(valuesInsert.mock.calls[0]![0]).toMatchObject({ leadId: LEAD_ID, nombre: 'Homero', apellido: 'Simpson' })
     })
   })
 })

@@ -16,6 +16,8 @@ import LeadDetails from './LeadDetails'
 import ActivityLogPanel from './ActivityLogPanel'
 import ChatFeed from '@/components/chat/ChatFeed'
 import ChatComposer from '@/components/chat/ChatComposer'
+import CargarPedidoFab from '@/components/chat/CargarPedidoFab'
+import { esRolReparto } from '@/lib/authz/roles'
 import TagBadge from '@/components/shared/TagBadge'
 import GradoBadge from '@/components/shared/GradoBadge'
 import { labelMotivoPerdida } from '@/lib/leads/motivos-perdida'
@@ -299,7 +301,9 @@ export default function LeadPanel({
           )}
           {effectiveConvId ? (
             <>
-              <ChatFeed conversationId={effectiveConvId} />
+              <ChatConPedido leadId={isClienteMode ? null : leadId} clienteId={clienteId} user={user}>
+                <ChatFeed conversationId={effectiveConvId} />
+              </ChatConPedido>
               <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
             </>
           ) : (
@@ -492,7 +496,9 @@ export default function LeadPanel({
             </div>
             {effectiveConvId ? (
               <>
-                <ChatFeed conversationId={effectiveConvId} />
+                <ChatConPedido leadId={null} clienteId={clienteId} user={user}>
+                  <ChatFeed conversationId={effectiveConvId} />
+                </ChatConPedido>
                 <ChatComposer conversationId={effectiveConvId} variables={variablesRespuesta} />
               </>
             ) : (
@@ -652,7 +658,9 @@ export default function LeadPanel({
 
           {effectiveConvId ? (
             <>
-              <ChatFeed conversationId={effectiveConvId} />
+              <ChatConPedido leadId={leadId} clienteId={clienteId} user={user}>
+                <ChatFeed conversationId={effectiveConvId} />
+              </ChatConPedido>
               <ChatComposer conversationId={effectiveConvId} leadId={leadId ?? undefined} variables={variablesRespuesta} />
             </>
           ) : (
@@ -697,6 +705,33 @@ export default function LeadPanel({
         )}>
         {leadInner}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Envuelve el feed del chat y le superpone el botón flotante "Cargar pedido"
+ * abajo a la derecha, justo encima del cuadro para escribir. Fábrica y
+ * reparto no cargan pedidos: no lo ven.
+ */
+function ChatConPedido({
+  leadId,
+  clienteId,
+  user,
+  children,
+}: {
+  leadId?: string | null
+  clienteId?: string | null
+  user: Session['user']
+  children: ReactNode
+}) {
+  const puedeCargar = user.role !== 'fabrica' && !esRolReparto(user.role)
+  return (
+    <div className="relative flex flex-col flex-1 min-h-0">
+      {children}
+      {puedeCargar && (
+        <CargarPedidoFab leadId={leadId} clienteId={clienteId} className="absolute bottom-3 right-3 z-10" />
+      )}
     </div>
   )
 }

@@ -24,6 +24,8 @@ import {
 type Props = {
   clienteId?: string
   onClose: () => void
+  /** Se llama una vez por pedido confirmado (p. ej. para marcar ganado el lead del chat) */
+  onPedidoCreado?: (pedidoId: string) => void
 }
 
 type SelectedItem = {
@@ -50,7 +52,7 @@ function formatMoney(value: number) {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
-export default function CreatePedidoModal({ clienteId, onClose }: Props) {
+export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }: Props) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const todayStr = todayStrAR()
@@ -269,6 +271,7 @@ export default function CreatePedidoModal({ clienteId, onClose }: Props) {
       void queryClient.invalidateQueries({ queryKey: ['clientes', selectedClienteId] })
       setSuccessData({ pedidoId: json.data.id, total: json.data.total ?? String(total) })
       setShowSuccess(true)
+      onPedidoCreado?.(json.data.id)
     } catch {
       setError('Error de conexión. Intenta de nuevo.')
     } finally {

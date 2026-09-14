@@ -175,6 +175,28 @@ export async function obtenerOCrearClienteDesdeLead(
   return { cliente: created!, wasNew: true }
 }
 
+/**
+ * Cliente del lead, cualquiera sea el camino: si ya hay uno vinculado por
+ * `leadId` (muestra enviada, pedido cargado desde el chat) lo devuelve y le
+ * completa lo que le falte; si no, busca por email/CUIT o lo crea. Es lo que
+ * hay que llamar antes de cargarle un pedido a un lead y al ganarlo, para
+ * que un lead sin email ni CUIT no termine con dos fichas de cliente.
+ */
+export async function obtenerOCrearClienteParaLead(
+  tx: Tx,
+  lead: LeadConContacto,
+  userId: string,
+): Promise<ConversionResult> {
+  if (!lead.contact) throw new NotFoundError('Contacto del lead')
+  const porLead = await tx.query.clientes.findFirst({
+    where: and(eq(clientes.leadId, lead.id), isNull(clientes.deletedAt)),
+  })
+  if (porLead) {
+    return { cliente: await completarClienteDesdeLead(tx, porLead, lead), wasNew: false }
+  }
+  return obtenerOCrearClienteDesdeLead(tx, lead, userId)
+}
+
 export async function convertirLeadACliente(
   leadId: string,
   userId: string,
@@ -191,8 +213,8 @@ export async function convertirLeadACliente(
 
     if (!lead) throw new NotFoundError('Lead')
 
-    // 2. Find or create the cliente (links leadId / copies dirección y CUIT)
-    const resultado = await obtenerOCrearClienteDesdeLead(tx, lead, userId)
+    // 2. Cliente ya vinculado, o buscar/crear (links leadId / copia dirección y CUIT)
+    const resultado = await obtenerOCrearClienteParaLead(tx, lead, userId)
 
     // 3. Close lead
     await tx
