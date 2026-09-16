@@ -135,6 +135,18 @@ function ComprobanteEntrega({ pedidoId, metodoEntrega, esReparto }: ComprobanteP
     enabled: metodoEntrega === 'expreso' || esReparto,
   })
 
+  const toast = useToast()
+  // Manda la foto/firma como imagen al chat del cliente (misma ventana de 24 hs que la proforma)
+  const enviarComprobante = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/pedidos/${pedidoId}/comprobante/enviar`, { method: 'POST' })
+      const json = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) throw new Error(json.error ?? 'No se pudo enviar el comprobante')
+    },
+    onSuccess: () => toast.success('Comprobante enviado por WhatsApp'),
+    onError: (err: Error) => toast.error(err.message, 8000),
+  })
+
   const tipoLabel = metodoEntrega === 'expreso' ? 'Foto de remito firmado' : 'Firma del cliente'
 
   if (!metodoEntrega && !esReparto) return null
@@ -164,16 +176,27 @@ function ComprobanteEntrega({ pedidoId, metodoEntrega, esReparto }: ComprobanteP
               alt={tipoLabel}
               className="max-w-full max-h-80 rounded-md border border-border object-contain"
             />
-            <a
-              href={data.url}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
-            >
-              <Download size={13} />
-              Descargar
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={data.url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors"
+              >
+                <Download size={13} />
+                Descargar
+              </a>
+              <button
+                type="button"
+                onClick={() => enviarComprobante.mutate()}
+                disabled={enviarComprobante.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <MessageCircle size={13} />
+                {enviarComprobante.isPending ? 'Enviando...' : 'Enviar comprobante'}
+              </button>
+            </div>
           </div>
         )}
       </div>

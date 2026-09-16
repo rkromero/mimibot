@@ -7,36 +7,11 @@
  * se emite el documento. Así una conversación que no se puede usar no gasta
  * un número de proforma.
  */
-import { db } from '@/db'
-import { conversations, messages } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
-import { AppError, ValidationError } from '@/lib/errors'
 import { emitirDocumento } from '@/lib/pdf/pdf.service'
 import { etiquetaDocumento, padNumeroDocumento, type TipoDocumentoPedido } from '@/lib/pdf/nombre-archivo'
-import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
-import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
-import { sendMediaMessage, uploadMediaToMeta } from '@/lib/whatsapp/client'
-import { persistOutboundMedia } from '@/lib/whatsapp/media'
+import { enviarArchivoAlCliente, prepararEnvioAlCliente } from './enviar-archivo-cliente'
 
-export const MENSAJE_VENTANA_CERRADA =
-  'Pasaron más de 24 hs desde el último mensaje del cliente: WhatsApp no deja mandar documentos. ' +
-  'Abrí el chat, mandale una plantilla de apertura y cuando responda enviá la proforma.'
-
-/** La conversación del cliente está fuera de la ventana de 24 hs de WhatsApp. */
-export class VentanaCerradaError extends AppError {
-  constructor() {
-    super(MENSAJE_VENTANA_CERRADA, 422, 'WINDOW_CLOSED')
-    this.name = 'VentanaCerradaError'
-  }
-}
-
-/** WhatsApp (Meta) rechazó el envío; el mensaje queda marcado como fallido en el chat. */
-export class EnvioWhatsappError extends AppError {
-  constructor(detalle: string) {
-    super(`No se pudo enviar por WhatsApp: ${detalle}`, 502, 'WA_SEND_FAILED')
-    this.name = 'EnvioWhatsappError'
-  }
-}
+export { MENSAJE_VENTANA_CERRADA, VentanaCerradaError, EnvioWhatsappError } from './enviar-archivo-cliente'
 
 export type EnviarDocumentoWhatsappParams = {
   pedidoId: string
@@ -64,69 +39,16 @@ export async function enviarDocumentoPorWhatsapp(
   const { pedidoId, clienteId, tipo, userId } = params
 
   // Conversación del cliente (la del lead si vino del chat; se crea si no hay).
-  // Tira ValidationError si el cliente no tiene teléfono válido.
-  const { conversationId } = await ensureConversacionParaCliente(clienteId)
-
-  const conv = await db.query.conversations.findFirst({
-    where: eq(conversations.id, conversationId),
-    columns: { id: true, waContactPhone: true },
-  })
-  if (!conv?.waContactPhone) {
-    throw new ValidationError('La conversación del cliente no tiene teléfono de WhatsApp')
-  }
-
-  if (!(await estaDentroDe24h(conversationId))) {
-    throw new VentanaCerradaError()
-  }
+  const destino = await prepararEnvioAlCliente(clienteId)
 
   const { buffer, numero, nombreArchivo } = await emitirDocumento(pedidoId, tipo, userId)
   const caption = captionDocumento(tipo, numero)
 
-  // Mismo flujo que los adjuntos del inbox (app/api/whatsapp/send): fila de
-  // mensaje + copia en R2 + upload a Meta + envío como documento.
-  const [msg] = await db
-    .insert(messages)
-    .values({
-      conversationId,
-      direction: 'outbound',
-      senderType: 'agent',
-      senderId: userId,
-      contentType: 'document',
-      body: caption,
-      isRead: true,
-      sentAt: new Date(),
-    })
-    .returning()
-  const messageId = msg!.id
-
-  let waMessageId: string
-  try {
-    const [, metaMediaId] = await Promise.all([
-      persistOutboundMedia({
-        buffer,
-        messageId,
-        conversationId,
-        mimeType: 'application/pdf',
-        filename: nombreArchivo,
-      }),
-      uploadMediaToMeta(buffer, 'application/pdf', nombreArchivo),
-    ])
-    waMessageId = await sendMediaMessage(conv.waContactPhone, metaMediaId, 'document', caption)
-  } catch (err) {
-    // Que el chat muestre el mensaje como fallido en vez de "pendiente" para siempre
-    const detalle = (err instanceof Error ? err.message : String(err)).slice(0, 300)
-    console.error('[enviarDocumentoPorWhatsapp] Error enviando documento:', err)
-    await db
-      .update(messages)
-      .set({ waStatus: 'failed', waStatusAt: new Date(), waError: detalle })
-      .where(eq(messages.id, messageId))
-    throw new EnvioWhatsappError(detalle)
-  }
-
-  await db.update(messages).set({ waMessageId }).where(eq(messages.id, messageId))
-  await db.execute(
-    sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversationId}`,
+  const r = await enviarArchivoAlCliente(
+    destino,
+    { buffer, mimeType: 'application/pdf', filename: nombreArchivo, caption },
+    userId,
   )
 
-  return { conversationId, messageId, waMessageId, numero, nombreArchivo }
+  return { ...r, numero, nombreArchivo }
 }
