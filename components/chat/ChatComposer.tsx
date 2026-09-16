@@ -274,7 +274,16 @@ export default function ChatComposer({ conversationId, leadId, variables = {} }:
     fd.append('conversationId', conversationId)
     if (leadId) fd.append('leadId', leadId)
 
-    await fetch('/api/whatsapp/send', { method: 'POST', body: fd })
+    setSendError(null)
+    try {
+      const res = await fetch('/api/whatsapp/send', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        setSendError(data.error ?? 'No se pudo enviar el archivo.')
+      }
+    } catch {
+      setSendError('No se pudo enviar el archivo.')
+    }
     refrescar()
     e.target.value = ''
   }

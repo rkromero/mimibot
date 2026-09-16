@@ -11,6 +11,7 @@ import { resolveTemplateVariables, applyTemplateValues } from '@/lib/whatsapp/va
 import { resolverConversacionParaEnvio, variablesParaChat } from '@/lib/whatsapp/apertura'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType, contentTypeFromExt } from '@/lib/whatsapp/mime'
+import { adaptarImagenParaMeta } from '@/lib/whatsapp/imagen-meta'
 import { toApiError, ValidationError } from '@/lib/errors'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
 import { esPlantillaUltimoSeguimiento, enviarUltimoSeguimiento } from '@/lib/followup/engine'
@@ -206,8 +207,13 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
 
   const { waContactPhone } = await resolverConversacionParaEnvio(user, conversationId)
 
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const mimeType = file.type || contentTypeFromExt(file.name)
+  // Meta solo acepta JPG/PNG como imagen: WebP, GIF, etc. se convierten a JPG
+  // antes de crear el mensaje, así un formato raro no deja una fila fantasma.
+  const { buffer, mimeType, filename } = await adaptarImagenParaMeta({
+    buffer: Buffer.from(await file.arrayBuffer()),
+    mimeType: file.type || contentTypeFromExt(file.name),
+    filename: file.name,
+  })
   const mediaKind = waMediaType(mimeType)
 
   const [msg] = await db
@@ -229,9 +235,9 @@ async function handleMediaSend(req: NextRequest, user: SessionUser) {
       messageId: msg!.id,
       conversationId,
       mimeType,
-      filename: file.name,
+      filename,
     }),
-    uploadMediaToMeta(buffer, mimeType, file.name),
+    uploadMediaToMeta(buffer, mimeType, filename),
   ])
 
   let waMessageId: string | null = null
