@@ -1,7 +1,7 @@
-// Bump de caches por rebranding ALIPRO: purga assets viejos (iconos Mimi).
+// Bump de caches: iconos nuevos con el wordmark ALIPRO (apple-touch-icon + icon-192/512).
 // QUEUE_DB NO se renombra: contiene acciones offline encoladas de usuarios.
-const CACHE_NAME = 'alipro-crm-v1'
-const API_CACHE = 'alipro-api-v1'
+const CACHE_NAME = 'alipro-crm-v2'
+const API_CACHE = 'alipro-api-v2'
 const QUEUE_DB = 'mimi-offline-queue'
 const QUEUE_STORE = 'actions'
 
