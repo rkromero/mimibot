@@ -732,6 +732,9 @@ export const whatsappConfig = pgTable('whatsapp_config', {
   muestraTemplateLang: text('muestra_template_lang'),
   /** Mandar el aviso solo, apenas fábrica marca entregada la muestra con la foto de la guía */
   muestraAuto: boolean('muestra_auto').notNull().default(false),
+  /** Plantilla (con encabezado de imagen) para "Enviar comprobante" de entrega con la ventana de 24 hs cerrada — ver lib/pedidos/enviar-comprobante-whatsapp.ts */
+  comprobanteTemplateName: text('comprobante_template_name'),
+  comprobanteTemplateLang: text('comprobante_template_lang'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

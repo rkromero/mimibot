@@ -4,9 +4,14 @@
  * fila de mensaje + copia en R2 + upload a Meta + envío. Queda en el chat con
  * sus tildes, igual que los adjuntos del inbox.
  *
- * Las verificaciones (teléfono y ventana de 24 hs) van en `prepararEnvioAlCliente`
- * para que el caller pueda hacerlas ANTES de generar el archivo y no gastar,
- * por ejemplo, un número de proforma en un envío que no va a salir.
+ * Dos modos de envío:
+ *  - suelto: mensaje de imagen/documento; solo dentro de la ventana de 24 hs.
+ *  - plantilla: plantilla aprobada con el archivo en el encabezado; sirve con
+ *    la ventana cerrada (se paga como mensaje de plantilla).
+ *
+ * Las verificaciones (teléfono y ventana de 24 hs) están separadas para que
+ * el caller pueda hacerlas ANTES de generar el archivo y no gastar, por
+ * ejemplo, un número de proforma en un envío que no va a salir.
  */
 import { db } from '@/db'
 import { conversations, messages } from '@/db/schema'
@@ -14,7 +19,14 @@ import { eq, sql } from 'drizzle-orm'
 import { AppError, ValidationError } from '@/lib/errors'
 import { ensureConversacionParaCliente } from '@/lib/inbox/ensure-conversacion'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
-import { sendMediaMessage, uploadMediaToMeta } from '@/lib/whatsapp/client'
+import {
+  buildBodyComponents,
+  buildHeaderMediaComponent,
+  sendMediaMessage,
+  sendTemplateMessage,
+  uploadMediaToMeta,
+  type TemplateComponent,
+} from '@/lib/whatsapp/client'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { waMediaType } from '@/lib/whatsapp/mime'
 
@@ -41,14 +53,10 @@ export class EnvioWhatsappError extends AppError {
 export type DestinoCliente = { conversationId: string; waContactPhone: string }
 
 /**
- * Conversación y teléfono del cliente, verificando la ventana de 24 hs.
- * Tira ValidationError si el cliente no tiene teléfono válido y
- * VentanaCerradaError (con el mensaje dado) si no escribió en las últimas 24 hs.
+ * Conversación y teléfono del cliente (la del lead si vino del chat; se crea
+ * si no hay). Tira ValidationError si el cliente no tiene teléfono válido.
  */
-export async function prepararEnvioAlCliente(
-  clienteId: string,
-  mensajeVentanaCerrada?: string,
-): Promise<DestinoCliente> {
+export async function destinoDelCliente(clienteId: string): Promise<DestinoCliente> {
   const { conversationId } = await ensureConversacionParaCliente(clienteId)
 
   const conv = await db.query.conversations.findFirst({
@@ -58,29 +66,50 @@ export async function prepararEnvioAlCliente(
   if (!conv?.waContactPhone) {
     throw new ValidationError('La conversación del cliente no tiene teléfono de WhatsApp')
   }
+  return { conversationId, waContactPhone: conv.waContactPhone }
+}
 
-  if (!(await estaDentroDe24h(conversationId))) {
+/** Destino verificando además la ventana de 24 hs (VentanaCerradaError si está cerrada). */
+export async function prepararEnvioAlCliente(
+  clienteId: string,
+  mensajeVentanaCerrada?: string,
+): Promise<DestinoCliente> {
+  const destino = await destinoDelCliente(clienteId)
+  if (!(await estaDentroDe24h(destino.conversationId))) {
     throw new VentanaCerradaError(mensajeVentanaCerrada)
   }
-
-  return { conversationId, waContactPhone: conv.waContactPhone }
+  return destino
 }
 
 export type ArchivoParaCliente = {
   buffer: Buffer
   mimeType: string
   filename: string
-  /** Texto que acompaña al archivo en el chat. */
+  /** Texto que acompaña al archivo en el chat (caption del mensaje suelto). */
   caption: string
 }
 
+export type ModoEnvio =
+  | { tipo: 'suelto' }
+  | {
+      tipo: 'plantilla'
+      templateName: string
+      templateLang: string
+      headerFormat: 'IMAGE' | 'DOCUMENT'
+      /** Valores de las variables del cuerpo, en orden. */
+      valores: string[]
+      /** Cuerpo de la plantilla ya resuelto, como se ve en el chat. */
+      body: string
+    }
+
 export type EnvioArchivoResult = { conversationId: string; messageId: string; waMessageId: string }
 
-/** Manda el archivo al chat del cliente ya verificado con `prepararEnvioAlCliente`. */
+/** Manda el archivo al chat del cliente. En modo suelto, el caller ya verificó la ventana. */
 export async function enviarArchivoAlCliente(
   destino: DestinoCliente,
   archivo: ArchivoParaCliente,
   userId: string,
+  modo: ModoEnvio = { tipo: 'suelto' },
 ): Promise<EnvioArchivoResult> {
   const { conversationId, waContactPhone } = destino
   const mediaKind = waMediaType(archivo.mimeType)
@@ -92,8 +121,8 @@ export async function enviarArchivoAlCliente(
       direction: 'outbound',
       senderType: 'agent',
       senderId: userId,
-      contentType: mediaKind,
-      body: archivo.caption,
+      contentType: modo.tipo === 'plantilla' ? 'template' : mediaKind,
+      body: modo.tipo === 'plantilla' ? modo.body : archivo.caption,
       isRead: true,
       sentAt: new Date(),
     })
@@ -112,7 +141,15 @@ export async function enviarArchivoAlCliente(
       }),
       uploadMediaToMeta(archivo.buffer, archivo.mimeType, archivo.filename),
     ])
-    waMessageId = await sendMediaMessage(waContactPhone, metaMediaId, mediaKind, archivo.caption)
+    if (modo.tipo === 'plantilla') {
+      const components: TemplateComponent[] = [
+        buildHeaderMediaComponent(modo.headerFormat, metaMediaId, archivo.filename),
+        ...(buildBodyComponents(modo.valores) ?? []),
+      ]
+      waMessageId = await sendTemplateMessage(waContactPhone, modo.templateName, modo.templateLang, components)
+    } else {
+      waMessageId = await sendMediaMessage(waContactPhone, metaMediaId, mediaKind, archivo.caption)
+    }
   } catch (err) {
     // Que el chat muestre el mensaje como fallido en vez de "pendiente" para siempre
     const detalle = (err instanceof Error ? err.message : String(err)).slice(0, 300)

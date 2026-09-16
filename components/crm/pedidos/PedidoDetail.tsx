@@ -140,10 +140,12 @@ function ComprobanteEntrega({ pedidoId, metodoEntrega, esReparto }: ComprobanteP
   const enviarComprobante = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/pedidos/${pedidoId}/comprobante/enviar`, { method: 'POST' })
-      const json = await res.json().catch(() => ({})) as { error?: string }
+      const json = await res.json().catch(() => ({})) as { error?: string; data?: { sentAsTemplate?: boolean } }
       if (!res.ok) throw new Error(json.error ?? 'No se pudo enviar el comprobante')
+      return json.data?.sentAsTemplate === true
     },
-    onSuccess: () => toast.success('Comprobante enviado por WhatsApp'),
+    onSuccess: (comoPlantilla) =>
+      toast.success(comoPlantilla ? 'Comprobante enviado por WhatsApp como plantilla' : 'Comprobante enviado por WhatsApp'),
     onError: (err: Error) => toast.error(err.message, 8000),
   })
 

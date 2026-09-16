@@ -63,6 +63,8 @@ type FormState = {
   muestraTemplateName: string
   muestraTemplateLang: string
   muestraAuto: boolean
+  comprobanteTemplateName: string
+  comprobanteTemplateLang: string
 }
 
 export default function WhatsappConfigForm({ initialConfig }: Props) {
@@ -88,6 +90,8 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     muestraTemplateName: initialConfig?.muestraTemplateName ?? '',
     muestraTemplateLang: initialConfig?.muestraTemplateLang ?? '',
     muestraAuto: initialConfig?.muestraAuto ?? false,
+    comprobanteTemplateName: initialConfig?.comprobanteTemplateName ?? '',
+    comprobanteTemplateLang: initialConfig?.comprobanteTemplateLang ?? '',
   })
 
   useEffect(() => {
@@ -489,6 +493,56 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
                 )}
               />
             </button>
+          </div>
+        </div>
+
+        {/* Comprobante de entrega con la ventana cerrada */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div>
+            <h2 className="text-md font-semibold mb-0.5">Comprobante de entrega</h2>
+            <p className="text-sm text-muted-foreground">
+              El botón &quot;Enviar comprobante&quot; del pedido manda la foto del remito firmado o la firma del cliente.
+              Si el cliente escribió en las últimas 24 hs va como imagen suelta; si no, WhatsApp solo deja mandar
+              plantillas y se usa esta, con la foto en el encabezado. Tiene que ser una plantilla aprobada con
+              encabezado de tipo <span className="font-medium">Imagen</span>: creala en el Administrador de WhatsApp
+              de Meta y sincronizá las plantillas para que aparezca acá.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium">Plantilla del comprobante</label>
+            <select
+              value={form.comprobanteTemplateName && form.comprobanteTemplateLang
+                ? `${form.comprobanteTemplateName}::${form.comprobanteTemplateLang}`
+                : ''}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setForm(p => ({ ...p, comprobanteTemplateName: '', comprobanteTemplateLang: '' }))
+                  return
+                }
+                const parts = e.target.value.split('::')
+                setForm(p => ({ ...p, comprobanteTemplateName: parts[0] ?? '', comprobanteTemplateLang: parts[1] ?? '' }))
+              }}
+              className={inputClass}
+            >
+              <option value="">— Solo dentro de la ventana de 24 hs —</option>
+              {approvedTemplates.map(t => (
+                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                  {t.name} ({t.language}){t.headerFormat === 'IMAGE' ? ' · imagen' : t.headerFormat === 'DOCUMENT' ? ' · documento' : ' · sin archivo'}
+                </option>
+              ))}
+            </select>
+            {form.comprobanteTemplateName && !approvedTemplates.some(
+              t => t.name === form.comprobanteTemplateName && t.headerFormat === 'IMAGE',
+            ) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Esta plantilla no tiene encabezado de imagen: el comprobante no se va a poder adjuntar.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Variables: las configuradas en la plantilla. Si se importó de Meta sin configurar, van por posición:
+              <span className="font-mono"> {'{{1}}'}</span> nombre del cliente, <span className="font-mono">{'{{2}}'}</span> nº de pedido,
+              <span className="font-mono"> {'{{3}}'}</span> vendedor.
+            </p>
           </div>
         </div>
 

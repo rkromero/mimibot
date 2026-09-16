@@ -1,7 +1,8 @@
 /**
  * POST /api/pedidos/[id]/comprobante/enviar — el comprobante de entrega (foto
- * del remito firmado o firma del cliente) sale como imagen por el WhatsApp
- * embebido a la conversación del cliente.
+ * del remito firmado o firma del cliente) sale por el WhatsApp embebido a la
+ * conversación del cliente: como imagen suelta dentro de la ventana de 24 hs,
+ * como plantilla con la foto en el encabezado si la ventana está cerrada.
  *
  * Cobertura:
  *  1. 401 sin sesión
@@ -9,11 +10,16 @@
  *  3. pedido cancelado → 400
  *  4. sin acceso al cliente → 403
  *  5. pedido sin comprobante (expreso sin foto / retiro en fábrica) → 400, no toca R2 ni el chat
- *  6. ventana de 24 hs cerrada → 422 WINDOW_CLOSED con mensaje de comprobante, no baja nada de R2
+ *  6. ventana cerrada y sin plantilla configurada → 422 WINDOW_CLOSED que dice dónde configurarla, no baja nada de R2
  *  7. expreso → baja remitoFotoUrl, mensaje 'image' con caption "Comprobante de entrega - Pedido #…",
  *     imagen a R2 y a Meta, envío con caption, waMessageId guardado
  *  8. reparto propio → usa firmaUrl; la firma guardada como PNG con bytes JPEG se manda como JPEG
  *  9. Meta rechaza → 502 y el mensaje queda marcado como fallido
+ * 10. ventana cerrada + plantilla aprobada con imagen → sale como plantilla: encabezado con el media,
+ *     variables del cuerpo (cliente, nº de pedido, vendedor), mensaje 'template' con el cuerpo resuelto
+ * 11. ventana cerrada + plantilla no aprobada → 400 con aviso de sincronizar
+ * 12. ventana cerrada + plantilla sin encabezado de imagen → 400
+ * 13. dentro de la ventana no se consulta la plantilla aunque esté configurada
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -22,6 +28,9 @@ const m = vi.hoisted(() => ({
   auth: vi.fn(),
   pedidoFindFirst: vi.fn(),
   convFindFirst: vi.fn(),
+  configFindFirst: vi.fn(),
+  templateFindFirst: vi.fn(),
+  clienteFindFirst: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
   execute: vi.fn(),
@@ -31,6 +40,7 @@ const m = vi.hoisted(() => ({
   getObject: vi.fn(),
   upload: vi.fn(),
   sendMedia: vi.fn(),
+  sendTemplate: vi.fn(),
   persist: vi.fn(),
 }))
 
@@ -40,6 +50,9 @@ vi.mock('@/db', () => ({
     query: {
       pedidos: { findFirst: m.pedidoFindFirst },
       conversations: { findFirst: m.convFindFirst },
+      whatsappConfig: { findFirst: m.configFindFirst },
+      whatsappTemplates: { findFirst: m.templateFindFirst },
+      clientes: { findFirst: m.clienteFindFirst },
     },
     insert: m.insert,
     update: m.update,
@@ -50,7 +63,15 @@ vi.mock('@/lib/authz/clientes', () => ({ canAccessCliente: m.canAccess }))
 vi.mock('@/lib/inbox/ensure-conversacion', () => ({ ensureConversacionParaCliente: m.ensureConv }))
 vi.mock('@/lib/whatsapp/ventana', () => ({ estaDentroDe24h: m.dentro24h }))
 vi.mock('@/lib/r2/get-object', () => ({ getObjectBuffer: m.getObject }))
-vi.mock('@/lib/whatsapp/client', () => ({ uploadMediaToMeta: m.upload, sendMediaMessage: m.sendMedia }))
+vi.mock('@/lib/whatsapp/client', () => ({
+  uploadMediaToMeta: m.upload,
+  sendMediaMessage: m.sendMedia,
+  sendTemplateMessage: m.sendTemplate,
+  buildHeaderMediaComponent: (format: string, mediaId: string) =>
+    ({ type: 'header', parameters: [{ type: format.toLowerCase(), [format.toLowerCase()]: { id: mediaId } }] }),
+  buildBodyComponents: (values: string[]) =>
+    (values.length ? [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }] : undefined),
+}))
 vi.mock('@/lib/whatsapp/media', () => ({ persistOutboundMedia: m.persist }))
 
 import { POST } from '@/app/api/pedidos/[id]/comprobante/enviar/route'
@@ -89,21 +110,37 @@ const pedidoReparto = {
   remitoFotoUrl: null,
 }
 
+const PLANTILLA_OK = {
+  bodyText: 'Hola {{1}}, te dejamos el comprobante de entrega del pedido #{{2}}. Saludos, {{3}}.',
+  variables: [],
+  headerFormat: 'IMAGE',
+}
+
+function ventanaCerradaConPlantilla() {
+  m.dentro24h.mockResolvedValue(false)
+  m.configFindFirst.mockResolvedValue({ comprobanteTemplateName: 'comprobante_entrega', comprobanteTemplateLang: 'es' })
+  m.templateFindFirst.mockResolvedValue(PLANTILLA_OK)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   inserted = []
   updates = []
 
-  m.auth.mockResolvedValue({ user: { id: USER_ID, role: 'agent' } })
+  m.auth.mockResolvedValue({ user: { id: USER_ID, role: 'agent', name: 'Toti' } })
   m.pedidoFindFirst.mockResolvedValue(pedidoExpreso)
   m.canAccess.mockResolvedValue(undefined)
   m.ensureConv.mockResolvedValue({ conversationId: CONV_ID, clienteId: CLIENTE_ID })
   m.convFindFirst.mockResolvedValue({ id: CONV_ID, waContactPhone: PHONE })
   m.dentro24h.mockResolvedValue(true)
+  m.configFindFirst.mockResolvedValue({ comprobanteTemplateName: null, comprobanteTemplateLang: null })
+  m.templateFindFirst.mockResolvedValue(undefined)
+  m.clienteFindFirst.mockResolvedValue({ nombre: 'Guillermo', apellido: 'Pérez' })
   m.getObject.mockResolvedValue({ buffer: JPEG, contentType: 'image/jpeg' })
   m.persist.mockResolvedValue('wa-media/conv/msg.jpg')
   m.upload.mockResolvedValue('meta-media-1')
   m.sendMedia.mockResolvedValue('wamid.OK')
+  m.sendTemplate.mockResolvedValue('wamid.TPL')
   m.execute.mockResolvedValue(undefined)
 
   m.insert.mockImplementation(() => ({
@@ -164,16 +201,17 @@ describe('POST /api/pedidos/[id]/comprobante/enviar', () => {
     expect(m.insert).not.toHaveBeenCalled()
   })
 
-  it('6. ventana cerrada → 422 WINDOW_CLOSED con mensaje de comprobante, no baja nada de R2', async () => {
+  it('6. ventana cerrada sin plantilla configurada → 422 WINDOW_CLOSED, dice dónde configurarla, no baja nada', async () => {
     m.dentro24h.mockResolvedValueOnce(false)
     const res = await POST(req(), ctx)
     expect(res.status).toBe(422)
     const json = await res.json() as { error: string; code?: string }
     expect(json.code).toBe('WINDOW_CLOSED')
     expect(json.error).toMatch(/24 hs/)
-    expect(json.error).toMatch(/enviá el comprobante/)
+    expect(json.error).toMatch(/Ajustes → WhatsApp/)
     expect(m.getObject).not.toHaveBeenCalled()
     expect(m.insert).not.toHaveBeenCalled()
+    expect(m.sendTemplate).not.toHaveBeenCalled()
   })
 
   it('7. expreso → foto del remito como imagen al chat del cliente', async () => {
@@ -186,6 +224,7 @@ describe('POST /api/pedidos/[id]/comprobante/enviar', () => {
       messageId: 'msg-1',
       waMessageId: 'wamid.OK',
       tipo: 'remito',
+      sentAsTemplate: false,
     })
 
     expect(m.getObject).toHaveBeenCalledWith('remitos/123-abc.jpg')
@@ -211,6 +250,7 @@ describe('POST /api/pedidos/[id]/comprobante/enviar', () => {
     }))
     expect(m.upload).toHaveBeenCalledWith(JPEG, 'image/jpeg', 'comprobante-entrega-554400AB.jpg')
     expect(m.sendMedia).toHaveBeenCalledWith(PHONE, 'meta-media-1', 'image', caption)
+    expect(m.sendTemplate).not.toHaveBeenCalled()
     expect(updates).toContainEqual({ waMessageId: 'wamid.OK' })
     expect(m.execute).toHaveBeenCalled()
   })
@@ -247,5 +287,72 @@ describe('POST /api/pedidos/[id]/comprobante/enviar', () => {
     expect(json.error).toMatch(/131030/)
     expect(updates).toContainEqual(expect.objectContaining({ waStatus: 'failed', waError: expect.stringContaining('131030') }))
     expect(updates).not.toContainEqual({ waMessageId: 'wamid.OK' })
+  })
+
+  it('10. ventana cerrada + plantilla con imagen → sale como plantilla con la foto en el encabezado', async () => {
+    ventanaCerradaConPlantilla()
+
+    const res = await POST(req(), ctx)
+    expect(res.status).toBe(200)
+    const json = await res.json() as { data: Record<string, unknown> }
+    expect(json.data).toMatchObject({ waMessageId: 'wamid.TPL', tipo: 'remito', sentAsTemplate: true })
+
+    // La foto igual se sube a Meta y se guarda copia en R2 para que el chat la muestre
+    expect(m.upload).toHaveBeenCalledWith(JPEG, 'image/jpeg', 'comprobante-entrega-554400AB.jpg')
+    expect(m.persist).toHaveBeenCalledWith(expect.objectContaining({ messageId: 'msg-1', mimeType: 'image/jpeg' }))
+
+    expect(m.sendMedia).not.toHaveBeenCalled()
+    expect(m.sendTemplate).toHaveBeenCalledWith(PHONE, 'comprobante_entrega', 'es', [
+      { type: 'header', parameters: [{ type: 'image', image: { id: 'meta-media-1' } }] },
+      { type: 'body', parameters: [
+        { type: 'text', text: 'Guillermo' },
+        { type: 'text', text: '554400AB' },
+        { type: 'text', text: 'Toti' },
+      ] },
+    ])
+
+    // En el chat queda como plantilla con el cuerpo resuelto
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0]).toMatchObject({
+      contentType: 'template',
+      body: 'Hola Guillermo, te dejamos el comprobante de entrega del pedido #554400AB. Saludos, Toti.',
+    })
+    expect(updates).toContainEqual({ waMessageId: 'wamid.TPL' })
+  })
+
+  it('11. ventana cerrada + plantilla no aprobada → 400 con aviso de sincronizar, no baja nada', async () => {
+    ventanaCerradaConPlantilla()
+    m.templateFindFirst.mockResolvedValueOnce(undefined)
+
+    const res = await POST(req(), ctx)
+    expect(res.status).toBe(400)
+    const json = await res.json() as { error: string }
+    expect(json.error).toMatch(/comprobante_entrega/)
+    expect(json.error).toMatch(/no está aprobada/)
+    expect(m.getObject).not.toHaveBeenCalled()
+    expect(m.insert).not.toHaveBeenCalled()
+  })
+
+  it('12. ventana cerrada + plantilla sin encabezado de imagen → 400', async () => {
+    ventanaCerradaConPlantilla()
+    m.templateFindFirst.mockResolvedValueOnce({ ...PLANTILLA_OK, headerFormat: 'TEXT' })
+
+    const res = await POST(req(), ctx)
+    expect(res.status).toBe(400)
+    const json = await res.json() as { error: string }
+    expect(json.error).toMatch(/encabezado de imagen/)
+    expect(m.sendTemplate).not.toHaveBeenCalled()
+    expect(m.insert).not.toHaveBeenCalled()
+  })
+
+  it('13. dentro de la ventana no se consulta la plantilla aunque esté configurada', async () => {
+    m.configFindFirst.mockResolvedValue({ comprobanteTemplateName: 'comprobante_entrega', comprobanteTemplateLang: 'es' })
+    m.templateFindFirst.mockResolvedValue(PLANTILLA_OK)
+
+    const res = await POST(req(), ctx)
+    expect(res.status).toBe(200)
+    expect(m.configFindFirst).not.toHaveBeenCalled()
+    expect(m.sendTemplate).not.toHaveBeenCalled()
+    expect(m.sendMedia).toHaveBeenCalled()
   })
 })

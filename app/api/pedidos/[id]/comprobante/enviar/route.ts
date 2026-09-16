@@ -13,8 +13,9 @@ import {
 /**
  * POST /api/pedidos/[id]/comprobante/enviar — manda el comprobante de entrega
  * (foto del remito firmado o firma del cliente) como imagen por el WhatsApp
- * embebido a la conversación del cliente.
- * 422 WINDOW_CLOSED si el cliente no escribió en las últimas 24 hs.
+ * embebido a la conversación del cliente. Con la ventana de 24 hs cerrada va
+ * como plantilla (Ajustes → WhatsApp → Comprobante de entrega); si no hay
+ * plantilla configurada, 422 WINDOW_CLOSED.
  */
 export async function POST(
   _req: NextRequest,
@@ -36,7 +37,10 @@ export async function POST(
     // Misma regla que la ficha del cliente y el chat: ventas su cartera, gerente su territorio.
     await canAccessCliente(session.user, pedido.clienteId)
 
-    const result = await enviarComprobanteEntregaPorWhatsapp({ pedido, userId: session.user.id })
+    const result = await enviarComprobanteEntregaPorWhatsapp({
+      pedido,
+      user: { id: session.user.id, name: session.user.name ?? null },
+    })
 
     return NextResponse.json({ data: { via: 'whatsapp', ...result } })
   } catch (err) {

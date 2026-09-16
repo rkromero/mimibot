@@ -554,6 +554,13 @@
       "when": 1787655829715,
       "tag": "0078_empresa_lead_cliente",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1787655889715,
+      "tag": "0079_comprobante_entrega_template",
+      "breakpoints": true
     }
   ]
 }
