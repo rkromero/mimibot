@@ -3,6 +3,7 @@ import { db, type Db } from '@/db'
 import { leads, pedidos, pipelineStages, activityLog } from '@/db/schema'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { formatFechaInstanteAR } from '@/lib/dates'
+import { muestraRequiereAviso } from './muestra-aviso'
 
 /** Slug fijo de la etapa a la que pasa el lead al entregarse la muestra (ver migración 0058 / seed). */
 export const SLUG_ETAPA_MUESTRA_ENVIADA = 'muestra-enviada'
@@ -14,6 +15,8 @@ type PedidoParaMuestra = {
   entregadoAt?: Date | null
   /** Foto de la guía de envío (expreso): con esto se puede avisar al cliente */
   remitoFotoUrl?: string | null
+  /** 'retiro_fabrica' = el cliente la retiró en persona: no hay nada que avisar */
+  metodoEntrega?: string | null
 }
 
 export type ResultadoMuestraEntregada = {
@@ -32,6 +35,8 @@ const NO_PROCESADO: ResultadoMuestraEntregada = { procesado: false, etapaMovida:
  * cargada desde el lead (tipo = 'muestra' + leadId):
  *
  * - Guarda `muestraEntregadaAt` en el lead (se ve en la card del kanban).
+ *   Si la retiró en fábrica queda también `muestraAvisadaAt`: no hay guía ni
+ *   comprobante que mandarle, así que no entra en "muestras por avisar".
  * - Agrega una nota de sistema en la actividad del lead con la fecha y el pedido.
  * - Mueve el lead a la etapa "Muestra enviada" desde cualquier etapa abierta.
  *   Si el lead está cerrado (ganado/perdido) no lo toca; si la etapa no existe
@@ -64,17 +69,20 @@ export async function registrarMuestraEntregada(
 
   const fecha = pedido.entregadoAt ?? new Date()
   const mover = !!etapa && lead.isOpen && lead.stageId !== etapa.id
+  const requiereAviso = muestraRequiereAviso(pedido.metodoEntrega)
 
   await drizzleDb
     .update(leads)
     .set({
       muestraEntregadaAt: fecha,
+      ...(requiereAviso ? {} : { muestraAvisadaAt: fecha }),
       ...(mover ? { stageId: etapa.id } : {}),
       updatedAt: new Date(),
     })
     .where(eq(leads.id, lead.id))
 
   // Nota de sistema en la línea de tiempo del lead
+  const numero = pedido.id.slice(-8).toUpperCase()
   await drizzleDb.insert(activityLog).values({
     leadId: lead.id,
     userId,
@@ -83,7 +91,9 @@ export async function registrarMuestraEntregada(
       sistema: true,
       motivo: 'muestra_entregada',
       pedidoId: pedido.id,
-      texto: `Muestra entregada el ${formatFechaInstanteAR(fecha)} — pedido #${pedido.id.slice(-8).toUpperCase()}`,
+      texto: requiereAviso
+        ? `Muestra entregada el ${formatFechaInstanteAR(fecha)} — pedido #${numero}`
+        : `Muestra retirada en fábrica el ${formatFechaInstanteAR(fecha)} — pedido #${numero}. No requiere aviso al cliente.`,
     },
   })
 
@@ -153,7 +163,7 @@ export async function onPedidoEntregado(
   try {
     const pedido = await drizzleDb.query.pedidos.findFirst({
       where: eq(pedidos.id, pedidoId),
-      columns: { id: true, tipo: true, leadId: true, entregadoAt: true, remitoFotoUrl: true },
+      columns: { id: true, tipo: true, leadId: true, entregadoAt: true, remitoFotoUrl: true, metodoEntrega: true },
     })
     if (!pedido) return NO_PROCESADO
     return await registrarMuestraEntregada(pedido, userId, drizzleDb)

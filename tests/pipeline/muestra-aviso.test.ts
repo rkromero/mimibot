@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   esperaAvisoMuestra,
+  muestraRequiereAviso,
   detectarMime,
   formatoHeaderParaMime,
   nombreArchivoGuia,
@@ -19,6 +20,15 @@ describe('esperaAvisoMuestra', () => {
     expect(esperaAvisoMuestra({ muestraEntregadaAt: null, muestraAvisadaAt: null })).toBe(false)
     expect(esperaAvisoMuestra(null)).toBe(false)
     expect(esperaAvisoMuestra(undefined)).toBe(false)
+  })
+})
+
+describe('muestraRequiereAviso', () => {
+  it('expreso y reparto propio sí; retiro en fábrica no (no hay comprobante que avisar)', () => {
+    expect(muestraRequiereAviso('expreso')).toBe(true)
+    expect(muestraRequiereAviso(null)).toBe(true)
+    expect(muestraRequiereAviso(undefined)).toBe(true)
+    expect(muestraRequiereAviso('retiro_fabrica')).toBe(false)
   })
 })
 

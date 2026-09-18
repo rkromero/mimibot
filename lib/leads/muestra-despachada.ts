@@ -47,6 +47,7 @@ import {
   numeroPedidoCorto,
   type FormatoHeaderGuia,
   type MuestraPendienteAviso,
+  muestraRequiereAviso,
 } from './muestra-aviso'
 
 type SessionUser = Session['user']
@@ -167,16 +168,17 @@ export async function prepararAvisoMuestra(
     ({ ...base, ...extra, ok: false, motivo })
 
   if (!lead.muestraEntregadaAt) return noDisponible('La muestra todavía no se marcó como entregada')
+  // Retiro en fábrica: queda marcada como avisada al entregarse (no hay guía);
+  // se dice antes que "ya se avisó" para que el panel no confunda.
+  if (pedido && !muestraRequiereAviso(pedido.metodoEntrega)) {
+    return noDisponible('La muestra se retiró en fábrica: no hay guía de envío para mandar')
+  }
   if (lead.muestraAvisadaAt && !opts.reenviar) {
     return noDisponible(`Ya se avisó el ${formatFechaInstanteAR(lead.muestraAvisadaAt)}`)
   }
   if (!pedido) return noDisponible('No encontré el pedido de muestra entregado de este lead')
   if (!pedido.remitoFotoUrl) {
-    return noDisponible(
-      pedido.metodoEntrega === 'retiro_fabrica'
-        ? 'La muestra se retiró en fábrica: no hay guía de envío para mandar'
-        : 'El pedido se marcó entregado sin la foto de la guía, así que no hay nada para adjuntar',
-    )
+    return noDisponible('El pedido se marcó entregado sin la foto de la guía, así que no hay nada para adjuntar')
   }
 
   const config = await db.query.whatsappConfig.findFirst({

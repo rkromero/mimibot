@@ -191,6 +191,14 @@ describe('prepararAvisoMuestra', () => {
     expect(m.findConfig).not.toHaveBeenCalled()
   })
 
+  it('retiro en fábrica ya marcada como avisada → sigue diciendo que no hay guía, no "ya se avisó"', async () => {
+    m.findLead.mockResolvedValue({ ...LEAD, muestraAvisadaAt: new Date('2026-09-18T10:00:00.000Z') })
+    m.findPedido.mockResolvedValue({ ...PEDIDO, remitoFotoUrl: null, metodoEntrega: 'retiro_fabrica' })
+    const r = await prepararAvisoMuestra('lead-1', null, { reenviar: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toMatch(/retiró en fábrica/)
+  })
+
   it('expreso marcado entregado sin foto → lo dice', async () => {
     m.findPedido.mockResolvedValue({ ...PEDIDO, remitoFotoUrl: null })
     const r = await prepararAvisoMuestra('lead-1', null)

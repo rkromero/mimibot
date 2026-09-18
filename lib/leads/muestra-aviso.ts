@@ -24,6 +24,16 @@ export function esperaAvisoMuestra(lead: EstadoAvisoMuestra | null | undefined):
   return !!lead?.muestraEntregadaAt && !lead.muestraAvisadaAt
 }
 
+/**
+ * ¿Hay que avisarle al cliente que salió la muestra? Solo cuando viaja
+ * (expreso / reparto): ahí está la guía o el remito firmado para mandarle.
+ * Si la retiró en fábrica la tiene en la mano: no hay comprobante que avisar
+ * y no debe aparecer en el popup ni en "Muestras por avisar".
+ */
+export function muestraRequiereAviso(metodoEntrega: string | null | undefined): boolean {
+  return metodoEntrega !== 'retiro_fabrica'
+}
+
 /** Fila que devuelve GET /api/leads/muestras-pendientes (popup y Mi día). */
 export type MuestraPendienteAviso = {
   leadId: string

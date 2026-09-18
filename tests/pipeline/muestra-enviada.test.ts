@@ -144,6 +144,21 @@ describe('registrarMuestraEntregada', () => {
     expect(eventos()).toEqual(['lead_updated', 'muestra_despachada'])
   })
 
+  it('retiro en fábrica → queda avisada en el acto (no hay guía) y la nota lo dice', async () => {
+    const r = await registrarMuestraEntregada({ ...PEDIDO, metodoEntrega: 'retiro_fabrica' }, 'fabrica-1')
+    expect(r).toEqual({ procesado: true, etapaMovida: true, stageId: STAGE_ID })
+    // Entregada y avisada con la misma fecha: no entra en "muestras por avisar"
+    expect(mockUpdateSet.mock.calls[0]![0]).toMatchObject({ muestraEntregadaAt: ENTREGADO_AT, muestraAvisadaAt: ENTREGADO_AT, stageId: STAGE_ID })
+    const nota = mockInsertValues.mock.calls[0]![0] as { metadata: Record<string, unknown> }
+    expect(nota.metadata['texto']).toBe('Muestra retirada en fábrica el 24/08/2026 — pedido #ABCD1234. No requiere aviso al cliente.')
+    expect(acciones()).toEqual(['note_added', 'stage_changed'])
+  })
+
+  it('expreso → no queda avisada: el vendedor tiene que mandar la guía', async () => {
+    await registrarMuestraEntregada({ ...PEDIDO, metodoEntrega: 'expreso' }, 'admin')
+    expect(mockUpdateSet.mock.calls[0]![0]).not.toHaveProperty('muestraAvisadaAt')
+  })
+
   it('con foto de la guía el aviso interno lo dice (conFoto)', async () => {
     await registrarMuestraEntregada({ ...PEDIDO, remitoFotoUrl: 'firmas/guia.png' }, 'admin')
     expect(mockPublish).toHaveBeenCalledWith(expect.objectContaining({ type: 'muestra_despachada', conFoto: true }))
@@ -219,11 +234,13 @@ describe('aviso automático al cliente', () => {
 })
 
 describe('onPedidoEntregado', () => {
-  it('busca el pedido y delega', async () => {
+  it('busca el pedido (con el método de entrega) y delega', async () => {
     mockFindPedido.mockResolvedValue(PEDIDO)
     const r = await onPedidoEntregado(PEDIDO.id, 'admin')
     expect(r.procesado).toBe(true)
     expect(mockFindPedido).toHaveBeenCalledTimes(1)
+    const args = mockFindPedido.mock.calls[0]![0] as { columns: Record<string, boolean> }
+    expect(args.columns).toMatchObject({ metodoEntrega: true, remitoFotoUrl: true })
   })
 
   it('pedido inexistente → no hace nada', async () => {
