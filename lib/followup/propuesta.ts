@@ -69,3 +69,36 @@ export function renderMensajeSeguimientoPropuesta(
     .replace(/\s{2,}/g, ' ')
     .trim()
 }
+
+/**
+ * ¿Este envío/registro de la propuesta debe programar el seguimiento (y mover
+ * el lead a "Propuesta enviada")? Volver a bajar el PDF de una propuesta que
+ * ya salió (p. ej. para chequear un número mientras se charla) no es un envío
+ * nuevo: no hay que volver a preguntarle al cliente si la vio.
+ */
+export function envioDisparaSeguimiento(params: {
+  via: 'descarga' | 'whatsapp' | 'email'
+  yaEstabaEnviada: boolean
+}): boolean {
+  if (params.via === 'descarga' && params.yaEstabaEnviada) return false
+  return true
+}
+
+/**
+ * Red de seguridad al momento de mandar el seguimiento: devuelve el motivo
+ * para NO mandarlo, o null si corresponde mandarlo.
+ * - El cliente ya escribió después de que se programó → la charla siguió,
+ *   preguntarle "¿pudiste verla?" queda fuera de contexto.
+ * - El lead ya no está en "Propuesta enviada" (lo avanzaron a muestra,
+ *   llamada, etc.) → el vendedor ya retomó el trato.
+ * `enEtapaPropuesta` en null significa que no se pudo determinar la etapa
+ * (p. ej. la borraron del pipeline) y no se usa como criterio.
+ */
+export function motivoParaOmitirSeguimientoPropuesta(params: {
+  mensajesDelClienteDesdeProgramado: number
+  enEtapaPropuesta: boolean | null
+}): string | null {
+  if (params.mensajesDelClienteDesdeProgramado > 0) return 'el cliente ya respondió después de la propuesta'
+  if (params.enEtapaPropuesta === false) return 'el lead ya no está en "Propuesta enviada"'
+  return null
+}

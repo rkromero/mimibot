@@ -12,7 +12,12 @@ import type { TemplateParameter } from '@/types/db'
 import { primerNombre, resolveTemplateVariables, applyTemplateValues } from '@/lib/whatsapp/variables'
 import { variablesParaChat } from '@/lib/whatsapp/apertura'
 import { estaDentroDe24h } from '@/lib/whatsapp/ventana'
-import { calcularEnvioSeguimientoPropuesta, renderMensajeSeguimientoPropuesta } from './propuesta'
+import {
+  calcularEnvioSeguimientoPropuesta,
+  renderMensajeSeguimientoPropuesta,
+  motivoParaOmitirSeguimientoPropuesta,
+} from './propuesta'
+import { SLUG_ETAPA_PROPUESTA_ENVIADA } from '@/lib/leads/propuesta-enviada'
 import {
   calcularPrimerSeguimiento,
   calcularSeguimientoFinal,
@@ -397,6 +402,61 @@ export async function cancelarSeguimientoPropuestaPorRespuesta(leadId: string): 
   return true
 }
 
+/**
+ * Llegó un mensaje de la persona, venga por la rama de lead o por la de
+ * cliente del webhook: los seguimientos que esperaban respuesta se resuelven.
+ * Propuesta → se cancela. Indagación → se cancela, salvo un "más adelante" al
+ * mensaje final, que cierra el lead como perdido. Último seguimiento → se
+ * cancela el cierre, salvo respuestas automáticas de negocios.
+ */
+export async function manejarRespuestaDelContacto(
+  leadId: string,
+  msg: { tipo: string; texto: string | null },
+): Promise<void> {
+  await cancelarSeguimientoPropuestaPorRespuesta(leadId)
+  await manejarRespuestaClienteIndagacion(leadId, msg.texto ?? '')
+  await manejarRespuestaUltimoSeguimiento(leadId, msg)
+}
+
+/** Motivo para no mandar el seguimiento de propuesta al momento de procesarlo, o null. */
+async function motivoParaOmitirEnvioPropuesta(
+  lead: typeof leads.$inferSelect,
+  conversationId: string,
+): Promise<string | null> {
+  // Cuándo se programó: la última actividad follow_up_scheduled de propuesta
+  const [programado] = await db
+    .select({ createdAt: activityLog.createdAt })
+    .from(activityLog)
+    .where(and(
+      eq(activityLog.leadId, lead.id),
+      eq(activityLog.action, 'follow_up_scheduled'),
+      sql`${activityLog.metadata}->>'reason' = 'propuesta'`,
+    ))
+    .orderBy(desc(activityLog.createdAt))
+    .limit(1)
+
+  let mensajesDelClienteDesdeProgramado = 0
+  if (programado) {
+    const [fila] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.direction, 'inbound'),
+        gt(messages.sentAt, programado.createdAt),
+      ))
+    mensajesDelClienteDesdeProgramado = fila?.total ?? 0
+  }
+
+  const etapaPropuesta = await db.query.pipelineStages.findFirst({
+    where: eq(pipelineStages.slug, SLUG_ETAPA_PROPUESTA_ENVIADA),
+    columns: { id: true },
+  })
+  const enEtapaPropuesta = etapaPropuesta ? lead.stageId === etapaPropuesta.id : null
+
+  return motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado, enEtapaPropuesta })
+}
+
 async function nombreVendedorParaSeguimiento(lead: typeof leads.$inferSelect): Promise<string | null> {
   const propuesta = await db.query.propuestas.findFirst({
     where: and(eq(propuestas.leadId, lead.id), isNull(propuestas.deletedAt)),
@@ -413,7 +473,7 @@ async function procesarSeguimientoPropuesta(
   lead: typeof leads.$inferSelect,
   config: typeof followUpConfig.$inferSelect | null,
 ): Promise<void> {
-  const marcar = async (status: 'sent' | 'failed', metadata: Record<string, unknown>) => {
+  const marcar = async (status: 'sent' | 'failed' | 'cancelled', metadata: Record<string, unknown>) => {
     await db.update(leads)
       .set({ followUpStatus: status, nextFollowUpAt: null, lastContactedAt: status === 'sent' ? new Date() : undefined, updatedAt: new Date() })
       .where(eq(leads.id, lead.id))
@@ -431,6 +491,16 @@ async function procesarSeguimientoPropuesta(
   })
   if (!conversation?.waContactPhone) {
     await marcar('failed', { motivo: 'sin_conversacion' })
+    return
+  }
+
+  // Red de seguridad por si el webhook no llegó a cancelar (p. ej. la persona
+  // ya figura como cliente y sus mensajes entran por otra rama): si escribió
+  // después de programarse el seguimiento, o el lead ya avanzó de etapa, no
+  // se manda.
+  const omitir = await motivoParaOmitirEnvioPropuesta(lead, conversation.id)
+  if (omitir) {
+    await marcar('cancelled', { motivo: omitir })
     return
   }
   const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })

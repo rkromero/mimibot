@@ -15,6 +15,7 @@ import { uploadMediaToMeta, sendMediaMessage } from '@/lib/whatsapp/client'
 import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { validateUuidParam } from '@/lib/api/validate-params'
 import { programarSeguimientoPropuesta } from '@/lib/followup/engine'
+import { envioDisparaSeguimiento } from '@/lib/followup/propuesta'
 import { onPropuestaEnviada } from '@/lib/leads/propuesta-enviada'
 import type { Session } from 'next-auth'
 
@@ -50,7 +51,7 @@ export async function POST(
 
     const propuesta = await db.query.propuestas.findFirst({
       where: and(eq(propuestas.id, id), isNull(propuestas.deletedAt)),
-      columns: { id: true, leadId: true, numero: true },
+      columns: { id: true, leadId: true, numero: true, estado: true },
       with: { lead: { with: { contact: true } } },
     })
     if (!propuesta) throw new NotFoundError('Propuesta')
@@ -73,17 +74,25 @@ export async function POST(
     }
     // 'descarga': el PDF ya lo bajó el navegador vía GET /pdf; acá solo se registra
 
+    const yaEstabaEnviada = propuesta.estado === 'enviada'
     await marcarEnviada(id, propuesta.leadId, pdf.numero, parsed.data.via, session.user.id)
 
-    // Con al menos una propuesta enviada, el lead pasa a "Propuesta enviada" (best-effort)
-    const etapa = await onPropuestaEnviada(propuesta.leadId, session.user.id, id)
+    // Volver a bajar el PDF de una propuesta que ya salió no es un envío nuevo:
+    // se registra, pero no mueve de etapa ni vuelve a programar el seguimiento
+    // ("¿pudiste ver la cotización que te mandé ayer?") en medio de la charla.
+    let etapaMovida = false
+    if (envioDisparaSeguimiento({ via: parsed.data.via, yaEstabaEnviada })) {
+      // Con al menos una propuesta enviada, el lead pasa a "Propuesta enviada" (best-effort)
+      const etapa = await onPropuestaEnviada(propuesta.leadId, session.user.id, id)
+      etapaMovida = etapa.etapaMovida
 
-    // Seguimiento automático al día siguiente (Ajustes → Seguimiento). Best-effort.
-    void programarSeguimientoPropuesta(propuesta.leadId).catch((err) => {
-      console.error('[propuesta] no se pudo programar el seguimiento:', err)
-    })
+      // Seguimiento automático al día siguiente (Ajustes → Seguimiento). Best-effort.
+      void programarSeguimientoPropuesta(propuesta.leadId).catch((err) => {
+        console.error('[propuesta] no se pudo programar el seguimiento:', err)
+      })
+    }
 
-    return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada', etapaMovida: etapa.etapaMovida } })
+    return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada', etapaMovida } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

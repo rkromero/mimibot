@@ -5,6 +5,8 @@ import { describe, it, expect } from 'vitest'
 import {
   calcularEnvioSeguimientoPropuesta,
   renderMensajeSeguimientoPropuesta,
+  envioDisparaSeguimiento,
+  motivoParaOmitirSeguimientoPropuesta,
   MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT,
 } from '@/lib/followup/propuesta'
 
@@ -76,5 +78,42 @@ describe('renderMensajeSeguimientoPropuesta', () => {
   it('usa el texto configurado si viene', () => {
     expect(renderMensajeSeguimientoPropuesta('Che {{1}}, viste la coti? {{2}}', { clienteNombre: 'Ana', vendedorNombre: 'Rodo' }))
       .toBe('Che Ana, viste la coti? Rodo')
+  })
+})
+
+describe('envioDisparaSeguimiento', () => {
+  it('el primer envío por cualquier vía programa el seguimiento', () => {
+    expect(envioDisparaSeguimiento({ via: 'whatsapp', yaEstabaEnviada: false })).toBe(true)
+    expect(envioDisparaSeguimiento({ via: 'email', yaEstabaEnviada: false })).toBe(true)
+    expect(envioDisparaSeguimiento({ via: 'descarga', yaEstabaEnviada: false })).toBe(true)
+  })
+
+  it('volver a bajar el PDF de una propuesta ya enviada no programa nada', () => {
+    expect(envioDisparaSeguimiento({ via: 'descarga', yaEstabaEnviada: true })).toBe(false)
+  })
+
+  it('reenviarla por WhatsApp o email sí es un envío nuevo', () => {
+    expect(envioDisparaSeguimiento({ via: 'whatsapp', yaEstabaEnviada: true })).toBe(true)
+    expect(envioDisparaSeguimiento({ via: 'email', yaEstabaEnviada: true })).toBe(true)
+  })
+})
+
+describe('motivoParaOmitirSeguimientoPropuesta', () => {
+  it('sin respuesta del cliente y en "Propuesta enviada" se manda', () => {
+    expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 0, enEtapaPropuesta: true })).toBeNull()
+  })
+
+  it('si el cliente escribió después de programarse, no se manda', () => {
+    expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 3, enEtapaPropuesta: true }))
+      .toBe('el cliente ya respondió después de la propuesta')
+  })
+
+  it('si el lead ya avanzó de etapa, no se manda', () => {
+    expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 0, enEtapaPropuesta: false }))
+      .toBe('el lead ya no está en "Propuesta enviada"')
+  })
+
+  it('si la etapa no se puede determinar (la borraron), no se usa como criterio', () => {
+    expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 0, enEtapaPropuesta: null })).toBeNull()
   })
 })

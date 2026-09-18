@@ -3,11 +3,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/webhook-validate'
 import { estadoMasAvanzado } from '@/lib/whatsapp/estado-mensaje'
-import {
-  cancelarSeguimientoPropuestaPorRespuesta,
-  manejarRespuestaClienteIndagacion,
-  manejarRespuestaUltimoSeguimiento,
-} from '@/lib/followup/engine'
+import { manejarRespuestaDelContacto } from '@/lib/followup/engine'
 import { ultimos10 } from '@/lib/whatsapp/phone'
 import { getWaSecrets } from '@/lib/whatsapp/client'
 import { waWebhookSchema, type WaWebhookPayload, type WaMessage } from '@/lib/validations/webhook'
@@ -314,14 +310,10 @@ async function handleInboundMessage(params: {
     .set({ lastContactedAt: sentAt, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
 
-  // Seguimientos: la persona respondió. Propuesta → se cancela. Indagación → se cancela,
-  // salvo que sea un "más adelante" al mensaje final, que cierra el lead como perdido.
-  // Último seguimiento (botón) → se cancela el cierre, salvo respuestas automáticas
-  // de negocios; en Nuevo vuelve a contestar el bot.
+  // Seguimientos: la persona respondió, los que esperaban respuesta se resuelven
+  // (ver manejarRespuestaDelContacto). En Nuevo vuelve a contestar el bot.
   try {
-    await cancelarSeguimientoPropuestaPorRespuesta(leadId)
-    await manejarRespuestaClienteIndagacion(leadId, body ?? '')
-    await manejarRespuestaUltimoSeguimiento(leadId, { tipo: msg.type, texto: body })
+    await manejarRespuestaDelContacto(leadId, { tipo: msg.type, texto: body })
   } catch (err) {
     console.error('[webhook] error procesando seguimientos al recibir mensaje:', err)
   }
@@ -435,6 +427,26 @@ async function handleInboundFromCliente(params: {
   await db.execute(
     sql`UPDATE conversations SET last_message_at = ${sentAt.toISOString()}, unread_count = unread_count + 1, updated_at = NOW() WHERE id = ${conversationId}`,
   )
+
+  // La misma persona puede tener un lead abierto colgado de esta conversación
+  // (entró como lead y se la cargó como cliente para una muestra). Sus
+  // seguimientos siguen esperando respuesta: hay que cancelarlos igual que en
+  // la rama de lead, si no el motor le manda "¿pudiste ver la cotización?" en
+  // medio de una charla.
+  const convLead = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+    columns: { leadId: true },
+  })
+  if (convLead?.leadId) {
+    try {
+      await db.update(leads)
+        .set({ lastContactedAt: sentAt, updatedAt: new Date() })
+        .where(and(eq(leads.id, convLead.leadId), eq(leads.isOpen, true)))
+      await manejarRespuestaDelContacto(convLead.leadId, { tipo: msg.type, texto: body })
+    } catch (err) {
+      console.error('[webhook] error procesando seguimientos del lead (cliente):', err)
+    }
+  }
 
   const mediaId = getMediaId(msg)
   if (mediaId && savedMsg) {
