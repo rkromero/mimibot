@@ -179,6 +179,13 @@ export default function ProductSheet({
   ]
   const marcaNombreSel = marcas.find((m) => m.id === marcaActiva)?.nombre ?? null
 
+  // Elegir una marca es buscar en todo el catálogo: los habituales del cliente
+  // rara vez coinciden y la pestaña quedaría vacía. Volver a "todas" no toca la pestaña.
+  function handleMarcaChange(marcaId: string) {
+    setMarcaSel(marcaId)
+    if (marcaId !== TODAS_LAS_MARCAS && tab === 'habituales') setTab('todos')
+  }
+
   // Build tabs list
   const tabOptions: Array<{ key: TabKey; label: string }> = []
   if (clienteId) tabOptions.push({ key: 'habituales', label: 'Habituales' })
@@ -380,7 +387,7 @@ export default function ProductSheet({
           <ChipFilter
             options={marcaOptions}
             value={marcaActiva}
-            onChange={setMarcaSel}
+            onChange={handleMarcaChange}
             className="px-4"
             compactDesktop
           />
