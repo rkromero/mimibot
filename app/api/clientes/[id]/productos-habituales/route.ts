@@ -28,6 +28,7 @@ export async function GET(
         precio: productos.precio,
         sku: productos.sku,
         categoria: productos.categoria,
+        marcaId: productos.marcaId,
         marcaNombre: marcas.nombre,
         veces: sql<number>`count(*)::int`,
       })
@@ -50,6 +51,7 @@ export async function GET(
         productos.precio,
         productos.sku,
         productos.categoria,
+        productos.marcaId,
         marcas.nombre,
       )
       .orderBy(desc(sql`count(*)`))
@@ -61,6 +63,7 @@ export async function GET(
       precio: r.precio,
       sku: r.sku,
       categoria: r.categoria,
+      marcaId: r.marcaId ?? null,
       marcaNombre: r.marcaNombre ?? null,
       stockActual: 0,
       stockMinimo: 0,

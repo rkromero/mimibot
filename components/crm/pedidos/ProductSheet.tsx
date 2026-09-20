@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import ChipFilter from '@/components/shared/ChipFilter'
 import QuantityInput from '@/components/shared/QuantityInput'
+import { marcasDisponibles, filtrarPorMarca, TODAS_LAS_MARCAS } from '@/lib/productos/marcas-filtro'
 import dynamic from 'next/dynamic'
 
 const BarcodeScanner = dynamic(() => import('@/components/shared/BarcodeScanner'), { ssr: false })
@@ -23,6 +24,7 @@ type RawProducto = {
   precio: string
   sku: string | null
   categoria: string | null
+  marcaId?: string | null
   marcaNombre?: string | null
 }
 
@@ -35,6 +37,7 @@ type Producto = {
   stockMinimo: number
   bajoCritico: boolean
   categoria: string | null
+  marcaId: string | null
   marcaNombre: string | null
 }
 
@@ -61,6 +64,8 @@ export default function ProductSheet({
 }: Props) {
   const [localItems, setLocalItems] = useState<SelectedItem[]>([])
   const [tab, setTab] = useState<TabKey>(clienteId ? 'habituales' : 'todos')
+  // Chip de marca: filtra la lista en cualquier pestaña ("todas" = sin filtro)
+  const [marcaSel, setMarcaSel] = useState<string>(TODAS_LAS_MARCAS)
   const [rawSearch, setRawSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
@@ -76,6 +81,7 @@ export default function ProductSheet({
       setDebouncedSearch('')
       setSelectedProduct(null)
       setTab(clienteId ? 'habituales' : 'todos')
+      setMarcaSel(TODAS_LAS_MARCAS)
       const timer = setTimeout(() => searchRef.current?.focus(), 150)
       return () => clearTimeout(timer)
     }
@@ -92,7 +98,7 @@ export default function ProductSheet({
   const { data: rawProductos = [], isLoading: loadingProductos } = useQuery<RawProducto[]>({
     queryKey: ['productos-activos'],
     queryFn: async () => {
-      const res = await fetch('/api/productos?activo=true')
+      const res = await fetch('/api/productos?activo=true&limit=200')
       if (!res.ok) return []
       const json = await res.json() as { data: RawProducto[] }
       return json.data
@@ -136,6 +142,7 @@ export default function ProductSheet({
       const stock = stockMap.get(p.id)
       return {
         ...p,
+        marcaId: p.marcaId ?? null,
         marcaNombre: p.marcaNombre ?? null,
         stockActual: stock?.stockActual ?? 0,
         stockMinimo: stock?.stockMinimo ?? 0,
@@ -160,7 +167,17 @@ export default function ProductSheet({
   const sourceList =
     tab === 'habituales' ? habituales : allProductos
 
-  const filteredList = filterBySearch(sourceList)
+  const filteredList = filterBySearch(filtrarPorMarca(sourceList, marcaSel))
+
+  // Chips de marca: solo si el usuario ve más de una marca. Si la marca elegida
+  // dejó de estar (cambió el catálogo), vuelve a "todas".
+  const marcas = marcasDisponibles(allProductos)
+  const marcaActiva = marcas.some((m) => m.id === marcaSel) ? marcaSel : TODAS_LAS_MARCAS
+  const marcaOptions = [
+    { key: TODAS_LAS_MARCAS, label: 'Todas las marcas' },
+    ...marcas.map((m) => ({ key: m.id, label: m.nombre, count: m.count })),
+  ]
+  const marcaNombreSel = marcas.find((m) => m.id === marcaActiva)?.nombre ?? null
 
   // Build tabs list
   const tabOptions: Array<{ key: TabKey; label: string }> = []
@@ -357,6 +374,19 @@ export default function ProductSheet({
         />
       </div>
 
+      {/* Marcas: un toque y quedan solo los productos de esa marca */}
+      {marcas.length > 0 && (
+        <div className="shrink-0 border-b border-border bg-muted/30">
+          <ChipFilter
+            options={marcaOptions}
+            value={marcaActiva}
+            onChange={setMarcaSel}
+            className="px-4"
+            compactDesktop
+          />
+        </div>
+      )}
+
       {/* Product list */}
       <div className="flex-1 overflow-y-auto">
         {loadingProductos ? (
@@ -381,7 +411,13 @@ export default function ProductSheet({
           ))
         ) : filteredList.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-12">
-            {debouncedSearch ? 'Sin resultados' : 'No hay productos disponibles'}
+            {debouncedSearch
+              ? 'Sin resultados'
+              : marcaNombreSel
+                ? tab === 'habituales'
+                  ? `Este cliente no tiene habituales de ${marcaNombreSel}`
+                  : `No hay productos de ${marcaNombreSel}`
+                : 'No hay productos disponibles'}
           </p>
         ) : (
           filteredList.map(renderProductCard)
