@@ -237,8 +237,10 @@ export async function POST(req: NextRequest) {
         .where(eq(clientes.id, input.clienteId))
     }
 
-    // Los pedidos creados por agentes nacen en 'pendiente_aprobacion'
-    const crearComoPendienteAprobacion = esRolVentas(ctx.role)
+    // Todo pedido nace en 'pendiente_aprobacion', lo cargue quien lo cargue:
+    // la aprobación (aunque la haga el mismo admin) es el paso que crea los
+    // movimientos de cuenta corriente y stock, y deja rastro de quién aprobó.
+    const crearComoPendienteAprobacion = true
 
     const pedido = await crearPedidoConItems(
       input.clienteId,

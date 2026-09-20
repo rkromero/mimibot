@@ -46,6 +46,7 @@ type ClienteOption = {
 }
 
 type SuccessData = {
+  estado?: string
   pedidoId: string
   total: string
 }
@@ -269,10 +270,10 @@ export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }
         setError(data.error ?? 'Error al crear pedido')
         return
       }
-      const json = await res.json() as { data: { id: string; total: string } }
+      const json = await res.json() as { data: { id: string; total: string; estado?: string } }
       void queryClient.invalidateQueries({ queryKey: ['pedidos'] })
       void queryClient.invalidateQueries({ queryKey: ['clientes', selectedClienteId] })
-      setSuccessData({ pedidoId: json.data.id, total: json.data.total ?? String(total) })
+      setSuccessData({ pedidoId: json.data.id, total: json.data.total ?? String(total), estado: json.data.estado })
       setShowSuccess(true)
       onPedidoCreado?.(json.data.id)
     } catch {
@@ -294,7 +295,14 @@ export default function CreatePedidoModal({ clienteId, onClose, onPedidoCreado }
               <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <CheckCircle className="text-green-600" size={40} />
               </div>
-              <h2 className="text-2xl font-bold text-center">¡Pedido confirmado!</h2>
+              <h2 className="text-2xl font-bold text-center">
+                {successData.estado === 'pendiente_aprobacion' ? '¡Pedido cargado!' : '¡Pedido confirmado!'}
+              </h2>
+              {successData.estado === 'pendiente_aprobacion' && (
+                <p className="text-sm text-muted-foreground text-center -mt-2">
+                  Queda pendiente de aprobación. Se aprueba desde el detalle del pedido.
+                </p>
+              )}
               <p className="text-3xl font-bold text-primary">{formatMoney(parseFloat(successData.total))}</p>
               <p className="text-sm text-muted-foreground">#{successData.pedidoId.slice(-8).toUpperCase()}</p>
             </div>
