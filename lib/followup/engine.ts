@@ -16,6 +16,8 @@ import {
   calcularEnvioSeguimientoPropuesta,
   renderMensajeSeguimientoPropuesta,
   motivoParaOmitirSeguimientoPropuesta,
+  botApagadoAMano,
+  MOTIVO_BOT_APAGADO_A_MANO,
 } from './propuesta'
 import { SLUG_ETAPA_PROPUESTA_ENVIADA } from '@/lib/leads/propuesta-enviada'
 import {
@@ -354,8 +356,19 @@ export async function programarSeguimientoPropuesta(leadId: string): Promise<voi
   const config = await db.query.followUpConfig.findFirst()
   if (config && (!config.isEnabled || !config.propuestaEnabled)) return
 
-  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { id: true, isOpen: true } })
+  const lead = await db.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    columns: { id: true, isOpen: true, botEnabled: true, botQualified: true },
+  })
   if (!lead || !lead.isOpen) return
+  if (botApagadoAMano(lead)) {
+    await db.insert(activityLog).values({
+      leadId,
+      action: 'follow_up_cancelled',
+      metadata: { reason: 'propuesta', motivo: MOTIVO_BOT_APAGADO_A_MANO, momento: 'al programar' },
+    })
+    return
+  }
 
   const conversation = await db.query.conversations.findFirst({
     where: eq(conversations.leadId, leadId),
@@ -454,7 +467,11 @@ async function motivoParaOmitirEnvioPropuesta(
   })
   const enEtapaPropuesta = etapaPropuesta ? lead.stageId === etapaPropuesta.id : null
 
-  return motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado, enEtapaPropuesta })
+  return motivoParaOmitirSeguimientoPropuesta({
+    mensajesDelClienteDesdeProgramado,
+    enEtapaPropuesta,
+    botApagadoAMano: botApagadoAMano(lead),
+  })
 }
 
 async function nombreVendedorParaSeguimiento(lead: typeof leads.$inferSelect): Promise<string | null> {

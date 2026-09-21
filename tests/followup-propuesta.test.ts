@@ -7,6 +7,8 @@ import {
   renderMensajeSeguimientoPropuesta,
   envioDisparaSeguimiento,
   motivoParaOmitirSeguimientoPropuesta,
+  botApagadoAMano,
+  MOTIVO_BOT_APAGADO_A_MANO,
   MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT,
 } from '@/lib/followup/propuesta'
 
@@ -115,5 +117,24 @@ describe('motivoParaOmitirSeguimientoPropuesta', () => {
 
   it('si la etapa no se puede determinar (la borraron), no se usa como criterio', () => {
     expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 0, enEtapaPropuesta: null })).toBeNull()
+  })
+
+  it('con el bot apagado a mano no se manda, antes que cualquier otro criterio', () => {
+    expect(motivoParaOmitirSeguimientoPropuesta({ mensajesDelClienteDesdeProgramado: 0, enEtapaPropuesta: true, botApagadoAMano: true }))
+      .toBe(MOTIVO_BOT_APAGADO_A_MANO)
+  })
+})
+
+describe('botApagadoAMano', () => {
+  it('apagado por una persona antes de calificar → true', () => {
+    expect(botApagadoAMano({ botEnabled: false, botQualified: false })).toBe(true)
+  })
+
+  it('apagado por el bot al calificar → false (el seguimiento sigue saliendo)', () => {
+    expect(botApagadoAMano({ botEnabled: false, botQualified: true })).toBe(false)
+  })
+
+  it('bot prendido → false', () => {
+    expect(botApagadoAMano({ botEnabled: true, botQualified: false })).toBe(false)
   })
 })

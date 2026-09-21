@@ -97,8 +97,23 @@ export function envioDisparaSeguimiento(params: {
 export function motivoParaOmitirSeguimientoPropuesta(params: {
   mensajesDelClienteDesdeProgramado: number
   enEtapaPropuesta: boolean | null
+  botApagadoAMano?: boolean
 }): string | null {
+  if (params.botApagadoAMano) return MOTIVO_BOT_APAGADO_A_MANO
   if (params.mensajesDelClienteDesdeProgramado > 0) return 'el cliente ya respondió después de la propuesta'
   if (params.enEtapaPropuesta === false) return 'el lead ya no está en "Propuesta enviada"'
   return null
+}
+
+export const MOTIVO_BOT_APAGADO_A_MANO = 'el bot está apagado a mano en esta conversación'
+
+/**
+ * "Bot OFF" apagado por una persona, no por el bot al calificar. Cuando el bot
+ * termina de calificar apaga `botEnabled` y prende `botQualified`; si alguien
+ * lo apagó antes de eso, el lead queda con los dos en false. En esas
+ * conversaciones el vendedor pidió que no haya automatismos: tampoco sale el
+ * seguimiento de propuesta.
+ */
+export function botApagadoAMano(lead: { botEnabled: boolean; botQualified: boolean }): boolean {
+  return !lead.botEnabled && !lead.botQualified
 }
