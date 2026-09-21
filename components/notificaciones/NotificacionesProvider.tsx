@@ -8,6 +8,7 @@ import { abrirConversacion, estaViendoConversacion } from '@/lib/inbox/conversac
 import { useInboxUnreadTotal } from '@/lib/inbox/use-unread-total'
 import { useCrmEvents } from '@/lib/realtime/use-crm-events'
 import { reproducirSonidoMensaje, sonidoActivado } from '@/lib/notificaciones/sonido'
+import { sincronizarSuscripcionPush } from '@/lib/push/use-push'
 import { NuevoMensajeCard, type AvisoMensaje } from './NuevoMensajeCard'
 
 const ROLES_CON_INBOX = new Set(['admin', 'gerente', 'agent', 'vendedor', 'rtv'])
@@ -77,6 +78,14 @@ export default function NotificacionesProvider({ user }: { user: Session['user']
     if (sonidoActivado()) reproducirSonidoMensaje()
   }, [queryClient])
   useCrmEvents(habilitado, onEvento)
+
+  // Push: con el permiso ya dado, la suscripción se mantiene sola en cada
+  // arranque (si el navegador la venció, se renueva y se registra de nuevo).
+  // Así "Activar" se toca una sola vez por dispositivo.
+  useEffect(() => {
+    if (!habilitado) return
+    void sincronizarSuscripcionPush()
+  }, [habilitado])
 
   // Click en una notificación push con la app ya abierta
   useEffect(() => {

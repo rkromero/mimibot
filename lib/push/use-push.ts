@@ -39,6 +39,40 @@ async function registrarEnServidor(sub: PushSubscription): Promise<void> {
   })
 }
 
+async function clavePublica(): Promise<Uint8Array | null> {
+  const res = await fetch('/api/push/subscriptions')
+  if (!res.ok) return null
+  const { publicKey } = (await res.json()) as { publicKey: string | null }
+  return publicKey ? base64UrlABytes(publicKey) : null
+}
+
+/**
+ * Se llama al arrancar la app (no solo desde la campanita). Si la persona ya
+ * dio permiso en este dispositivo, se asegura de que haya una suscripción
+ * (la crea de nuevo si el navegador la venció) y la registra en el servidor.
+ * Nunca pide permiso: eso sigue siendo el botón "Activar".
+ * Devuelve qué hizo, para poder testearlo.
+ */
+export async function sincronizarSuscripcionPush(): Promise<'sin-soporte' | 'sin-permiso' | 'refrescada' | 'renovada' | 'error'> {
+  if (!soportaPush()) return 'sin-soporte'
+  if (Notification.permission !== 'granted') return 'sin-permiso'
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const existente = await reg.pushManager.getSubscription()
+    if (existente) {
+      await registrarEnServidor(existente)
+      return 'refrescada'
+    }
+    const key = await clavePublica()
+    if (!key) return 'error'
+    const nueva = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key as BufferSource })
+    await registrarEnServidor(nueva)
+    return 'renovada'
+  } catch {
+    return 'error'
+  }
+}
+
 /**
  * Estado y acciones de las notificaciones push en ESTE dispositivo.
  * Si ya estaba suscripto, refresca la suscripción en el servidor al cargar
@@ -64,11 +98,13 @@ export function usePush() {
         const reg = await navigator.serviceWorker.ready
         const sub = await reg.pushManager.getSubscription()
         if (cancelado) return
-        if (sub && Notification.permission === 'granted') {
-          setEstado('activo')
-          void registrarEnServidor(sub).catch(() => {})
+        if (Notification.permission === 'granted') {
+          // Con permiso dado, la suscripción se mantiene sola (si venció, se renueva)
+          const r = await sincronizarSuscripcionPush()
+          if (cancelado) return
+          setEstado(r === 'refrescada' || r === 'renovada' ? 'activo' : 'inactivo')
         } else {
-          setEstado('inactivo')
+          setEstado(sub ? 'activo' : 'inactivo')
         }
       } catch {
         if (!cancelado) setEstado('inactivo')
@@ -88,9 +124,8 @@ export function usePush() {
         setEstado(permiso === 'denied' ? 'bloqueado' : 'inactivo')
         return
       }
-      const res = await fetch('/api/push/subscriptions')
-      const { publicKey } = (await res.json()) as { publicKey: string | null }
-      if (!publicKey) {
+      const key = await clavePublica()
+      if (!key) {
         setError('El servidor no tiene configuradas las notificaciones push.')
         return
       }
@@ -99,7 +134,7 @@ export function usePush() {
         (await reg.pushManager.getSubscription()) ??
         (await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: base64UrlABytes(publicKey) as BufferSource,
+          applicationServerKey: key as BufferSource,
         }))
       await registrarEnServidor(sub)
       setEstado('activo')

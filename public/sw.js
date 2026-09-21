@@ -286,6 +286,42 @@ self.addEventListener('push', (event) => {
   )
 })
 
+// El navegador (Chrome, Apple) vence o renueva la suscripción cada tanto. Si
+// no se vuelve a suscribir acá, las notificaciones dejan de llegar hasta que
+// la persona toque "Activar" de nuevo. Se suscribe con la misma clave VAPID y
+// se registra en el servidor (la cookie de sesión viaja sola en el fetch).
+function base64UrlABytes(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4)
+  const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'))
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0))
+}
+
+async function claveServidor(oldSubscription) {
+  const previa = oldSubscription && oldSubscription.options && oldSubscription.options.applicationServerKey
+  if (previa) return previa
+  const res = await fetch('/api/push/subscriptions', { credentials: 'same-origin' })
+  if (!res.ok) return null
+  const { publicKey } = await res.json()
+  return publicKey ? base64UrlABytes(publicKey) : null
+}
+
+async function renovarSuscripcion(oldSubscription) {
+  const key = await claveServidor(oldSubscription)
+  if (!key) return
+  const sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+  const json = sub.toJSON()
+  await fetch('/api/push/subscriptions', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, userAgent: navigator.userAgent }),
+  })
+}
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(renovarSuscripcion(event.oldSubscription).catch(() => {}))
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data ?? {}
