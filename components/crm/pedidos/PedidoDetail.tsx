@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, CheckCircle, Truck, XCircle, FileText, Download, Printer, MessageCircle, RotateCcw, Tag, ImageIcon, Pencil, X, MoreVertical, type LucideIcon } from 'lucide-react'
 import EntregaProofModal from './EntregaProofModal'
+import { puedeMarcarEntregadoAMano } from '@/lib/pedidos/entrega-manual'
 import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
@@ -414,7 +415,9 @@ export default function PedidoDetail({ id }: Props) {
     stateMain = { key: 'confirmar', label: 'Confirmar', icon: CheckCircle, onClick: () => updateEstado('confirmado'), disabled: isUpdating }
   } else if (pedido.estado === 'pendiente_aprobacion' && canApproveOrRevert) {
     stateMain = { key: 'aprobar', label: 'Aprobar pedido', icon: CheckCircle, onClick: () => updateEstado('confirmado'), disabled: isUpdating }
-  } else if (pedido.estado === 'confirmado') {
+  } else if (pedido.estado === 'confirmado' || (puedeMarcarEntregadoAMano(pedido.estado) && canApproveOrRevert)) {
+    // Admin/gerente pueden darlo por entregado también en "listo para repartir"
+    // y "en reparto" (retiro en fábrica, entrega fuera del circuito, etc.)
     stateMain = { key: 'entregar', label: 'Marcar Entregado', icon: Truck, onClick: () => setShowProof(true), disabled: isUpdating }
   }
 
@@ -631,6 +634,19 @@ export default function PedidoDetail({ id }: Props) {
             >
               <RotateCcw size={14} />
               {isLiberando ? 'Devolviendo...' : 'Devolver al pool'}
+            </button>
+          )}
+
+          {/* ── Listo para repartir / en reparto: admin y gerente lo dan por entregado ── */}
+          {(pedido.estado === 'listo_para_repartir' || pedido.estado === 'en_reparto') && canApproveOrRevert && (
+            <button
+              onClick={() => setShowProof(true)}
+              disabled={isUpdating}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              title="Registrar la entrega a mano (retiro en fábrica, entrega fuera del circuito del repartidor)"
+            >
+              <Truck size={14} />
+              Marcar Entregado
             </button>
           )}
 

@@ -11,6 +11,12 @@
  *  7. El error 403 incluye mensaje descriptivo ("administrador")
  *  8. admin puede editar pedido en cualquier estado → 200
  *  9. El bloqueo aplica también a edición de solo observaciones (sin items)
+ *
+ * "Marcar Entregado" a mano:
+ * 10. admin puede marcar entregado desde confirmado / listo_para_repartir / en_reparto → 200,
+ *     con entregadoAt y entregadoPor
+ * 11. admin NO puede marcar entregado un pedido sin aprobar (pendiente_aprobacion) → 400
+ * 12. agent NO puede marcar entregado → 403
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -280,4 +286,54 @@ describe('PATCH /api/pedidos/[id] — permisos por estado y rol', () => {
       )
     },
   )
+})
+
+describe('PATCH /api/pedidos/[id] — marcar entregado a mano', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateUuidParam.mockReturnValue(null)
+    mockFindCliente.mockResolvedValue({ id: CLIENTE_ID })
+  })
+
+  it.each(['confirmado', 'listo_para_repartir', 'en_reparto'])(
+    'admin marca entregado desde %s → 200 con fecha y quién lo marcó',
+    async (estado) => {
+      mockAuthFn.mockResolvedValue(makeSession('admin'))
+      mockFindPedido.mockResolvedValue(makePedido(estado))
+
+      const { PATCH } = await import('@/app/api/pedidos/[id]/route')
+      const res = await PATCH(makeRequest({ estado: 'entregado' }), { params: Promise.resolve({ id: PEDIDO_ID }) })
+
+      expect(res.status).toBe(200)
+      const chain = mockDbUpdate.mock.results[0]!.value as { set: ReturnType<typeof vi.fn> }
+      const setArg = chain.set.mock.calls[0]![0] as Record<string, unknown>
+      expect(setArg['estado']).toBe('entregado')
+      expect(setArg['entregadoAt']).toBeInstanceOf(Date)
+      expect(setArg['entregadoPor']).toBe(USER_ID)
+    },
+  )
+
+  it('admin NO puede marcar entregado un pedido sin aprobar → 400', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('admin'))
+    mockFindPedido.mockResolvedValue(makePedido('pendiente_aprobacion'))
+
+    const { PATCH } = await import('@/app/api/pedidos/[id]/route')
+    const res = await PATCH(makeRequest({ estado: 'entregado' }), { params: Promise.resolve({ id: PEDIDO_ID }) })
+
+    expect(res.status).toBe(400)
+    const body = await res.json() as { error: string }
+    expect(body.error).toMatch(/aprobado/)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('agent NO puede marcar entregado → 403', async () => {
+    mockAuthFn.mockResolvedValue(makeSession('agent'))
+    mockFindPedido.mockResolvedValue(makePedido('pendiente_aprobacion'))
+
+    const { PATCH } = await import('@/app/api/pedidos/[id]/route')
+    const res = await PATCH(makeRequest({ estado: 'entregado' }), { params: Promise.resolve({ id: PEDIDO_ID }) })
+
+    expect(res.status).toBe(403)
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
 })

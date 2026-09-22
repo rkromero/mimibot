@@ -15,6 +15,7 @@ import { parseFechaAR, todayStrAR } from '@/lib/dates'
 import { onPedidoEntregado } from '@/lib/leads/muestra-enviada'
 import { esRolVentas } from '@/lib/authz/roles'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
+import { puedeMarcarEntregadoAMano, MOTIVO_NO_ENTREGABLE } from '@/lib/pedidos/entrega-manual'
 
 async function canAccessPedido(
   pedidoId: string,
@@ -193,6 +194,16 @@ export async function PATCH(
         return NextResponse.json({ data: updated })
       }
 
+      // ── Entregar a mano (admin/gerente): confirmado / listo / en reparto ──
+      if (estado === 'entregado' && current.estado !== 'entregado') {
+        if (esRolVentas(ctx.role)) {
+          throw new AuthzError('Solo un administrador o gerente puede marcar un pedido como entregado')
+        }
+        if (!puedeMarcarEntregadoAMano(current.estado)) {
+          throw new ValidationError(MOTIVO_NO_ENTREGABLE)
+        }
+      }
+
       // ── Revertir: confirmado → pendiente_aprobacion ─────────────────────────
       if (estado === 'pendiente_aprobacion' && current.estado === 'confirmado') {
         if (esRolVentas(ctx.role)) {
@@ -214,6 +225,12 @@ export async function PATCH(
     }
 
     if (estado !== undefined) fieldUpdates.estado = estado
+    if (estado === 'entregado' && current.estado !== 'entregado') {
+      // Misma huella que la entrega del repartidor: fecha y quién la marcó
+      // (el reporte "Pedidos entregados" filtra por entregadoAt).
+      fieldUpdates.entregadoAt = new Date()
+      fieldUpdates.entregadoPor = session.user.id
+    }
     if (observaciones !== undefined) fieldUpdates.observaciones = observaciones
     if (fecha !== undefined) fieldUpdates.fecha = fecha ? parseFechaAR(fecha.slice(0, 10)) : parseFechaAR(todayStrAR())
 
