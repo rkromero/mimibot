@@ -24,6 +24,8 @@ const updateWhatsappSchema = z.object({
   muestraAuto: z.boolean().optional(),
   comprobanteTemplateName: z.string().max(200).nullable().optional(),
   comprobanteTemplateLang: z.string().max(20).nullable().optional(),
+  proformaTemplateName: z.string().max(200).nullable().optional(),
+  proformaTemplateLang: z.string().max(20).nullable().optional(),
 })
 
 export async function GET() {
@@ -103,6 +105,8 @@ export async function PATCH(req: NextRequest) {
         muestraAuto: parsed.data.muestraAuto ?? false,
         comprobanteTemplateName: parsed.data.comprobanteTemplateName?.trim() || null,
         comprobanteTemplateLang: parsed.data.comprobanteTemplateLang?.trim() || null,
+        proformaTemplateName: parsed.data.proformaTemplateName?.trim() || null,
+        proformaTemplateLang: parsed.data.proformaTemplateLang?.trim() || null,
         isConfigured: true,
         updatedBy: user.id,
         updatedAt: new Date(),

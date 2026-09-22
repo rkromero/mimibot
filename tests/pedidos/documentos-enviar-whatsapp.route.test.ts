@@ -8,10 +8,14 @@
  *  3. pedido cancelado → 400
  *  4. sin acceso al cliente → 403
  *  5. cliente sin teléfono → 400 y no gasta número de proforma
- *  6. ventana de 24 hs cerrada → 422 WINDOW_CLOSED y no gasta número
+ *  6. ventana de 24 hs cerrada sin plantilla → 422 WINDOW_CLOSED y no gasta número
  *  7. caso normal → mensaje 'document' con caption "Proforma 000141", PDF a R2
  *     y a Meta, envío con caption, waMessageId guardado, respuesta con número
  *  8. Meta rechaza → 502, el mensaje queda marcado como fallido en el chat
+ *  9. ventana cerrada + plantilla con documento → sale como plantilla con el PDF
+ *     en el encabezado y las variables (cliente, nº proforma, total, vendedor)
+ * 10. ventana cerrada + plantilla sin encabezado de documento → 400, no gasta número
+ * 11. dentro de la ventana no se consulta la plantilla aunque esté configurada
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -19,10 +23,15 @@ import { NextRequest } from 'next/server'
 const {
   mockAuthFn, mockPedidoFindFirst, mockConvFindFirst, mockInsert, mockUpdate, mockExecute,
   mockCanAccess, mockEnsureConv, mockDentro24h, mockEmitir, mockUpload, mockSendMedia, mockPersist,
+  mockConfigFindFirst, mockTemplateFindFirst, mockClienteFindFirst, mockSendTemplate,
 } = vi.hoisted(() => ({
   mockAuthFn: vi.fn(),
   mockPedidoFindFirst: vi.fn(),
   mockConvFindFirst: vi.fn(),
+  mockConfigFindFirst: vi.fn(),
+  mockTemplateFindFirst: vi.fn(),
+  mockClienteFindFirst: vi.fn(),
+  mockSendTemplate: vi.fn(),
   mockInsert: vi.fn(),
   mockUpdate: vi.fn(),
   mockExecute: vi.fn(),
@@ -41,6 +50,9 @@ vi.mock('@/db', () => ({
     query: {
       pedidos: { findFirst: mockPedidoFindFirst },
       conversations: { findFirst: mockConvFindFirst },
+      whatsappConfig: { findFirst: mockConfigFindFirst },
+      whatsappTemplates: { findFirst: mockTemplateFindFirst },
+      clientes: { findFirst: mockClienteFindFirst },
     },
     insert: mockInsert,
     update: mockUpdate,
@@ -51,7 +63,15 @@ vi.mock('@/lib/authz/clientes', () => ({ canAccessCliente: mockCanAccess }))
 vi.mock('@/lib/inbox/ensure-conversacion', () => ({ ensureConversacionParaCliente: mockEnsureConv }))
 vi.mock('@/lib/whatsapp/ventana', () => ({ estaDentroDe24h: mockDentro24h }))
 vi.mock('@/lib/pdf/pdf.service', () => ({ emitirDocumento: mockEmitir }))
-vi.mock('@/lib/whatsapp/client', () => ({ uploadMediaToMeta: mockUpload, sendMediaMessage: mockSendMedia }))
+vi.mock('@/lib/whatsapp/client', () => ({
+  uploadMediaToMeta: mockUpload,
+  sendMediaMessage: mockSendMedia,
+  sendTemplateMessage: mockSendTemplate,
+  buildHeaderMediaComponent: (format: string, mediaId: string, filename?: string) =>
+    ({ type: 'header', parameters: [{ type: format.toLowerCase(), [format.toLowerCase()]: { id: mediaId, filename } }] }),
+  buildBodyComponents: (values: string[]) =>
+    (values.length ? [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }] : undefined),
+}))
 vi.mock('@/lib/whatsapp/media', () => ({ persistOutboundMedia: mockPersist }))
 
 import { POST } from '@/app/api/pedidos/[id]/documentos/enviar/route'
@@ -84,8 +104,12 @@ beforeEach(() => {
   inserted = []
   updates = []
 
-  mockAuthFn.mockResolvedValue({ user: { id: USER_ID, role: 'agent' } })
-  mockPedidoFindFirst.mockResolvedValue({ id: PEDIDO_ID, clienteId: CLIENTE_ID, estado: 'pendiente' })
+  mockAuthFn.mockResolvedValue({ user: { id: USER_ID, role: 'agent', name: 'Toti' } })
+  mockPedidoFindFirst.mockResolvedValue({ id: PEDIDO_ID, clienteId: CLIENTE_ID, estado: 'pendiente', total: '1234.50' })
+  mockConfigFindFirst.mockResolvedValue(null)
+  mockTemplateFindFirst.mockResolvedValue(null)
+  mockClienteFindFirst.mockResolvedValue({ nombre: 'Guillermo', apellido: 'Pérez' })
+  mockSendTemplate.mockResolvedValue('wamid.TPL')
   mockCanAccess.mockResolvedValue(undefined)
   mockEnsureConv.mockResolvedValue({ conversationId: CONV_ID, clienteId: CLIENTE_ID })
   mockConvFindFirst.mockResolvedValue({ id: CONV_ID, waContactPhone: PHONE })
@@ -163,16 +187,76 @@ describe('POST /api/pedidos/[id]/documentos/enviar', () => {
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
-  it('ventana de 24 hs cerrada → 422 WINDOW_CLOSED y no gasta número de proforma', async () => {
+  it('ventana de 24 hs cerrada sin plantilla → 422 WINDOW_CLOSED, dice dónde configurarla y no gasta número', async () => {
     mockDentro24h.mockResolvedValueOnce(false)
     const res = await POST(makeReq(bodyOk), ctx)
     expect(res.status).toBe(422)
     const json = await res.json() as { error: string; code?: string }
     expect(json.code).toBe('WINDOW_CLOSED')
     expect(json.error).toMatch(/24 hs/)
+    expect(json.error).toMatch(/Ajustes → WhatsApp/)
     expect(mockEmitir).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
     expect(mockSendMedia).not.toHaveBeenCalled()
+  })
+
+  it('ventana cerrada + plantilla con documento → sale como plantilla con el PDF en el encabezado', async () => {
+    mockDentro24h.mockResolvedValueOnce(false)
+    mockConfigFindFirst.mockResolvedValue({ proformaTemplateName: 'proforma_pedido', proformaTemplateLang: 'es' })
+    mockTemplateFindFirst.mockResolvedValue({
+      bodyText: 'Hola {{1}}, te dejamos la proforma {{2}} por {{3}}. Saludos, {{4}}.',
+      variables: [],
+      headerFormat: 'DOCUMENT',
+    })
+
+    const res = await POST(makeReq(bodyOk), ctx)
+    expect(res.status).toBe(200)
+    const json = await res.json() as { data: Record<string, unknown> }
+    expect(json.data).toMatchObject({ numero: 141, waMessageId: 'wamid.TPL', sentAsTemplate: true })
+
+    // El PDF igual se sube a Meta y se guarda copia en R2 para que el chat lo muestre
+    expect(mockUpload).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf', 'Juan Perez - Proforma 000141.pdf')
+    expect(mockPersist).toHaveBeenCalledWith(expect.objectContaining({ mimeType: 'application/pdf' }))
+
+    expect(mockSendMedia).not.toHaveBeenCalled()
+    expect(mockSendTemplate).toHaveBeenCalledWith(PHONE, 'proforma_pedido', 'es', [
+      { type: 'header', parameters: [{ type: 'document', document: { id: 'meta-media-1', filename: 'Juan Perez - Proforma 000141.pdf' } }] },
+      { type: 'body', parameters: [
+        { type: 'text', text: 'Guillermo' },
+        { type: 'text', text: '000141' },
+        { type: 'text', text: expect.stringMatching(/1\.234,50/) },
+        { type: 'text', text: 'Toti' },
+      ] },
+    ])
+
+    // En el chat queda como plantilla con el cuerpo resuelto
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0]).toMatchObject({ contentType: 'template' })
+    expect(String(inserted[0]!['body'])).toMatch(/^Hola Guillermo, te dejamos la proforma 000141 por .*1\.234,50\. Saludos, Toti\.$/)
+  })
+
+  it('ventana cerrada + plantilla sin encabezado de documento → 400 y no gasta número', async () => {
+    mockDentro24h.mockResolvedValueOnce(false)
+    mockConfigFindFirst.mockResolvedValue({ proformaTemplateName: 'proforma_pedido', proformaTemplateLang: 'es' })
+    mockTemplateFindFirst.mockResolvedValue({ bodyText: 'Hola', variables: [], headerFormat: 'IMAGE' })
+
+    const res = await POST(makeReq(bodyOk), ctx)
+    expect(res.status).toBe(400)
+    const json = await res.json() as { error: string }
+    expect(json.error).toMatch(/encabezado de documento/)
+    expect(mockEmitir).not.toHaveBeenCalled()
+    expect(mockSendTemplate).not.toHaveBeenCalled()
+  })
+
+  it('dentro de la ventana no se consulta la plantilla aunque esté configurada', async () => {
+    mockConfigFindFirst.mockResolvedValue({ proformaTemplateName: 'proforma_pedido', proformaTemplateLang: 'es' })
+    const res = await POST(makeReq(bodyOk), ctx)
+    expect(res.status).toBe(200)
+    expect(mockConfigFindFirst).not.toHaveBeenCalled()
+    expect(mockSendTemplate).not.toHaveBeenCalled()
+    expect(mockSendMedia).toHaveBeenCalled()
+    const json = await res.json() as { data: { sentAsTemplate: boolean } }
+    expect(json.data.sentAsTemplate).toBe(false)
   })
 
   it('caso normal → documento en el chat del cliente con caption "Proforma 000141"', async () => {

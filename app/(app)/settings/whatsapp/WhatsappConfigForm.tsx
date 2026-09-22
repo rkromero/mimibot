@@ -65,6 +65,8 @@ type FormState = {
   muestraAuto: boolean
   comprobanteTemplateName: string
   comprobanteTemplateLang: string
+  proformaTemplateName: string
+  proformaTemplateLang: string
 }
 
 export default function WhatsappConfigForm({ initialConfig }: Props) {
@@ -92,6 +94,8 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
     muestraAuto: initialConfig?.muestraAuto ?? false,
     comprobanteTemplateName: initialConfig?.comprobanteTemplateName ?? '',
     comprobanteTemplateLang: initialConfig?.comprobanteTemplateLang ?? '',
+    proformaTemplateName: initialConfig?.proformaTemplateName ?? '',
+    proformaTemplateLang: initialConfig?.proformaTemplateLang ?? '',
   })
 
   useEffect(() => {
@@ -493,6 +497,56 @@ export default function WhatsappConfigForm({ initialConfig }: Props) {
                 )}
               />
             </button>
+          </div>
+        </div>
+
+        {/* Proforma del pedido con la ventana cerrada */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div>
+            <h2 className="text-md font-semibold mb-0.5">Proforma del pedido</h2>
+            <p className="text-sm text-muted-foreground">
+              El botón &quot;Enviar proforma por WhatsApp&quot; del pedido manda el PDF de la proforma al chat del cliente.
+              Si el cliente escribió en las últimas 24 hs va como documento suelto; si no, WhatsApp solo deja mandar
+              plantillas y se usa esta, con el PDF en el encabezado. Tiene que ser una plantilla aprobada con
+              encabezado de tipo <span className="font-medium">Documento</span>: creala en el Administrador de WhatsApp
+              de Meta y sincronizá las plantillas para que aparezca acá.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium">Plantilla de la proforma</label>
+            <select
+              value={form.proformaTemplateName && form.proformaTemplateLang
+                ? `${form.proformaTemplateName}::${form.proformaTemplateLang}`
+                : ''}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setForm(p => ({ ...p, proformaTemplateName: '', proformaTemplateLang: '' }))
+                  return
+                }
+                const parts = e.target.value.split('::')
+                setForm(p => ({ ...p, proformaTemplateName: parts[0] ?? '', proformaTemplateLang: parts[1] ?? '' }))
+              }}
+              className={inputClass}
+            >
+              <option value="">— Solo dentro de la ventana de 24 hs —</option>
+              {approvedTemplates.map(t => (
+                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                  {t.name} ({t.language}){t.headerFormat === 'IMAGE' ? ' · imagen' : t.headerFormat === 'DOCUMENT' ? ' · documento' : ' · sin archivo'}
+                </option>
+              ))}
+            </select>
+            {form.proformaTemplateName && !approvedTemplates.some(
+              t => t.name === form.proformaTemplateName && t.headerFormat === 'DOCUMENT',
+            ) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Esta plantilla no tiene encabezado de documento: la proforma no se va a poder adjuntar.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Variables: las configuradas en la plantilla. Si se importó de Meta sin configurar, van por posición:
+              <span className="font-mono"> {'{{1}}'}</span> nombre del cliente, <span className="font-mono">{'{{2}}'}</span> nº de proforma,
+              <span className="font-mono"> {'{{3}}'}</span> total, <span className="font-mono">{'{{4}}'}</span> vendedor.
+            </p>
           </div>
         </div>
 

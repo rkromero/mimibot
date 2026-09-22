@@ -140,7 +140,7 @@ export function useGenerarDocumento() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tipo, via: 'whatsapp' }),
       })
-      const json = await res.json().catch(() => ({})) as { data?: { numero: number }; error?: string }
+      const json = await res.json().catch(() => ({})) as { data?: { numero: number; sentAsTemplate?: boolean }; error?: string }
 
       if (!res.ok) {
         // Los errores traen instrucciones (ventana de 24 hs, sin teléfono): que se lean
@@ -149,7 +149,10 @@ export function useGenerarDocumento() {
       }
 
       const numero = json.data?.numero
-      toast.success(numero ? `Proforma ${padNumeroDocumento(numero)} enviada por WhatsApp` : 'Proforma enviada por WhatsApp')
+      const etiqueta = numero ? `Proforma ${padNumeroDocumento(numero)}` : 'Proforma'
+      toast.success(json.data?.sentAsTemplate
+        ? `${etiqueta} enviada como plantilla (la ventana de 24 hs estaba cerrada)`
+        : `${etiqueta} enviada por WhatsApp`)
       return true
     } catch {
       toast.error('Error de conexión al enviar por WhatsApp')

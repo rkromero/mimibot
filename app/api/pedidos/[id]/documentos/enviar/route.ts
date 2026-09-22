@@ -20,7 +20,8 @@ const enviarSchema = z.object({
 /**
  * POST /api/pedidos/[id]/documentos/enviar — emite la proforma del pedido y la
  * manda como documento por el WhatsApp embebido a la conversación del cliente.
- * 422 WINDOW_CLOSED si el cliente no escribió en las últimas 24 hs.
+ * Con la ventana de 24 hs cerrada usa la plantilla de proforma configurada en
+ * Ajustes → WhatsApp; sin plantilla, 422 WINDOW_CLOSED con instrucciones.
  */
 export async function POST(
   req: NextRequest,
@@ -42,7 +43,7 @@ export async function POST(
 
     const pedido = await db.query.pedidos.findFirst({
       where: and(eq(pedidos.id, id), isNull(pedidos.deletedAt)),
-      columns: { id: true, clienteId: true, estado: true },
+      columns: { id: true, clienteId: true, estado: true, total: true },
     })
     if (!pedido) throw new NotFoundError('Pedido')
     if (pedido.estado === 'cancelado') {
@@ -57,6 +58,8 @@ export async function POST(
       clienteId: pedido.clienteId,
       tipo: parsed.data.tipo,
       userId: session.user.id,
+      vendedorNombre: session.user.name ?? null,
+      pedidoTotal: pedido.total,
     })
 
     return NextResponse.json({ data: { via: parsed.data.via, ...result } })

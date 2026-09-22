@@ -561,6 +561,13 @@
       "when": 1787655889715,
       "tag": "0079_comprobante_entrega_template",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1787655949715,
+      "tag": "0080_proforma_template",
+      "breakpoints": true
     }
   ]
 }
