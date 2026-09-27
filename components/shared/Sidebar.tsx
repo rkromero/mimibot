@@ -6,7 +6,7 @@ import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
   Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
   ClipboardList, History, ListChecks, Navigation, Wallet, Store,
-  TrendingUp, Banknote, Calculator,
+  TrendingUp, Banknote, Calculator, Gauge,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -69,6 +69,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/dashboard', label: 'Mi Dashboard', icon: BarChart3, roles: ['agent', 'vendedor', 'rtv'] },
       { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'gerente'] },
+      { href: '/admin/tablero', label: 'Tablero de comando', icon: Gauge, roles: ['admin'] },
       { href: '/admin/metas', label: 'Metas', icon: Target, roles: ['admin', 'gerente'] },
       { href: '/reportes/morosos', label: 'Morosos', icon: TrendingDown, roles: ALL_ROLES },
     ],
