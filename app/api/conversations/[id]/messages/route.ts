@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { messages } from '@/db/schema'
-import { eq, asc } from 'drizzle-orm'
+import { messages, enviosMasivos } from '@/db/schema'
+import { eq, asc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { toApiError } from '@/lib/errors'
 import { canAccessConversacion } from '@/lib/authz/conversaciones'
@@ -38,7 +38,18 @@ export async function GET(
       },
     })
 
-    return NextResponse.json({ data: msgs })
+    // Mensajes que salieron de un envío masivo: se marcan con el nombre del envío
+    const envioIds = [...new Set(msgs.map((m) => m.envioMasivoId).filter((x): x is string => !!x))]
+    const envios = envioIds.length > 0
+      ? await db.select({ id: enviosMasivos.id, nombre: enviosMasivos.nombre }).from(enviosMasivos).where(inArray(enviosMasivos.id, envioIds))
+      : []
+    const nombrePorEnvio = new Map(envios.map((e) => [e.id, e.nombre]))
+    const data = msgs.map((m) => ({
+      ...m,
+      envioMasivo: m.envioMasivoId ? { id: m.envioMasivoId, nombre: nombrePorEnvio.get(m.envioMasivoId) ?? 'Envío masivo' } : null,
+    }))
+
+    return NextResponse.json({ data })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

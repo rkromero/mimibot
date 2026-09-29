@@ -42,6 +42,8 @@ export type LeadWithContact = Lead & {
 export type MessageWithAttachments = Message & {
   attachments: Attachment[]
   sender: Pick<User, 'id' | 'name' | 'avatarColor'> | null
+  /** Si salió de un envío masivo: nombre del envío (para la marca en el chat) */
+  envioMasivo?: { id: string; nombre: string } | null
 }
 
 export type ConversationWithMessages = Conversation & {

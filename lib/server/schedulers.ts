@@ -13,19 +13,26 @@
  *    respuesta). Se desactiva con FOLLOWUP_SCHEDULER=off (por ejemplo si se
  *    configura un cron externo, para no procesar dos veces).
  *
+ * 3. Envíos masivos de plantillas: cada minuto arranca los envíos programados
+ *    vencidos y retoma los que quedaron a medias por un reinicio.
+ *
  * Los handles quedan en globalThis para no duplicarlos con el hot reload de dev.
  */
 import { retomarTurnosBotPendientes } from '@/lib/claude/bot-debounce'
 import { processFollowUps } from '@/lib/followup/engine'
+import { procesarEnviosMasivosPendientes } from '@/lib/envios-masivos/procesar'
 
 const INTERVALO_FOLLOWUP_MS = 5 * 60 * 1000
 const INTERVALO_BOT_MS = 30 * 1000
+const INTERVALO_ENVIOS_MS = 60 * 1000
 
 declare global {
   // eslint-disable-next-line no-var
   var __followupScheduler: NodeJS.Timeout | undefined
   // eslint-disable-next-line no-var
   var __botPendientesScheduler: NodeJS.Timeout | undefined
+  // eslint-disable-next-line no-var
+  var __enviosMasivosScheduler: NodeJS.Timeout | undefined
 }
 
 export function registrarSchedulers(): void {
@@ -40,6 +47,19 @@ export function registrarSchedulers(): void {
     }
     setTimeout(() => void tickBot(), 20_000)
     globalThis.__botPendientesScheduler = setInterval(() => void tickBot(), INTERVALO_BOT_MS)
+  }
+
+  if (!globalThis.__enviosMasivosScheduler) {
+    const tickEnvios = async () => {
+      try {
+        const r = await procesarEnviosMasivosPendientes()
+        if (r.procesados > 0) console.log(`[envios-masivos] envíos procesados: ${r.procesados}`)
+      } catch (err) {
+        console.error('[envios-masivos] scheduler error:', err)
+      }
+    }
+    setTimeout(() => void tickEnvios(), 45_000)
+    globalThis.__enviosMasivosScheduler = setInterval(() => void tickEnvios(), INTERVALO_ENVIOS_MS)
   }
 
   if (process.env['FOLLOWUP_SCHEDULER'] === 'off') return

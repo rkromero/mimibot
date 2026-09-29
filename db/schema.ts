@@ -10,6 +10,8 @@ export const userRoleEnum = pgEnum('user_role', ['admin', 'gerente', 'agent', 'v
 export const leadSourceEnum = pgEnum('lead_source', ['whatsapp', 'landing', 'manual'])
 export const messageDirectionEnum = pgEnum('message_direction', ['inbound', 'outbound'])
 export const senderTypeEnum = pgEnum('sender_type', ['contact', 'bot', 'agent', 'system'])
+export const estadoEnvioMasivoEnum = pgEnum('estado_envio_masivo', ['programado', 'enviando', 'completado', 'cancelado'])
+export const estadoDestinatarioEnvioEnum = pgEnum('estado_destinatario_envio', ['pendiente', 'enviado', 'fallido', 'omitido', 'cancelado'])
 export const contentTypeEnum = pgEnum('content_type', [
   'text', 'image', 'audio', 'video', 'document', 'template', 'internal_note',
 ])
@@ -257,6 +259,8 @@ export const messages = pgTable('messages', {
   waStatusAt: timestamp('wa_status_at', { mode: 'date' }),
   /** Motivo cuando waStatus = failed */
   waError: text('wa_error'),
+  /** Si salió de un envío masivo de plantillas (Operación → Envíos masivos) */
+  envioMasivoId: uuid('envio_masivo_id'),
 }, (t) => [
   index('messages_conv_sent_idx').on(t.conversationId, t.sentAt),
   uniqueIndex('messages_wa_message_idx').on(t.waMessageId),
@@ -1066,4 +1070,48 @@ export const gastos = pgTable('gastos', {
 }, (t) => [
   index('gastos_fecha_idx').on(t.fecha),
   index('gastos_categoria_idx').on(t.categoriaId),
+])
+
+// ─── Envíos masivos de plantillas (Operación → Envíos masivos) ────────────────
+// Ver lib/envios-masivos/. Un envío = una plantilla a un grupo de leads, ahora
+// o programado. Cada destinatario guarda su estado y el mensaje del chat.
+
+export const enviosMasivos = pgTable('envios_masivos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nombre: text('nombre').notNull(),
+  templateName: text('template_name').notNull(),
+  templateLang: text('template_lang').notNull(),
+  /** Cuerpo de la plantilla al momento de crear el envío (con {{n}} sin resolver) */
+  templateBody: text('template_body').notNull(),
+  /** Filtros con los que se armó el grupo (para mostrarlos después) */
+  filtros: jsonb('filtros').notNull().default('{}'),
+  estado: estadoEnvioMasivoEnum('estado').notNull().default('programado'),
+  programadoAt: timestamp('programado_at', { mode: 'date' }).notNull(),
+  iniciadoAt: timestamp('iniciado_at', { mode: 'date' }),
+  finalizadoAt: timestamp('finalizado_at', { mode: 'date' }),
+  total: integer('total').notNull().default(0),
+  enviados: integer('enviados').notNull().default(0),
+  fallidos: integer('fallidos').notNull().default(0),
+  omitidos: integer('omitidos').notNull().default(0),
+  creadoPor: uuid('creado_por').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('envios_masivos_estado_prog_idx').on(t.estado, t.programadoAt),
+])
+
+export const enviosMasivosDestinatarios = pgTable('envios_masivos_destinatarios', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  envioId: uuid('envio_id').notNull().references(() => enviosMasivos.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').notNull().references(() => leads.id),
+  conversationId: uuid('conversation_id').references(() => conversations.id),
+  estado: estadoDestinatarioEnvioEnum('estado').notNull().default('pendiente'),
+  /** Por qué se omitió o falló */
+  motivo: text('motivo'),
+  messageId: uuid('message_id').references(() => messages.id),
+  enviadoAt: timestamp('enviado_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('envios_dest_envio_idx').on(t.envioId, t.estado),
+  index('envios_dest_lead_idx').on(t.leadId, t.enviadoAt),
 ])

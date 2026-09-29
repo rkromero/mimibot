@@ -14,10 +14,12 @@ import { AuthzError, NotFoundError, ValidationError } from '@/lib/errors'
 import {
   applyTemplateValues,
   resolveTemplateVariables,
-  toTemplateVariables,
+  variablesParaChat,
+  plantillaUsableEnChat,
   type TemplateVarCtx,
-  type TemplateVariable,
 } from '@/lib/whatsapp/variables'
+
+export { variablesParaChat, plantillaUsableEnChat } from '@/lib/whatsapp/variables'
 
 type SessionUser = Session['user']
 
@@ -64,24 +66,6 @@ export async function resolverConversacionParaEnvio(
   const productoInteres = conv.clienteId ? null : (conv.lead?.productInterest ?? null)
 
   return { waContactPhone: conv.waContactPhone, contactName, productoInteres }
-}
-
-/** Orígenes que solo tienen sentido en la notificación de pedido: no se pueden resolver desde el chat. */
-const SOURCES_SOLO_PEDIDO = new Set(['pedido_numero', 'pedido_total', 'pedido_expreso'])
-
-/**
- * Variables con las que se manda una plantilla desde el chat: las configuradas
- * al registrarla o, para plantillas viejas sin configuración, {{1}} = nombre.
- */
-export function variablesParaChat(bodyText: string, rawVariables: unknown): TemplateVariable[] {
-  const configuradas = toTemplateVariables(rawVariables)
-  if (configuradas.length > 0) return configuradas
-  return bodyText.includes('{{1}}') ? [{ index: 1, source: 'cliente_nombre', sample: 'Cliente' }] : []
-}
-
-/** ¿La plantilla se puede enviar desde el chat (ninguna variable depende de un pedido)? */
-export function plantillaUsableEnChat(variables: TemplateVariable[]): boolean {
-  return variables.every((v) => !SOURCES_SOLO_PEDIDO.has(v.source))
 }
 
 export type PlantillaApertura = {

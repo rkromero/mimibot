@@ -6,7 +6,7 @@ import {
   LayoutGrid, Inbox, Settings, LogOut, Users, Package, ShoppingCart,
   Building2, BarChart3, Target, Map, TrendingDown, Boxes, Layers, Search, Truck,
   ClipboardList, History, ListChecks, Navigation, Wallet, Store,
-  TrendingUp, Banknote, Calculator, Gauge,
+  TrendingUp, Banknote, Calculator, Gauge, Megaphone,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -51,6 +51,7 @@ const RAW_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: '/pipeline', label: 'Pipeline', icon: LayoutGrid, roles: ALL_ROLES },
       { href: '/inbox', label: 'Inbox', icon: Inbox, roles: ALL_ROLES },
       { href: '/crm/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ALL_ROLES },
+      { href: '/admin/envios-masivos', label: 'Envíos masivos', icon: Megaphone, roles: ['admin'] },
       { href: '/admin/reparto', label: 'Reparto en curso', icon: Navigation, roles: ['admin', 'gerente'] },
       { href: '/admin/entregas', label: 'Pedidos entregados', icon: Truck, roles: ['admin', 'gerente'] },
     ],

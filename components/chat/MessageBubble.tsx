@@ -62,7 +62,9 @@ export default function MessageBubble({ message }: { message: MessageWithAttachm
             <>
               {/* Plantilla aprobada de Meta: el cuerpo guardado ya tiene las variables resueltas */}
               <p className="whitespace-pre-wrap break-words">{message.body}</p>
-              <p className="text-[10px] uppercase tracking-wide opacity-70 mt-1">Plantilla</p>
+              <p className="text-[10px] uppercase tracking-wide opacity-70 mt-1">
+                {message.envioMasivo ? `Envío masivo · ${message.envioMasivo.nombre}` : 'Plantilla'}
+              </p>
             </>
           ) : message.body ? (
             <>
