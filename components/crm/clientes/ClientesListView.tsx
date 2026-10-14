@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Phone, ChevronRight, Download, Map, List, AlertTriangle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import CreateClienteModal from './CreateClienteModal'
@@ -72,11 +73,31 @@ export default function ClientesListView() {
   const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
+  const puedeFiltrarVendedor = isAdmin || session?.user?.role === 'gerente'
   const [filterEstado, setFilterEstado] = useState('')
+  const [filterVendedor, setFilterVendedor] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [mapView, setMapView] = useState(false)
   const [mapClientes, setMapClientes] = useState<Cliente[]>([])
+
+  // Vendedores para el filtro (solo admin/gerente; el endpoint ya acota por territorio)
+  const { data: vendedoresData } = useQuery<{ data: Array<{ id: string; name: string | null }> }>({
+    queryKey: ['/api/users', 'vendedores-filtro-clientes'],
+    queryFn: () => fetch('/api/users?role=agent,vendedor,rtv').then((r) => r.json()),
+    enabled: puedeFiltrarVendedor,
+    staleTime: 5 * 60_000,
+  })
+  const vendedores = [...(vendedoresData?.data ?? [])].sort((a, b) =>
+    (a.name ?? '').localeCompare(b.name ?? '', 'es'),
+  )
+
+  const selectClass =
+    'px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors'
+
+  const extraParams: Record<string, string> = {}
+  if (filterEstado) extraParams['estadoActividad'] = filterEstado
+  if (puedeFiltrarVendedor && filterVendedor) extraParams['asignadoA'] = filterVendedor
 
   async function handleExport() {
     setIsExporting(true)
@@ -246,18 +267,32 @@ export default function ClientesListView() {
           </div>
         </div>
 
-        {/* Extra filter (outside DataTable) */}
-        <div className="flex items-center gap-2 mb-4">
+        {/* Extra filters (outside DataTable) */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <select
             value={filterEstado}
             onChange={(e) => setFilterEstado(e.target.value)}
-            className="px-3 py-2.5 md:py-1.5 text-[16px] md:text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+            className={selectClass}
           >
             <option value="">Todos los estados</option>
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
             <option value="perdido">Perdido</option>
           </select>
+          {puedeFiltrarVendedor && (
+            <select
+              value={filterVendedor}
+              onChange={(e) => setFilterVendedor(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Todos los vendedores</option>
+              {vendedores.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name ?? 'Sin nombre'}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Mobile map view */}
@@ -282,7 +317,7 @@ export default function ClientesListView() {
         <DataTable<Cliente>
           endpoint="/api/clientes"
           columns={columns}
-          extraParams={filterEstado ? { estadoActividad: filterEstado } : {}}
+          extraParams={extraParams}
           defaultPageSize={50}
           searchPlaceholder="Buscar por nombre, empresa, dirección, email, CUIT..."
           onRowClick={(row) => router.push(`/crm/clientes/${row.id}`)}
