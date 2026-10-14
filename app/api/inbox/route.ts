@@ -210,7 +210,9 @@ export async function GET(req: NextRequest) {
         sql`${users.id} = CASE WHEN ${conversations.clienteId} IS NOT NULL THEN ${clientes.asignadoA} ELSE ${leads.assignedTo} END`,
       )
       .where(whereClause)
-      .orderBy(desc(conversations.unreadCount), desc(conversations.lastMessageAt))
+      // Siempre el mensaje más nuevo arriba (sin priorizar no leídos: un chat
+      // con no leídos viejos no debe tapar al que acaba de escribir).
+      .orderBy(desc(conversations.lastMessageAt))
       .limit(limit)
       .offset((page - 1) * limit)
 

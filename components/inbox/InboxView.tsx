@@ -53,7 +53,8 @@ export default function InboxView({ user }: Props) {
   const isRestrictedRole = esRolVentas(user.role)
 
   const [selectedConvId, setSelectedConvId] = useState<string | null>(initConvId)
-  const [filter, setFilter] = useState<Filter>('mine')
+  // Admin y gerente entran en "Todos" (ven todo el inbox de una); ventas solo tiene "Míos".
+  const [filter, setFilter] = useState<Filter>(isRestrictedRole ? 'mine' : 'all')
   const [mobileView, setMobileView] = useState<'list' | 'conversation'>(
     initConvId ?? initLeadId ? 'conversation' : 'list',
   )
