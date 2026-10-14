@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useUrlParam } from '@/lib/hooks/useUrlParam'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -85,8 +86,9 @@ export default function GastosPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  const [mes, setMes] = useState(todayStrAR().slice(0, 7))
-  const [filterCategoria, setFilterCategoria] = useState('')
+  // Mes y categoría en la URL: sobreviven a navegar y volver
+  const [mes, setMes] = useUrlParam('mes', todayStrAR().slice(0, 7))
+  const [filterCategoria, setFilterCategoria] = useUrlParam('categoriaId')
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<GastoForm>(emptyForm())

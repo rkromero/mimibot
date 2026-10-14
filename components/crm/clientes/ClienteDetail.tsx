@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, CreditCard, Phone, Edit, Trash2, MapPin, Check, X, MessageCircle, MoreVertical, AlertTriangle, LocateFixed, Merge, Loader2 } from 'lucide-react'
-import Link from 'next/link'
+import BackLink from '@/components/shared/BackLink'
 import { cn } from '@/lib/utils'
 import { nombreCompleto, nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import { esProvinciaCABA, LOCALIDAD_CABA } from '@/lib/validations/clientes'
@@ -815,9 +815,9 @@ export default function ClienteDetail({ id }: Props) {
         <div className="md:hidden space-y-4">
           {/* Title row */}
           <div className="flex items-center gap-2">
-            <Link href="/crm/clientes" className="p-2 -ml-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <BackLink fallbackHref="/crm/clientes" className="p-2 -ml-2 text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center">
               <ArrowLeft size={20} />
-            </Link>
+            </BackLink>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
                 {nombrePrincipal(cliente)}
@@ -972,12 +972,12 @@ export default function ClienteDetail({ id }: Props) {
         {/* Desktop header */}
         <div className="hidden md:flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/crm/clientes"
+            <BackLink
+              fallbackHref="/crm/clientes"
               className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft size={16} />
-            </Link>
+            </BackLink>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-semibold text-foreground">

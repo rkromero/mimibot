@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { useUrlParam } from '@/lib/hooks/useUrlParam'
 import { useSession } from 'next-auth/react'
 import { Plus, Trash2, Download, CheckCircle, MoreVertical, Eye, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -79,11 +80,13 @@ export default function PedidosListView() {
   const toast = useToast()
 
   const [showCreate, setShowCreate] = useState(false)
-  const [filterEstado, setFilterEstado] = useState('')
-  const [filterEstadoPago, setFilterEstadoPago] = useState('')
-  const [filterVendedor, setFilterVendedor] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Filtros en la URL: sobreviven a entrar a un pedido y volver. La búsqueda
+  // va como `q` (no `search`) para no pisarse con el manejo interno de DataTable.
+  const [filterEstado, setFilterEstado] = useUrlParam('estado')
+  const [filterEstadoPago, setFilterEstadoPago] = useUrlParam('estadoPago')
+  const [filterVendedor, setFilterVendedor] = useUrlParam('vendedorId')
+  const [debouncedSearch, setDebouncedSearch] = useUrlParam('q')
+  const [searchInput, setSearchInput] = useState(debouncedSearch)
   const [deletingPedido, setDeletingPedido] = useState<Pedido | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -141,8 +144,11 @@ export default function PedidosListView() {
 
   // Debounce de la búsqueda para no disparar un request por tecla
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300)
+    const t = setTimeout(() => {
+      if (searchInput.trim() !== debouncedSearch) setDebouncedSearch(searchInput.trim())
+    }, 300)
     return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput])
 
   // Vendedores para el filtro rápido (solo admin/gerente)

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, PowerOff, Trash2, Download, Copy } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { useUrlParam } from '@/lib/hooks/useUrlParam'
 import { cn } from '@/lib/utils'
 import ProductoModal from './ProductoModal'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
@@ -114,8 +115,11 @@ export default function ProductosListView() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
-  const [includeInactive, setIncludeInactive] = useState(false)
-  const [marcaFilter, setMarcaFilter] = useState('')
+  // Filtros en la URL: sobreviven a entrar a un producto y volver
+  const [inactivosParam, setInactivosParam] = useUrlParam('inactivos')
+  const includeInactive = inactivosParam === 'true'
+  const setIncludeInactive = (v: boolean) => setInactivosParam(v ? 'true' : '')
+  const [marcaFilter, setMarcaFilter] = useUrlParam('marcaId')
 
   const { data: marcasList = [] } = useQuery<Marca[]>({
     queryKey: ['marcas', 'activas'],

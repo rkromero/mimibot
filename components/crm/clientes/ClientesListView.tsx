@@ -6,6 +6,7 @@ import { Plus, Phone, ChevronRight, Download, Map, List, AlertTriangle } from 'l
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
+import { useUrlParam } from '@/lib/hooks/useUrlParam'
 import { nombrePrincipal, nombreSecundario } from '@/lib/clientes/nombre'
 import CreateClienteModal from './CreateClienteModal'
 import dynamic from 'next/dynamic'
@@ -74,8 +75,9 @@ export default function ClientesListView() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const puedeFiltrarVendedor = isAdmin || session?.user?.role === 'gerente'
-  const [filterEstado, setFilterEstado] = useState('')
-  const [filterVendedor, setFilterVendedor] = useState('')
+  // Filtros en la URL: sobreviven a entrar a una ficha y volver
+  const [filterEstado, setFilterEstado] = useUrlParam('estadoActividad')
+  const [filterVendedor, setFilterVendedor] = useUrlParam('asignadoA')
   const [showCreate, setShowCreate] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [mapView, setMapView] = useState(false)

@@ -9,6 +9,7 @@ import { puedeMarcarEntregadoAMano } from '@/lib/pedidos/entrega-manual'
 import ComprobantePago from './ComprobantePago'
 import EntregaUbicacionMap from './EntregaUbicacionMap'
 import Link from 'next/link'
+import BackLink from '@/components/shared/BackLink'
 import { cn } from '@/lib/utils'
 import { nombreCompleto } from '@/lib/clientes/nombre'
 import { formatFechaAR, formatFechaInstanteAR, fechaISO_AR } from '@/lib/dates'
@@ -479,9 +480,9 @@ export default function PedidoDetail({ id }: Props) {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/crm/pedidos" className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
+        <BackLink fallbackHref="/crm/pedidos" className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={16} />
-        </Link>
+        </BackLink>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-xl font-semibold text-foreground">
