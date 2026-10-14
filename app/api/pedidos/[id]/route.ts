@@ -16,6 +16,7 @@ import { onPedidoEntregado } from '@/lib/leads/muestra-enviada'
 import { esRolVentas } from '@/lib/authz/roles'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
 import { puedeMarcarEntregadoAMano, MOTIVO_NO_ENTREGABLE } from '@/lib/pedidos/entrega-manual'
+import { numeroDocumentoVigente } from '@/lib/pdf/documento-vigente'
 
 async function canAccessPedido(
   pedidoId: string,
@@ -89,9 +90,17 @@ export async function GET(
     const cliente = pedido.cliente as { nombre: string; apellido: string; empresa: string | null; telefono: string | null; cuit: string | null } | null
     const vendedor = pedido.vendedor as { id: string; name: string | null; avatarColor: string } | null
 
+    // Números vigentes: null si la próxima emisión saca un número nuevo
+    const [proformaNumero, remitoNumero] = await Promise.all([
+      numeroDocumentoVigente(pedido, 'proforma'),
+      numeroDocumentoVigente(pedido, 'remito'),
+    ])
+
     return NextResponse.json({
       data: {
         ...pedido,
+        proformaNumero,
+        remitoNumero,
         clienteNombre: cliente?.nombre ?? null,
         clienteApellido: cliente?.apellido ?? null,
         clienteEmpresa: cliente?.empresa ?? null,

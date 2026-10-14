@@ -690,6 +690,8 @@ export const documentosEmitidos = pgTable('documentos_emitidos', {
   pedidoId: uuid('pedido_id').notNull().references(() => pedidos.id),
   emitidoPor: uuid('emitido_por').notNull().references(() => users.id),
   emitidoAt: timestamp('emitido_at', { mode: 'date' }).notNull().defaultNow(),
+  /** Huella del contenido del pedido al emitir (lib/pdf/documento-vigente.ts). Null en emisiones viejas. */
+  contenidoHash: text('contenido_hash'),
 }, (t) => [
   uniqueIndex('documentos_emitidos_tipo_numero_idx').on(t.tipo, t.numero),
   index('documentos_emitidos_pedido_idx').on(t.pedidoId),

@@ -12,6 +12,7 @@ import { RemitoDocument } from './remito.template'
 import { ProformaDocument } from './proforma.template'
 import { armarMarcaTitulo } from './marca-titulo'
 import { tituloDocumento, nombreArchivoDocumento } from './nombre-archivo'
+import { buscarUltimoDocumento, documentoSigueVigente, hashContenidoPedido } from './documento-vigente'
 import { NotFoundError } from '@/lib/errors'
 
 export type EmitirDocumentoResult = {
@@ -62,41 +63,51 @@ export async function emitirDocumento(
     puntoVenta: config?.puntoVenta ?? undefined,
   }
 
-  // 3. Transaction with locking on document_counters
+  // 3. Número del documento: el pedido tiene UNA proforma / UN remito vigente.
+  // Si ya se emitió y el contenido no cambió, se reutiliza ese número (el
+  // cliente siempre ve la misma proforma). Si no, se toma uno nuevo del
+  // contador, con lock sobre document_counters.
+  const contenidoHash = hashContenidoPedido(pedido)
+  const ultimo = await buscarUltimoDocumento(pedidoId, tipo)
   let newNumber = 0
 
-  await db.transaction(async (tx) => {
-    // Lock the counter row
-    await tx.execute(
-      sql`SELECT * FROM document_counters WHERE tipo = ${tipo} FOR UPDATE`,
-    )
+  if (documentoSigueVigente(ultimo, contenidoHash, pedido.updatedAt)) {
+    newNumber = ultimo!.numero
+  } else {
+    await db.transaction(async (tx) => {
+      // Lock the counter row
+      await tx.execute(
+        sql`SELECT * FROM document_counters WHERE tipo = ${tipo} FOR UPDATE`,
+      )
 
-    // Fetch current counter (upsert if missing)
-    const [counter] = await tx
-      .insert(documentCounters)
-      .values({ tipo, lastNumber: 0 })
-      .onConflictDoUpdate({
-        target: documentCounters.tipo,
-        set: { lastNumber: documentCounters.lastNumber },
+      // Fetch current counter (upsert if missing)
+      const [counter] = await tx
+        .insert(documentCounters)
+        .values({ tipo, lastNumber: 0 })
+        .onConflictDoUpdate({
+          target: documentCounters.tipo,
+          set: { lastNumber: documentCounters.lastNumber },
+        })
+        .returning()
+
+      newNumber = (counter?.lastNumber ?? 0) + 1
+
+      // Update counter
+      await tx
+        .update(documentCounters)
+        .set({ lastNumber: newNumber })
+        .where(eq(documentCounters.tipo, tipo))
+
+      // Insert document record
+      await tx.insert(documentosEmitidos).values({
+        tipo,
+        numero: newNumber,
+        pedidoId,
+        emitidoPor,
+        contenidoHash,
       })
-      .returning()
-
-    newNumber = (counter?.lastNumber ?? 0) + 1
-
-    // Update counter
-    await tx
-      .update(documentCounters)
-      .set({ lastNumber: newNumber })
-      .where(eq(documentCounters.tipo, tipo))
-
-    // Insert document record
-    await tx.insert(documentosEmitidos).values({
-      tipo,
-      numero: newNumber,
-      pedidoId,
-      emitidoPor,
     })
-  })
+  }
 
   // 4. Build PedidoData
   // Marcas únicas en orden de aparición, con los reemplazos de marcas

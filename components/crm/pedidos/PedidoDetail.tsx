@@ -14,6 +14,7 @@ import { nombreCompleto } from '@/lib/clientes/nombre'
 import { formatFechaAR, formatFechaInstanteAR, fechaISO_AR } from '@/lib/dates'
 import { useToast } from '@/components/shared/ToastProvider'
 import { useGenerarDocumento } from '@/lib/pedidos/useGenerarDocumento'
+import { padNumeroDocumento } from '@/lib/pdf/nombre-archivo'
 import ProductSheet from './ProductSheet'
 import { esRolVentas } from '@/lib/authz/roles'
 import MuestraBadge from '@/components/crm/pedidos/MuestraBadge'
@@ -68,6 +69,9 @@ type Pedido = {
   metodoEntrega: 'expreso' | 'retiro_fabrica' | null
   esReparto: boolean
   tipo?: 'venta' | 'muestra'
+  /** Número de la proforma / remito vigente (null: la próxima emisión saca número nuevo) */
+  proformaNumero?: number | null
+  remitoNumero?: number | null
   leadId?: string | null
   firmaUrl: string | null
   remitoFotoUrl: string | null
@@ -219,7 +223,22 @@ export default function PedidoDetail({ id }: Props) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [showProof, setShowProof] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const { generarDocumento, enviarDocumentoWhatsapp, isGenerating, isSending, anyGenerating } = useGenerarDocumento()
+  const {
+    generarDocumento: generarDocumentoBase,
+    enviarDocumentoWhatsapp: enviarDocumentoWhatsappBase,
+    isGenerating, isSending, anyGenerating,
+  } = useGenerarDocumento()
+
+  // Tras emitir un documento, refrescar el pedido para que se vea el número vigente
+  const generarDocumento: typeof generarDocumentoBase = async (...args) => {
+    await generarDocumentoBase(...args)
+    void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
+  }
+  const enviarDocumentoWhatsapp: typeof enviarDocumentoWhatsappBase = async (...args) => {
+    const ok = await enviarDocumentoWhatsappBase(...args)
+    void queryClient.invalidateQueries({ queryKey: ['pedido', id] })
+    return ok
+  }
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false)
@@ -475,6 +494,22 @@ export default function PedidoDetail({ id }: Props) {
             <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', estadoPagoColors[pedido.estadoPago])}>
               {estadoPagoLabels[pedido.estadoPago]}
             </span>
+            {pedido.proformaNumero != null && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground tabular-nums"
+                title="Número de la proforma vigente de este pedido. Se mantiene mientras el pedido no cambie."
+              >
+                Proforma Nº {padNumeroDocumento(pedido.proformaNumero)}
+              </span>
+            )}
+            {pedido.remitoNumero != null && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground tabular-nums"
+                title="Número del remito vigente de este pedido. Se mantiene mientras el pedido no cambie."
+              >
+                Remito Nº {padNumeroDocumento(pedido.remitoNumero)}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {formatFechaInstanteAR(pedido.fecha)} — Vendedor: {pedido.vendedorNombre ?? '—'}
