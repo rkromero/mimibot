@@ -881,6 +881,16 @@ export async function esPlantillaUltimoSeguimiento(templateName: string, templat
   return templateName === ult.templateName && templateLang === ult.templateLang
 }
 
+/**
+ * Plantilla y plazo configurados para el último seguimiento (Ajustes →
+ * Seguimiento). Lo usan los envíos masivos para reconocer la plantilla en la
+ * vista previa y avisar cuántas horas tiene el lead para responder.
+ */
+export async function plantillaUltimoSeguimientoConfigurada(): Promise<{ templateName: string; templateLang: string; horas: number }> {
+  const config = await db.query.followUpConfig.findFirst()
+  return { ...plantillaUltimoSeguimiento(config), horas: config?.ultimoSeguimientoHoras ?? ULTIMO_SEGUIMIENTO_HORAS_DEFAULT }
+}
+
 function cierreUltimoSeguimiento(desde: Date, config: FollowUpCfg): Date {
   return calcularCierreUltimoSeguimiento(
     desde,
@@ -951,11 +961,17 @@ export async function prepararUltimoSeguimiento(
   }
 }
 
-/** Manda la plantilla, deja constancia en el chat y programa el cierre. Reemplaza el seguimiento automático pendiente. */
+/**
+ * Manda la plantilla, deja constancia en el chat y programa el cierre.
+ * Reemplaza el seguimiento automático pendiente. Desde un envío masivo se
+ * pasa `envioMasivoId` para que el mensaje quede marcado con el envío y
+ * cuenten los entregados, leídos y respondieron del seguimiento del envío.
+ */
 export async function enviarUltimoSeguimiento(
   leadId: string,
   user: { id: string; name: string | null },
-): Promise<{ body: string; cierraEl: Date }> {
+  opts: { envioMasivoId?: string } = {},
+): Promise<{ body: string; cierraEl: Date; messageId: string; conversationId: string }> {
   const prep = await prepararUltimoSeguimiento(leadId, user.name)
   if (!prep.ok) throw new ValidationError(prep.motivo)
   const { lead, conversationId, waContactPhone, templateName, templateLang, valores, body } = prep
@@ -967,28 +983,27 @@ export async function enviarUltimoSeguimiento(
   const config = await db.query.followUpConfig.findFirst()
   const cierraEl = cierreUltimoSeguimiento(ahora, config)
 
-  await db.insert(messages).values([
-    {
-      conversationId,
-      waMessageId,
-      direction: 'outbound',
-      senderType: 'agent',
-      senderId: user.id,
-      contentType: 'template',
-      body,
-      isRead: true,
-      sentAt: ahora,
-    },
-    {
-      conversationId,
-      direction: 'outbound',
-      senderType: 'system',
-      contentType: 'internal_note',
-      body: `Último seguimiento enviado. Si no responde antes del ${formatFechaHoraAR(cierraEl)} pasa a Perdido (Dejó de responder). Si responde, el cierre se cancela solo.`,
-      isRead: true,
-      sentAt: new Date(ahora.getTime() + 1),
-    },
-  ])
+  const [msg] = await db.insert(messages).values({
+    conversationId,
+    waMessageId,
+    direction: 'outbound',
+    senderType: 'agent',
+    senderId: user.id,
+    contentType: 'template',
+    body,
+    isRead: true,
+    sentAt: ahora,
+    envioMasivoId: opts.envioMasivoId ?? null,
+  }).returning({ id: messages.id })
+  await db.insert(messages).values({
+    conversationId,
+    direction: 'outbound',
+    senderType: 'system',
+    contentType: 'internal_note',
+    body: `Último seguimiento enviado. Si no responde antes del ${formatFechaHoraAR(cierraEl)} pasa a Perdido (Dejó de responder). Si responde, el cierre se cancela solo.`,
+    isRead: true,
+    sentAt: new Date(ahora.getTime() + 1),
+  })
   await db.execute(
     sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversationId}`,
   )
@@ -1019,7 +1034,7 @@ export async function enviarUltimoSeguimiento(
   })
   await publishCrmEvent({ type: 'new_message', conversationId, leadId, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
 
-  return { body, cierraEl }
+  return { body, cierraEl, messageId: msg!.id, conversationId }
 }
 
 /** Cancela el cierre pendiente del último seguimiento (a mano o porque respondió). */

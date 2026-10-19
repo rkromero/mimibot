@@ -8,7 +8,7 @@ import { useToast } from '@/components/shared/ToastProvider'
 import { nombreLead } from '@/lib/clientes/nombre'
 import { applyTemplateValues, resolveTemplateVariables, variablesParaChat, plantillaUsableEnChat } from '@/lib/whatsapp/variables'
 import type { Candidato, FiltrosEnvio } from '@/lib/envios-masivos/candidatos'
-import { MOTIVO_EXCLUSION_LABEL, minutosEstimados, type MotivoExclusion, type ResumenExclusiones } from '@/lib/envios-masivos/reglas'
+import { MOTIVO_EXCLUSION_LABEL, MOTIVOS_EXCLUSION, minutosEstimados, type ResumenExclusiones } from '@/lib/envios-masivos/reglas'
 
 type Stage = { id: string; name: string }
 type Usuario = { id: string; name: string | null }
@@ -16,13 +16,21 @@ type Template = { name: string; language: string; status: string; bodyText: stri
 
 type Paso = 1 | 2 | 3
 
+type Preview = {
+  candidatos: Candidato[]
+  resumen: ResumenExclusiones
+  /** Plazo del último seguimiento si la plantilla elegida es esa; null si es otra */
+  ultimoSeguimiento: { horas: number } | null
+}
+
 const inputClass = 'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring'
 
 /**
  * Asistente de nuevo envío en tres pasos: destinatarios (filtros + vista
  * previa con tildes), plantilla (con el texto resuelto para el primer lead)
  * y cuándo sale (ahora o programado). Antes de confirmar muestra cuántos
- * salen y cuántos quedan afuera por cada regla.
+ * salen y cuántos quedan afuera por cada regla. Si la plantilla es la de
+ * último seguimiento, avisa que los que no respondan pasan a Perdido.
  */
 export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
   const toast = useToast()
@@ -53,7 +61,7 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
   )
 
   // Vista previa del grupo: se recalcula al cambiar filtros o plantilla
-  const { data: preview, isFetching: cargandoPreview } = useQuery<{ candidatos: Candidato[]; resumen: ResumenExclusiones }>({
+  const { data: preview, isFetching: cargandoPreview } = useQuery<Preview>({
     queryKey: ['envio-candidatos', filtros, template?.name ?? ''],
     queryFn: async () => {
       const res = await fetch('/api/admin/envios-masivos/candidatos', {
@@ -61,7 +69,7 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filtros, templateName: template?.name ?? '__sin_plantilla__' }),
       })
-      const json = await res.json() as { data?: { candidatos: Candidato[]; resumen: ResumenExclusiones }; error?: string }
+      const json = await res.json() as { data?: Preview; error?: string }
       if (!res.ok || !json.data) throw new Error(json.error ?? 'No se pudo cargar la vista previa')
       return json.data
     },
@@ -72,6 +80,7 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
   const candidatos = preview?.candidatos ?? []
   const elegibles = candidatos.filter((c) => !c.excluido && !destildados.has(c.leadId))
   const primero = elegibles[0] ?? null
+  const ultimoSeguimiento = template ? preview?.ultimoSeguimiento ?? null : null
 
   const previewTexto = useMemo(() => {
     if (!template) return ''
@@ -245,6 +254,7 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
                   </p>
                 </div>
               )}
+              {ultimoSeguimiento && <AvisoUltimoSeguimiento horas={ultimoSeguimiento.horas} />}
               {preview && <ResumenChips resumen={preview.resumen} destildados={destildados.size} />}
             </>
           )}
@@ -266,13 +276,14 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
                 <p><span className="font-semibold">{elegibles.length}</span> mensajes de la plantilla <span className="font-mono text-xs">{template?.name}</span>.</p>
                 {preview && (
                   <p className="text-muted-foreground text-xs">
-                    Quedan afuera: {preview.resumen.sin_whatsapp} sin WhatsApp, {preview.resumen.lead_cerrado} cerrados, {preview.resumen.plantilla_repetida} que ya la recibieron, {destildados.size} destildados.
+                    Quedan afuera: {preview.resumen.sin_whatsapp} sin WhatsApp, {preview.resumen.lead_cerrado} cerrados, {preview.resumen.plantilla_repetida} que ya la recibieron{ultimoSeguimiento ? `, ${preview.resumen.ultimo_seguimiento_pendiente ?? 0} ya esperando respuesta` : ''}, {destildados.size} destildados.
                   </p>
                 )}
                 <p className="text-muted-foreground text-xs">
                   Salen de a uno, tarda unos {minutosEstimados(elegibles.length)} min. Solo entre las 8 y las 22 hs: si cae afuera, arranca a las 8. Cada plantilla se paga como mensaje iniciado por el negocio.
                 </p>
               </div>
+              {ultimoSeguimiento && <AvisoUltimoSeguimiento horas={ultimoSeguimiento.horas} />}
             </>
           )}
         </div>
@@ -307,11 +318,26 @@ export default function NuevoEnvioWizard({ onClose, onCreado }: { onClose: () =>
   )
 }
 
+/** Aviso de que la plantilla elegida es la de último seguimiento y dispara el cierre a Perdido. */
+function AvisoUltimoSeguimiento({ horas }: { horas: number }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+      <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+      <div className="space-y-1">
+        <p className="font-medium">Esta es la plantilla de último seguimiento.</p>
+        <p className="text-xs">
+          Cada lead que la reciba queda esperando respuesta: si no contesta en {horas} h (contadas entre las 8 y las 22) pasa a Perdido con el motivo &quot;Dejó de responder&quot;. Si responde, el cierre se cancela solo. Las respuestas automáticas de negocios no cuentan.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ResumenChips({ resumen, destildados }: { resumen: ResumenExclusiones; destildados: number }) {
   const items: Array<{ label: string; n: number; clase: string }> = [
     { label: 'van a recibir', n: Math.max(0, resumen.elegibles - destildados), clase: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
-    ...(['sin_whatsapp', 'lead_cerrado', 'plantilla_repetida'] as MotivoExclusion[])
-      .filter((m) => resumen[m] > 0)
+    ...MOTIVOS_EXCLUSION
+      .filter((m) => (resumen[m] ?? 0) > 0)
       .map((m) => ({ label: MOTIVO_EXCLUSION_LABEL[m].toLowerCase(), n: resumen[m], clase: 'bg-muted text-muted-foreground' })),
     ...(destildados > 0 ? [{ label: 'destildados', n: destildados, clase: 'bg-muted text-muted-foreground' }] : []),
   ]

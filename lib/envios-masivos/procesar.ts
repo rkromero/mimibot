@@ -9,6 +9,12 @@
  * deja el mensaje en el chat del lead marcado con el envío y actualiza los
  * contadores. Entre mensaje y mensaje espera PAUSA_ENTRE_MENSAJES_MS.
  *
+ * Si la plantilla es la de último seguimiento (Ajustes → Seguimiento), cada
+ * destinatario pasa por el mismo motor que el botón del panel del lead: se
+ * manda, queda la nota y se programa el cierre a Perdido ("Dejó de responder")
+ * si no contesta en el plazo. Los que no pueden (ya esperando, cerrados)
+ * quedan omitidos con el motivo.
+ *
  * Fuera del horario permitido (8 a 22 hs) se detiene y queda programado para
  * el próximo inicio; el programador lo retoma.
  */
@@ -17,6 +23,8 @@ import { db } from '@/db'
 import {
   contacts, conversations, enviosMasivos, enviosMasivosDestinatarios, leads, messages, users,
 } from '@/db/schema'
+import { ValidationError } from '@/lib/errors'
+import { enviarUltimoSeguimiento, esPlantillaUltimoSeguimiento } from '@/lib/followup/engine'
 import { contextoApertura } from '@/lib/leads/apertura'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { variablesParaChat } from '@/lib/whatsapp/apertura'
@@ -92,6 +100,7 @@ export async function procesarEnvio(envioId: string): Promise<void> {
       .where(eq(enviosMasivos.id, envioId))
 
     const creador = await db.query.users.findFirst({ where: eq(users.id, envio.creadoPor), columns: { name: true } })
+    const esUltimoSeguimiento = await esPlantillaUltimoSeguimiento(envio.templateName, envio.templateLang)
     const variables = variablesParaChat(envio.templateBody, null)
     const varsConfiguradas = await variablesDePlantilla(envio)
     const vars = varsConfiguradas ?? variables
@@ -113,7 +122,7 @@ export async function procesarEnvio(envioId: string): Promise<void> {
         return
       }
 
-      await enviarADestinatario(envio, d, vars, creador?.name ?? null)
+      await enviarADestinatario(envio, d, vars, creador?.name ?? null, esUltimoSeguimiento)
       await dormir(PAUSA_ENTRE_MENSAJES_MS)
     }
 
@@ -145,6 +154,7 @@ async function enviarADestinatario(
   d: Destinatario,
   vars: ReturnType<typeof variablesParaChat>,
   nombreCreador: string | null,
+  esUltimoSeguimiento = false,
 ): Promise<void> {
   const lead = await db
     .select({
@@ -170,6 +180,14 @@ async function enviarADestinatario(
     : await db.query.conversations.findFirst({ where: eq(conversations.leadId, d.leadId), columns: { id: true, waContactPhone: true, leadId: true } })
   if (!conv?.waContactPhone) {
     await marcarDestinatario(d, { estado: 'omitido', motivo: 'Sin teléfono de WhatsApp' }, 'omitidos')
+    return
+  }
+
+  if (esUltimoSeguimiento) {
+    await enviarUltimoSeguimientoADestinatario(envio, d, {
+      id: lead.assignedTo ?? envio.creadoPor,
+      name: lead.vendedorNombre ?? nombreCreador,
+    })
     return
   }
 
@@ -220,4 +238,33 @@ async function enviarADestinatario(
     assignedTo: lead.assignedTo ?? null,
     direction: 'outbound',
   })
+}
+
+/**
+ * Último seguimiento por envío masivo: delega en el motor de seguimiento
+ * (manda, nota en el chat, plazo de cierre, actividad, evento en vivo). Si el
+ * motor dice que no se puede (ya esperando respuesta, lead cerrado, sin
+ * plantilla aprobada) el destinatario queda omitido con ese motivo; un error
+ * de Meta lo deja fallido.
+ */
+async function enviarUltimoSeguimientoADestinatario(
+  envio: Envio,
+  d: Destinatario,
+  remitente: { id: string; name: string | null },
+): Promise<void> {
+  try {
+    const r = await enviarUltimoSeguimiento(d.leadId, remitente, { envioMasivoId: envio.id })
+    await marcarDestinatario(
+      d,
+      { estado: 'enviado', enviadoAt: new Date(), messageId: r.messageId, conversationId: r.conversationId, motivo: null },
+      'enviados',
+    )
+  } catch (err) {
+    const detalle = (err instanceof Error ? err.message : String(err)).slice(0, 300)
+    if (err instanceof ValidationError) {
+      await marcarDestinatario(d, { estado: 'omitido', motivo: detalle }, 'omitidos')
+    } else {
+      await marcarDestinatario(d, { estado: 'fallido', motivo: detalle }, 'fallidos')
+    }
+  }
 }

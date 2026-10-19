@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/authz'
 import { toApiError } from '@/lib/errors'
 import { buscarCandidatos } from '@/lib/envios-masivos/candidatos'
 import { resumirExclusiones } from '@/lib/envios-masivos/reglas'
+import { plantillaUltimoSeguimientoConfigurada } from '@/lib/followup/engine'
 import { filtrosEnvioSchema } from '@/lib/envios-masivos/validacion'
 
 const schema = z.object({
@@ -16,6 +17,9 @@ const schema = z.object({
  * POST /api/admin/envios-masivos/candidatos — vista previa del grupo: leads
  * que cumplen los filtros, cada uno con su motivo de exclusión (o ninguno)
  * para la plantilla elegida, y el resumen de cuántos entran y cuántos no.
+ * Si la plantilla es la de último seguimiento, `ultimoSeguimiento` trae el
+ * plazo en horas para que el asistente avise que los que no respondan pasan
+ * a Perdido.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +34,9 @@ export async function POST(req: NextRequest) {
 
     const candidatos = await buscarCandidatos(parsed.data.filtros, parsed.data.templateName)
     const resumen = resumirExclusiones(candidatos.map((c) => c.excluido))
-    return NextResponse.json({ data: { candidatos, resumen } })
+    const ult = await plantillaUltimoSeguimientoConfigurada()
+    const ultimoSeguimiento = ult.templateName === parsed.data.templateName ? { horas: ult.horas } : null
+    return NextResponse.json({ data: { candidatos, resumen, ultimoSeguimiento } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })

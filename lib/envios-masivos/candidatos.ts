@@ -1,7 +1,9 @@
 /**
  * Envíos masivos: quiénes entran en el grupo. Aplica los filtros del pipeline
  * (etapa, vendedor, etiqueta, fuente, fecha de creación) y marca a cada lead
- * con el motivo de exclusión si no puede recibir la plantilla.
+ * con el motivo de exclusión si no puede recibir la plantilla. Si la plantilla
+ * es la de último seguimiento, también quedan afuera los que ya están
+ * esperando respuesta a uno (tienen el cierre a Perdido programado).
  */
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { db } from '@/db'
@@ -9,6 +11,8 @@ import {
   contacts, conversations, enviosMasivos, enviosMasivosDestinatarios, leadTags, leads, pipelineStages, users,
 } from '@/db/schema'
 import { parseFechaAR } from '@/lib/dates'
+import { plantillaUltimoSeguimientoConfigurada } from '@/lib/followup/engine'
+import { REASON_ULTIMO_SEGUIMIENTO } from '@/lib/followup/ultimo-seguimiento'
 import { DIAS_ANTIREPETICION, MAX_DESTINATARIOS, motivoExclusion, type MotivoExclusion } from './reglas'
 
 export type FiltrosEnvio = {
@@ -57,6 +61,8 @@ export async function buscarCandidatos(filtros: FiltrosEnvio, templateName: stri
     .select({
       leadId: leads.id,
       isOpen: leads.isOpen,
+      followUpReason: leads.followUpReason,
+      followUpStatus: leads.followUpStatus,
       nombre: contacts.name,
       empresa: leads.empresa,
       productInterest: leads.productInterest,
@@ -100,9 +106,13 @@ export async function buscarCandidatos(filtros: FiltrosEnvio, templateName: stri
     .groupBy(enviosMasivosDestinatarios.leadId)
   const ultimoPorLead = new Map(previos.map((p) => [p.leadId, p.ultimo instanceof Date ? p.ultimo : new Date(p.ultimo)]))
 
+  const esUltimoSeguimiento = (await plantillaUltimoSeguimientoConfigurada()).templateName === templateName
+
   const ahora = new Date()
   return rows.map((r) => {
     const conv = convPorLead.get(r.leadId) ?? null
+    const esperandoUltimoSeguimiento =
+      esUltimoSeguimiento && r.followUpReason === REASON_ULTIMO_SEGUIMIENTO && r.followUpStatus === 'pending'
     return {
       leadId: r.leadId,
       nombre: r.nombre,
@@ -113,7 +123,12 @@ export async function buscarCandidatos(filtros: FiltrosEnvio, templateName: stri
       productInterest: r.productInterest,
       conversationId: conv?.id ?? null,
       excluido: motivoExclusion(
-        { isOpen: r.isOpen, waContactPhone: conv?.phone ?? null, ultimoEnvioMismaPlantillaAt: ultimoPorLead.get(r.leadId) ?? null },
+        {
+          isOpen: r.isOpen,
+          waContactPhone: conv?.phone ?? null,
+          ultimoEnvioMismaPlantillaAt: ultimoPorLead.get(r.leadId) ?? null,
+          esperandoUltimoSeguimiento,
+        },
         ahora,
       ),
     }

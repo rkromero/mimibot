@@ -32,12 +32,20 @@ describe('motivoExclusion', () => {
     expect(motivoExclusion({ isOpen: true, waContactPhone: '+549', ultimoEnvioMismaPlantillaAt: d(3) }, ahora)).toBe('plantilla_repetida')
     expect(motivoExclusion({ isOpen: true, waContactPhone: '+549', ultimoEnvioMismaPlantillaAt: d(8) }, ahora)).toBeNull()
   })
+
+  it('ya esperando respuesta al último seguimiento → ultimo_seguimiento_pendiente (antes que la antirrepetición)', () => {
+    expect(motivoExclusion({ isOpen: true, waContactPhone: '+549', ultimoEnvioMismaPlantillaAt: d(3), esperandoUltimoSeguimiento: true }, ahora))
+      .toBe('ultimo_seguimiento_pendiente')
+    expect(motivoExclusion({ isOpen: true, waContactPhone: '+549', ultimoEnvioMismaPlantillaAt: null, esperandoUltimoSeguimiento: false }, ahora)).toBeNull()
+    // cerrado o sin WhatsApp pesan más
+    expect(motivoExclusion({ isOpen: false, waContactPhone: '+549', ultimoEnvioMismaPlantillaAt: null, esperandoUltimoSeguimiento: true }, ahora)).toBe('lead_cerrado')
+  })
 })
 
 describe('resumirExclusiones', () => {
   it('cuenta elegibles y cada motivo', () => {
-    expect(resumirExclusiones([null, null, 'sin_whatsapp', 'plantilla_repetida', 'plantilla_repetida', 'lead_cerrado']))
-      .toEqual({ elegibles: 2, sin_whatsapp: 1, plantilla_repetida: 2, lead_cerrado: 1 })
+    expect(resumirExclusiones([null, null, 'sin_whatsapp', 'plantilla_repetida', 'plantilla_repetida', 'lead_cerrado', 'ultimo_seguimiento_pendiente']))
+      .toEqual({ elegibles: 2, sin_whatsapp: 1, plantilla_repetida: 2, lead_cerrado: 1, ultimo_seguimiento_pendiente: 1 })
   })
 })
 
