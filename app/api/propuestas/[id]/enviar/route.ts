@@ -5,19 +5,14 @@ import { z } from 'zod'
 import { Resend } from 'resend'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { propuestas, conversations, messages, activityLog } from '@/db/schema'
-import { eq, and, isNull, sql } from 'drizzle-orm'
+import { propuestas } from '@/db/schema'
+import { eq, and, isNull } from 'drizzle-orm'
 import { canAccessLead } from '@/lib/authz'
 import { toApiError, NotFoundError, ValidationError } from '@/lib/errors'
 import { generarPropuestaPdf } from '@/lib/pdf/propuesta.service'
 import { formatNumeroPropuesta } from '@/lib/pdf/propuesta.template'
-import { uploadMediaToMeta, sendMediaMessage } from '@/lib/whatsapp/client'
-import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { validateUuidParam } from '@/lib/api/validate-params'
-import { programarSeguimientoPropuesta } from '@/lib/followup/engine'
-import { envioDisparaSeguimiento } from '@/lib/followup/propuesta'
-import { onPropuestaEnviada } from '@/lib/leads/propuesta-enviada'
-import type { Session } from 'next-auth'
+import { enviarPropuestaPorWhatsapp, registrarEnvioPropuesta } from '@/lib/cotizador/enviar-propuesta.service'
 
 const enviarSchema = z.object({
   via: z.enum(['descarga', 'whatsapp', 'email'], {
@@ -25,12 +20,10 @@ const enviarSchema = z.object({
   }),
 })
 
-type Via = z.infer<typeof enviarSchema>['via']
-
 // Entrega de la propuesta: por WhatsApp (documento en la conversación del
 // lead), por email (Resend con el PDF adjunto) o registro de descarga manual.
 // Cualquiera de las tres pasa la propuesta a 'enviada', deja actividad y
-// mueve el lead a la etapa "Propuesta enviada" (lib/leads/propuesta-enviada.ts).
+// mueve el lead a la etapa "Propuesta enviada" (lib/cotizador/enviar-propuesta.service.ts).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -62,7 +55,10 @@ export async function POST(
     const numeroFmt = formatNumeroPropuesta(pdf.numero)
 
     if (parsed.data.via === 'whatsapp') {
-      await enviarPorWhatsapp(propuesta.leadId, pdf.buffer, pdf.filename, numeroFmt, session.user)
+      await enviarPropuestaPorWhatsapp(propuesta.leadId, pdf.buffer, pdf.filename, numeroFmt, {
+        senderType: 'agent',
+        senderId: session.user.id,
+      })
     } else if (parsed.data.via === 'email') {
       await enviarPorEmail(
         propuesta.lead.contact.email,
@@ -74,84 +70,22 @@ export async function POST(
     }
     // 'descarga': el PDF ya lo bajó el navegador vía GET /pdf; acá solo se registra
 
-    const yaEstabaEnviada = propuesta.estado === 'enviada'
-    await marcarEnviada(id, propuesta.leadId, pdf.numero, parsed.data.via, session.user.id)
-
     // Volver a bajar el PDF de una propuesta que ya salió no es un envío nuevo:
-    // se registra, pero no mueve de etapa ni vuelve a programar el seguimiento
-    // ("¿pudiste ver la cotización que te mandé ayer?") en medio de la charla.
-    let etapaMovida = false
-    if (envioDisparaSeguimiento({ via: parsed.data.via, yaEstabaEnviada })) {
-      // Con al menos una propuesta enviada, el lead pasa a "Propuesta enviada" (best-effort)
-      const etapa = await onPropuestaEnviada(propuesta.leadId, session.user.id, id)
-      etapaMovida = etapa.etapaMovida
-
-      // Seguimiento automático al día siguiente (Ajustes → Seguimiento). Best-effort.
-      void programarSeguimientoPropuesta(propuesta.leadId).catch((err) => {
-        console.error('[propuesta] no se pudo programar el seguimiento:', err)
-      })
-    }
+    // se registra, pero no mueve de etapa ni vuelve a programar el seguimiento.
+    const { etapaMovida } = await registrarEnvioPropuesta({
+      propuestaId: id,
+      leadId: propuesta.leadId,
+      numero: pdf.numero,
+      via: parsed.data.via,
+      userId: session.user.id,
+      yaEstabaEnviada: propuesta.estado === 'enviada',
+    })
 
     return NextResponse.json({ data: { via: parsed.data.via, estado: 'enviada', etapaMovida } })
   } catch (err) {
     const { message, status } = toApiError(err)
     return NextResponse.json({ error: message }, { status })
   }
-}
-
-async function enviarPorWhatsapp(
-  leadId: string,
-  buffer: Buffer,
-  filename: string,
-  numeroFmt: string,
-  user: Session['user'],
-): Promise<void> {
-  const conv = await db.query.conversations.findFirst({
-    where: eq(conversations.leadId, leadId),
-    columns: { id: true, waContactPhone: true },
-  })
-  if (!conv?.waContactPhone) {
-    throw new ValidationError('El lead no tiene conversación de WhatsApp para enviar la propuesta')
-  }
-
-  // Mismo flujo que el envío de adjuntos del inbox (app/api/whatsapp/send):
-  // fila de mensaje + copia en R2 + upload a Meta + envío como documento
-  const [msg] = await db
-    .insert(messages)
-    .values({
-      conversationId: conv.id,
-      direction: 'outbound',
-      senderType: 'agent',
-      senderId: user.id,
-      contentType: 'document',
-      body: `Propuesta ${numeroFmt}`,
-      isRead: true,
-      sentAt: new Date(),
-    })
-    .returning()
-
-  const [, metaMediaId] = await Promise.all([
-    persistOutboundMedia({
-      buffer,
-      messageId: msg!.id,
-      conversationId: conv.id,
-      mimeType: 'application/pdf',
-      filename,
-    }),
-    uploadMediaToMeta(buffer, 'application/pdf', filename),
-  ])
-
-  const waMessageId = await sendMediaMessage(
-    conv.waContactPhone,
-    metaMediaId,
-    'document',
-    `Propuesta ${numeroFmt}`,
-  )
-  await db.update(messages).set({ waMessageId }).where(eq(messages.id, msg!.id))
-
-  await db.execute(
-    sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conv.id}`,
-  )
 }
 
 async function enviarPorEmail(
@@ -187,24 +121,4 @@ async function enviarPorEmail(
   if (error) {
     throw new ValidationError(`No se pudo enviar el email: ${error.message}`)
   }
-}
-
-async function marcarEnviada(
-  propuestaId: string,
-  leadId: string,
-  numero: number,
-  via: Via,
-  userId: string,
-): Promise<void> {
-  await db
-    .update(propuestas)
-    .set({ estado: 'enviada', updatedAt: new Date() })
-    .where(eq(propuestas.id, propuestaId))
-
-  await db.insert(activityLog).values({
-    leadId,
-    userId,
-    action: 'propuesta_enviada',
-    metadata: { propuestaId, numero, via },
-  })
 }

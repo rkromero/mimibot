@@ -1,14 +1,16 @@
 /**
  * Propuesta automática al calificar: con la cantidad, el gramaje y el
- * packaging que el bot dejó en el [RESUMEN] se crea la propuesta (en
- * borrador, igual que desde la ficha) a nombre del vendedor asignado, queda
- * nota interna en el chat y push al asignado. Best-effort: nunca hace fallar
- * el handoff; si falta un dato, lo dice en una nota para cotizar a mano.
+ * packaging que el bot dejó en el [RESUMEN] se crea la propuesta a nombre
+ * del vendedor asignado, se manda por WhatsApp (el lead pasa a "Propuesta
+ * enviada" con su seguimiento), queda nota interna en el chat y push al
+ * asignado. Best-effort: nunca hace fallar el handoff; si falta un dato o
+ * falla el envío, lo dice en una nota para resolverlo desde la ficha.
  */
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { db } from '@/db'
 import { propuestas, recetas } from '@/db/schema'
 import { crearPropuesta } from '@/lib/cotizador/propuestas.service'
+import { enviarPropuestaDesdeBot } from '@/lib/cotizador/enviar-propuesta.service'
 import { propuestaResultadoSchema } from '@/lib/validations/cotizador'
 import { alertarEquipoBot, dejarNotaInternaBot } from './bot-alertas'
 import {
@@ -91,17 +93,32 @@ export async function crearPropuestaAutomatica(params: {
     const vigente = /^(\d{4})-(\d{2})-(\d{2})$/.exec(propuesta.vigenteHasta)
     const vigenteHasta = vigente ? `${vigente[3]}/${vigente[2]}/${vigente[1]}` : null
 
+    // Sale por WhatsApp al toque (PDF como documento) y el lead pasa a
+    // "Propuesta enviada" con su seguimiento. Si falla, queda en borrador.
+    let errorEnvio: string | null = null
+    try {
+      await enviarPropuestaDesdeBot(propuesta.id, assignedTo)
+    } catch (err) {
+      console.error('[bot] la propuesta se creó pero no se pudo enviar:', err)
+      errorEnvio = err instanceof Error ? err.message : 'error desconocido'
+    }
+
+    const numeroFmt = formatNumeroPropuesta(propuesta.numero)
     await dejarNotaInternaBot({
       leadId,
       conversationId,
       assignedTo,
-      texto: armarNotaPropuestaCreada({ numero: propuesta.numero, datos, total, vigenteHasta }),
+      texto: armarNotaPropuestaCreada({ numero: propuesta.numero, datos, total, vigenteHasta, errorEnvio }),
     })
     await alertarEquipoBot({
       conversationId,
       assignedTo,
-      titulo: `Propuesta ${formatNumeroPropuesta(propuesta.numero)} lista para ${nombreContacto ?? 'un lead'}`,
-      cuerpo: `${datos.cantidad} alfajores de ${datos.gramaje} g, ${datos.packaging}. Revisala y enviala.`,
+      titulo: errorEnvio
+        ? `Propuesta ${numeroFmt} creada, falta enviarla a ${nombreContacto ?? 'un lead'}`
+        : `Propuesta ${numeroFmt} enviada a ${nombreContacto ?? 'un lead'}`,
+      cuerpo: errorEnvio
+        ? `No se pudo mandar por WhatsApp: enviala desde la ficha.`
+        : `${datos.cantidad} alfajores de ${datos.gramaje} g, ${datos.packaging}. El lead pasó a Propuesta enviada.`,
     })
   } catch (err) {
     console.error('[bot] no se pudo crear la propuesta automática:', err)

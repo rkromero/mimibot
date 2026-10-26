@@ -144,14 +144,18 @@ export function armarNotaPropuestaCreada(params: {
   datos: DatosCotizacionBot
   total: number | null
   vigenteHasta: string | null
+  /** Si el envío por WhatsApp falló, el motivo; null si salió bien */
+  errorEnvio?: string | null
 }): string {
-  const { numero, datos, total, vigenteHasta } = params
+  const { numero, datos, total, vigenteHasta, errorEnvio = null } = params
+  const detalle =
+    `${datos.cantidad.toLocaleString('es-AR')} alfajores de ${datos.gramaje} g, packaging ${datos.packaging}` +
+    (total !== null ? `, total ${formatPesos(total)} (IVA incluido)` : '') +
+    (vigenteHasta ? `, vigente hasta ${vigenteHasta}` : '')
   const partes = [
-    `Propuesta ${formatNumeroPropuesta(numero)} creada automáticamente por el bot: ` +
-      `${datos.cantidad.toLocaleString('es-AR')} alfajores de ${datos.gramaje} g, packaging ${datos.packaging}` +
-      (total !== null ? `, total ${formatPesos(total)} (IVA incluido)` : '') +
-      (vigenteHasta ? `, vigente hasta ${vigenteHasta}` : '') +
-      '. Quedó en borrador: revisala y enviala desde la ficha del lead.',
+    errorEnvio
+      ? `Propuesta ${formatNumeroPropuesta(numero)} creada automáticamente por el bot (${detalle}), pero NO se pudo enviar por WhatsApp: ${errorEnvio}. Quedó en borrador: enviala desde la ficha del lead.`
+      : `Propuesta ${formatNumeroPropuesta(numero)} creada y enviada por WhatsApp automáticamente por el bot: ${detalle}. El lead pasó a Propuesta enviada.`,
   ]
   if (datos.supuestos.length > 0) partes.push(`Ojo: ${datos.supuestos.join('; ')}.`)
   return partes.join('\n')

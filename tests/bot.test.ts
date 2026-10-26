@@ -71,8 +71,13 @@ vi.mock('@/lib/cotizador/propuestas.service', () => ({
   }),
 }))
 
+vi.mock('@/lib/cotizador/enviar-propuesta.service', () => ({
+  enviarPropuestaDesdeBot: vi.fn().mockResolvedValue({ etapaMovida: true }),
+}))
+
 import { db } from '@/db'
 import { crearPropuesta } from '@/lib/cotizador/propuestas.service'
+import { enviarPropuestaDesdeBot } from '@/lib/cotizador/enviar-propuesta.service'
 import { anthropic } from '@/lib/claude/client'
 import { sendTextMessage, sendMediaMessage } from '@/lib/whatsapp/client'
 import { enviarPushAUsuarios } from '@/lib/push/web-push'
@@ -92,6 +97,7 @@ const mockSendText = sendTextMessage as ReturnType<typeof vi.fn>
 const mockSendMedia = sendMediaMessage as ReturnType<typeof vi.fn>
 const mockPush = enviarPushAUsuarios as ReturnType<typeof vi.fn>
 const mockCrearPropuesta = crearPropuesta as ReturnType<typeof vi.fn>
+const mockEnviarPropuesta = enviarPropuestaDesdeBot as ReturnType<typeof vi.fn>
 
 /** Etiqueta registrada en la actividad `tag_added` (el tag ya existe en el mock de tags.findFirst). */
 function tagAgregado(inserts: Record<string, unknown>[], nombre: string) {
@@ -241,7 +247,7 @@ describe('processBotTurn', () => {
       return instalarCadenas()
     }
 
-    it('crea la propuesta en borrador con cantidad / gramaje / packaging del resumen, deja nota y avisa', async () => {
+    it('crea la propuesta con cantidad / gramaje / packaging del resumen, la envía por WhatsApp, deja nota y avisa', async () => {
       const { inserts } = prepararHandoff(
         'Empresa: La Espiga\nCantidad: 1.200 alfajores\nGramaje: 80 g\nPackaging: personalizado\nScore: 11/14, grado A',
       )
@@ -253,16 +259,35 @@ describe('processBotTurn', () => {
         { cantidad: 1200, gramaje: 80, packaging: 'personalizado', descuentoManualPct: 0 },
         'user-9',
       )
+      // Sale al toque a nombre del vendedor asignado (etapa + seguimiento los hace el servicio)
+      expect(mockEnviarPropuesta).toHaveBeenCalledWith('prop-1', 'user-9')
       const nota = inserts().find(
         (v) => v['contentType'] === 'internal_note' && String(v['body']).includes('PROP-00007'),
       )
       expect(nota).toBeDefined()
+      expect(String(nota!['body'])).toContain('creada y enviada por WhatsApp automáticamente')
       expect(String(nota!['body'])).toContain('1.200 alfajores de 80 g, packaging personalizado')
       expect(String(nota!['body'])).toContain('total $1.500.000')
       expect(String(nota!['body'])).toContain('vigente hasta 02/11/2026')
       expect(mockPush).toHaveBeenCalledWith(
         expect.any(Array),
-        expect.objectContaining({ title: 'Propuesta PROP-00007 lista para Rodolfo' }),
+        expect.objectContaining({ title: 'Propuesta PROP-00007 enviada a Rodolfo' }),
+      )
+    })
+
+    it('si el envío por WhatsApp falla, la propuesta queda en borrador y la nota lo dice', async () => {
+      const { inserts } = prepararHandoff('Cantidad: 500\nGramaje: 60\nPackaging: cristal')
+      mockEnviarPropuesta.mockRejectedValueOnce(new Error('Meta no respondió'))
+
+      await processBotTurn(baseParams)
+
+      expect(mockCrearPropuesta).toHaveBeenCalledOnce()
+      const nota = inserts().find((v) => v['contentType'] === 'internal_note' && String(v['body']).includes('PROP-00007'))
+      expect(String(nota!['body'])).toContain('NO se pudo enviar por WhatsApp: Meta no respondió')
+      expect(String(nota!['body'])).toContain('enviala desde la ficha')
+      expect(mockPush).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({ title: 'Propuesta PROP-00007 creada, falta enviarla a Rodolfo' }),
       )
     })
 

@@ -233,10 +233,11 @@ export default function BotConfigForm({ initialConfig }: Props) {
       {/* Propuesta automática al calificar */}
       <div className="flex items-center justify-between py-3 border-b border-border">
         <div>
-          <p className="text-sm font-medium">Crear la propuesta sola al calificar</p>
+          <p className="text-sm font-medium">Crear y enviar la propuesta sola al calificar</p>
           <p className="text-xs text-muted-foreground">
-            Con la cantidad, el gramaje y el packaging que el bot relevó, la propuesta queda en borrador en la ficha
-            del lead, a nombre del vendedor asignado. Si falta la cantidad, no se crea y deja una nota.
+            Con la cantidad, el gramaje y el packaging que el bot relevó, la propuesta se crea a nombre del vendedor
+            asignado, sale por WhatsApp al instante y el lead pasa a Propuesta enviada. Si falta la cantidad, no se
+            crea y deja una nota.
           </p>
         </div>
         <button

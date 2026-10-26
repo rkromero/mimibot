@@ -106,10 +106,25 @@ describe('armarNotaPropuestaCreada', () => {
       total: 1234567.89,
       vigenteHasta: '02/11/2026',
     })
-    expect(nota).toContain('Propuesta PROP-00012 creada automáticamente')
+    expect(nota).toContain('Propuesta PROP-00012 creada y enviada por WhatsApp automáticamente')
     expect(nota).toContain('1.200 alfajores de 60 g, packaging cristal')
     expect(nota).toContain('total $1.234.568 (IVA incluido)')
     expect(nota).toContain('vigente hasta 02/11/2026')
+    expect(nota).toContain('El lead pasó a Propuesta enviada.')
     expect(nota).toContain('Ojo: gramaje no indicado: se cotizó 60 g.')
+  })
+
+  it('si el envío falló, lo dice y pide mandarla desde la ficha', () => {
+    const nota = armarNotaPropuestaCreada({
+      numero: 3,
+      datos: { cantidad: 500, gramaje: 60, packaging: 'cristal', supuestos: [] },
+      total: 100,
+      vigenteHasta: null,
+      errorEnvio: 'El lead no tiene conversación de WhatsApp para enviar la propuesta',
+    })
+    expect(nota).toContain('PROP-00003 creada automáticamente')
+    expect(nota).toContain('NO se pudo enviar por WhatsApp: El lead no tiene conversación')
+    expect(nota).toContain('Quedó en borrador: enviala desde la ficha del lead.')
+    expect(nota).not.toContain('Propuesta enviada')
   })
 })
