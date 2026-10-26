@@ -7,8 +7,13 @@ import {
   armarContextoLead,
   armarHistorialClaude,
   armarInstruccionEmpresa,
+  armarSeccionMedios,
+  armarSeccionPlazo,
+  armarSeccionPrecio,
+  armarSeccionProductosExcluidos,
   extraerEmpresa,
   separarResumen,
+  PLAZO_PROPUESTA_DEFAULT,
 } from '@/lib/claude/bot-context'
 
 describe('armarContextoLead', () => {
@@ -143,5 +148,48 @@ describe('extraerEmpresa', () => {
     expect(extraerEmpresa('Empresa: particular')).toBeNull()
     expect(extraerEmpresa('Nombre: Ana\nProducto: alfajores')).toBeNull()
     expect(extraerEmpresa(null)).toBeNull()
+  })
+})
+
+describe('secciones de Ajustes → Bot en el prompt', () => {
+  it('precio de referencia: lo da cuando preguntan y aclara que la propuesta exacta llega por escrito', () => {
+    const s = armarSeccionPrecio('desde $350 por alfajor en 300 u film cristal, + IVA', 'hoy mismo en horario hábil')
+    expect(s).toContain('## Precio')
+    expect(s).toContain('Precio de referencia: desde $350 por alfajor en 300 u film cristal, + IVA')
+    expect(s).toContain('llega por escrito hoy mismo en horario hábil')
+    expect(s).toContain('Nunca digas que no das precios por acá')
+  })
+
+  it('sin precio cargado: no inventa números pero tampoco se niega a hablar de precio', () => {
+    const s = armarSeccionPrecio(null)
+    expect(s).toContain('no inventes números')
+    expect(s).toContain('Nunca digas que no das precios por acá')
+  })
+
+  it('productos excluidos: lista, alternativa, marcador [LISTA_ESPERA] y no calificar', () => {
+    const s = armarSeccionProductosExcluidos(['triple', ' sin TACC ', ''])
+    expect(s).toContain('## Productos que NO hacemos')
+    expect(s).toContain('- triple')
+    expect(s).toContain('- sin TACC')
+    expect(s).toContain('[LISTA_ESPERA: <producto>]')
+    expect(s).toContain('NO lo califiques')
+    expect(armarSeccionProductosExcluidos([])).toBe('')
+    expect(armarSeccionProductosExcluidos(null)).toBe('')
+  })
+
+  it('plazo: usa el configurado o el default, y prohíbe las 72 hs hábiles', () => {
+    expect(armarSeccionPlazo('mañana a primera hora')).toContain('sale mañana a primera hora')
+    expect(armarSeccionPlazo('')).toContain(`sale ${PLAZO_PROPUESTA_DEFAULT}`)
+    expect(armarSeccionPlazo(null)).toContain('72 hs hábiles')
+  })
+
+  it('medios: solo lista las categorías con archivos y explica [FOTO: ...]', () => {
+    const s = armarSeccionMedios(['planta', 'producto_terminado'])
+    expect(s).toContain('## Fotos y videos')
+    expect(s).toContain('- producto_terminado: Producto terminado')
+    expect(s).toContain('- planta: Planta / fábrica')
+    expect(s).not.toContain('bobina_impresa')
+    expect(s).toContain('[FOTO: <categoría>]')
+    expect(armarSeccionMedios([])).toBe('')
   })
 })

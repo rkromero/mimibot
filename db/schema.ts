@@ -357,9 +357,47 @@ export const botConfig = pgTable('bot_config', {
    * el bot contesta una sola vez al conjunto.
    */
   esperaRespuestaSegundos: integer('espera_respuesta_segundos').notNull().default(15),
+  /**
+   * Precio orientativo que el bot puede dar cuando preguntan (ej. "desde $X
+   * por alfajor en 300 u film cristal, + IVA"). null = el bot no da precios.
+   */
+  precioReferencia: text('precio_referencia'),
+  /** Productos que la planta NO hace (triples, sin TACC...): el bot los deriva a lista de espera. */
+  productosExcluidos: text('productos_excluidos').array().notNull().default([]),
+  /** Cuándo llega la propuesta por escrito. Reemplaza cualquier "72 hs hábiles" del prompt. */
+  plazoPropuesta: text('plazo_propuesta').notNull().default('hoy mismo en horario hábil'),
+  /** Al calificar, crear la propuesta en borrador con cantidad / gramaje / packaging del [RESUMEN]. */
+  propuestaAutomatica: boolean('propuesta_automatica').notNull().default(true),
+  /** Gramaje que se cotiza cuando la persona no lo especificó. */
+  gramajeDefault: integer('gramaje_default').notNull().default(60),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+// ─── Galería de medios del bot ───────────────────────────────────────────────
+// Fotos / videos en R2 (producto terminado, flow pack cristal, bobina impresa,
+// planta) que el bot manda cuando la persona pide ver el producto.
+
+export const categoriaBotMediaEnum = pgEnum('categoria_bot_media', [
+  'producto_terminado', 'flow_pack_cristal', 'bobina_impresa', 'planta',
+])
+
+export const botMedia = pgTable('bot_media', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  categoria: categoriaBotMediaEnum('categoria').notNull(),
+  titulo: text('titulo').notNull(),
+  /** Qué se ve, para que el bot elija el medio más relevante */
+  descripcion: text('descripcion'),
+  r2Key: text('r2_key').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size'),
+  orden: integer('orden').notNull().default(0),
+  activo: boolean('activo').notNull().default(true),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+}, (t) => [
+  index('bot_media_categoria_idx').on(t.categoria, t.activo),
+])
 
 // ─── CRM: Enums ───────────────────────────────────────────────────────────────
 

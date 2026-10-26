@@ -6,6 +6,8 @@
  * empresa, localidad) o que el equipo ya le dijo en el mensaje de apertura.
  */
 
+import { CATEGORIAS_BOT_MEDIA, LABEL_CATEGORIA, type CategoriaBotMedia } from './bot-reglas'
+
 export type DatosLeadParaBot = {
   contactName?: string | null
   empresa?: string | null
@@ -177,4 +179,79 @@ export function extraerScore(resumen: string | null | undefined): { score: numbe
   const score = scoreMatch ? Math.min(14, parseInt(scoreMatch[1]!, 10)) : null
   const grado = gradoMatch ? (gradoMatch[1]!.toUpperCase() as 'A' | 'B' | 'C') : null
   return { score, grado }
+}
+
+export const PLAZO_PROPUESTA_DEFAULT = 'hoy mismo en horario hábil'
+
+/**
+ * Precio de referencia (Ajustes → Bot). Con precio cargado el bot lo da cuando
+ * preguntan y aclara que la propuesta exacta llega por escrito; sin precio,
+ * no inventa números pero tampoco dice "no doy precios por acá".
+ */
+export function armarSeccionPrecio(precio: string | null | undefined, plazo: string = PLAZO_PROPUESTA_DEFAULT): string {
+  const lineas = ['## Precio']
+  const p = precio?.trim()
+  if (p) {
+    lineas.push(`Precio de referencia: ${p}.`)
+    lineas.push(
+      'Si la persona pregunta precio, DALO (este rango, tal cual), sin vueltas y sin pedir más datos antes. ' +
+        `Aclará que la propuesta exacta, con el precio final según cantidad y packaging, llega por escrito ${plazo}. ` +
+        'Nunca digas que no das precios por acá.',
+    )
+  } else {
+    lineas.push(
+      'No hay un precio de referencia cargado: no inventes números. Si preguntan precio, decí que depende de cantidad ' +
+        `y packaging y que la propuesta con precios llega por escrito ${plazo}. Nunca digas que no das precios por acá.`,
+    )
+  }
+  return lineas.join('\n')
+}
+
+/**
+ * Productos que la planta NO hace. Si piden uno: decirlo con amabilidad,
+ * ofrecer alternativa y marcar [LISTA_ESPERA: <producto>] (el sistema etiqueta
+ * al lead y no lo deriva como calificado).
+ */
+export function armarSeccionProductosExcluidos(productos: readonly string[] | null | undefined): string {
+  const lista = (productos ?? []).map((p) => p.trim()).filter(Boolean)
+  if (lista.length === 0) return ''
+  return [
+    '## Productos que NO hacemos',
+    lista.map((p) => `- ${p}`).join('\n'),
+    'Si la persona pide alguno de estos (o algo que no sea de pastelería / alfajores):',
+    '- Decile con amabilidad que por ahora no lo hacemos y ofrecele la alternativa más parecida de lo que sí hacemos.',
+    '- Agregá al final del mensaje el marcador [LISTA_ESPERA: <producto>] usando el nombre tal cual figura en la lista ' +
+      '(ej. [LISTA_ESPERA: sin TACC]). No lo repitas si ya lo pusiste en un mensaje anterior por el mismo producto.',
+    '- NO lo califiques ni derives al equipo por ese producto: si le interesa la alternativa, seguís calificando normal; ' +
+      'si solo quiere lo que no hacemos, despedite diciendo que le avisamos cuando lo tengamos y poné ' +
+      '[LISTA_ESPERA: <producto>] junto con [HANDOFF] (así queda anotado en lista de espera, sin pasar a ventas).',
+  ].join('\n')
+}
+
+/** Cuándo llega la propuesta por escrito: nunca prometer otro plazo. */
+export function armarSeccionPlazo(plazo: string | null | undefined): string {
+  const p = plazo?.trim() || PLAZO_PROPUESTA_DEFAULT
+  return [
+    '## Tiempos',
+    `La propuesta por escrito sale ${p}. Si preguntan cuándo la reciben, decí exactamente eso. ` +
+      'No prometas otro plazo (nada de "72 hs hábiles" ni similares).',
+  ].join('\n')
+}
+
+/**
+ * Galería de medios disponible: el bot pide mandar fotos con [FOTO: <categoría>]
+ * (hasta 2 por mensaje) cuando la persona quiere ver el producto, el packaging o la planta.
+ */
+export function armarSeccionMedios(categoriasDisponibles: readonly CategoriaBotMedia[]): string {
+  const cats = CATEGORIAS_BOT_MEDIA.filter((c) => categoriasDisponibles.includes(c))
+  if (cats.length === 0) return ''
+  return [
+    '## Fotos y videos',
+    'Tenés medios reales para mandar. Categorías disponibles:',
+    cats.map((c) => `- ${c}: ${LABEL_CATEGORIA[c]}`).join('\n'),
+    'Si la persona pide ver el producto, el packaging, la bobina impresa o la planta (o preguntás si quiere ver fotos ' +
+      'y dice que sí), agregá al final del mensaje [FOTO: <categoría>] con la categoría tal cual figura arriba; máximo 2 ' +
+      'marcadores por mensaje. El sistema manda las fotos / videos después de tu texto: escribí algo corto tipo ' +
+      '"Te paso unas fotos". No describas imágenes que no mandás ni digas que no podés mandar fotos.',
+  ].join('\n')
 }

@@ -14,6 +14,11 @@ const updateBotSchema = z.object({
   esperaRespuestaSegundos: z.number().int().min(0, 'La espera no puede ser negativa').max(120, 'La espera no puede superar los 120 segundos').optional(),
   handoffPhrases: z.array(z.string().max(100)).max(20).optional(),
   qualificationQuestions: z.array(z.string()).optional(),
+  precioReferencia: z.string().trim().max(500).nullable().optional(),
+  productosExcluidos: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+  plazoPropuesta: z.string().trim().min(3, 'Indicá cuándo sale la propuesta').max(160).optional(),
+  propuestaAutomatica: z.boolean().optional(),
+  gramajeDefault: z.number().int('El gramaje debe ser entero').min(1, 'El gramaje debe ser mayor a 0').max(1000, 'Gramaje demasiado grande').optional(),
 })
 
 export async function GET() {
@@ -51,6 +56,13 @@ export async function PATCH(req: NextRequest) {
       if (parsed.data.esperaRespuestaSegundos !== undefined) updates.esperaRespuestaSegundos = parsed.data.esperaRespuestaSegundos
       if (parsed.data.handoffPhrases !== undefined) updates.handoffPhrases = parsed.data.handoffPhrases
       if (parsed.data.qualificationQuestions !== undefined) updates.qualificationQuestions = parsed.data.qualificationQuestions
+      if (parsed.data.precioReferencia !== undefined) updates.precioReferencia = parsed.data.precioReferencia || null
+      if (parsed.data.productosExcluidos !== undefined) {
+        updates.productosExcluidos = [...new Set(parsed.data.productosExcluidos.map((p) => p.trim()).filter(Boolean))]
+      }
+      if (parsed.data.plazoPropuesta !== undefined) updates.plazoPropuesta = parsed.data.plazoPropuesta
+      if (parsed.data.propuestaAutomatica !== undefined) updates.propuestaAutomatica = parsed.data.propuestaAutomatica
+      if (parsed.data.gramajeDefault !== undefined) updates.gramajeDefault = parsed.data.gramajeDefault
 
       // Upsert — la tabla es singleton con id = 1
       await db

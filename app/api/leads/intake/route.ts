@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
-import { leads, contacts, pipelineStages, activityLog, tags, leadTags } from '@/db/schema'
+import { leads, contacts, pipelineStages, activityLog, leadTags } from '@/db/schema'
+import { ensureTag } from '@/lib/leads/tags'
 import { eq, and, asc, desc, isNull } from 'drizzle-orm'
 import { asegurarConversacionLead } from '@/lib/inbox/conversacion-lead'
 import { intakeSchema, normalizeIntake, buildIntakeResumen } from '@/lib/validations/lead'
@@ -33,29 +34,6 @@ function corsHeaders(origin: string | null) {
 export async function OPTIONS(req: NextRequest) {
   const origin = req.headers.get('origin')
   return new Response(null, { status: 204, headers: corsHeaders(origin) })
-}
-
-// Colores fijos para los tags de origen conocidos; cualquier otro cae en gris.
-const TAG_COLORS: Record<string, string> = {
-  'web-alipro': '#C8102E',
-  'landing-alfajores': '#ea580c',
-  'landing-cda': '#2563eb',
-}
-
-async function ensureTag(nombre: string): Promise<string> {
-  const existing = await db.query.tags.findFirst({ where: eq(tags.name, nombre) })
-  if (existing) return existing.id
-
-  const [created] = await db
-    .insert(tags)
-    .values({ name: nombre, color: TAG_COLORS[nombre] ?? '#6b7280' })
-    .onConflictDoNothing({ target: tags.name })
-    .returning({ id: tags.id })
-  if (created) return created.id
-
-  // carrera: otro request lo creó entre el select y el insert
-  const raced = await db.query.tags.findFirst({ where: eq(tags.name, nombre) })
-  return raced!.id
 }
 
 export async function POST(req: NextRequest) {

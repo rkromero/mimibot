@@ -1,6 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db, type Db } from '@/db'
-import { leads, pipelineStages, activityLog } from '@/db/schema'
+import { leads, pipelineStages, activityLog, propuestas } from '@/db/schema'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 
 /** Slug fijo de la etapa a la que pasa el lead al enviarle una propuesta (seed del pipeline). */
@@ -82,4 +82,23 @@ export async function onPropuestaEnviada(
     console.warn(`[propuesta-enviada] No se pudo mover el lead ${leadId} a "Propuesta enviada":`, err)
     return { etapaMovida: false, stageId: null }
   }
+}
+
+/** Estados de propuesta que implican que ya le llegó al cliente. */
+const ESTADOS_PROPUESTA_ENVIADA = ['enviada', 'aceptada', 'rechazada', 'vencida'] as const
+
+/**
+ * ¿Ya se le mandó al menos una propuesta a este lead? Lo usa el bot para no
+ * seguir calificando después de que el equipo ya cotizó.
+ */
+export async function leadTienePropuestaEnviada(leadId: string, drizzleDb: Db = db): Promise<boolean> {
+  const row = await drizzleDb.query.propuestas.findFirst({
+    where: and(
+      eq(propuestas.leadId, leadId),
+      isNull(propuestas.deletedAt),
+      inArray(propuestas.estado, [...ESTADOS_PROPUESTA_ENVIADA]),
+    ),
+    columns: { id: true },
+  })
+  return Boolean(row)
 }

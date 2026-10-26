@@ -5,7 +5,15 @@ import { cn } from '@/lib/utils'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
-export default function BotPreview({ systemPrompt }: { systemPrompt: string }) {
+type Props = {
+  systemPrompt: string
+  precioReferencia?: string | null
+  productosExcluidos?: string[]
+  plazoPropuesta?: string
+  gramajeDefault?: number
+}
+
+export default function BotPreview({ systemPrompt, precioReferencia, productosExcluidos, plazoPropuesta, gramajeDefault }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,7 +37,7 @@ export default function BotPreview({ systemPrompt }: { systemPrompt: string }) {
       const res = await fetch('/api/bot/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, systemPrompt }),
+        body: JSON.stringify({ messages: next, systemPrompt, precioReferencia, productosExcluidos, plazoPropuesta, gramajeDefault }),
       })
       const data = await res.json() as { response: string; handoff: boolean; error?: string; detail?: string }
       if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Error')

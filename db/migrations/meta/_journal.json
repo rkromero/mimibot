@@ -582,6 +582,20 @@
       "when": 1787656069715,
       "tag": "0082_documentos_emitidos_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1787656129715,
+      "tag": "0083_bot_precio_medios",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1787656189715,
+      "tag": "0084_bot_propuesta_automatica",
+      "breakpoints": true
     }
   ]
 }

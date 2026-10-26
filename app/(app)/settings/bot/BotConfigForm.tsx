@@ -4,9 +4,14 @@ import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import type { BotConfig } from '@/types/db'
 import BotPreview from './BotPreview'
+import BotMediaGallery from './BotMediaGallery'
 
 type Props = { initialConfig: BotConfig | null }
-type Tab = 'config' | 'preview'
+type Tab = 'config' | 'galeria' | 'preview'
+
+const PLAZO_DEFAULT = 'hoy mismo en horario hábil'
+const GRAMAJE_DEFAULT = 60
+const TAB_LABEL: Record<Tab, string> = { config: 'Configuración', galeria: 'Galería', preview: 'Probar bot' }
 
 const DEFAULT_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -32,7 +37,17 @@ export default function BotConfigForm({ initialConfig }: Props) {
     maxTurns: initialConfig?.maxTurns ?? 6,
     esperaRespuestaSegundos: initialConfig?.esperaRespuestaSegundos ?? 15,
     handoffPhrases: (initialConfig?.handoffPhrases ?? []).join('\n'),
+    precioReferencia: initialConfig?.precioReferencia ?? '',
+    productosExcluidos: (initialConfig?.productosExcluidos ?? []).join('\n'),
+    plazoPropuesta: initialConfig?.plazoPropuesta ?? PLAZO_DEFAULT,
+    propuestaAutomatica: initialConfig?.propuestaAutomatica ?? true,
+    gramajeDefault: initialConfig?.gramajeDefault ?? GRAMAJE_DEFAULT,
   })
+
+  const productosExcluidosLista = form.productosExcluidos
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,6 +67,11 @@ export default function BotConfigForm({ initialConfig }: Props) {
             .split('\n')
             .map((s) => s.trim())
             .filter(Boolean),
+          precioReferencia: form.precioReferencia.trim() || null,
+          productosExcluidos: productosExcluidosLista,
+          plazoPropuesta: form.plazoPropuesta.trim() || PLAZO_DEFAULT,
+          propuestaAutomatica: form.propuestaAutomatica,
+          gramajeDefault: form.gramajeDefault,
         }),
       })
 
@@ -70,7 +90,7 @@ export default function BotConfigForm({ initialConfig }: Props) {
     <div className="max-w-2xl space-y-6">
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(['config', 'preview'] as Tab[]).map((t) => (
+        {(['config', 'galeria', 'preview'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -82,14 +102,22 @@ export default function BotConfigForm({ initialConfig }: Props) {
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            {t === 'config' ? 'Configuración' : 'Probar bot'}
+            {TAB_LABEL[t]}
           </button>
         ))}
       </div>
 
       {tab === 'preview' && (
-        <BotPreview systemPrompt={form.systemPrompt} />
+        <BotPreview
+          systemPrompt={form.systemPrompt}
+          precioReferencia={form.precioReferencia.trim() || null}
+          productosExcluidos={productosExcluidosLista}
+          plazoPropuesta={form.plazoPropuesta.trim() || PLAZO_DEFAULT}
+          gramajeDefault={form.gramajeDefault}
+        />
       )}
+
+      {tab === 'galeria' && <BotMediaGallery />}
 
       {tab === 'config' && (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -138,6 +166,112 @@ export default function BotConfigForm({ initialConfig }: Props) {
         />
         <p className="text-xs text-muted-foreground mt-1">
           Incluí la instrucción de poner [HANDOFF] cuando el bot deba pasarle el lead a un agente.
+        </p>
+      </div>
+
+      {/* Precio de referencia */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Precio de referencia</label>
+        <input
+          type="text"
+          value={form.precioReferencia}
+          onChange={(e) => setForm((p) => ({ ...p, precioReferencia: e.target.value }))}
+          maxLength={500}
+          placeholder="desde $X por alfajor en 300 u film cristal, + IVA"
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Cuando preguntan precio, el bot da este rango tal cual y aclara que la propuesta exacta llega por escrito.
+          Vacío: no da números, pero tampoco dice que no da precios.
+        </p>
+      </div>
+
+      {/* Productos que NO hacemos */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Productos que NO hacemos</label>
+        <textarea
+          value={form.productosExcluidos}
+          onChange={(e) => setForm((p) => ({ ...p, productosExcluidos: e.target.value }))}
+          rows={4}
+          placeholder={'Uno por línea. Ej:\ntriple\nsin TACC'}
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border resize-none',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Si piden alguno, el bot lo dice con amabilidad, ofrece una alternativa, etiqueta el lead
+          &quot;lista-espera-&lt;producto&gt;&quot; y no lo pasa a Calificado.
+        </p>
+      </div>
+
+      {/* Plazo de la propuesta */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Cuándo sale la propuesta por escrito</label>
+        <input
+          type="text"
+          value={form.plazoPropuesta}
+          onChange={(e) => setForm((p) => ({ ...p, plazoPropuesta: e.target.value }))}
+          maxLength={160}
+          placeholder={PLAZO_DEFAULT}
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Es lo único que el bot promete sobre tiempos. Cualquier &quot;72 hs hábiles&quot; que quede en el prompt se reemplaza por esto.
+        </p>
+      </div>
+
+      {/* Propuesta automática al calificar */}
+      <div className="flex items-center justify-between py-3 border-b border-border">
+        <div>
+          <p className="text-sm font-medium">Crear la propuesta sola al calificar</p>
+          <p className="text-xs text-muted-foreground">
+            Con la cantidad, el gramaje y el packaging que el bot relevó, la propuesta queda en borrador en la ficha
+            del lead, a nombre del vendedor asignado. Si falta la cantidad, no se crea y deja una nota.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setForm((p) => ({ ...p, propuestaAutomatica: !p.propuestaAutomatica }))}
+          className={cn(
+            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150',
+            form.propuestaAutomatica ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700',
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-150',
+              form.propuestaAutomatica ? 'translate-x-4' : 'translate-x-1',
+            )}
+          />
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Gramaje por defecto (g)</label>
+        <input
+          type="number"
+          min={1}
+          max={1000}
+          value={form.gramajeDefault}
+          onChange={(e) => setForm((p) => ({ ...p, gramajeDefault: parseInt(e.target.value) || GRAMAJE_DEFAULT }))}
+          className={cn(
+            'w-24 px-3 py-2 text-sm rounded-md border',
+            'border-border bg-background text-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Se cotiza con este gramaje cuando la persona no lo especificó. Tiene que tener receta activa en el cotizador.
         </p>
       </div>
 

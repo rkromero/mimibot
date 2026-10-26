@@ -1,23 +1,35 @@
 import { eq, asc } from 'drizzle-orm'
 import { db } from '@/db'
-import {
-  leads, conversations, messages, activityLog, pipelineStages, botConfig,
-} from '@/db/schema'
+import { leads, conversations, messages, botConfig } from '@/db/schema'
 import { anthropic, BOT_MODEL } from './client'
 import { withRetry } from './retry'
 import { sendTextMessage } from '@/lib/whatsapp/client'
 import { publishCrmEvent } from '@/lib/realtime/broker'
 import { programarSeguimientoIndagacion } from '@/lib/followup/engine'
-import { assignLeadByRule } from '@/lib/assignment'
+import { leadTienePropuestaEnviada } from '@/lib/leads/propuesta-enviada'
+import { agregarTagALead, tagListaEspera } from '@/lib/leads/tags'
 import {
   armarContextoLead,
   armarHistorialClaude,
   armarInstruccionEmpresa,
+  armarSeccionMedios,
+  armarSeccionPlazo,
+  armarSeccionPrecio,
+  armarSeccionProductosExcluidos,
   separarResumen,
-  extraerEmpresa,
-  extraerScore,
   HANDOFF_MARKER,
+  PLAZO_PROPUESTA_DEFAULT,
 } from './bot-context'
+import { detectarPedidoMedios, detectarPedidoReunion, extraerSenales, reemplazarPlazoPropuesta } from './bot-reglas'
+import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
+import { armarSeccionCotizacion, GRAMAJE_DEFAULT_BOT } from './bot-cotizacion'
+import { listarGramajesCotizador } from './bot-propuesta'
+import {
+  cerrarSinCalificar,
+  derivarPorPedidoDeReunion,
+  pausarBotPorPropuestaEnviada,
+  performHandoff,
+} from './bot-handoff'
 
 const DEFAULT_SYSTEM_PROMPT = `Sos un asistente de ventas. Tu objetivo es calificar al lead de manera conversacional y amable.
 
@@ -58,16 +70,31 @@ export async function processBotTurn(params: {
   })
   if (conv?.clienteId) return
 
+  // Ya se le mandó una propuesta: el bot no tiene nada más que calificar.
+  // Queda nota interna, se apaga para este lead y se avisa al asignado.
+  if (await leadTienePropuestaEnviada(leadId)) {
+    await pausarBotPorPropuestaEnviada(lead, conversationId, params.inboundMessageId)
+    return
+  }
+
   // <<CRITERIO_DE_CALIFICACION>>: definir la condición que marca al lead como calificado.
   // Actualmente se califica (handoff) cuando: el bot supera maxTurns, el bot incluye
   // [HANDOFF] en su respuesta, o el usuario escribe una frase de handoff.
   if (lead.botTurnCount >= (config?.maxTurns ?? 6)) {
-    await performHandoff(leadId, conversationId, contactPhone, 'Límite de turnos alcanzado.')
+    await performHandoff(lead, conversationId, 'Límite de turnos alcanzado.', null, config)
     return
   }
 
-  const { systemPrompt, claudeMessages } = await construirContextoBot(lead, config, conversationId)
+  const { systemPrompt, claudeMessages, mediosDisponibles } = await construirContextoBot(lead, config, conversationId)
   if (claudeMessages.length === 0) return
+  const ultimo = claudeMessages.at(-1)
+  const ultimoDelUsuario = ultimo?.role === 'user' ? ultimo.content : ''
+
+  // Pide llamada, visita o reunión: handoff inmediato, sin pasar por Claude.
+  if (detectarPedidoReunion(ultimoDelUsuario)) {
+    await derivarPorPedidoDeReunion(lead, conversationId, contactPhone, ultimoDelUsuario)
+    return
+  }
 
   let claudeResponse: string
   try {
@@ -96,30 +123,32 @@ export async function processBotTurn(params: {
   // <<CRITERIO_DE_CALIFICACION>>: condición principal — [HANDOFF] en respuesta del bot
   // o frase de handoff detectada en el último mensaje del usuario.
   // El bloque [RESUMEN] (datos relevados) nunca va al cliente: queda como nota interna.
-  const { visible: cleanResponse, resumen, handoff } = separarResumen(claudeResponse)
-  const shouldHandoff =
-    handoff ||
-    checkHandoffPhrases(claudeMessages.at(-1)?.content ?? '', config?.handoffPhrases ?? [])
+  // Los marcadores [LISTA_ESPERA: x] y [FOTO: cat] tampoco: son señales para el sistema.
+  const senales = extraerSenales(claudeResponse)
+  const { visible: cleanResponse, resumen, handoff } = separarResumen(senales.texto)
+  const shouldHandoff = handoff || checkHandoffPhrases(ultimoDelUsuario, config?.handoffPhrases ?? [])
 
-  // Guardar respuesta del bot en DB
-  await db.insert(messages).values({
-    conversationId,
-    direction: 'outbound',
-    senderType: 'bot',
-    contentType: 'text',
-    body: cleanResponse,
-    isRead: true,
-    sentAt: new Date(),
-  })
+  if (cleanResponse) {
+    // Guardar respuesta del bot en DB
+    await db.insert(messages).values({
+      conversationId,
+      direction: 'outbound',
+      senderType: 'bot',
+      contentType: 'text',
+      body: cleanResponse,
+      isRead: true,
+      sentAt: new Date(),
+    })
 
-  // Emitir SSE para que el chat se actualice con la respuesta del bot
-  await publishCrmEvent({
-    type: 'new_message',
-    conversationId,
-    leadId,
-    assignedTo: lead.assignedTo ?? null,
-    direction: 'outbound',
-  })
+    // Emitir SSE para que el chat se actualice con la respuesta del bot
+    await publishCrmEvent({
+      type: 'new_message',
+      conversationId,
+      leadId,
+      assignedTo: lead.assignedTo ?? null,
+      direction: 'outbound',
+    })
+  }
 
   // Incrementar contador de turnos
   await db.update(leads)
@@ -127,14 +156,40 @@ export async function processBotTurn(params: {
     .where(eq(leads.id, leadId))
 
   // Enviar por WhatsApp
-  try {
-    await sendTextMessage(contactPhone, cleanResponse)
-  } catch (err) {
-    console.error('[bot] Error enviando mensaje por WhatsApp:', err)
+  if (cleanResponse) {
+    try {
+      await sendTextMessage(contactPhone, cleanResponse)
+    } catch (err) {
+      console.error('[bot] Error enviando mensaje por WhatsApp:', err)
+    }
   }
 
-  if (shouldHandoff) {
-    await performHandoff(leadId, conversationId, contactPhone, cleanResponse, resumen)
+  // Fotos / videos de la galería: lo que pidió el modelo o, si no marcó nada,
+  // lo que la persona pidió ver en su mensaje.
+  const categorias = senales.medios.length > 0 ? senales.medios : (detectarPedidoMedios(ultimoDelUsuario) ?? [])
+  if (categorias.length > 0 && mediosDisponibles.length > 0) {
+    const elegidos = elegirMedios(mediosDisponibles, categorias)
+    if (elegidos.length > 0) {
+      await enviarMediosBot({ leadId, conversationId, contactPhone, assignedTo: lead.assignedTo ?? null, medios: elegidos })
+    }
+  }
+
+  // Producto que no hacemos: etiqueta "lista-espera-<producto>" y nunca
+  // califica. Si el bot además cerró ([HANDOFF]), se apaga sin pasar a ventas.
+  if (senales.listaEspera.length > 0) {
+    for (const producto of senales.listaEspera) {
+      try {
+        await agregarTagALead(leadId, tagListaEspera(producto), { motivo: `bot: pide ${producto}, no lo hacemos` })
+      } catch (err) {
+        console.error('[bot] no se pudo etiquetar lista de espera:', err)
+      }
+    }
+    if (shouldHandoff) {
+      await cerrarSinCalificar(lead, conversationId, senales.listaEspera, resumen)
+      return
+    }
+  } else if (shouldHandoff) {
+    await performHandoff(lead, conversationId, cleanResponse, resumen, config)
     return
   }
 
@@ -147,7 +202,7 @@ export async function processBotTurn(params: {
   }
 }
 
-type LeadConContacto = typeof leads.$inferSelect & { contact?: { name: string | null } | null }
+export type LeadConContacto = typeof leads.$inferSelect & { contact?: { name: string | null } | null }
 
 /**
  * System prompt (config + lo que ya sabemos del lead) e historial en turnos
@@ -157,11 +212,25 @@ export async function construirContextoBot(
   lead: LeadConContacto,
   config: typeof botConfig.$inferSelect | null | undefined,
   conversationId: string,
-): Promise<{ systemPrompt: string; claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }> }> {
-  const history = await db.query.messages.findMany({
-    where: eq(messages.conversationId, conversationId),
-    orderBy: [asc(messages.sentAt)],
-  })
+): Promise<{
+  systemPrompt: string
+  claudeMessages: Array<{ role: 'user' | 'assistant'; content: string }>
+  mediosDisponibles: MedioGaleria[]
+}> {
+  const [history, mediosDisponibles, gramajes] = await Promise.all([
+    db.query.messages.findMany({
+      where: eq(messages.conversationId, conversationId),
+      orderBy: [asc(messages.sentAt)],
+    }),
+    listarMediosActivos().catch((err) => {
+      console.error('[bot] no se pudo leer la galería de medios:', err)
+      return [] as MedioGaleria[]
+    }),
+    listarGramajesCotizador().catch((err) => {
+      console.error('[bot] no se pudieron leer los gramajes del cotizador:', err)
+      return [] as number[]
+    }),
+  ])
 
   // Contacto → user; bot y equipo (apertura con plantilla, textos del vendedor) → assistant.
   // Si la conversación arrancó con mensajes del equipo, van al contexto del system prompt.
@@ -185,11 +254,23 @@ export async function construirContextoBot(
     previosDelEquipo,
   )
 
-  const basePrompt = config?.systemPrompt || DEFAULT_SYSTEM_PROMPT
+  const plazo = config?.plazoPropuesta?.trim() || PLAZO_PROPUESTA_DEFAULT
+  // Si el prompt guardado todavía promete "72 hs hábiles", pasa al plazo configurado.
+  const basePrompt = reemplazarPlazoPropuesta(config?.systemPrompt || DEFAULT_SYSTEM_PROMPT, plazo)
   // La empresa / marca se pregunta si falta y se pide en el [RESUMEN] para
   // guardarla en el lead al calificar (qualifyAndAssign).
-  const partes = [basePrompt, contextoLead, armarInstruccionEmpresa(empresa)].filter(Boolean)
-  return { systemPrompt: partes.join('\n\n'), claudeMessages }
+  const partes = [
+    basePrompt,
+    contextoLead,
+    armarInstruccionEmpresa(empresa),
+    armarSeccionPrecio(config?.precioReferencia, plazo),
+    armarSeccionProductosExcluidos(config?.productosExcluidos),
+    armarSeccionPlazo(plazo),
+    // Cantidad / gramaje / packaging en el [RESUMEN]: con eso se crea la propuesta sola al calificar.
+    armarSeccionCotizacion(gramajes, config?.gramajeDefault ?? GRAMAJE_DEFAULT_BOT),
+    armarSeccionMedios([...new Set(mediosDisponibles.map((m) => m.categoria))]),
+  ].filter(Boolean)
+  return { systemPrompt: partes.join('\n\n'), claudeMessages, mediosDisponibles }
 }
 
 /**
@@ -235,88 +316,6 @@ export async function generarMensajeRetomar(leadId: string, conversationId: stri
     console.error('[bot] Claude error generando mensaje para retomar:', err)
     return null
   }
-}
-
-async function qualifyAndAssign(
-  leadId: string,
-  conversationId: string,
-  lastMessage: string,
-  resumen: string | null = null,
-): Promise<void> {
-  const stages = await db.query.pipelineStages.findMany({
-    orderBy: [asc(pipelineStages.position)],
-  })
-
-  const nuevoStage = stages.find((s) => s.slug === 'nuevo')
-  const calificadoStage =
-    stages.find((s) => s.slug === 'calificado') ??
-    stages.find((s) => !s.isTerminal && s.position > (nuevoStage?.position ?? -1))
-
-  // Si el lead ya tiene vendedor (asignado al crearse desde la landing o a
-  // mano), se respeta; la regla solo se usa para los que llegan sin dueño.
-  const actual = await db.query.leads.findFirst({ where: eq(leads.id, leadId), columns: { assignedTo: true, empresa: true } })
-  const agentId = actual?.assignedTo ?? await assignLeadByRule()
-  if (agentId === null) {
-    console.warn('[bot] qualifyAndAssign: sin agentes elegibles, lead sin asignar', { leadId })
-  }
-
-  const { score, grado } = extraerScore(resumen)
-  // Empresa / marca que el bot averiguó en la charla: se guarda solo si el
-  // lead no la tenía (lo cargado a mano o por la landing manda).
-  const empresaBot = actual?.empresa?.trim() ? null : extraerEmpresa(resumen)
-
-  await db.update(leads)
-    .set({
-      botEnabled: false,
-      botQualified: true,
-      ...(calificadoStage ? { stageId: calificadoStage.id } : {}),
-      ...(agentId !== null ? { assignedTo: agentId } : {}),
-      ...(score !== null ? { botScore: score } : {}),
-      ...(grado ? { botGrado: grado } : {}),
-      ...(empresaBot ? { empresa: empresaBot } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(leads.id, leadId))
-
-  const encabezado = agentId
-    ? `Lead calificado y asignado al agente ${agentId}. Listo para el equipo de ventas.`
-    : 'Lead calificado. Sin agentes disponibles para asignar.'
-  const noteBody = resumen ? `${encabezado}\n\nResumen del bot:\n${resumen}` : encabezado
-
-  await db.insert(messages).values({
-    conversationId,
-    direction: 'outbound',
-    senderType: 'system',
-    contentType: 'internal_note',
-    body: noteBody,
-    isRead: true,
-    sentAt: new Date(),
-  })
-
-  await db.insert(activityLog).values({
-    leadId,
-    action: 'bot_handoff',
-    metadata: { lastBotMessage: lastMessage.slice(0, 200), assignedTo: agentId, botScore: score, botGrado: grado },
-  })
-
-  await publishCrmEvent({
-    type: 'lead_updated',
-    leadId,
-    assignedTo: agentId,
-    oldAssigned: null,
-    stageId: calificadoStage?.id ?? '',
-    oldStageId: '',
-  })
-}
-
-async function performHandoff(
-  leadId: string,
-  conversationId: string,
-  _contactPhone: string,
-  lastMessage: string,
-  resumen: string | null = null,
-): Promise<void> {
-  await qualifyAndAssign(leadId, conversationId, lastMessage, resumen)
 }
 
 function checkHandoffPhrases(userMessage: string, phrases: string[]): boolean {
