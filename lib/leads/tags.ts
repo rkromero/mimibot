@@ -13,9 +13,10 @@ const TAG_COLORS: Record<string, string> = {
   'landing-alfajores': '#ea580c',
   'landing-cda': '#2563eb',
   'pide-reunion': '#7c3aed',
+  'nuevo-pedido': '#16a34a',
 }
 
-export const TAG_PIDE_REUNION = 'pide-reunion'
+export { TAG_PIDE_REUNION, TAG_NUEVO_PEDIDO } from './tag-nombres'
 
 /** "lista-espera-<producto>": el lead pidió algo que la planta no hace. */
 export function tagListaEspera(producto: string): string {

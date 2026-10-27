@@ -36,6 +36,7 @@ vi.mock('@/db', () => ({
       propuestas: { findFirst: mockFindPropuesta },
       messages: { findMany: mockFindMessages },
       botMedia: { findMany: mockFindMedia },
+      tags: { findFirst: vi.fn().mockResolvedValue({ id: 'tag-np' }) },
     },
     insert: mockInsert,
     update: mockUpdate,
@@ -108,6 +109,7 @@ beforeEach(() => {
   valuesMock = vi.fn(() => {
     const c: Record<string, unknown> = {}
     c['returning'] = vi.fn().mockResolvedValue([{ id: 'row-1' }])
+    c['onConflictDoNothing'] = vi.fn(() => c)
     c['then'] = (res: (v: unknown) => void) => Promise.resolve(undefined).then(res)
     return c
   })
@@ -260,6 +262,17 @@ describe('procesarTurnoPostPropuesta', () => {
     expect(sets().find((s) => s['botEnabled'] === false)).toBeDefined()
     expect(notas().some((n) => n.includes('quiere hacer el primer pedido') && n.includes('Quiere 600 negros y 400 blancos.'))).toBe(true)
     expect(mockPush).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: 'Rodolfo quiere hacer el primer pedido', body: 'Quiere 600 negros y 400 blancos.' }))
+    // Chip "Nuevo pedido" en la tarjeta: etiqueta nuevo-pedido
+    expect(inserts().find((v) => v['action'] === 'tag_added')).toMatchObject({ metadata: { tagName: 'nuevo-pedido' } })
+    expect(inserts().find((v) => v['tagId'] === 'tag-np')).toMatchObject({ leadId: 'lead-1' })
+  })
+
+  it('[HANDOFF] sin pedido no etiqueta nuevo-pedido', async () => {
+    respuesta('Lo veo con el equipo. [HANDOFF]')
+
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+
+    expect(inserts().find((v) => v['action'] === 'tag_added')).toBeUndefined()
   })
 
   it('[HANDOFF] por descuento: apaga el bot y avisa al vendedor', async () => {

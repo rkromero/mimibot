@@ -7,7 +7,8 @@ import { cn, relativeTime, formatPhone } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
 import TagBadge from '@/components/shared/TagBadge'
 import ConfirmDeleteModal from '@/components/shared/ConfirmDeleteModal'
-import { Trash2, FlaskConical } from 'lucide-react'
+import { Trash2, FlaskConical, ShoppingCart } from 'lucide-react'
+import { TAG_NUEVO_PEDIDO } from '@/lib/leads/tag-nombres'
 import GradoBadge from '@/components/shared/GradoBadge'
 import RecordatorioChip from '@/components/shared/RecordatorioChip'
 import { formatFechaInstanteAR } from '@/lib/dates'
@@ -148,6 +149,17 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
           </span>
         )}
 
+        {/* El bot tomó las cantidades del primer pedido: falta cargarlo y mandar la proforma */}
+        {lead.tags.some((t) => t.name === TAG_NUEVO_PEDIDO) && (
+          <span
+            className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-600 text-white"
+            title="El cliente decidió el primer pedido por el chat: cargalo y mandale la proforma"
+          >
+            <ShoppingCart size={11} />
+            Nuevo pedido
+          </span>
+        )}
+
         {/* Recordatorio de llamada: cuándo hay que volver a hablarle */}
         {lead.recordatorioAt && (
           <RecordatorioChip fecha={lead.recordatorioAt} nota={lead.recordatorioNota} className="self-start" />
@@ -168,7 +180,7 @@ export default function LeadCard({ lead, onClick, isDragging }: Props) {
         {/* Footer: agente + tags + no leídos */}
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <div className="flex items-center gap-1 flex-wrap">
-            {lead.tags.slice(0, 3).map((tag) => (
+            {lead.tags.filter((t) => t.name !== TAG_NUEVO_PEDIDO).slice(0, 3).map((tag) => (
               <TagBadge key={tag.id} tag={tag} />
             ))}
           </div>

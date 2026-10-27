@@ -25,6 +25,7 @@ import { publishCrmEvent } from '@/lib/realtime/broker'
 import { propuestaResultadoSchema } from '@/lib/validations/cotizador'
 import { crearMuestraParaLead, muestraDelLead } from '@/lib/leads/muestra.service'
 import { botApagadoAMano } from '@/lib/followup/propuesta'
+import { agregarTagALead, TAG_NUEVO_PEDIDO } from '@/lib/leads/tags'
 import { formatFechaAR } from '@/lib/dates'
 import { armarContextoLead, armarHistorialClaude, armarSeccionMedios } from './bot-context'
 import { detectarPedidoMedios, extraerSenales } from './bot-reglas'
@@ -280,6 +281,14 @@ export async function procesarTurnoPostPropuesta(params: {
 
   if (post.pedido || post.handoff) {
     await apagarBot(leadId, post.pedido ? 'el cliente quiere hacer el primer pedido' : 'el bot derivó al vendedor')
+    if (post.pedido) {
+      // Chip "Nuevo pedido" en la tarjeta hasta que el vendedor lo cargue
+      try {
+        await agregarTagALead(leadId, TAG_NUEVO_PEDIDO, { motivo: 'bot: el cliente decidió el primer pedido' })
+      } catch (err) {
+        console.error('[bot] no se pudo etiquetar nuevo pedido:', err)
+      }
+    }
     const resumen = post.resumen ? `\n\nResumen del bot:\n${post.resumen}` : ''
     await dejarNotaInternaBot({
       leadId,
