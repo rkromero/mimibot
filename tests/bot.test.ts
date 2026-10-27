@@ -75,6 +75,10 @@ vi.mock('@/lib/cotizador/enviar-propuesta.service', () => ({
   enviarPropuestaDesdeBot: vi.fn().mockResolvedValue({ etapaMovida: true }),
 }))
 
+vi.mock('@/lib/claude/bot-post-propuesta', () => ({
+  procesarTurnoPostPropuesta: vi.fn().mockResolvedValue(true),
+}))
+
 import { db } from '@/db'
 import { crearPropuesta } from '@/lib/cotizador/propuestas.service'
 import { enviarPropuestaDesdeBot } from '@/lib/cotizador/enviar-propuesta.service'
@@ -82,6 +86,7 @@ import { anthropic } from '@/lib/claude/client'
 import { sendTextMessage, sendMediaMessage } from '@/lib/whatsapp/client'
 import { enviarPushAUsuarios } from '@/lib/push/web-push'
 import { processBotTurn } from '@/lib/claude/bot'
+import { procesarTurnoPostPropuesta } from '@/lib/claude/bot-post-propuesta'
 import { RESPUESTA_PIDE_REUNION } from '@/lib/claude/bot-handoff'
 
 const mockFindLead = db.query.leads.findFirst as ReturnType<typeof vi.fn>
@@ -98,6 +103,7 @@ const mockSendMedia = sendMediaMessage as ReturnType<typeof vi.fn>
 const mockPush = enviarPushAUsuarios as ReturnType<typeof vi.fn>
 const mockCrearPropuesta = crearPropuesta as ReturnType<typeof vi.fn>
 const mockEnviarPropuesta = enviarPropuestaDesdeBot as ReturnType<typeof vi.fn>
+const mockTurnoPost = procesarTurnoPostPropuesta as ReturnType<typeof vi.fn>
 
 /** Etiqueta registrada en la actividad `tag_added` (el tag ya existe en el mock de tags.findFirst). */
 function tagAgregado(inserts: Record<string, unknown>[], nombre: string) {
@@ -222,6 +228,26 @@ describe('processBotTurn', () => {
     expect(sets().find((s) => s['botEnabled'] === false)).toBeDefined()
     // Sin [RESUMEN] no hay datos para cotizar: no se crea propuesta
     expect(mockCrearPropuesta).not.toHaveBeenCalled()
+  })
+
+  it('lead ya calificado con el bot prendido: corre el turno post-propuesta y no califica de nuevo', async () => {
+    mockFindLead.mockResolvedValue(leadActivo({ botQualified: true }))
+    mockFindConfig.mockResolvedValue(configBase)
+
+    await processBotTurn(baseParams)
+
+    expect(mockTurnoPost).toHaveBeenCalledWith(expect.objectContaining({ conversationId: 'conv-1', contactPhone: baseParams.contactPhone }))
+    expect(mockClaudeCreate).not.toHaveBeenCalled()
+  })
+
+  it('lead calificado con el bot apagado: no hay turno de ningún tipo', async () => {
+    mockFindLead.mockResolvedValue(leadActivo({ botQualified: true, botEnabled: false }))
+    mockFindConfig.mockResolvedValue(configBase)
+
+    await processBotTurn(baseParams)
+
+    expect(mockTurnoPost).not.toHaveBeenCalled()
+    expect(mockClaudeCreate).not.toHaveBeenCalled()
   })
 
   describe('propuesta automática al calificar', () => {

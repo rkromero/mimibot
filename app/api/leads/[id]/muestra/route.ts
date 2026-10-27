@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { leads, clientes, marcas, productos, activityLog } from '@/db/schema'
-import { and, eq, isNull, ilike } from 'drizzle-orm'
+import { clientes } from '@/db/schema'
+import { and, eq, isNull } from 'drizzle-orm'
 import { canAccessLead } from '@/lib/authz'
 import { assertPuedeCargarProductos } from '@/lib/authz/marcas'
-import { toApiError, NotFoundError, ValidationError, AuthzError } from '@/lib/errors'
+import { toApiError, AuthzError } from '@/lib/errors'
 import { validateUuidParam } from '@/lib/api/validate-params'
-import { obtenerOCrearClienteParaLead } from '@/lib/clientes/conversion'
-import { crearPedidoConItems } from '@/lib/pedidos/service'
+import { crearMuestraParaLead } from '@/lib/leads/muestra.service'
 import { muestraLeadSchema } from '@/lib/validations/lead'
-import { registrarPagoPedido } from '@/lib/cuenta-corriente/pago.service'
 
 /**
  * GET /api/leads/[id]/muestra — datos para el modal de muestra: el cliente ya
@@ -91,138 +89,28 @@ export async function POST(
     }
     const input = parsed.data
 
-    const lead = await db.query.leads.findFirst({
-      where: and(eq(leads.id, id), isNull(leads.deletedAt)),
-      with: { contact: true },
-    })
-    if (!lead) throw new NotFoundError('Lead')
-
-    // Producto "Muestra" de la marca CDA — se busca por marca + nombre para no
-    // atar el código a un ID/SKU puntual (hoy: "Muestras", SKU CDA023).
-    const marcaCda = await db.query.marcas.findFirst({ where: eq(marcas.slug, 'cda') })
-    if (!marcaCda) throw new NotFoundError('Marca CDA')
-
-    const productoMuestra = await db.query.productos.findFirst({
-      where: and(
-        eq(productos.marcaId, marcaCda.id),
-        eq(productos.activo, true),
-        isNull(productos.deletedAt),
-        ilike(productos.nombre, 'muestra%'),
-      ),
-    })
-    if (!productoMuestra) {
-      throw new NotFoundError('Producto "Muestra" activo de la marca CDA (cargalo en Productos)')
-    }
-
-    await assertPuedeCargarProductos(session.user, [productoMuestra.id])
-
-    // Cliente: reutilizar el ya vinculado al lead, o buscar/crear uno.
-    // A diferencia de la conversión al ganar, el lead queda abierto.
-    // Si se cargó un expreso nuevo, queda guardado en la ficha del cliente
-    // (mismo comportamiento que el alta de pedidos de los agentes).
-    const expresoNuevo =
-      input.metodoEntrega === 'expreso' && input.expresoNombre && input.expresoDireccion
-        ? { nombre: input.expresoNombre, direccion: input.expresoDireccion }
-        : null
-
-    const { cliente, wasNew } = await db.transaction(async (tx) => {
-      // Cliente ya vinculado (le completa la dirección y el CUIT/DNI cargados
-      // en el lead desde la muestra anterior, sin pisar nada) o buscar/crear.
-      const base = await obtenerOCrearClienteParaLead(tx, lead, session.user.id)
-
-      if (!expresoNuevo) return base
-
-      const [actualizado] = await tx
-        .update(clientes)
-        .set({
-          expresoNombre: expresoNuevo.nombre,
-          expresoDireccion: expresoNuevo.direccion,
-          updatedAt: new Date(),
-        })
-        .where(eq(clientes.id, base.cliente.id))
-        .returning()
-      return { cliente: actualizado ?? base.cliente, wasNew: base.wasNew }
-    })
-
-    // Método de entrega resuelto: expreso nuevo, o el guardado en la ficha.
-    let expresoNombre: string | null = null
-    let expresoDireccion: string | null = null
-    if (input.metodoEntrega === 'expreso') {
-      if (expresoNuevo) {
-        expresoNombre = expresoNuevo.nombre
-        expresoDireccion = expresoNuevo.direccion
-      } else if (cliente.expresoNombre) {
-        expresoNombre = cliente.expresoNombre
-        expresoDireccion = cliente.expresoDireccion ?? null
-      } else {
-        throw new ValidationError('Indicá el nombre y la dirección del expreso para despachar la muestra')
-      }
-    }
-
-    const vendedorId = lead.assignedTo ?? session.user.id
-
-    const pedido = await crearPedidoConItems(
-      cliente.id,
-      vendedorId,
-      null,
-      `Muestra CDA — generado desde el lead de ${lead.contact?.name ?? 'contacto'}`,
-      [{ productoId: productoMuestra.id, cantidad: 1 }],
-      db,
-      {
-        creadoPor: session.user.id,
-        registradoPor: session.user.id,
-        territorioIdImputado: cliente.territorioId ?? null,
-        // Las muestras siempre pasan por aprobación, aunque las cargue un admin.
-        crearComoPendienteAprobacion: true,
-        metodoEntrega: input.metodoEntrega,
-        expresoNombre,
-        expresoDireccion,
-        tipo: 'muestra',
-        leadId: lead.id,
-      },
-    )
-
-    // Pago simbólico por el total (precio de la muestra) para que la cuenta
-    // corriente del cliente quede saldada. Si la muestra vale $0, no hay nada
-    // que registrar.
-    let pagoSimbolico: string | null = null
-    if (parseFloat(pedido.total) > 0) {
-      const pago = await registrarPagoPedido({
-        pedidoId: pedido.id,
-        monto: pedido.total,
-        metodoPago: null,
-        registradoPor: session.user.id,
-        descripcion: 'Muestra CDA bonificada — pago simbólico automático',
-      })
-      pagoSimbolico = pago.movimiento.monto
-    }
-
-    await db.insert(activityLog).values({
-      leadId: lead.id,
+    // La lógica (cliente, pedido de muestra, pago simbólico, actividad) vive
+    // en lib/leads/muestra.service.ts, compartida con el bot post-propuesta.
+    const muestra = await crearMuestraParaLead({
+      leadId: id,
+      metodoEntrega: input.metodoEntrega,
+      expresoNombre: input.expresoNombre ?? null,
+      expresoDireccion: input.expresoDireccion ?? null,
       userId: session.user.id,
-      action: 'muestra_creada',
-      metadata: {
-        pedidoId: pedido.id,
-        clienteId: cliente.id,
-        clienteNuevo: wasNew,
-        productoId: productoMuestra.id,
-        producto: productoMuestra.nombre,
-        metodoEntrega: input.metodoEntrega,
-        expresoNombre,
-        pagoSimbolico,
-      },
+      verificarPermisos: (productoId) => assertPuedeCargarProductos(session.user, [productoId]),
+      origen: 'ficha',
     })
 
     return NextResponse.json(
       {
         data: {
-          pedidoId: pedido.id,
-          clienteId: cliente.id,
-          estado: pedido.estado,
-          total: pedido.total,
-          metodoEntrega: input.metodoEntrega,
-          expresoNombre,
-          pagoSimbolico,
+          pedidoId: muestra.pedidoId,
+          clienteId: muestra.clienteId,
+          estado: muestra.estado,
+          total: muestra.total,
+          metodoEntrega: muestra.metodoEntrega,
+          expresoNombre: muestra.expresoNombre,
+          pagoSimbolico: muestra.pagoSimbolico,
         },
       },
       { status: 201 },

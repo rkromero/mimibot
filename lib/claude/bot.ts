@@ -24,6 +24,7 @@ import { detectarPedidoMedios, detectarPedidoReunion, extraerSenales, reemplazar
 import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
 import { armarSeccionCotizacion, datosFormularioLead, GRAMAJE_DEFAULT_BOT } from './bot-cotizacion'
 import { listarGramajesCotizador } from './bot-propuesta'
+import { procesarTurnoPostPropuesta } from './bot-post-propuesta'
 import {
   cerrarSinCalificar,
   derivarPorPedidoDeReunion,
@@ -61,7 +62,6 @@ export async function processBotTurn(params: {
   ])
 
   if (!lead || !lead.botEnabled) return
-  if (lead.botQualified) return
 
   // No activar bot para conversaciones de clientes
   const conv = await db.query.conversations.findFirst({
@@ -69,6 +69,13 @@ export async function processBotTurn(params: {
     columns: { clienteId: true },
   })
   if (conv?.clienteId) return
+
+  // Ya calificó: si tiene propuesta enviada, sigue la charla en modo
+  // post-propuesta (dudas, muestra, primer pedido). Si no, no hay turno.
+  if (lead.botQualified) {
+    await procesarTurnoPostPropuesta({ lead, config, conversationId, contactPhone })
+    return
+  }
 
   // Ya se le mandó una propuesta: el bot no tiene nada más que calificar.
   // Queda nota interna, se apaga para este lead y se avisa al asignado.

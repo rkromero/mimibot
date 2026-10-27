@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { BotConfig } from '@/types/db'
 import BotPreview from './BotPreview'
 import BotMediaGallery from './BotMediaGallery'
+import { DEFAULT_POST_PROPUESTA_PROMPT, POST_PROPUESTA_MAX_TURNS_DEFAULT } from '@/lib/claude/bot-post-propuesta-reglas'
 
 type Props = { initialConfig: BotConfig | null }
 type Tab = 'config' | 'galeria' | 'preview'
@@ -42,6 +43,11 @@ export default function BotConfigForm({ initialConfig }: Props) {
     plazoPropuesta: initialConfig?.plazoPropuesta ?? PLAZO_DEFAULT,
     propuestaAutomatica: initialConfig?.propuestaAutomatica ?? true,
     gramajeDefault: initialConfig?.gramajeDefault ?? GRAMAJE_DEFAULT,
+    postPropuestaEnabled: initialConfig?.postPropuestaEnabled ?? true,
+    postPropuestaPrompt: initialConfig?.postPropuestaPrompt ?? '',
+    postPropuestaMaxTurns: initialConfig?.postPropuestaMaxTurns ?? POST_PROPUESTA_MAX_TURNS_DEFAULT,
+    conocimientoBot: initialConfig?.conocimientoBot ?? '',
+    retiroFabricaInfo: initialConfig?.retiroFabricaInfo ?? '',
   })
 
   const productosExcluidosLista = form.productosExcluidos
@@ -72,6 +78,11 @@ export default function BotConfigForm({ initialConfig }: Props) {
           plazoPropuesta: form.plazoPropuesta.trim() || PLAZO_DEFAULT,
           propuestaAutomatica: form.propuestaAutomatica,
           gramajeDefault: form.gramajeDefault,
+          postPropuestaEnabled: form.postPropuestaEnabled,
+          postPropuestaPrompt: form.postPropuestaPrompt.trim() || null,
+          postPropuestaMaxTurns: form.postPropuestaMaxTurns,
+          conocimientoBot: form.conocimientoBot.trim() || null,
+          retiroFabricaInfo: form.retiroFabricaInfo.trim() || null,
         }),
       })
 
@@ -274,6 +285,108 @@ export default function BotConfigForm({ initialConfig }: Props) {
         <p className="text-xs text-muted-foreground mt-1">
           Se cotiza con este gramaje cuando la persona no lo especificó. Tiene que tener receta activa en el cotizador.
         </p>
+      </div>
+
+      {/* Modo post-propuesta */}
+      <div className="flex items-center justify-between py-3 border-b border-border">
+        <div>
+          <p className="text-sm font-medium">Seguir la charla después de la propuesta</p>
+          <p className="text-xs text-muted-foreground">
+            Con la propuesta enviada, el bot pregunta si la vio y si le cierran los números, responde dudas con los datos
+            de la propuesta, carga la muestra si la pide (retiro en fábrica o expreso VIA CARGO) y, cuando la persona
+            decide el primer pedido o pide descuento, se apaga y te avisa. Si vos escribís en el chat, el bot se corre.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setForm((p) => ({ ...p, postPropuestaEnabled: !p.postPropuestaEnabled }))}
+          className={cn(
+            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150',
+            form.postPropuestaEnabled ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700',
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-150',
+              form.postPropuestaEnabled ? 'translate-x-4' : 'translate-x-1',
+            )}
+          />
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Instrucciones después de la propuesta</label>
+        <textarea
+          value={form.postPropuestaPrompt}
+          onChange={(e) => setForm((p) => ({ ...p, postPropuestaPrompt: e.target.value }))}
+          rows={8}
+          maxLength={8000}
+          placeholder={DEFAULT_POST_PROPUESTA_PROMPT}
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border resize-y font-mono',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Vacío = se usan las instrucciones de arriba (en gris). Los datos de la propuesta, la muestra y cuándo derivar
+          se agregan solos.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Lo que el bot sabe del producto y la fábrica</label>
+        <textarea
+          value={form.conocimientoBot}
+          onChange={(e) => setForm((p) => ({ ...p, conocimientoBot: e.target.value }))}
+          rows={6}
+          maxLength={8000}
+          placeholder={'Ej:\nVida útil: 45 días desde la elaboración.\nConservación: lugar fresco y seco, sin heladera.\nMínimo por pedido: 300 unidades.'}
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border resize-y',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Con esto responde las dudas después de la propuesta. Lo que no esté acá ni en la propuesta, lo deriva.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Retiro de muestras en fábrica (dirección y horario)</label>
+        <input
+          type="text"
+          value={form.retiroFabricaInfo}
+          onChange={(e) => setForm((p) => ({ ...p, retiroFabricaInfo: e.target.value }))}
+          maxLength={500}
+          placeholder="Ej: Av. Siempreviva 123, Lanús, de lunes a viernes de 9 a 16"
+          className={cn(
+            'w-full px-3 py-2 text-sm rounded-md border',
+            'border-border bg-background text-foreground placeholder:text-muted-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Se lo dice a quien elige pasar a buscar la muestra. Los envíos van siempre por expreso VIA CARGO.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Máximo de mensajes del bot después de la propuesta</label>
+        <input
+          type="number"
+          min={1}
+          max={40}
+          value={form.postPropuestaMaxTurns}
+          onChange={(e) => setForm((p) => ({ ...p, postPropuestaMaxTurns: parseInt(e.target.value) || POST_PROPUESTA_MAX_TURNS_DEFAULT }))}
+          className={cn(
+            'w-24 px-3 py-2 text-sm rounded-md border',
+            'border-border bg-background text-foreground',
+            'focus:outline-none focus:ring-1 focus:ring-ring',
+          )}
+        />
+        <p className="text-xs text-muted-foreground mt-1">Si llega a este número sin cerrar, se apaga y te avisa para que la sigas vos.</p>
       </div>
 
       {/* Max turns */}

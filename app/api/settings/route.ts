@@ -19,6 +19,11 @@ const updateBotSchema = z.object({
   plazoPropuesta: z.string().trim().min(3, 'Indicá cuándo sale la propuesta').max(160).optional(),
   propuestaAutomatica: z.boolean().optional(),
   gramajeDefault: z.number().int('El gramaje debe ser entero').min(1, 'El gramaje debe ser mayor a 0').max(1000, 'Gramaje demasiado grande').optional(),
+  postPropuestaEnabled: z.boolean().optional(),
+  postPropuestaPrompt: z.string().trim().max(8000).nullable().optional(),
+  postPropuestaMaxTurns: z.number().int().min(1, 'Al menos 1 turno').max(40, 'Máximo 40 turnos').optional(),
+  conocimientoBot: z.string().trim().max(8000).nullable().optional(),
+  retiroFabricaInfo: z.string().trim().max(500).nullable().optional(),
 })
 
 export async function GET() {
@@ -63,6 +68,11 @@ export async function PATCH(req: NextRequest) {
       if (parsed.data.plazoPropuesta !== undefined) updates.plazoPropuesta = parsed.data.plazoPropuesta
       if (parsed.data.propuestaAutomatica !== undefined) updates.propuestaAutomatica = parsed.data.propuestaAutomatica
       if (parsed.data.gramajeDefault !== undefined) updates.gramajeDefault = parsed.data.gramajeDefault
+      if (parsed.data.postPropuestaEnabled !== undefined) updates.postPropuestaEnabled = parsed.data.postPropuestaEnabled
+      if (parsed.data.postPropuestaPrompt !== undefined) updates.postPropuestaPrompt = parsed.data.postPropuestaPrompt || null
+      if (parsed.data.postPropuestaMaxTurns !== undefined) updates.postPropuestaMaxTurns = parsed.data.postPropuestaMaxTurns
+      if (parsed.data.conocimientoBot !== undefined) updates.conocimientoBot = parsed.data.conocimientoBot || null
+      if (parsed.data.retiroFabricaInfo !== undefined) updates.retiroFabricaInfo = parsed.data.retiroFabricaInfo || null
 
       // Upsert — la tabla es singleton con id = 1
       await db

@@ -370,6 +370,20 @@ export const botConfig = pgTable('bot_config', {
   propuestaAutomatica: boolean('propuesta_automatica').notNull().default(true),
   /** Gramaje que se cotiza cuando la persona no lo especificó. */
   gramajeDefault: integer('gramaje_default').notNull().default(60),
+  /**
+   * Después de enviar la propuesta el bot sigue la charla (dudas, muestra,
+   * primer pedido) en vez de apagarse y avisar al vendedor.
+   * Ver lib/claude/bot-post-propuesta.ts.
+   */
+  postPropuestaEnabled: boolean('post_propuesta_enabled').notNull().default(true),
+  /** Prompt del modo post-propuesta; null = el default del código. */
+  postPropuestaPrompt: text('post_propuesta_prompt'),
+  /** Turnos del bot después de la propuesta antes de pasarle la charla al vendedor. */
+  postPropuestaMaxTurns: integer('post_propuesta_max_turns').notNull().default(12),
+  /** Conocimiento libre (vida útil, conservación, ingredientes, mínimos...) para responder dudas. */
+  conocimientoBot: text('conocimiento_bot'),
+  /** Dirección y horario para retirar la muestra en fábrica. */
+  retiroFabricaInfo: text('retiro_fabrica_info'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

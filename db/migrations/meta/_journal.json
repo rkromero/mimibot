@@ -596,6 +596,13 @@
       "when": 1787656189715,
       "tag": "0084_bot_propuesta_automatica",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1787656249715,
+      "tag": "0085_bot_post_propuesta",
+      "breakpoints": true
     }
   ]
 }

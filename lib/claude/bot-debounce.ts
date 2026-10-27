@@ -152,8 +152,8 @@ export async function retomarTurnosBotPendientes(): Promise<number> {
       and(
         isNotNull(leads.botResponderDesde),
         lte(leads.botResponderDesde, ahora),
+        // Calificado con el bot prendido = modo post-propuesta: también se retoma
         eq(leads.botEnabled, true),
-        eq(leads.botQualified, false),
         isNull(leads.deletedAt),
       ),
     )

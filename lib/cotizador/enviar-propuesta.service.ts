@@ -15,6 +15,7 @@ import { persistOutboundMedia } from '@/lib/whatsapp/media'
 import { programarSeguimientoPropuesta } from '@/lib/followup/engine'
 import { envioDisparaSeguimiento } from '@/lib/followup/propuesta'
 import { onPropuestaEnviada } from '@/lib/leads/propuesta-enviada'
+import { activarModoPostPropuesta } from '@/lib/claude/bot-post-propuesta'
 
 export type ViaEnvioPropuesta = 'descarga' | 'whatsapp' | 'email'
 
@@ -111,6 +112,12 @@ export async function registrarEnvioPropuesta(params: {
   void programarSeguimientoPropuesta(leadId).catch((err) => {
     console.error('[propuesta] no se pudo programar el seguimiento:', err)
   })
+  // El bot sigue la charla después de la propuesta (dudas, muestra, primer pedido)
+  try {
+    await activarModoPostPropuesta(leadId)
+  } catch (err) {
+    console.error('[propuesta] no se pudo activar el modo post-propuesta del bot:', err)
+  }
   return { etapaMovida: etapa.etapaMovida }
 }
 

@@ -349,7 +349,8 @@ async function handleInboundMessage(params: {
             where: eq(leads.id, leadId),
             columns: { botEnabled: true, botQualified: true },
           })
-          if (leadBot?.botEnabled && !leadBot.botQualified) {
+          // Con el bot prendido (calificando o en modo post-propuesta) hay turno
+          if (leadBot?.botEnabled) {
             await programarTurnoBot({
               leadId,
               conversationId,
@@ -379,7 +380,8 @@ async function handleInboundMessage(params: {
     columns: { botEnabled: true, botQualified: true },
   })
 
-  if (lead?.botEnabled && !lead.botQualified && msg.type === 'text') {
+  // Bot prendido: calificando, o ya calificado con propuesta enviada (modo post-propuesta)
+  if (lead?.botEnabled && msg.type === 'text') {
     // No responde ya: espera unos segundos (Ajustes → Bot) por si la persona
     // manda varios mensajes seguidos, y contesta una sola vez al conjunto.
     void programarTurnoBot({

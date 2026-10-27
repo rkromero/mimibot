@@ -8,8 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   mockFindPropuesta, mockFindConv, mockUpdate, mockInsert, mockExecute,
-  mockProgramar, mockOnPropuestaEnviada, mockSendMedia, mockUpload, mockPersist, mockPdf,
+  mockProgramar, mockOnPropuestaEnviada, mockSendMedia, mockUpload, mockPersist, mockPdf, mockActivarPost,
 } = vi.hoisted(() => ({
+  mockActivarPost: vi.fn(),
   mockFindPropuesta: vi.fn(),
   mockFindConv: vi.fn(),
   mockUpdate: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('@/lib/whatsapp/client', () => ({ uploadMediaToMeta: mockUpload, sendMed
 vi.mock('@/lib/whatsapp/media', () => ({ persistOutboundMedia: mockPersist }))
 vi.mock('@/lib/followup/engine', () => ({ programarSeguimientoPropuesta: mockProgramar }))
 vi.mock('@/lib/leads/propuesta-enviada', () => ({ onPropuestaEnviada: mockOnPropuestaEnviada }))
+vi.mock('@/lib/claude/bot-post-propuesta', () => ({ activarModoPostPropuesta: mockActivarPost }))
 
 import { enviarPropuestaDesdeBot } from '@/lib/cotizador/enviar-propuesta.service'
 
@@ -83,6 +85,8 @@ describe('enviarPropuestaDesdeBot', () => {
 
     expect(mockOnPropuestaEnviada).toHaveBeenCalledWith('lead-1', 'user-9', PROP_ID)
     expect(mockProgramar).toHaveBeenCalledWith('lead-1')
+    // El bot sigue la charla después de la propuesta
+    expect(mockActivarPost).toHaveBeenCalledWith('lead-1')
   })
 
   it('sin conversación de WhatsApp lanza y no marca nada como enviado', async () => {
@@ -93,6 +97,7 @@ describe('enviarPropuestaDesdeBot', () => {
     expect(mockSendMedia).not.toHaveBeenCalled()
     expect(mockOnPropuestaEnviada).not.toHaveBeenCalled()
     expect(mockProgramar).not.toHaveBeenCalled()
+    expect(mockActivarPost).not.toHaveBeenCalled()
   })
 
   it('propuesta inexistente o borrada: 404 sin generar PDF', async () => {
