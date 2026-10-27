@@ -603,6 +603,13 @@
       "when": 1787656249715,
       "tag": "0085_bot_post_propuesta",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1787656309715,
+      "tag": "0086_etapa_pedido_a_cargar",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,7 @@ vi.mock('@/db', () => ({
       messages: { findMany: mockFindMessages },
       botMedia: { findMany: mockFindMedia },
       tags: { findFirst: vi.fn().mockResolvedValue({ id: 'tag-np' }) },
+      pipelineStages: { findFirst: vi.fn().mockResolvedValue({ id: 'st-pedido' }) },
     },
     insert: mockInsert,
     update: mockUpdate,
@@ -253,7 +254,8 @@ describe('procesarTurnoPostPropuesta', () => {
     expect(mockPush).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: 'Muestra pendiente para Rodolfo' }))
   })
 
-  it('[PEDIDO]: apaga el bot, nota con el resumen y push "quiere hacer el primer pedido"', async () => {
+  it('[PEDIDO]: apaga el bot, nota con el resumen, push "quiere hacer el primer pedido", etiqueta y columna Pedido a cargar', async () => {
+    mockFindLead.mockResolvedValue({ id: 'lead-1', stageId: 'st-prop', isOpen: true, assignedTo: 'user-9' })
     respuesta('¡Buenísimo! Te cargo el pedido y te llega la proforma. [PEDIDO] [HANDOFF]\n[RESUMEN]\nQuiere 600 negros y 400 blancos.')
 
     await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
@@ -265,6 +267,9 @@ describe('procesarTurnoPostPropuesta', () => {
     // Chip "Nuevo pedido" en la tarjeta: etiqueta nuevo-pedido
     expect(inserts().find((v) => v['action'] === 'tag_added')).toMatchObject({ metadata: { tagName: 'nuevo-pedido' } })
     expect(inserts().find((v) => v['tagId'] === 'tag-np')).toMatchObject({ leadId: 'lead-1' })
+    // Y pasa a la columna "Pedido a cargar"
+    expect(sets().find((s) => s['stageId'] === 'st-pedido')).toBeDefined()
+    expect(inserts().find((v) => v['action'] === 'stage_changed')).toMatchObject({ metadata: { fromStageId: 'st-prop', toStageId: 'st-pedido', motivo: 'bot_pedido' } })
   })
 
   it('[HANDOFF] sin pedido no etiqueta nuevo-pedido', async () => {
@@ -273,6 +278,7 @@ describe('procesarTurnoPostPropuesta', () => {
     await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
 
     expect(inserts().find((v) => v['action'] === 'tag_added')).toBeUndefined()
+    expect(sets().find((s) => 'stageId' in s)).toBeUndefined()
   })
 
   it('[HANDOFF] por descuento: apaga el bot y avisa al vendedor', async () => {
