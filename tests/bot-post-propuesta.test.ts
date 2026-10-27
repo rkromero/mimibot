@@ -11,8 +11,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   mockFindLead, mockFindConfig, mockFindPropuesta, mockFindMessages, mockFindMedia,
-  mockInsert, mockUpdate, mockSelect, mockClaude, mockSendText, mockPush, mockCrearMuestra, mockMuestraDelLead,
+  mockInsert, mockUpdate, mockSelect, mockClaude, mockSendText, mockPush, mockCrearMuestra, mockMuestraDelLead, mockFindActivacion,
 } = vi.hoisted(() => ({
+  mockFindActivacion: vi.fn(),
   mockFindLead: vi.fn(),
   mockFindConfig: vi.fn(),
   mockFindPropuesta: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('@/db', () => ({
       botMedia: { findMany: mockFindMedia },
       tags: { findFirst: vi.fn().mockResolvedValue({ id: 'tag-np' }) },
       pipelineStages: { findFirst: vi.fn().mockResolvedValue({ id: 'st-pedido' }) },
+      activityLog: { findFirst: mockFindActivacion },
     },
     insert: mockInsert,
     update: mockUpdate,
@@ -120,6 +122,8 @@ beforeEach(() => {
   mockSelect.mockReturnValue({ from: vi.fn(() => ({ where: vi.fn(() => Promise.resolve([{ id: 'user-9', role: 'vendedor' }, { id: 'admin-1', role: 'admin' }])) })) })
   mockFindMedia.mockResolvedValue([])
   mockMuestraDelLead.mockResolvedValue(null)
+  // Se prendió al mandar la propuesta (misma marca de tiempo)
+  mockFindActivacion.mockResolvedValue({ createdAt: ENVIADA })
   mockFindPropuesta.mockResolvedValue({
     numero: 51,
     cantidad: 1000,
@@ -175,6 +179,32 @@ describe('procesarTurnoPostPropuesta', () => {
     expect(mockSendText).not.toHaveBeenCalled()
     expect(sets().find((s) => s['botEnabled'] === false)).toBeDefined()
     expect(inserts().find((v) => v['action'] === 'bot_disabled')).toMatchObject({ metadata: { motivo: 'el vendedor tomó la conversación después de la propuesta' } })
+    // Queda explicado en el chat, con cómo volver a prenderlo
+    expect(notas().some((n) => n.includes('El bot se corrió') && n.includes('prendelo de nuevo'))).toBe(true)
+  })
+
+  it('si lo volvieron a prender desde el panel, lo que escribió el vendedor antes de eso ya no cuenta', async () => {
+    // El vendedor escribió a los 30 min, lo prendieron a mano a los 45, el cliente escribe a los 60
+    mockFindMessages.mockResolvedValue(historial(msg('agent', 'Me parece ok', 30), msg('contact', 'Me parece ok', 60)))
+    mockFindActivacion.mockResolvedValue({ createdAt: new Date(ENVIADA.getTime() + 45 * 60_000) })
+    respuesta('¡Buenísimo! ¿Cuántos negros y cuántos blancos querés para arrancar?')
+
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+
+    expect(mockSendText).toHaveBeenCalledWith('+5491100000000', '¡Buenísimo! ¿Cuántos negros y cuántos blancos querés para arrancar?')
+    expect(sets().find((s) => s['botEnabled'] === false)).toBeUndefined()
+  })
+
+  it('el prompt deja claro que el PDF ya llegó y que un "ok" después de la propuesta es acuerdo, y el historial incluye el archivo', async () => {
+    mockFindMessages.mockResolvedValue(historial(msg('contact', 'Perfecto', 1)))
+    respuesta('¿Pudiste abrirla? ¿Qué te parecieron los números?')
+
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+
+    expect(systemPrompt()).toContain('NUNCA digas que la cotización está en camino')
+    expect(systemPrompt()).toContain('llevala al primer pedido')
+    const turnos = (mockClaude.mock.calls[0]![0] as { messages: Array<{ role: string; content: string }> }).messages
+    expect(turnos.at(-2)?.content).toContain('[Archivo enviado: Propuesta PROP-00051]')
   })
 
   it('una plantilla a nombre del vendedor (aviso "salió tu muestra", último seguimiento) no cuenta como que tomó la charla', async () => {

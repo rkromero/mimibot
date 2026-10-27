@@ -71,6 +71,7 @@ export function armarContextoLead(datos: DatosLeadParaBot, mensajesPreviosDelEqu
 /**
  * Convierte los mensajes guardados en turnos para Claude.
  * - contacto → user; bot y equipo (agent/system, texto o plantilla) → assistant.
+ * - Un documento del equipo (el PDF de la propuesta) va como "[Archivo enviado: …]".
  * - Notas internas y adjuntos sin texto se ignoran.
  * - Turnos consecutivos del mismo rol se unen (la API los pide alternados).
  * - Si la conversación empieza con mensajes del equipo (apertura con plantilla),
@@ -92,6 +93,10 @@ export function armarHistorialClaude(history: MensajeHistorial[]): {
     } else if (msg.senderType === 'bot' || msg.senderType === 'agent' || msg.senderType === 'system') {
       if (msg.contentType === 'text' || msg.contentType === 'template') {
         crudos.push({ role: 'assistant', content: body })
+      } else if (msg.contentType === 'document') {
+        // El PDF de la propuesta: si no figura, el modelo cree que la cotización
+        // todavía no salió y repite "enseguida te contactamos".
+        crudos.push({ role: 'assistant', content: `[Archivo enviado: ${body}]` })
       }
     }
   }
@@ -228,8 +233,28 @@ export function armarSeccionProductosExcluidos(productos: readonly string[] | nu
   ].join('\n')
 }
 
-/** Cuándo llega la propuesta por escrito: nunca prometer otro plazo. */
-export function armarSeccionPlazo(plazo: string | null | undefined): string {
+/** Plazo que se le dice al cliente cuando la propuesta la manda el sistema sola al derivar. */
+export const PLAZO_PROPUESTA_AUTOMATICA = 'por este mismo chat, apenas terminemos con estas preguntas'
+
+/**
+ * Cuándo llega la propuesta por escrito: nunca prometer otro plazo.
+ * Con `automatica` la propuesta en PDF la manda el sistema por el chat en
+ * cuanto el bot deriva, así que el cierre no puede hablar de un asesor que
+ * "arma la cotización" ni de otro plazo: eso es lo que después confunde al
+ * modo post-propuesta ("enseguida te contactamos" cuando el PDF ya llegó).
+ */
+export function armarSeccionPlazo(plazo: string | null | undefined, automatica = false): string {
+  if (automatica) {
+    return [
+      '## Tiempos y mensaje de cierre',
+      'Apenas pongas [HANDOFF] con el [RESUMEN] completo, el sistema arma la propuesta con precios y se la manda ' +
+        'en PDF por este mismo chat, en segundos. Por eso el mensaje de cierre tiene que ser, palabra más palabra menos: ' +
+        '"Listo, ya tengo todo. Te mando la propuesta por acá en un momento. Si te queda alguna duda, dejala por acá y te la respondemos."',
+      'Ese cierre reemplaza cualquier otro mensaje de cierre que figure más arriba. No digas que un asesor lo va a contactar, ' +
+        `ni que la va a recibir en otro plazo. Si preguntan cuándo llega la propuesta: ${PLAZO_PROPUESTA_AUTOMATICA}. ` +
+        'No prometas otro plazo (nada de "72 hs hábiles" ni similares).',
+    ].join('\n')
+  }
   const p = plazo?.trim() || PLAZO_PROPUESTA_DEFAULT
   return [
     '## Tiempos',

@@ -84,6 +84,16 @@ export async function activarModoPostPropuesta(leadId: string): Promise<boolean>
   return true
 }
 
+/** Última vez que prendieron el bot (al mandar la propuesta o a mano desde el panel). */
+async function ultimaActivacionBot(leadId: string): Promise<Date | null> {
+  const row = await db.query.activityLog.findFirst({
+    where: and(eq(activityLog.leadId, leadId), eq(activityLog.action, 'bot_enabled')),
+    orderBy: [desc(activityLog.createdAt)],
+    columns: { createdAt: true },
+  })
+  return row?.createdAt ?? null
+}
+
 async function apagarBot(leadId: string, motivo: string): Promise<void> {
   await db.update(leads).set({ botEnabled: false, updatedAt: new Date() }).where(eq(leads.id, leadId))
   await db.insert(activityLog).values({ leadId, action: 'bot_disabled', metadata: { motivo } })
@@ -157,12 +167,24 @@ export async function procesarTurnoPostPropuesta(params: {
   // El vendedor ya escribió después de la propuesta: la charla es suya. Solo
   // cuenta texto escrito a mano: las plantillas (aviso "salió tu muestra",
   // último seguimiento, envíos masivos) y los adjuntos son automatismos o
-  // botones, no una conversación del vendedor.
+  // botones, no una conversación del vendedor. Si después lo volvieron a
+  // prender desde el panel, lo escrito antes de eso ya no cuenta: si no, el
+  // bot se apagaría solo otra vez en el primer turno.
+  const reactivadoAt = await ultimaActivacionBot(leadId)
+  const desde = Math.max(propuesta.updatedAt.getTime(), reactivadoAt?.getTime() ?? 0)
   const vendedorEscribio = history.some(
-    (m) => m.senderType === 'agent' && m.contentType === 'text' && m.sentAt.getTime() > propuesta.updatedAt.getTime(),
+    (m) => m.senderType === 'agent' && m.contentType === 'text' && m.sentAt.getTime() > desde,
   )
   if (vendedorEscribio) {
     await apagarBot(leadId, 'el vendedor tomó la conversación después de la propuesta')
+    await dejarNotaInternaBot({
+      leadId,
+      conversationId,
+      assignedTo,
+      texto:
+        'El bot se corrió porque alguien del equipo le escribió al cliente después de la propuesta: la charla queda en tus manos. ' +
+        'Si querés que el bot la siga él, prendelo de nuevo desde el panel del lead.',
+    })
     return true
   }
 

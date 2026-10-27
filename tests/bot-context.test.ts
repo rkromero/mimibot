@@ -93,6 +93,20 @@ describe('armarHistorialClaude', () => {
     ])
   })
 
+  it('el PDF de la propuesta queda en el historial como archivo enviado', () => {
+    const { turnos } = armarHistorialClaude([
+      { senderType: 'contact', contentType: 'text', body: 'Cristal' },
+      { senderType: 'bot', contentType: 'text', body: 'Te mando la propuesta por acá.' },
+      { senderType: 'bot', contentType: 'document', body: 'Propuesta PROP-00245' },
+      { senderType: 'contact', contentType: 'text', body: 'Perfecto' },
+    ])
+    expect(turnos).toEqual([
+      { role: 'user', content: 'Cristal' },
+      { role: 'assistant', content: 'Te mando la propuesta por acá.\n\n[Archivo enviado: Propuesta PROP-00245]' },
+      { role: 'user', content: 'Perfecto' },
+    ])
+  })
+
   it('sin mensajes del contacto no hay turnos', () => {
     const { turnos } = armarHistorialClaude([{ senderType: 'agent', contentType: 'template', body: 'Hola' }])
     expect(turnos).toEqual([])
@@ -181,6 +195,13 @@ describe('secciones de Ajustes → Bot en el prompt', () => {
     expect(armarSeccionPlazo('mañana a primera hora')).toContain('sale mañana a primera hora')
     expect(armarSeccionPlazo('')).toContain(`sale ${PLAZO_PROPUESTA_DEFAULT}`)
     expect(armarSeccionPlazo(null)).toContain('72 hs hábiles')
+  })
+
+  it('plazo con propuesta automática: el cierre dice que la manda por el chat, no un asesor', () => {
+    const s = armarSeccionPlazo('hoy mismo en horario hábil', true)
+    expect(s).toContain('Te mando la propuesta por acá en un momento')
+    expect(s).toContain('No digas que un asesor lo va a contactar')
+    expect(s).not.toContain('sale hoy mismo')
   })
 
   it('medios: solo lista las categorías con archivos y explica [FOTO: ...]', () => {

@@ -19,6 +19,7 @@ import {
   separarResumen,
   HANDOFF_MARKER,
   PLAZO_PROPUESTA_DEFAULT,
+  PLAZO_PROPUESTA_AUTOMATICA,
 } from './bot-context'
 import { detectarPedidoMedios, detectarPedidoReunion, extraerSenales, reemplazarPlazoPropuesta } from './bot-reglas'
 import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
@@ -261,8 +262,12 @@ export async function construirContextoBot(
     previosDelEquipo,
   )
 
-  const plazo = config?.plazoPropuesta?.trim() || PLAZO_PROPUESTA_DEFAULT
-  // Si el prompt guardado todavía promete "72 hs hábiles", pasa al plazo configurado.
+  // Con propuesta automática (default), el PDF sale solo por el chat al derivar:
+  // el plazo que se le dice al cliente es "por acá, en un momento", no el configurado.
+  const propuestaAutomatica = config?.propuestaAutomatica !== false
+  const plazoConfigurado = config?.plazoPropuesta?.trim() || PLAZO_PROPUESTA_DEFAULT
+  const plazo = propuestaAutomatica ? PLAZO_PROPUESTA_AUTOMATICA : plazoConfigurado
+  // Si el prompt guardado todavía promete "72 hs hábiles", pasa al plazo que corresponde.
   const basePrompt = reemplazarPlazoPropuesta(config?.systemPrompt || DEFAULT_SYSTEM_PROMPT, plazo)
   // La empresa / marca se pregunta si falta y se pide en el [RESUMEN] para
   // guardarla en el lead al calificar (qualifyAndAssign).
@@ -272,7 +277,7 @@ export async function construirContextoBot(
     armarInstruccionEmpresa(empresa),
     armarSeccionPrecio(config?.precioReferencia, plazo),
     armarSeccionProductosExcluidos(config?.productosExcluidos),
-    armarSeccionPlazo(plazo),
+    armarSeccionPlazo(plazo, propuestaAutomatica),
     // Cantidad / gramaje / packaging en el [RESUMEN]: con eso se crea la propuesta sola al calificar.
     // Si el formulario ya trajo volumen / packaging, el bot los usa en vez de repreguntar.
     armarSeccionCotizacion(

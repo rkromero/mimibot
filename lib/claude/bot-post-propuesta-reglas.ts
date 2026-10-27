@@ -66,6 +66,14 @@ export function armarSeccionPropuestaEnviada(p: PropuestaParaBot): string {
   lineas.push(
     'Si pregunta por otra cantidad que no está acá, decile que el precio cambia según el volumen y que se lo pasás confirmado por escrito; no inventes un número.',
   )
+  lineas.push(
+    `La propuesta YA le llegó: es el PDF "${formatNumeroPropuesta(p.numero)}" que figura en el chat, justo después de que el asistente ` +
+      'le dijo que la iba a recibir. Eso ya pasó. NUNCA digas que la cotización está en camino, que un asesor lo va a contactar ' +
+      'ni "enseguida te contactamos": la cotización es esa propuesta y la seguís vos.',
+    'Si responde algo corto después de recibirla ("ok", "perfecto", "gracias", "dale"), preguntale si pudo abrirla y qué le ' +
+      'parecieron los números. Si dice que la vio y le parece bien / le cierra / está ok, ya está de acuerdo: no vuelvas a ' +
+      'preguntar si la vio, llevala al primer pedido (cuántos negros y cuántos blancos).',
+  )
   return lineas.join('\n')
 }
 

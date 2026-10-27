@@ -417,9 +417,26 @@ describe('processBotTurn', () => {
     expect(system).toContain('desde $350 por alfajor en 300 u film cristal, + IVA')
     expect(system).toContain('## Productos que NO hacemos')
     expect(system).toContain('- sin TACC')
+    // Con propuesta automática (default) el plazo es "por acá, en un momento", no el configurado
+    expect(system).toContain('## Tiempos y mensaje de cierre')
+    expect(system).toContain('Te mando la propuesta por acá en un momento')
+    expect(system).toContain('La propuesta sale en por este mismo chat, apenas terminemos con estas preguntas.')
+    expect(system).not.toMatch(/72 hs hábiles\./)
+  })
+
+  it('con la propuesta automática apagada, el plazo es el configurado y el cierre habla del asesor', async () => {
+    mockFindLead.mockResolvedValue(leadActivo())
+    mockFindConfig.mockResolvedValue({ ...configBase, propuestaAutomatica: false })
+    mockFindMessages.mockResolvedValue(historial('cuánto sale?'))
+    mockClaudeCreate.mockResolvedValue({ content: [{ type: 'text', text: 'Desde $350 por alfajor.' }] })
+    instalarCadenas()
+
+    await processBotTurn(baseParams)
+
+    const system = (mockClaudeCreate.mock.calls[0]![0] as { system: string }).system
     expect(system).toContain('## Tiempos')
     expect(system).toContain('La propuesta sale en hoy mismo en horario hábil.')
-    expect(system).not.toMatch(/72 hs hábiles\./)
+    expect(system).not.toContain('Te mando la propuesta por acá en un momento')
   })
 
   it('con propuesta enviada no llama a Claude: nota interna, bot apagado y push al asignado', async () => {
