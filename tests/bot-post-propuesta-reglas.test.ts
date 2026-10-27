@@ -143,7 +143,7 @@ describe('faltantesMuestra / camposFichaDesdeMuestra / nota', () => {
   it('la nota dice por dónde va y a dónde, mezclando bloque y ficha', () => {
     const nota = armarNotaMuestraCargada(expreso, { localidad: 'Morón', codigoPostal: '1708', cuit: '20-1-1' })
     expect(nota).toBe(
-      `Muestra cargada por el bot: va por expreso ${EXPRESO_MUESTRA} a Calle 1, Morón, Buenos Aires, CP 1708, CUIT/DNI 20-1-1. Los datos quedaron en la ficha. Quedó como pedido de muestra pendiente de aprobación.`,
+      `Muestra cargada por el bot: va por expreso ${EXPRESO_MUESTRA} a Calle 1, Morón, Buenos Aires, CP 1708, CUIT/DNI 20-1-1. Los datos quedaron en la ficha. El pedido de muestra quedó confirmado para fábrica.`,
     )
     expect(armarNotaMuestraCargada({ ...expreso, entrega: 'retiro_fabrica' }, {})).toContain('la retira en fábrica')
   })

@@ -127,7 +127,23 @@ export async function registrarMuestraEntregada(
 
   if (pedido.remitoFotoUrl) await enviarAvisoAutomatico(lead.id, userId, drizzleDb)
 
+  // A los N días de entregada, si no escribió: plantilla "¿qué te pareció?"
+  // y el bot sigue la charla hacia el primer pedido.
+  if (lead.isOpen) await programarSeguimientoPostMuestra(lead.id, fecha)
+
   return { procesado: true, etapaMovida: mover, stageId: etapa?.id ?? null }
+}
+
+/** Best-effort: la entrega de fábrica no depende del motor de seguimientos. */
+async function programarSeguimientoPostMuestra(leadId: string, entregadaAt: Date): Promise<void> {
+  try {
+    // Import dinámico: el motor importa el bot, que importa el servicio de
+    // muestras, que importa pedidos, que importa este módulo.
+    const { programarSeguimientoMuestra } = await import('@/lib/followup/engine')
+    await programarSeguimientoMuestra(leadId, entregadaAt)
+  } catch (err) {
+    console.warn(`[muestra-enviada] No se pudo programar el seguimiento de la muestra del lead ${leadId}:`, err)
+  }
 }
 
 /**

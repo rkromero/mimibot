@@ -1,10 +1,10 @@
 /**
  * Muestra CDA para un lead: busca o crea el cliente a partir del lead (el
  * lead sigue abierto en el pipeline) y crea un pedido con el producto
- * "Muestra" de la marca CDA (cantidad 1, precio del producto), siempre en
- * `pendiente_aprobacion`. Lo usan el botón de la ficha del lead
- * (app/api/leads/[id]/muestra) y el bot después de la propuesta
- * (lib/claude/bot-post-propuesta.ts).
+ * "Muestra" de la marca CDA (cantidad 1, precio del producto). Nace
+ * confirmado: la muestra no pasa por aprobación, fábrica la ve en el acto.
+ * Lo usan el botón de la ficha del lead (app/api/leads/[id]/muestra) y el
+ * bot después de la propuesta (lib/claude/bot-post-propuesta.ts).
  *
  * El pedido queda marcado como `tipo = 'muestra'` con el `leadId` de origen.
  * El lead NO cambia de etapa acá: pasa a "Muestra enviada" recién cuando el
@@ -132,8 +132,8 @@ export async function crearMuestraParaLead(input: CrearMuestraInput): Promise<Mu
       creadoPor: input.userId,
       registradoPor: input.userId,
       territorioIdImputado: cliente.territorioId ?? null,
-      // Las muestras siempre pasan por aprobación, aunque las cargue un admin.
-      crearComoPendienteAprobacion: true,
+      // La muestra se autoaprueba: nace confirmada, sin importar quién la carga.
+      crearComoPendienteAprobacion: false,
       metodoEntrega: input.metodoEntrega,
       expresoNombre,
       expresoDireccion,

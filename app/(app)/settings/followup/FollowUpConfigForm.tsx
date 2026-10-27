@@ -41,6 +41,10 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
     ultimoSeguimientoTemplateLang: initialConfig?.ultimoSeguimientoTemplateLang ?? 'es',
     ultimoSeguimientoHoras: initialConfig?.ultimoSeguimientoHoras ?? ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
     respuestasAutomaticasFrases: (initialConfig?.respuestasAutomaticasFrases ?? []).join('\n'),
+    muestraSeguimientoEnabled: initialConfig?.muestraSeguimientoEnabled ?? true,
+    muestraSeguimientoDias: initialConfig?.muestraSeguimientoDias ?? 5,
+    muestraSeguimientoTemplateName: initialConfig?.muestraSeguimientoTemplateName ?? '',
+    muestraSeguimientoTemplateLang: initialConfig?.muestraSeguimientoTemplateLang ?? 'es',
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -91,6 +95,10 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
             .split('\n')
             .map((s) => s.trim())
             .filter(Boolean),
+          muestraSeguimientoEnabled: form.muestraSeguimientoEnabled,
+          muestraSeguimientoDias: form.muestraSeguimientoDias,
+          muestraSeguimientoTemplateName: form.muestraSeguimientoTemplateName.trim() || null,
+          muestraSeguimientoTemplateLang: form.muestraSeguimientoTemplateLang.trim() || 'es',
         }),
       })
 
@@ -419,6 +427,84 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
             redacta el bot según lo que quedó pendiente en la charla.
           </p>
         </div>
+      </div>
+
+      {/* Seguimiento después de la muestra */}
+      <div className="pt-4 border-t border-border space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Después de la muestra</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              A los N días de entregada la muestra (el expreso tarda), si la persona no escribió, sale la plantilla
+              aprobada &quot;¿qué te pareció?&quot; a nombre del bot, que sigue la charla hacia el primer pedido. Si escribe
+              antes, o el lead ya salió de &quot;Muestra enviada&quot;, no se manda.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setForm((p) => ({ ...p, muestraSeguimientoEnabled: !p.muestraSeguimientoEnabled }))}
+            className={cn(
+              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150 ml-3',
+              form.muestraSeguimientoEnabled ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700',
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-150',
+                form.muestraSeguimientoEnabled ? 'translate-x-4' : 'translate-x-1',
+              )}
+            />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-[1fr_6rem_6rem] gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Plantilla</label>
+            <input
+              type="text"
+              value={form.muestraSeguimientoTemplateName}
+              onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoTemplateName: e.target.value }))}
+              placeholder="ej: seguimiento_muestra"
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Idioma</label>
+            <input
+              type="text"
+              value={form.muestraSeguimientoTemplateLang}
+              onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoTemplateLang: e.target.value }))}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Días</label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={form.muestraSeguimientoDias}
+              onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoDias: parseInt(e.target.value) || 5 }))}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'border-border bg-background text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-ring',
+              )}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Sin plantilla, el sistema deja
+          una nota interna en el chat para que preguntes a mano.
+        </p>
       </div>
 
       {/* Último seguimiento (botón del panel del lead) */}

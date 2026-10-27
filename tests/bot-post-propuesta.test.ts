@@ -177,6 +177,16 @@ describe('procesarTurnoPostPropuesta', () => {
     expect(inserts().find((v) => v['action'] === 'bot_disabled')).toMatchObject({ metadata: { motivo: 'el vendedor tomó la conversación después de la propuesta' } })
   })
 
+  it('una plantilla a nombre del vendedor (aviso "salió tu muestra", último seguimiento) no cuenta como que tomó la charla', async () => {
+    mockFindMessages.mockResolvedValue(historial(msg('agent', 'Salió tu muestra por Via Cargo', 30, 'template'), msg('contact', '¡Gracias! Ya la recibí', 60)))
+    respuesta('¡Qué bueno! ¿Qué te pareció?')
+
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+
+    expect(mockSendText).toHaveBeenCalledWith('+5491100000000', '¡Qué bueno! ¿Qué te pareció?')
+    expect(sets().find((s) => s['botEnabled'] === false)).toBeUndefined()
+  })
+
   it('el documento de la propuesta mandado por el vendedor no cuenta como que tomó la charla', async () => {
     mockFindMessages.mockResolvedValue([...historial().slice(0, 4), msg('agent', 'Propuesta PROP-00051', 0, 'document'), msg('contact', 'Gracias', 60)])
     respuesta('¿Pudiste verla?')

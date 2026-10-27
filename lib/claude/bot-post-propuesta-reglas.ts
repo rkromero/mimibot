@@ -284,7 +284,7 @@ export function camposFichaDesdeMuestra(m: DatosMuestraBot): Partial<Record<keyo
 /** Nota interna al cargar la muestra desde el bot. */
 export function armarNotaMuestraCargada(m: DatosMuestraBot, ficha: DatosEntregaLead): string {
   if (m.entrega === 'retiro_fabrica') {
-    return 'Muestra cargada por el bot: la retira en fábrica. Quedó como pedido de muestra pendiente de aprobación.'
+    return 'Muestra cargada por el bot: la retira en fábrica. El pedido de muestra quedó confirmado para fábrica.'
   }
   const dir = [
     m.direccion ?? ficha.direccion,
@@ -298,6 +298,6 @@ export function armarNotaMuestraCargada(m: DatosMuestraBot, ficha: DatosEntregaL
   return (
     `Muestra cargada por el bot: va por expreso ${EXPRESO_MUESTRA} a ${dir}` +
     (cuit ? `, CUIT/DNI ${cuit}` : '') +
-    '. Los datos quedaron en la ficha. Quedó como pedido de muestra pendiente de aprobación.'
+    '. Los datos quedaron en la ficha. El pedido de muestra quedó confirmado para fábrica.'
   )
 }

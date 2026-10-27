@@ -2,8 +2,8 @@
  * Tests para /api/leads/[id]/muestra
  *
  *  1. Admin carga muestra con retiro en fábrica → 201 y el pedido nace en
- *     pendiente de aprobación (crearComoPendienteAprobacion: true) con
- *     metodoEntrega = retiro_fabrica.
+ *     confirmado (la muestra se autoaprueba: crearComoPendienteAprobacion: false)
+ *     con metodoEntrega = retiro_fabrica.
  *  2. Sin método de entrega → 400 y no se crea el pedido.
  *  3. Expreso nuevo → se guarda en la ficha del cliente y viaja al pedido.
  *  4. Expreso sin datos y cliente sin expreso guardado → 400.
@@ -159,7 +159,7 @@ beforeEach(() => {
   mockFindMarca.mockResolvedValue({ id: 'marca-cda', slug: 'cda' })
   mockFindProducto.mockResolvedValue({ id: PRODUCTO_ID, nombre: 'Muestras' })
   mockTxFindCliente.mockResolvedValue(clienteBase())
-  mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '1.00' })
+  mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'confirmado', total: '1.00' })
   mockRegistrarPagoPedido.mockResolvedValue({
     movimiento: { id: 'mov-1', monto: '1.00' },
     pedidoActualizado: { id: 'pedido-1', montoPagado: '1.00', saldoPendiente: '0.00', estadoPago: 'pagado' },
@@ -170,7 +170,7 @@ beforeEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('POST /api/leads/[id]/muestra', () => {
-  it('admin con retiro en fábrica → 201 y pedido pendiente de aprobación', async () => {
+  it('admin con retiro en fábrica → 201 y pedido confirmado (la muestra se autoaprueba)', async () => {
     const { POST } = await loadRoute()
     const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
     expect(res.status).toBe(201)
@@ -185,7 +185,7 @@ describe('POST /api/leads/[id]/muestra', () => {
     expect(vendedorId).toBe(AGENTE_ID)
     expect(items).toEqual([{ productoId: PRODUCTO_ID, cantidad: 1 }])
     expect(extra).toMatchObject({
-      crearComoPendienteAprobacion: true,
+      crearComoPendienteAprobacion: false,
       metodoEntrega: 'retiro_fabrica',
       expresoNombre: null,
       expresoDireccion: null,
@@ -240,7 +240,7 @@ describe('POST /api/leads/[id]/muestra', () => {
 
     const extra = mockCrearPedidoConItems.mock.calls[0]![6]
     expect(extra).toMatchObject({
-      crearComoPendienteAprobacion: true,
+      crearComoPendienteAprobacion: false,
       metodoEntrega: 'expreso',
       expresoNombre: 'Andreani',
       expresoDireccion: 'Av. Siempreviva 123',
@@ -267,12 +267,12 @@ describe('POST /api/leads/[id]/muestra', () => {
     expect(extra).toMatchObject({ metodoEntrega: 'expreso', expresoNombre: 'OCA', expresoDireccion: 'Calle 1' })
   })
 
-  it('agente (rol ventas) también crea en pendiente de aprobación', async () => {
+  it('agente (rol ventas) también la crea confirmada', async () => {
     mockAuthFn.mockResolvedValue({ user: { id: AGENTE_ID, role: 'agent', name: 'Agente' } })
     const { POST } = await loadRoute()
     const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
     expect(res.status).toBe(201)
-    expect(mockCrearPedidoConItems.mock.calls[0]![6]).toMatchObject({ crearComoPendienteAprobacion: true })
+    expect(mockCrearPedidoConItems.mock.calls[0]![6]).toMatchObject({ crearComoPendienteAprobacion: false })
   })
 
   it('el activity log registra el método de entrega', async () => {
@@ -321,7 +321,7 @@ describe('POST /api/leads/[id]/muestra', () => {
   })
 
   it('si la muestra vale $0 no registra ningún pago', async () => {
-    mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'pendiente_aprobacion', total: '0.00' })
+    mockCrearPedidoConItems.mockResolvedValue({ id: 'pedido-1', estado: 'confirmado', total: '0.00' })
     const { POST } = await loadRoute()
     const res = await POST(postReq({ metodoEntrega: 'retiro_fabrica' }), { params })
     expect(res.status).toBe(201)

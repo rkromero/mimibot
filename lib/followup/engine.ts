@@ -20,6 +20,14 @@ import {
   MOTIVO_BOT_APAGADO_A_MANO,
 } from './propuesta'
 import { SLUG_ETAPA_PROPUESTA_ENVIADA } from '@/lib/leads/propuesta-enviada'
+import { SLUG_ETAPA_MUESTRA_ENVIADA } from '@/lib/leads/muestra-enviada'
+import {
+  REASON_MUESTRA,
+  MUESTRA_SEGUIMIENTO_DIAS_DEFAULT,
+  MOTIVO_SIN_PLANTILLA_MUESTRA,
+  calcularSeguimientoMuestra,
+  motivoParaOmitirSeguimientoMuestra,
+} from './muestra'
 import {
   calcularPrimerSeguimiento,
   calcularSeguimientoFinal,
@@ -164,6 +172,10 @@ async function processSingleFollowUp(
   }
   if (lead.followUpReason === 'propuesta') {
     await procesarSeguimientoPropuesta(lead, config)
+    return
+  }
+  if (lead.followUpReason === REASON_MUESTRA) {
+    await procesarSeguimientoMuestra(lead, config)
     return
   }
   if (lead.followUpReason === 'indagacion' || lead.followUpReason === 'indagacion_final' || lead.followUpReason === 'indagacion_cierre') {
@@ -427,8 +439,187 @@ export async function manejarRespuestaDelContacto(
   msg: { tipo: string; texto: string | null },
 ): Promise<void> {
   await cancelarSeguimientoPropuestaPorRespuesta(leadId)
+  await cancelarSeguimientoMuestraPorRespuesta(leadId)
   await manejarRespuestaClienteIndagacion(leadId, msg.texto ?? '')
   await manejarRespuestaUltimoSeguimiento(leadId, msg)
+}
+
+// ─── Seguimiento después de la muestra ───────────────────────────────────────
+
+/**
+ * Programa el seguimiento de la muestra: N días (5) después de entregada,
+ * dentro del horario permitido. Pisa cualquier otro seguimiento pendiente del
+ * lead (el de propuesta ya no aplica: la muestra es un paso posterior).
+ */
+export async function programarSeguimientoMuestra(leadId: string, entregadaAt: Date): Promise<void> {
+  const config = await db.query.followUpConfig.findFirst()
+  if (config && (!config.isEnabled || !config.muestraSeguimientoEnabled)) return
+
+  const lead = await db.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    columns: { id: true, isOpen: true, botEnabled: true, botQualified: true },
+  })
+  if (!lead || !lead.isOpen) return
+  if (botApagadoAMano(lead)) {
+    await db.insert(activityLog).values({
+      leadId,
+      action: 'follow_up_cancelled',
+      metadata: { reason: REASON_MUESTRA, motivo: MOTIVO_BOT_APAGADO_A_MANO, momento: 'al programar' },
+    })
+    return
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, leadId),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) return
+
+  const enviarAt = calcularSeguimientoMuestra(entregadaAt, config?.muestraSeguimientoDias ?? MUESTRA_SEGUIMIENTO_DIAS_DEFAULT, horarioDe(config))
+
+  await db.update(leads)
+    .set({ nextFollowUpAt: enviarAt, followUpStatus: 'pending', followUpReason: REASON_MUESTRA, updatedAt: new Date() })
+    .where(eq(leads.id, leadId))
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_scheduled',
+    metadata: { reason: REASON_MUESTRA, nextFollowUpAt: enviarAt.toISOString() },
+  })
+}
+
+/** El cliente escribió: el seguimiento de la muestra ya no hace falta. */
+export async function cancelarSeguimientoMuestraPorRespuesta(leadId: string): Promise<boolean> {
+  const rows = await db.update(leads)
+    .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.followUpStatus, 'pending'), eq(leads.followUpReason, REASON_MUESTRA)))
+    .returning({ id: leads.id })
+  if (rows.length === 0) return false
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_cancelled',
+    metadata: { reason: REASON_MUESTRA, motivo: 'el cliente respondió' },
+  })
+  return true
+}
+
+/**
+ * Manda la plantilla "¿qué te pareció la muestra?" (configurada en Ajustes →
+ * Seguimiento). Sale a nombre del bot: si la persona contesta, el bot en modo
+ * post-propuesta sigue la charla hacia el primer pedido. A los 5 días la
+ * ventana de 24 hs está cerrada, así que siempre va por plantilla.
+ */
+async function procesarSeguimientoMuestra(
+  lead: typeof leads.$inferSelect,
+  config: typeof followUpConfig.$inferSelect | null,
+): Promise<void> {
+  const marcar = async (status: 'sent' | 'failed' | 'cancelled', metadata: Record<string, unknown>) => {
+    await db.update(leads)
+      .set({ followUpStatus: status, nextFollowUpAt: null, lastContactedAt: status === 'sent' ? new Date() : undefined, updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({
+      leadId: lead.id,
+      action: status === 'sent' ? 'follow_up_sent' : 'follow_up_cancelled',
+      metadata: { reason: REASON_MUESTRA, ...metadata },
+    })
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, lead.id),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) {
+    await marcar('failed', { motivo: 'sin_conversacion' })
+    return
+  }
+
+  // Red de seguridad por si el webhook no llegó a cancelar: si escribió
+  // después de programarse, o el lead ya avanzó de etapa, no se manda.
+  const [programado] = await db
+    .select({ createdAt: activityLog.createdAt })
+    .from(activityLog)
+    .where(and(
+      eq(activityLog.leadId, lead.id),
+      eq(activityLog.action, 'follow_up_scheduled'),
+      sql`${activityLog.metadata}->>'reason' = ${REASON_MUESTRA}`,
+    ))
+    .orderBy(desc(activityLog.createdAt))
+    .limit(1)
+  let mensajesDelClienteDesdeProgramado = 0
+  if (programado) {
+    const [fila] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversation.id), eq(messages.direction, 'inbound'), gt(messages.sentAt, programado.createdAt)))
+    mensajesDelClienteDesdeProgramado = fila?.total ?? 0
+  }
+  const etapaMuestra = await db.query.pipelineStages.findFirst({
+    where: eq(pipelineStages.slug, SLUG_ETAPA_MUESTRA_ENVIADA),
+    columns: { id: true },
+  })
+  const omitir = motivoParaOmitirSeguimientoMuestra({
+    mensajesDelClienteDesdeProgramado,
+    enEtapaMuestra: etapaMuestra ? lead.stageId === etapaMuestra.id : null,
+    botApagadoAMano: botApagadoAMano(lead),
+  })
+  if (omitir) {
+    await marcar('cancelled', { motivo: omitir })
+    return
+  }
+
+  const templateName = config?.muestraSeguimientoTemplateName?.trim() || null
+  const templateLang = config?.muestraSeguimientoTemplateLang?.trim() || 'es'
+  const tmpl = templateName
+    ? await db.query.whatsappTemplates.findFirst({
+        where: and(
+          eq(whatsappTemplates.name, templateName),
+          eq(whatsappTemplates.language, templateLang),
+          eq(whatsappTemplates.status, 'APPROVED'),
+        ),
+        columns: { bodyText: true, variables: true },
+      })
+    : null
+  if (!tmpl || !templateName) {
+    await db.insert(messages).values({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      senderType: 'system',
+      contentType: 'internal_note',
+      body: 'Seguimiento de la muestra pendiente: no hay plantilla aprobada configurada en Ajustes → Seguimiento → Después de la muestra. Preguntale a mano qué le pareció.',
+      isRead: true,
+      sentAt: new Date(),
+    })
+    await marcar('failed', { motivo: MOTIVO_SIN_PLANTILLA_MUESTRA })
+    await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+    return
+  }
+
+  const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })
+  const vendedorNombre = await nombreVendedorParaSeguimiento(lead)
+  const vars = variablesParaChat(tmpl.bodyText, tmpl.variables)
+  const valores = resolveTemplateVariables(vars, {
+    clienteNombre: contact?.name ?? undefined,
+    vendedorNombre: vendedorNombre ?? undefined,
+    productoInteres: lead.productInterest ?? undefined,
+  })
+  const body = applyTemplateValues(tmpl.bodyText, valores).trim()
+  const waMessageId = await sendTemplateMessage(conversation.waContactPhone, templateName, templateLang, buildBodyComponents(valores))
+
+  // A nombre del bot: la respuesta de la persona la sigue el bot post-propuesta
+  await db.insert(messages).values({
+    conversationId: conversation.id,
+    waMessageId,
+    direction: 'outbound',
+    senderType: 'bot',
+    contentType: 'template',
+    body,
+    isRead: true,
+    sentAt: new Date(),
+  })
+  await db.execute(sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversation.id}`)
+  await marcar('sent', { template: templateName })
+  await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
 }
 
 /** Motivo para no mandar el seguimiento de propuesta al momento de procesarlo, o null. */

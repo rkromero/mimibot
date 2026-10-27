@@ -338,6 +338,15 @@ export const followUpConfig = pgTable('follow_up_config', {
   ultimoSeguimientoHoras: integer('ultimo_seguimiento_horas').notNull().default(10),
   /** Frases de respuestas automáticas de negocios que no cuentan como respuesta (además de las del sistema) */
   respuestasAutomaticasFrases: text('respuestas_automaticas_frases').array().notNull().default([]),
+  /**
+   * Seguimiento después de la muestra: N días después de entregada, si la
+   * persona no escribió, sale la plantilla "¿qué te pareció?" y el bot sigue
+   * la charla hacia el primer pedido (ver programarSeguimientoMuestra).
+   */
+  muestraSeguimientoEnabled: boolean('muestra_seguimiento_enabled').notNull().default(true),
+  muestraSeguimientoDias: integer('muestra_seguimiento_dias').notNull().default(5),
+  muestraSeguimientoTemplateName: text('muestra_seguimiento_template_name'),
+  muestraSeguimientoTemplateLang: text('muestra_seguimiento_template_lang'),
   updatedBy: uuid('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

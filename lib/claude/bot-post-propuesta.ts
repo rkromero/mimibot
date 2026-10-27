@@ -154,12 +154,12 @@ export async function procesarTurnoPostPropuesta(params: {
     }),
   ])
 
-  // El vendedor ya escribió después de la propuesta: la charla es suya.
+  // El vendedor ya escribió después de la propuesta: la charla es suya. Solo
+  // cuenta texto escrito a mano: las plantillas (aviso "salió tu muestra",
+  // último seguimiento, envíos masivos) y los adjuntos son automatismos o
+  // botones, no una conversación del vendedor.
   const vendedorEscribio = history.some(
-    (m) =>
-      m.senderType === 'agent' &&
-      (m.contentType === 'text' || m.contentType === 'template') &&
-      m.sentAt.getTime() > propuesta.updatedAt.getTime(),
+    (m) => m.senderType === 'agent' && m.contentType === 'text' && m.sentAt.getTime() > propuesta.updatedAt.getTime(),
   )
   if (vendedorEscribio) {
     await apagarBot(leadId, 'el vendedor tomó la conversación después de la propuesta')
@@ -374,7 +374,7 @@ async function cargarMuestraDesdeBot(params: {
       conversationId,
       assignedTo,
       titulo: `Muestra cargada para ${nombre}`,
-      cuerpo: esExpreso ? `Va por ${EXPRESO_MUESTRA}. Aprobá el pedido de muestra.` : 'La retira en fábrica. Aprobá el pedido de muestra.',
+      cuerpo: esExpreso ? `Va por ${EXPRESO_MUESTRA}. El pedido de muestra ya está confirmado para fábrica.` : 'La retira en fábrica. El pedido de muestra ya está confirmado.',
     })
     await publishCrmEvent({ type: 'lead_updated', leadId, assignedTo, oldAssigned: assignedTo, stageId: lead.stageId, oldStageId: lead.stageId })
     console.log('[bot] muestra cargada', { leadId, pedidoId: muestra.pedidoId })

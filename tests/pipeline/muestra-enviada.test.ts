@@ -25,7 +25,9 @@ const {
   mockInsertValues,
   mockPublish,
   mockEnviarAviso,
+  mockProgramarMuestra,
 } = vi.hoisted(() => ({
+  mockProgramarMuestra: vi.fn().mockResolvedValue(undefined),
   mockFindLead: vi.fn(),
   mockFindStage: vi.fn(),
   mockFindPedido: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('@/db', () => ({
 
 vi.mock('@/lib/realtime/broker', () => ({ publishCrmEvent: mockPublish }))
 vi.mock('@/lib/leads/muestra-despachada', () => ({ enviarAvisoMuestra: mockEnviarAviso }))
+vi.mock('@/lib/followup/engine', () => ({ programarSeguimientoMuestra: mockProgramarMuestra }))
 
 import {
   registrarMuestraEntregada,
@@ -142,6 +145,14 @@ describe('registrarMuestraEntregada', () => {
       conFoto: false,
     })
     expect(eventos()).toEqual(['lead_updated', 'muestra_despachada'])
+    // Seguimiento "¿qué te pareció?" a los N días de la entrega
+    expect(mockProgramarMuestra).toHaveBeenCalledWith('lead-1', ENTREGADO_AT)
+  })
+
+  it('si falla la programación del seguimiento, la entrega igual queda registrada', async () => {
+    mockProgramarMuestra.mockRejectedValueOnce(new Error('motor caído'))
+    const r = await registrarMuestraEntregada(PEDIDO, 'admin')
+    expect(r.procesado).toBe(true)
   })
 
   it('retiro en fábrica → queda avisada en el acto (no hay guía) y la nota lo dice', async () => {
@@ -179,6 +190,8 @@ describe('registrarMuestraEntregada', () => {
     expect(acciones()).toEqual(['note_added'])
     // Sin cambio de etapa no hay lead_updated, pero el aviso interno sale igual
     expect(eventos()).toEqual(['muestra_despachada'])
+    // Lead cerrado: no se programa seguimiento
+    expect(mockProgramarMuestra).not.toHaveBeenCalled()
   })
 
   it('etapa inexistente → registra fecha y nota, no mueve', async () => {

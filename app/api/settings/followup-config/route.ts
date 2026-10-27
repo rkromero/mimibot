@@ -28,6 +28,10 @@ const configSchema = z.object({
   ultimoSeguimientoTemplateName: z.string().max(200).nullable().optional(),
   ultimoSeguimientoTemplateLang: z.string().max(20).nullable().optional(),
   ultimoSeguimientoHoras: z.number().int().min(1).max(168).optional(),
+  muestraSeguimientoEnabled: z.boolean().optional(),
+  muestraSeguimientoDias: z.number().int().min(1).max(60).optional(),
+  muestraSeguimientoTemplateName: z.string().max(200).nullable().optional(),
+  muestraSeguimientoTemplateLang: z.string().max(20).nullable().optional(),
   respuestasAutomaticasFrases: z.array(z.string().min(1).max(200)).max(50).optional(),
 })
 
@@ -59,6 +63,10 @@ export async function GET() {
     ultimoSeguimientoTemplateName: null,
     ultimoSeguimientoTemplateLang: null,
     ultimoSeguimientoHoras: 10,
+    muestraSeguimientoEnabled: true,
+    muestraSeguimientoDias: 5,
+    muestraSeguimientoTemplateName: null,
+    muestraSeguimientoTemplateLang: null,
     respuestasAutomaticasFrases: [],
   })
 }
