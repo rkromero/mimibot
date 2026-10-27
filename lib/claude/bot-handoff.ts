@@ -13,6 +13,7 @@ import { agregarTagALead, TAG_PIDE_REUNION } from '@/lib/leads/tags'
 import { extraerEmpresa, extraerScore } from './bot-context'
 import { alertarEquipoBot, dejarNotaInternaBot } from './bot-alertas'
 import { crearPropuestaAutomatica, type ConfigPropuestaAutomatica } from './bot-propuesta'
+import { datosFormularioLead } from './bot-cotizacion'
 import type { LeadConContacto } from './bot'
 
 /** Respuesta fija cuando la persona pide que la llamen / una visita / una reunión. */
@@ -111,6 +112,8 @@ export async function performHandoff(
     assignedTo: agentId ?? lead.assignedTo ?? null,
     nombreContacto: lead.contact?.name ?? null,
     resumen,
+    // Si el bot no dejó cantidad / packaging, se toman del formulario del landing (ficha).
+    formulario: datosFormularioLead(lead.customFields, lead.notes),
     config,
   })
 }

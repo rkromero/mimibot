@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   armarNotaPropuestaCreada,
   armarSeccionCotizacion,
+  datosFormularioLead,
   extraerDatosCotizacion,
   parsearCantidad,
   parsearPackaging,
@@ -19,6 +20,31 @@ describe('armarSeccionCotizacion', () => {
 
   it('sin recetas cargadas ofrece el default como única opción', () => {
     expect(armarSeccionCotizacion([], 60)).toContain('Opciones: 60 g')
+  })
+
+  it('con volumen y packaging del formulario le dice al bot que no los repregunte y use el piso del rango', () => {
+    const s = armarSeccionCotizacion([60], 60, { cantidad: '300 a 1.000 u./mes', packaging: 'Film cristal (sin impresión)' })
+    expect(s).toContain('en el formulario puso "300 a 1.000 u./mes"')
+    expect(s).toContain('NO la vuelvas a preguntar')
+    expect(s).toContain('usá el número más chico del rango')
+    expect(s).toContain('eligió "Film cristal (sin impresión)"')
+    expect(s).not.toContain('Si no la dijo, preguntala')
+  })
+})
+
+describe('datosFormularioLead', () => {
+  it('lee cantidad y packaging de los campos extra del intake', () => {
+    expect(datosFormularioLead({ cantidad: '1.000 a 3.000 u./mes', packaging: 'Bobina impresa con su marca' }, null)).toEqual({
+      cantidad: '1.000 a 3.000 u./mes',
+      packaging: 'Bobina impresa con su marca',
+    })
+    expect(datosFormularioLead({ volumen: '500', envasado: 'cristal' }, '')).toEqual({ cantidad: '500', packaging: 'cristal' })
+  })
+
+  it('si no están en los campos, los saca del resumen del formulario en las notas', () => {
+    const notas = 'Nueva consulta desde web-alipro\n\nEmpresa: La Espiga\nVolumen mensual: Más de 30.000 u./mes\nPackaging: Film cristal'
+    expect(datosFormularioLead({}, notas)).toEqual({ cantidad: 'Más de 30.000 u./mes', packaging: 'Film cristal' })
+    expect(datosFormularioLead(null, null)).toEqual({ cantidad: null, packaging: null })
   })
 })
 
@@ -83,6 +109,47 @@ describe('extraerDatosCotizacion', () => {
     })
     expect(extraerDatosCotizacion('Gramaje: 60\nPackaging: cristal', opts).ok).toBe(false)
     expect(extraerDatosCotizacion(null, opts).ok).toBe(false)
+  })
+
+  it('sin cantidad en el resumen la toma del formulario: un rango cotiza el número más chico', () => {
+    const r = extraerDatosCotizacion('Cantidad: -\nGramaje: 60\nPackaging: -', {
+      ...opts,
+      formulario: { cantidad: '300 a 1.000 u./mes', packaging: 'Bobina impresa con su marca' },
+    })
+    expect(r).toEqual({
+      ok: true,
+      datos: {
+        cantidad: 300,
+        gramaje: 60,
+        packaging: 'personalizado',
+        supuestos: [
+          'cantidad tomada del formulario ("300 a 1.000 u./mes"): se cotizó 300',
+          'packaging tomado del formulario ("Bobina impresa con su marca"): se cotizó personalizado',
+        ],
+      },
+    })
+  })
+
+  it('"Más de 30.000" del formulario cotiza 30.000; lo que dijo la persona en el chat manda sobre el formulario', () => {
+    const masDe = extraerDatosCotizacion('Cantidad: -\nGramaje: 60\nPackaging: cristal', {
+      ...opts,
+      formulario: { cantidad: 'Más de 30.000 u./mes', packaging: null },
+    })
+    expect(masDe.ok && masDe.datos.cantidad).toBe(30000)
+
+    const chat = extraerDatosCotizacion('Cantidad: 2.500\nGramaje: 60\nPackaging: cristal', {
+      ...opts,
+      formulario: { cantidad: '300 a 1.000 u./mes', packaging: 'Bobina impresa' },
+    })
+    expect(chat).toEqual({ ok: true, datos: { cantidad: 2500, gramaje: 60, packaging: 'cristal', supuestos: [] } })
+  })
+
+  it('sin cantidad ni en el resumen ni en el formulario sigue sin cotizar', () => {
+    const r = extraerDatosCotizacion('Cantidad: -\nGramaje: 60\nPackaging: cristal', {
+      ...opts,
+      formulario: { cantidad: null, packaging: 'cristal' },
+    })
+    expect(r).toEqual({ ok: false, motivo: 'el bot no relevó la cantidad de alfajores' })
   })
 
   it('con un gramaje que no tiene receta no cotiza', () => {

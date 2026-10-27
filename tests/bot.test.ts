@@ -230,8 +230,8 @@ describe('processBotTurn', () => {
       { id: 's3', slug: 'calificado', position: 2, isTerminal: false },
     ]
 
-    function prepararHandoff(resumen: string, config: Record<string, unknown> = {}) {
-      mockFindLead.mockResolvedValue(leadActivo({ botTurnCount: 4 }))
+    function prepararHandoff(resumen: string, config: Record<string, unknown> = {}, leadExtra: Record<string, unknown> = {}) {
+      mockFindLead.mockResolvedValue(leadActivo({ botTurnCount: 4, ...leadExtra }))
       mockFindConfig.mockResolvedValue({ ...configBase, ...config })
       mockFindMessages.mockResolvedValue(historial('dale, mandame la propuesta'))
       mockFindStages.mockResolvedValue(stages)
@@ -315,6 +315,35 @@ describe('processBotTurn', () => {
         (v) => v['contentType'] === 'internal_note' && String(v['body']).includes('No se creó la propuesta automática'),
       )
       expect(String(nota!['body'])).toContain('no relevó la cantidad')
+    })
+
+    it('si el bot no relevó la cantidad pero el formulario trae un rango, cotiza el número más chico y lo aclara', async () => {
+      const { inserts } = prepararHandoff(
+        'Empresa: La Espiga\nCantidad: -\nGramaje: 60\nPackaging: -',
+        {},
+        {
+          customFields: { cantidad: '300 a 1.000 u./mes', packaging: 'Bobina impresa con su marca' },
+          notes: 'Nueva consulta desde web-alipro\n\nVolumen mensual: 300 a 1.000 u./mes\nPackaging: Bobina impresa con su marca',
+        },
+      )
+
+      await processBotTurn(baseParams)
+
+      // El prompt le dice al bot que el formulario ya trajo el volumen y el packaging
+      const system = String(mockClaudeCreate.mock.calls[0]![0].system)
+      expect(system).toContain('en el formulario puso "300 a 1.000 u./mes"')
+      expect(system).toContain('eligió "Bobina impresa con su marca"')
+
+      expect(mockCrearPropuesta).toHaveBeenCalledWith(
+        'lead-1',
+        { cantidad: 300, gramaje: 60, packaging: 'personalizado', descuentoManualPct: 0 },
+        'user-9',
+      )
+      const nota = inserts().find(
+        (v) => v['contentType'] === 'internal_note' && String(v['body']).includes('creada y enviada por WhatsApp'),
+      )
+      expect(String(nota!['body'])).toContain('cantidad tomada del formulario ("300 a 1.000 u./mes"): se cotizó 300')
+      expect(String(nota!['body'])).toContain('packaging tomado del formulario')
     })
 
     it('con la opción apagada en Ajustes no crea propuesta ni deja nota', async () => {

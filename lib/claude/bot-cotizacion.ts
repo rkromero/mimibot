@@ -20,21 +20,73 @@ export type ResultadoExtraccion =
   | { ok: false; motivo: string }
 
 /**
+ * Lo que el formulario del landing ya dijo sobre el pedido (ficha del lead):
+ * volumen (suele ser un rango, ej. "300 a 1.000 u./mes") y packaging. Sirve
+ * de respaldo cuando el bot no lo deja en el [RESUMEN].
+ */
+export type DatosFormularioLead = {
+  cantidad: string | null
+  packaging: string | null
+}
+
+const CLAVES_CANTIDAD = ['cantidad', 'volumen', 'volumen_mensual', 'volumenMensual', 'unidades']
+const CLAVES_PACKAGING = ['packaging', 'envasado', 'envase', 'empaque']
+
+function textoDe(campos: Record<string, unknown>, claves: readonly string[]): string | null {
+  for (const k of claves) {
+    const v = campos[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+    if (typeof v === 'number' && v > 0) return String(v)
+  }
+  return null
+}
+
+/**
+ * Lee cantidad y packaging de la ficha: primero los campos extra que guardó
+ * el intake (customFields), si no, las líneas "Volumen mensual: ..." /
+ * "Packaging: ..." del resumen del formulario que quedó en las notas.
+ */
+export function datosFormularioLead(
+  customFields: unknown,
+  notes: string | null | undefined,
+): DatosFormularioLead {
+  const campos = (customFields && typeof customFields === 'object' ? customFields : {}) as Record<string, unknown>
+  let cantidad = textoDe(campos, CLAVES_CANTIDAD)
+  let packaging = textoDe(campos, CLAVES_PACKAGING)
+  if (notes?.trim()) {
+    if (!cantidad) cantidad = leerLinea(notes, /^\s*(?:volumen(?: mensual| estimado)?|cantidad(?: estimada)?)\s*:\s*(.+?)\s*$/im)
+    if (!packaging) packaging = leerLinea(notes, /^\s*(?:packaging|envasado|envase)\s*:\s*(.+?)\s*$/im)
+  }
+  return { cantidad, packaging }
+}
+
+/**
  * Sección del system prompt: qué necesita el cotizador y cómo dejarlo en el
- * [RESUMEN] con formato fijo (igual que "Empresa: ...").
+ * [RESUMEN] con formato fijo (igual que "Empresa: ..."). Si el formulario ya
+ * trajo volumen / packaging, el bot los usa en vez de volver a preguntar.
  */
 export function armarSeccionCotizacion(
   gramajesDisponibles: readonly number[],
   gramajeDefault: number = GRAMAJE_DEFAULT_BOT,
+  formulario: DatosFormularioLead | null = null,
 ): string {
   const gramajes = [...new Set(gramajesDisponibles)].sort((a, b) => a - b)
   const opciones = gramajes.length > 0 ? gramajes.map((g) => `${g} g`).join(', ') : `${gramajeDefault} g`
+  const cantidadForm = formulario?.cantidad?.trim()
+  const packagingForm = formulario?.packaging?.trim()
+  const lineaCantidad = cantidadForm
+    ? `- Cantidad de alfajores: en el formulario puso "${cantidadForm}". Eso vale como cantidad, NO la vuelvas a preguntar. ` +
+      'Si es un rango, confirmá UNA sola vez con cuántos arrancaría; si no precisa un número, usá el número más chico del rango.'
+    : '- Cantidad de alfajores del pedido (un número). Si no la dijo, preguntala.'
+  const lineaPackaging = packagingForm
+    ? `- Packaging: en el formulario eligió "${packagingForm}". Dalo por sabido, no lo vuelvas a preguntar (cristal = flow pack transparente sin impresión; personalizado = bobina impresa con su marca).`
+    : '- Packaging: cristal (flow pack transparente, sin impresión) o personalizado (bobina impresa con su marca). Si no lo dijo, preguntalo una vez.'
   return [
     '## Datos para cotizar',
     'La propuesta por escrito se arma sola con tres datos. Antes de cerrar asegurate de tenerlos:',
-    '- Cantidad de alfajores del pedido (un número). Si no la dijo, preguntala.',
+    lineaCantidad,
     `- Gramaje por alfajor. Opciones: ${opciones}. Si no lo menciona o le da igual, es ${gramajeDefault} g: no insistas.`,
-    '- Packaging: cristal (flow pack transparente, sin impresión) o personalizado (bobina impresa con su marca). Si no lo dijo, preguntalo una vez.',
+    lineaPackaging,
     'En el bloque [RESUMEN] final incluí SIEMPRE estas tres líneas, cada una en su renglón y con este formato exacto:',
     'Cantidad: <número de alfajores> (o "Cantidad: -" si no la dijo)',
     `Gramaje: <número en gramos> (o "Gramaje: -" si no lo dijo)`,
@@ -88,16 +140,27 @@ export function parsearPackaging(texto: string | null | undefined): PackagingCot
  * Lee del [RESUMEN] los datos para cotizar. Sin cantidad no se cotiza (nunca
  * se inventa). Sin gramaje se usa el default; con un gramaje que no existe en
  * el cotizador tampoco se cotiza. Sin packaging se asume cristal y se avisa.
+ *
+ * Si el bot no dejó cantidad / packaging, se toman del formulario del landing
+ * (ficha del lead) cuando están. Un rango ("300 a 1.000 u./mes") cotiza el
+ * número más chico; "Más de 30.000" cotiza 30.000.
  */
 export function extraerDatosCotizacion(
   resumen: string | null | undefined,
-  opts: { gramajesDisponibles: readonly number[]; gramajeDefault?: number },
+  opts: { gramajesDisponibles: readonly number[]; gramajeDefault?: number; formulario?: DatosFormularioLead | null },
 ): ResultadoExtraccion {
   if (!resumen?.trim()) return { ok: false, motivo: 'el bot no dejó resumen' }
   const gramajeDefault = opts.gramajeDefault ?? GRAMAJE_DEFAULT_BOT
   const supuestos: string[] = []
+  const formulario = opts.formulario ?? null
 
-  const cantidad = parsearCantidad(leerLinea(resumen, RE_CANTIDAD))
+  let cantidad = parsearCantidad(leerLinea(resumen, RE_CANTIDAD))
+  if (cantidad === null && formulario?.cantidad) {
+    cantidad = parsearCantidad(formulario.cantidad)
+    if (cantidad !== null) {
+      supuestos.push(`cantidad tomada del formulario ("${formulario.cantidad}"): se cotizó ${cantidad.toLocaleString('es-AR')}`)
+    }
+  }
   if (cantidad === null) return { ok: false, motivo: 'el bot no relevó la cantidad de alfajores' }
 
   const gramajeTexto = leerLinea(resumen, RE_GRAMAJE)
@@ -120,6 +183,10 @@ export function extraerDatosCotizacion(
 
   const packagingTexto = leerLinea(resumen, RE_PACKAGING)
   let packaging = parsearPackaging(packagingTexto)
+  if (packaging === null && formulario?.packaging) {
+    packaging = parsearPackaging(formulario.packaging)
+    if (packaging !== null) supuestos.push(`packaging tomado del formulario ("${formulario.packaging}"): se cotizó ${packaging}`)
+  }
   if (packaging === null) {
     packaging = 'cristal'
     supuestos.push(

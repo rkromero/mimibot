@@ -22,7 +22,7 @@ import {
 } from './bot-context'
 import { detectarPedidoMedios, detectarPedidoReunion, extraerSenales, reemplazarPlazoPropuesta } from './bot-reglas'
 import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
-import { armarSeccionCotizacion, GRAMAJE_DEFAULT_BOT } from './bot-cotizacion'
+import { armarSeccionCotizacion, datosFormularioLead, GRAMAJE_DEFAULT_BOT } from './bot-cotizacion'
 import { listarGramajesCotizador } from './bot-propuesta'
 import {
   cerrarSinCalificar,
@@ -267,7 +267,12 @@ export async function construirContextoBot(
     armarSeccionProductosExcluidos(config?.productosExcluidos),
     armarSeccionPlazo(plazo),
     // Cantidad / gramaje / packaging en el [RESUMEN]: con eso se crea la propuesta sola al calificar.
-    armarSeccionCotizacion(gramajes, config?.gramajeDefault ?? GRAMAJE_DEFAULT_BOT),
+    // Si el formulario ya trajo volumen / packaging, el bot los usa en vez de repreguntar.
+    armarSeccionCotizacion(
+      gramajes,
+      config?.gramajeDefault ?? GRAMAJE_DEFAULT_BOT,
+      datosFormularioLead(customFields, lead.notes),
+    ),
     armarSeccionMedios([...new Set(mediosDisponibles.map((m) => m.categoria))]),
   ].filter(Boolean)
   return { systemPrompt: partes.join('\n\n'), claudeMessages, mediosDisponibles }

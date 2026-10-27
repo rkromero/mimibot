@@ -18,6 +18,7 @@ import {
   extraerDatosCotizacion,
   formatNumeroPropuesta,
   GRAMAJE_DEFAULT_BOT,
+  type DatosFormularioLead,
 } from './bot-cotizacion'
 
 /** Gramajes con receta activa en el cotizador (los que se pueden cotizar). */
@@ -41,9 +42,11 @@ export async function crearPropuestaAutomatica(params: {
   assignedTo: string | null
   nombreContacto: string | null
   resumen: string | null
+  /** Volumen / packaging que el lead cargó en el formulario del landing (respaldo si el bot no los relevó) */
+  formulario?: DatosFormularioLead | null
   config: ConfigPropuestaAutomatica
 }): Promise<void> {
-  const { leadId, conversationId, assignedTo, nombreContacto, resumen, config } = params
+  const { leadId, conversationId, assignedTo, nombreContacto, resumen, formulario = null, config } = params
   if (config?.propuestaAutomatica === false) return
   if (!resumen) return
 
@@ -61,6 +64,7 @@ export async function crearPropuestaAutomatica(params: {
     const extraccion = extraerDatosCotizacion(resumen, {
       gramajesDisponibles: gramajes,
       gramajeDefault: config?.gramajeDefault ?? GRAMAJE_DEFAULT_BOT,
+      formulario,
     })
     if (!extraccion.ok) {
       await dejarNotaInternaBot({
