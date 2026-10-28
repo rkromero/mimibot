@@ -12,8 +12,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const {
   mockFindLead, mockFindConfig, mockFindPropuesta, mockFindMessages, mockFindMedia,
   mockInsert, mockUpdate, mockSelect, mockClaude, mockSendText, mockPush, mockCrearMuestra, mockMuestraDelLead, mockFindActivacion,
+  mockProgramarPregunta,
 } = vi.hoisted(() => ({
   mockFindActivacion: vi.fn(),
+  mockProgramarPregunta: vi.fn().mockResolvedValue(undefined),
   mockFindLead: vi.fn(),
   mockFindConfig: vi.fn(),
   mockFindPropuesta: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('@/lib/r2/get-object', () => ({ getObjectBuffer: vi.fn() }))
 vi.mock('@/lib/push/web-push', () => ({ enviarPushAUsuarios: mockPush }))
 vi.mock('@/lib/realtime/broker', () => ({ publishCrmEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/leads/muestra.service', () => ({ crearMuestraParaLead: mockCrearMuestra, muestraDelLead: mockMuestraDelLead }))
+vi.mock('@/lib/followup/engine', () => ({ programarPreguntaPropuestaVista: mockProgramarPregunta }))
 
 import { activarModoPostPropuesta, procesarTurnoPostPropuesta } from '@/lib/claude/bot-post-propuesta'
 import { EXPRESO_MUESTRA } from '@/lib/claude/bot-post-propuesta-reglas'
@@ -205,6 +208,44 @@ describe('procesarTurnoPostPropuesta', () => {
     expect(systemPrompt()).toContain('llevala al primer pedido')
     const turnos = (mockClaude.mock.calls[0]![0] as { messages: Array<{ role: string; content: string }> }).messages
     expect(turnos.at(-2)?.content).toContain('[Archivo enviado: Propuesta PROP-00051]')
+  })
+
+  it('"gracias" a los pocos minutos de la propuesta: responde corto y deja programada la pregunta para una hora después', async () => {
+    const reciente = new Date(Date.now() - 2 * 60_000)
+    mockFindPropuesta.mockResolvedValue({ numero: 51, cantidad: 1000, gramaje: 60, packaging: 'cristal', vigenteHasta: '2026-11-03', updatedAt: reciente, resultado: { escenarios: [] } })
+    mockFindActivacion.mockResolvedValue({ createdAt: reciente })
+    mockFindMessages.mockResolvedValue([
+      { id: 'm1', senderType: 'contact', contentType: 'text', direction: 'inbound', body: 'Cristal', sentAt: new Date(reciente.getTime() - 60_000) },
+      { id: 'm2', senderType: 'bot', contentType: 'document', direction: 'outbound', body: 'Propuesta PROP-00051', sentAt: reciente },
+      { id: 'm3', senderType: 'contact', contentType: 'text', direction: 'inbound', body: 'Gracias', sentAt: new Date(reciente.getTime() + 60_000) },
+    ])
+    respuesta('De nada! Vela tranquilo y cualquier duda me escribís por acá.')
+
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+
+    expect(systemPrompt()).toContain('hace 2 minutos')
+    expect(systemPrompt()).toContain('NO le preguntes si la vio')
+    expect(mockSendText).toHaveBeenCalledWith('+5491100000000', 'De nada! Vela tranquilo y cualquier duda me escribís por acá.')
+    expect(mockProgramarPregunta).toHaveBeenCalledWith('lead-1', reciente)
+  })
+
+  it('pasada la hora, o si la persona pregunta algo, no se programa la pregunta aparte', async () => {
+    // ENVIADA es de ayer: ya pasó la hora
+    mockFindMessages.mockResolvedValue(historial(msg('contact', 'Gracias', 90)))
+    respuesta('¿Pudiste verla? ¿Qué te parecieron los números?')
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+    expect(systemPrompt()).toContain('preguntale si pudo abrirla')
+    expect(mockProgramarPregunta).not.toHaveBeenCalled()
+
+    // Reciente pero con una pregunta concreta: el bot la responde ahora
+    const reciente = new Date(Date.now() - 2 * 60_000)
+    mockFindPropuesta.mockResolvedValue({ numero: 51, cantidad: 1000, gramaje: 60, packaging: 'cristal', vigenteHasta: '2026-11-03', updatedAt: reciente, resultado: { escenarios: [] } })
+    mockFindMessages.mockResolvedValue([
+      { id: 'm1', senderType: 'contact', contentType: 'text', direction: 'inbound', body: 'Gracias, el precio incluye el envío?', sentAt: new Date(reciente.getTime() + 60_000) },
+    ])
+    respuesta('El envío se cotiza aparte según destino.')
+    await procesarTurnoPostPropuesta({ lead: lead(), config, ...params })
+    expect(mockProgramarPregunta).not.toHaveBeenCalled()
   })
 
   it('una plantilla a nombre del vendedor (aviso "salió tu muestra", último seguimiento) no cuenta como que tomó la charla', async () => {

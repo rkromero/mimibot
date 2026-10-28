@@ -36,6 +36,7 @@ import {
   armarNotaMuestraCargada,
   armarSeccionConocimiento,
   armarSeccionDerivacionPost,
+  armarSeccionEsperaPropuesta,
   armarSeccionMuestra,
   armarSeccionPropuestaEnviada,
   camposFichaDesdeMuestra,
@@ -47,6 +48,7 @@ import {
   type PropuestaParaBot,
 } from './bot-post-propuesta-reglas'
 import type { LeadConContacto } from './bot'
+import { esAcuseDeRecibo, minutosDesde, MINUTOS_ESPERA_PROPUESTA } from '@/lib/followup/propuesta-vista'
 
 export type ConfigPostPropuesta = Partial<
   Pick<
@@ -82,6 +84,16 @@ export async function activarModoPostPropuesta(leadId: string): Promise<boolean>
     metadata: { motivo: 'propuesta enviada: el bot sigue la charla (modo post-propuesta)' },
   })
   return true
+}
+
+/** Import dinámico: el motor de seguimientos importa el bot (ciclo). Nunca hace fallar el turno. */
+async function programarPreguntaPropuestaVistaBestEffort(leadId: string, propuestaEnviadaAt: Date): Promise<void> {
+  try {
+    const { programarPreguntaPropuestaVista } = await import('@/lib/followup/engine')
+    await programarPreguntaPropuestaVista(leadId, propuestaEnviadaAt)
+  } catch (err) {
+    console.warn(`[bot] no se pudo programar la pregunta por la propuesta del lead ${leadId}:`, err)
+  }
 }
 
 /** Última vez que prendieron el bot (al mandar la propuesta o a mano desde el panel). */
@@ -211,6 +223,7 @@ export async function procesarTurnoPostPropuesta(params: {
   const ultimo = claudeMessages.at(-1)
   const ultimoDelUsuario = ultimo?.role === 'user' ? ultimo.content : ''
 
+  const minutosDesdePropuesta = minutosDesde(propuesta.updatedAt)
   const basePrompt = config?.postPropuestaPrompt?.trim() || DEFAULT_POST_PROPUESTA_PROMPT
   const systemPrompt = [
     basePrompt,
@@ -226,6 +239,7 @@ export async function procesarTurnoPostPropuesta(params: {
       previosDelEquipo,
     ),
     armarSeccionPropuestaEnviada(propuesta),
+    armarSeccionEsperaPropuesta(minutosDesdePropuesta),
     armarSeccionMuestra({
       yaCargada: muestra
         ? { fecha: fecha(muestra.createdAt), metodoEntrega: muestra.metodoEntrega, entregada: muestra.entregadoAt !== null }
@@ -282,6 +296,14 @@ export async function procesarTurnoPostPropuesta(params: {
     .update(leads)
     .set({ botTurnCount: (lead.botTurnCount ?? 0) + 1, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
+
+  // Acusó recibo enseguida ("gracias", "ok"): la pregunta "¿pudiste verla?"
+  // queda para una hora después de la propuesta, no ahora.
+  const soloAcuso =
+    minutosDesdePropuesta < MINUTOS_ESPERA_PROPUESTA &&
+    esAcuseDeRecibo(ultimoDelUsuario) &&
+    !post.pedido && !post.handoff && !post.muestra && !post.muestraMarcada
+  if (soloAcuso) await programarPreguntaPropuestaVistaBestEffort(leadId, propuesta.updatedAt)
 
   const categorias = senales.medios.length > 0 ? senales.medios : (detectarPedidoMedios(ultimoDelUsuario) ?? [])
   if (categorias.length > 0 && mediosDisponibles.length > 0) {

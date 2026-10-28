@@ -20,6 +20,12 @@ import {
   MOTIVO_BOT_APAGADO_A_MANO,
 } from './propuesta'
 import { SLUG_ETAPA_PROPUESTA_ENVIADA } from '@/lib/leads/propuesta-enviada'
+import {
+  REASON_PROPUESTA_VISTA,
+  PREGUNTA_PROPUESTA_VISTA,
+  calcularPreguntaPropuestaVista,
+  motivoParaOmitirPreguntaPropuestaVista,
+} from './propuesta-vista'
 import { SLUG_ETAPA_MUESTRA_ENVIADA } from '@/lib/leads/muestra-enviada'
 import {
   REASON_MUESTRA,
@@ -176,6 +182,10 @@ async function processSingleFollowUp(
   }
   if (lead.followUpReason === REASON_MUESTRA) {
     await procesarSeguimientoMuestra(lead, config)
+    return
+  }
+  if (lead.followUpReason === REASON_PROPUESTA_VISTA) {
+    await procesarPreguntaPropuestaVista(lead)
     return
   }
   if (lead.followUpReason === 'indagacion' || lead.followUpReason === 'indagacion_final' || lead.followUpReason === 'indagacion_cierre') {
@@ -440,8 +450,146 @@ export async function manejarRespuestaDelContacto(
 ): Promise<void> {
   await cancelarSeguimientoPropuestaPorRespuesta(leadId)
   await cancelarSeguimientoMuestraPorRespuesta(leadId)
+  await cancelarPreguntaPropuestaVistaPorRespuesta(leadId)
   await manejarRespuestaClienteIndagacion(leadId, msg.texto ?? '')
   await manejarRespuestaUltimoSeguimiento(leadId, msg)
+}
+
+// ─── Pregunta "¿pudiste ver la propuesta?" (espera mínima de una hora) ───────
+
+/**
+ * La persona acusó recibo de la propuesta enseguida ("gracias", "ok"): el bot
+ * no le pregunta al toque qué le parecieron los números. Se programa la
+ * pregunta para una hora después de la propuesta, en horario permitido.
+ */
+export async function programarPreguntaPropuestaVista(leadId: string, propuestaEnviadaAt: Date): Promise<void> {
+  const config = await db.query.followUpConfig.findFirst()
+  if (config && !config.isEnabled) return
+
+  const lead = await db.query.leads.findFirst({
+    where: eq(leads.id, leadId),
+    columns: { id: true, isOpen: true, botEnabled: true },
+  })
+  if (!lead || !lead.isOpen || !lead.botEnabled) return
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, leadId),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) return
+
+  const enviarAt = calcularPreguntaPropuestaVista(propuestaEnviadaAt, new Date(), horarioDe(config))
+
+  await db.update(leads)
+    .set({ nextFollowUpAt: enviarAt, followUpStatus: 'pending', followUpReason: REASON_PROPUESTA_VISTA, updatedAt: new Date() })
+    .where(eq(leads.id, leadId))
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_scheduled',
+    metadata: { reason: REASON_PROPUESTA_VISTA, nextFollowUpAt: enviarAt.toISOString() },
+  })
+}
+
+/** La persona volvió a escribir antes de la hora: el bot ya le contesta, la pregunta sobra. */
+export async function cancelarPreguntaPropuestaVistaPorRespuesta(leadId: string): Promise<boolean> {
+  const rows = await db.update(leads)
+    .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.followUpStatus, 'pending'), eq(leads.followUpReason, REASON_PROPUESTA_VISTA)))
+    .returning({ id: leads.id })
+  if (rows.length === 0) return false
+
+  await db.insert(activityLog).values({
+    leadId,
+    action: 'follow_up_cancelled',
+    metadata: { reason: REASON_PROPUESTA_VISTA, motivo: 'el cliente volvió a escribir' },
+  })
+  return true
+}
+
+/**
+ * Manda la pregunta a nombre del bot (texto libre: estamos dentro de la
+ * ventana de 24 hs porque la persona escribió hace menos de un día). Después
+ * vuelve a dejar programado el seguimiento normal de propuesta por si no
+ * contesta.
+ */
+async function procesarPreguntaPropuestaVista(lead: typeof leads.$inferSelect): Promise<void> {
+  const marcar = async (status: 'sent' | 'failed' | 'cancelled', metadata: Record<string, unknown>) => {
+    await db.update(leads)
+      .set({ followUpStatus: status, nextFollowUpAt: null, lastContactedAt: status === 'sent' ? new Date() : undefined, updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({
+      leadId: lead.id,
+      action: status === 'sent' ? 'follow_up_sent' : 'follow_up_cancelled',
+      metadata: { reason: REASON_PROPUESTA_VISTA, ...metadata },
+    })
+  }
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.leadId, lead.id),
+    columns: { id: true, waContactPhone: true },
+  })
+  if (!conversation?.waContactPhone) {
+    await marcar('failed', { motivo: 'sin_conversacion' })
+    return
+  }
+
+  const [programado] = await db
+    .select({ createdAt: activityLog.createdAt })
+    .from(activityLog)
+    .where(and(
+      eq(activityLog.leadId, lead.id),
+      eq(activityLog.action, 'follow_up_scheduled'),
+      sql`${activityLog.metadata}->>'reason' = ${REASON_PROPUESTA_VISTA}`,
+    ))
+    .orderBy(desc(activityLog.createdAt))
+    .limit(1)
+  let mensajesDelClienteDesdeProgramado = 0
+  if (programado) {
+    const [fila] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversation.id), eq(messages.direction, 'inbound'), gt(messages.sentAt, programado.createdAt)))
+    mensajesDelClienteDesdeProgramado = fila?.total ?? 0
+  }
+  const etapaPropuesta = await db.query.pipelineStages.findFirst({
+    where: eq(pipelineStages.slug, SLUG_ETAPA_PROPUESTA_ENVIADA),
+    columns: { id: true },
+  })
+  const omitir = motivoParaOmitirPreguntaPropuestaVista({
+    mensajesDelClienteDesdeProgramado,
+    botEnabled: lead.botEnabled,
+    enEtapaPropuesta: etapaPropuesta ? lead.stageId === etapaPropuesta.id : null,
+  })
+  if (omitir) {
+    await marcar('cancelled', { motivo: omitir })
+    return
+  }
+
+  if (!(await estaDentroDe24h(conversation.id))) {
+    // Raro (la persona escribió hace menos de un día): queda para el seguimiento por plantilla
+    await marcar('cancelled', { motivo: 'ventana de 24 hs cerrada' })
+    await programarSeguimientoPropuesta(lead.id)
+    return
+  }
+
+  const waMessageId = await sendTextMessage(conversation.waContactPhone, PREGUNTA_PROPUESTA_VISTA)
+  await db.insert(messages).values({
+    conversationId: conversation.id,
+    waMessageId,
+    direction: 'outbound',
+    senderType: 'bot',
+    contentType: 'text',
+    body: PREGUNTA_PROPUESTA_VISTA,
+    isRead: true,
+    sentAt: new Date(),
+  })
+  await db.execute(sql`UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = ${conversation.id}`)
+  await marcar('sent', {})
+  await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+
+  // Si tampoco contesta a esto, sigue el seguimiento normal de propuesta
+  await programarSeguimientoPropuesta(lead.id)
 }
 
 // ─── Seguimiento después de la muestra ───────────────────────────────────────

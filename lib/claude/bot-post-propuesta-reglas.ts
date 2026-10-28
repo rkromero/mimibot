@@ -12,6 +12,7 @@
 import { HANDOFF_MARKER, separarResumen } from './bot-context'
 import { formatNumeroPropuesta, formatPesos } from './bot-cotizacion'
 import type { MetodoEntregaMuestra } from '@/lib/leads/muestra.service'
+import { MINUTOS_ESPERA_PROPUESTA } from '@/lib/followup/propuesta-vista'
 
 export const MUESTRA_MARKER = '[MUESTRA]'
 export const PEDIDO_MARKER = '[PEDIDO]'
@@ -70,10 +71,32 @@ export function armarSeccionPropuestaEnviada(p: PropuestaParaBot): string {
     `La propuesta YA le llegó: es el PDF "${formatNumeroPropuesta(p.numero)}" que figura en el chat, justo después de que el asistente ` +
       'le dijo que la iba a recibir. Eso ya pasó. NUNCA digas que la cotización está en camino, que un asesor lo va a contactar ' +
       'ni "enseguida te contactamos": la cotización es esa propuesta y la seguís vos.',
-    'Si responde algo corto después de recibirla ("ok", "perfecto", "gracias", "dale"), preguntale si pudo abrirla y qué le ' +
-      'parecieron los números. Si dice que la vio y le parece bien / le cierra / está ok, ya está de acuerdo: no vuelvas a ' +
-      'preguntar si la vio, llevala al primer pedido (cuántos negros y cuántos blancos).',
+    'Si dice que la vio y le parece bien / le cierra / está ok, ya está de acuerdo: no vuelvas a preguntar si la vio, ' +
+      'llevala al primer pedido (cuántos negros y cuántos blancos).',
   )
+  return lineas.join('\n')
+}
+
+/**
+ * Cuánto esperar antes de preguntar "¿pudiste verla?": recién pasada una hora
+ * de la propuesta. Si la persona solo acusa recibo antes de eso, el bot
+ * contesta corto y el sistema pregunta después (ver followup/propuesta-vista).
+ */
+export function armarSeccionEsperaPropuesta(minutosDesdeEnvio: number, minutosEspera = MINUTOS_ESPERA_PROPUESTA): string {
+  const lineas = ['## Cuándo preguntar si la vio']
+  if (minutosDesdeEnvio < minutosEspera) {
+    lineas.push(
+      `La propuesta salió hace ${minutosDesdeEnvio} minuto${minutosDesdeEnvio === 1 ? '' : 's'}: todavía no tuvo tiempo de verla. ` +
+        'Si solo agradece o confirma que la recibió ("gracias", "ok", "la veo y te digo"), NO le preguntes si la vio ni qué le ' +
+        'parecen los números: respondé corto (de nada, que la vea tranquilo, cualquier duda por acá) y nada más; el sistema le ' +
+        'pregunta más tarde. Si en cambio pregunta algo concreto o ya opina sobre la propuesta, seguí normal.',
+    )
+  } else {
+    lineas.push(
+      'Ya pasó un rato desde que salió. Si responde algo corto ("ok", "gracias", "dale") y todavía no sabés qué le pareció, ' +
+        'preguntale si pudo abrirla y qué le parecieron los números.',
+    )
+  }
   return lineas.join('\n')
 }
 

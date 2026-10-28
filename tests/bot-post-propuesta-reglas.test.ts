@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   armarNotaMuestraCargada,
   armarSeccionDerivacionPost,
+  armarSeccionEsperaPropuesta,
   armarSeccionMuestra,
   armarSeccionPropuestaEnviada,
   camposFichaDesdeMuestra,
@@ -146,6 +147,15 @@ describe('faltantesMuestra / camposFichaDesdeMuestra / nota', () => {
       `Muestra cargada por el bot: va por expreso ${EXPRESO_MUESTRA} a Calle 1, Morón, Buenos Aires, CP 1708, CUIT/DNI 20-1-1. Los datos quedaron en la ficha. El pedido de muestra quedó confirmado para fábrica.`,
     )
     expect(armarNotaMuestraCargada({ ...expreso, entrega: 'retiro_fabrica' }, {})).toContain('la retira en fábrica')
+  })
+
+  it('la espera: antes de la hora no pregunta si la vio; después sí', () => {
+    const antes = armarSeccionEsperaPropuesta(1)
+    expect(antes).toContain('hace 1 minuto:')
+    expect(antes).toContain('NO le preguntes si la vio')
+    const despues = armarSeccionEsperaPropuesta(90)
+    expect(despues).toContain('preguntale si pudo abrirla')
+    expect(despues).not.toContain('NO le preguntes')
   })
 
   it('la sección de derivación explica [PEDIDO] y [HANDOFF] con [RESUMEN]', () => {
