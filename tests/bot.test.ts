@@ -417,6 +417,12 @@ describe('processBotTurn', () => {
     expect(system).toContain('desde $350 por alfajor en 300 u film cristal, + IVA')
     expect(system).toContain('## Productos que NO hacemos')
     expect(system).toContain('- sin TACC')
+    // Datos fijos: congelados siempre excluidos, colores de film y dirección única
+    expect(system).toContain('- productos congelados')
+    expect(system).toContain('## Datos fijos (no inventes ni prometas otra cosa)')
+    expect(system).toContain('cristal (transparente) o negro liso. NO existe film blanco')
+    expect(system).toContain('La planta está en José Ignacio de la Rosa 6276, Mataderos, CABA. Es la ÚNICA dirección')
+    expect(system).toContain('NO hacemos nada congelado')
     // Con propuesta automática (default) el plazo es "por acá, en un momento", no el configurado
     expect(system).toContain('## Tiempos y mensaje de cierre')
     expect(system).toContain('Te mando la propuesta por acá en un momento')

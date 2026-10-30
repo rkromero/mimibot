@@ -29,7 +29,7 @@ import { agregarTagALead, TAG_NUEVO_PEDIDO } from '@/lib/leads/tags'
 import { moverLeadAPedidoACargar } from '@/lib/leads/pedido-a-cargar'
 import { formatFechaAR } from '@/lib/dates'
 import { armarContextoLead, armarHistorialClaude, armarSeccionMedios } from './bot-context'
-import { detectarPedidoMedios, extraerSenales } from './bot-reglas'
+import { armarSeccionDatosFijos, detectarPedidoMedios, extraerSenales } from './bot-reglas'
 import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
 import { alertarEquipoBot, dejarNotaInternaBot } from './bot-alertas'
 import {
@@ -247,6 +247,7 @@ export async function procesarTurnoPostPropuesta(params: {
       retiroFabricaInfo: config?.retiroFabricaInfo,
       datosLead: lead,
     }),
+    armarSeccionDatosFijos(),
     armarSeccionConocimiento(config?.conocimientoBot),
     armarSeccionMedios([...new Set(mediosDisponibles.map((m) => m.categoria))]),
     armarSeccionDerivacionPost(),

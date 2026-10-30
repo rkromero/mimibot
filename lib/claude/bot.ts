@@ -21,7 +21,14 @@ import {
   PLAZO_PROPUESTA_DEFAULT,
   PLAZO_PROPUESTA_AUTOMATICA,
 } from './bot-context'
-import { detectarPedidoMedios, detectarPedidoReunion, extraerSenales, reemplazarPlazoPropuesta } from './bot-reglas'
+import {
+  armarSeccionDatosFijos,
+  conProductosExcluidosFijos,
+  detectarPedidoMedios,
+  detectarPedidoReunion,
+  extraerSenales,
+  reemplazarPlazoPropuesta,
+} from './bot-reglas'
 import { elegirMedios, enviarMediosBot, listarMediosActivos, type MedioGaleria } from './bot-media'
 import { armarSeccionCotizacion, datosFormularioLead, GRAMAJE_DEFAULT_BOT } from './bot-cotizacion'
 import { listarGramajesCotizador } from './bot-propuesta'
@@ -274,9 +281,11 @@ export async function construirContextoBot(
   const partes = [
     basePrompt,
     contextoLead,
+    // Colores de film, dirección de la planta y congelados: datos duros que el modelo inventaba.
+    armarSeccionDatosFijos(),
     armarInstruccionEmpresa(empresa),
     armarSeccionPrecio(config?.precioReferencia, plazo),
-    armarSeccionProductosExcluidos(config?.productosExcluidos),
+    armarSeccionProductosExcluidos(conProductosExcluidosFijos(config?.productosExcluidos)),
     armarSeccionPlazo(plazo, propuestaAutomatica),
     // Cantidad / gramaje / packaging en el [RESUMEN]: con eso se crea la propuesta sola al calificar.
     // Si el formulario ya trajo volumen / packaging, el bot los usa en vez de repreguntar.

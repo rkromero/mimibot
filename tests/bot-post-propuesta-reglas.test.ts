@@ -47,6 +47,11 @@ describe('armarSeccionMuestra', () => {
     expect(s).toContain('[MUESTRA]\nEntrega: retiro | expreso')
   })
 
+  it('sin dirección de retiro cargada usa la única dirección de la planta', () => {
+    const s = armarSeccionMuestra({ yaCargada: null, retiroFabricaInfo: null, datosLead: {} })
+    expect(s).toContain('la dirección es José Ignacio de la Rosa 6276, Mataderos, CABA (la única; no des otra)')
+  })
+
   it('con una muestra ya cargada no ofrece otra', () => {
     const pendiente = armarSeccionMuestra({
       yaCargada: { fecha: '20/10/2026', metodoEntrega: 'expreso', entregada: false },

@@ -11,6 +11,7 @@
  */
 import { HANDOFF_MARKER, separarResumen } from './bot-context'
 import { formatNumeroPropuesta, formatPesos } from './bot-cotizacion'
+import { DIRECCION_FABRICA } from './bot-reglas'
 import type { MetodoEntregaMuestra } from '@/lib/leads/muestra.service'
 import { MINUTOS_ESPERA_PROPUESTA } from '@/lib/followup/propuesta-vista'
 
@@ -142,7 +143,7 @@ export function armarSeccionMuestra(params: {
     '1. Preguntale si la pasa a buscar por la fábrica (o manda a alguien a retirarla) o si se la enviamos por expreso.',
     retiro
       ? `2. Si la retira: decile dónde y cuándo: ${retiro}. No hace falta pedir más datos.`
-      : '2. Si la retira: decile que le pasamos la dirección y el horario de la fábrica por este chat. No hace falta pedir más datos.',
+      : `2. Si la retira: la dirección es ${DIRECCION_FABRICA} (la única; no des otra) y el horario se lo confirmamos por este chat. No hace falta pedir más datos.`,
     `3. Si va por expreso (siempre ${EXPRESO_MUESTRA}): necesitás dirección completa (calle y número), localidad, provincia, código postal y CUIT o DNI de quien la recibe (lo pide el transporte). Pedí lo que falte, de a un mensaje, sin repetir lo que ya sabemos.`,
   )
   const conocidos: string[] = []

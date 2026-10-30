@@ -4,6 +4,9 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
+  armarSeccionDatosFijos,
+  conProductosExcluidosFijos,
+  DIRECCION_FABRICA,
   detectarPedidoMedios,
   detectarPedidoReunion,
   elegirMedios,
@@ -118,5 +121,22 @@ describe('elegirMedios', () => {
 
   it('categoría sin medios → vacío', () => {
     expect(elegirMedios(galeria, ['bobina_impresa'])).toEqual([])
+  })
+})
+
+describe('datos fijos de la fábrica', () => {
+  it('la sección fija colores de film, dirección única y congelados', () => {
+    const s = armarSeccionDatosFijos()
+    expect(s).toContain('## Datos fijos (no inventes ni prometas otra cosa)')
+    expect(s).toContain('cristal (transparente) o negro liso. NO existe film blanco')
+    expect(s).toContain(`La planta está en ${DIRECCION_FABRICA}. Es la ÚNICA dirección`)
+    expect(DIRECCION_FABRICA).toBe('José Ignacio de la Rosa 6276, Mataderos, CABA')
+    expect(s).toContain('NO hacemos nada congelado')
+  })
+
+  it('los congelados se suman a los productos excluidos de Ajustes, sin repetir', () => {
+    expect(conProductosExcluidosFijos(null)).toEqual(['productos congelados'])
+    expect(conProductosExcluidosFijos(['sin TACC', ' triple '])).toEqual(['sin TACC', 'triple', 'productos congelados'])
+    expect(conProductosExcluidosFijos(['Productos Congelados', ''])).toEqual(['Productos Congelados'])
   })
 })

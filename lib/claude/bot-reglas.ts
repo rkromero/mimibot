@@ -143,3 +143,41 @@ export function elegirMedios(
   }
   return elegidos.slice(0, max)
 }
+
+/** Única dirección de la planta. El modelo tiende a inventar otras si no se la damos. */
+export const DIRECCION_FABRICA = 'José Ignacio de la Rosa 6276, Mataderos, CABA'
+
+/** Productos que no se hacen por ahora, además de los que se cargan en Ajustes → Bot. */
+export const PRODUCTOS_EXCLUIDOS_FIJOS: readonly string[] = ['productos congelados']
+
+/** Lista de Ajustes + los fijos, sin repetidos (comparación sin mayúsculas ni espacios de más). */
+export function conProductosExcluidosFijos(configurados: readonly string[] | null | undefined): string[] {
+  const vistos = new Set<string>()
+  const salida: string[] = []
+  for (const p of [...(configurados ?? []), ...PRODUCTOS_EXCLUIDOS_FIJOS]) {
+    const limpio = p.trim()
+    const clave = limpio.toLowerCase()
+    if (!limpio || vistos.has(clave)) continue
+    vistos.add(clave)
+    salida.push(limpio)
+  }
+  return salida
+}
+
+/**
+ * Datos duros que el bot no puede inventar ni "acomodar" para quedar bien:
+ * colores de envoltorio, dirección de la planta y lo que no hacemos. Va en el
+ * prompt de calificación y en el de post-propuesta.
+ */
+export function armarSeccionDatosFijos(): string {
+  return [
+    '## Datos fijos (no inventes ni prometas otra cosa)',
+    '- Envoltorio / film del flow pack: hay DOS opciones nada más, cristal (transparente) o negro liso. NO existe film blanco ' +
+      'ni de ningún otro color. Si piden otro color o preguntan si se puede, decí que no: solo cristal o negro liso ' +
+      '(o la bobina impresa con su marca, que es otra cosa). Nunca digas "no hay problema" con un color que no sea esos dos.',
+    `- La planta está en ${DIRECCION_FABRICA}. Es la ÚNICA dirección: si preguntan dónde queda la fábrica, dónde retirar ` +
+      'o desde dónde se despacha, es esa. No des otra dirección, barrio ni localidad.',
+    '- Productos congelados: por ahora NO hacemos nada congelado (ni alfajores ni otros productos). Si lo piden, decilo con ' +
+      'amabilidad y ofrecé lo que sí hacemos. No digas que se puede evaluar ni que más adelante sí.',
+  ].join('\n')
+}
