@@ -42,7 +42,7 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
     ultimoSeguimientoHoras: initialConfig?.ultimoSeguimientoHoras ?? ULTIMO_SEGUIMIENTO_HORAS_DEFAULT,
     respuestasAutomaticasFrases: (initialConfig?.respuestasAutomaticasFrases ?? []).join('\n'),
     muestraSeguimientoEnabled: initialConfig?.muestraSeguimientoEnabled ?? true,
-    muestraSeguimientoDias: initialConfig?.muestraSeguimientoDias ?? 5,
+    muestraSeguimientoDias: initialConfig?.muestraSeguimientoDias ?? 4,
     muestraSeguimientoTemplateName: initialConfig?.muestraSeguimientoTemplateName ?? '',
     muestraSeguimientoTemplateLang: initialConfig?.muestraSeguimientoTemplateLang ?? 'es',
   })
@@ -435,9 +435,10 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           <div>
             <h3 className="text-sm font-semibold">Después de la muestra</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              A los N días de entregada la muestra (el expreso tarda), si la persona no escribió, sale la plantilla
-              aprobada &quot;¿qué te pareció?&quot; a nombre del bot, que sigue la charla hacia el primer pedido. Si escribe
-              antes, o el lead ya salió de &quot;Muestra enviada&quot;, no se manda.
+              A los N días de entregada la muestra (el expreso tarda) sale la plantilla aprobada &quot;¿qué te
+              pareció?&quot; a nombre del bot, que sigue la charla hacia el primer pedido. Que conteste la guía no lo
+              cancela: si ese día hay charla en curso (alguien escribió en las últimas 48 hs) se espera a que se
+              calme. No se manda si el lead ya salió de &quot;Muestra enviada&quot;.
             </p>
           </div>
           <button
@@ -464,7 +465,7 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
               type="text"
               value={form.muestraSeguimientoTemplateName}
               onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoTemplateName: e.target.value }))}
-              placeholder="ej: seguimiento_muestra"
+              placeholder="muestra_seguimiento"
               className={cn(
                 'w-full px-3 py-2 text-sm rounded-md border',
                 'border-border bg-background text-foreground placeholder:text-muted-foreground',
@@ -492,7 +493,7 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
               min={1}
               max={60}
               value={form.muestraSeguimientoDias}
-              onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoDias: parseInt(e.target.value) || 5 }))}
+              onChange={(e) => setForm((p) => ({ ...p, muestraSeguimientoDias: parseInt(e.target.value) || 4 }))}
               className={cn(
                 'w-full px-3 py-2 text-sm rounded-md border',
                 'border-border bg-background text-foreground',
@@ -502,8 +503,9 @@ export default function FollowUpConfigForm({ initialConfig }: Props) {
           </div>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">
-          Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Sin plantilla, el sistema deja
-          una nota interna en el chat para que preguntes a mano.
+          Nombre exacto de una plantilla aprobada en Ajustes → WhatsApp → Plantillas. Vacío usa
+          &quot;muestra_seguimiento&quot;. Si la plantilla no está aprobada, el sistema deja una nota interna en el chat
+          para que preguntes a mano.
         </p>
       </div>
 

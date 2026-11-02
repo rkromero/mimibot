@@ -617,6 +617,13 @@
       "when": 1787656369715,
       "tag": "0087_followup_muestra",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1787656429715,
+      "tag": "0088_followup_muestra_4_dias",
+      "breakpoints": true
     }
   ]
 }

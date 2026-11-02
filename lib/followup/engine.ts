@@ -31,8 +31,10 @@ import {
   REASON_MUESTRA,
   MUESTRA_SEGUIMIENTO_DIAS_DEFAULT,
   MOTIVO_SIN_PLANTILLA_MUESTRA,
+  MUESTRA_SEGUIMIENTO_TEMPLATE_DEFAULT,
   calcularSeguimientoMuestra,
-  motivoParaOmitirSeguimientoMuestra,
+  decidirSeguimientoMuestra,
+  limitePosponerMuestra,
 } from './muestra'
 import {
   calcularPrimerSeguimiento,
@@ -449,7 +451,6 @@ export async function manejarRespuestaDelContacto(
   msg: { tipo: string; texto: string | null },
 ): Promise<void> {
   await cancelarSeguimientoPropuestaPorRespuesta(leadId)
-  await cancelarSeguimientoMuestraPorRespuesta(leadId)
   await cancelarPreguntaPropuestaVistaPorRespuesta(leadId)
   await manejarRespuestaClienteIndagacion(leadId, msg.texto ?? '')
   await manejarRespuestaUltimoSeguimiento(leadId, msg)
@@ -636,27 +637,11 @@ export async function programarSeguimientoMuestra(leadId: string, entregadaAt: D
   })
 }
 
-/** El cliente escribió: el seguimiento de la muestra ya no hace falta. */
-export async function cancelarSeguimientoMuestraPorRespuesta(leadId: string): Promise<boolean> {
-  const rows = await db.update(leads)
-    .set({ nextFollowUpAt: null, followUpStatus: 'cancelled', updatedAt: new Date() })
-    .where(and(eq(leads.id, leadId), eq(leads.followUpStatus, 'pending'), eq(leads.followUpReason, REASON_MUESTRA)))
-    .returning({ id: leads.id })
-  if (rows.length === 0) return false
-
-  await db.insert(activityLog).values({
-    leadId,
-    action: 'follow_up_cancelled',
-    metadata: { reason: REASON_MUESTRA, motivo: 'el cliente respondió' },
-  })
-  return true
-}
-
 /**
  * Manda la plantilla "¿qué te pareció la muestra?" (configurada en Ajustes →
  * Seguimiento). Sale a nombre del bot: si la persona contesta, el bot en modo
- * post-propuesta sigue la charla hacia el primer pedido. A los 5 días la
- * ventana de 24 hs está cerrada, así que siempre va por plantilla.
+ * post-propuesta sigue la charla hacia el primer pedido. Solo sale tras 48 hs
+ * sin charla, con la ventana de 24 hs cerrada: siempre va por plantilla.
  */
 async function procesarSeguimientoMuestra(
   lead: typeof leads.$inferSelect,
@@ -682,41 +667,52 @@ async function procesarSeguimientoMuestra(
     return
   }
 
-  // Red de seguridad por si el webhook no llegó a cancelar: si escribió
-  // después de programarse, o el lead ya avanzó de etapa, no se manda.
-  const [programado] = await db
-    .select({ createdAt: activityLog.createdAt })
-    .from(activityLog)
+  // Que haya contestado la guía no cancela: solo se mira si la charla está
+  // viva ahora (cliente o vendedor escribieron hace < 48 hs) o si el lead
+  // ya avanzó de etapa. Plantillas y notas internas no cuentan.
+  const [ultimo] = await db
+    .select({ at: sql<Date | null>`max(${messages.sentAt})` })
+    .from(messages)
     .where(and(
-      eq(activityLog.leadId, lead.id),
-      eq(activityLog.action, 'follow_up_scheduled'),
-      sql`${activityLog.metadata}->>'reason' = ${REASON_MUESTRA}`,
+      eq(messages.conversationId, conversation.id),
+      sql`(${messages.direction} = 'inbound' OR (${messages.senderType} = 'agent' AND ${messages.contentType} NOT IN ('template', 'internal_note')))`,
     ))
-    .orderBy(desc(activityLog.createdAt))
-    .limit(1)
-  let mensajesDelClienteDesdeProgramado = 0
-  if (programado) {
-    const [fila] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(messages)
-      .where(and(eq(messages.conversationId, conversation.id), eq(messages.direction, 'inbound'), gt(messages.sentAt, programado.createdAt)))
-    mensajesDelClienteDesdeProgramado = fila?.total ?? 0
-  }
+  const ultimoMensajeHumanoAt = ultimo?.at ? new Date(ultimo.at) : null
   const etapaMuestra = await db.query.pipelineStages.findFirst({
     where: eq(pipelineStages.slug, SLUG_ETAPA_MUESTRA_ENVIADA),
     columns: { id: true },
   })
-  const omitir = motivoParaOmitirSeguimientoMuestra({
-    mensajesDelClienteDesdeProgramado,
+  const horario = horarioDe(config)
+  const seguimientoOriginal = calcularSeguimientoMuestra(
+    lead.muestraEntregadaAt ?? new Date(),
+    config?.muestraSeguimientoDias ?? MUESTRA_SEGUIMIENTO_DIAS_DEFAULT,
+    horario,
+  )
+  const accion = decidirSeguimientoMuestra({
+    ahora: new Date(),
+    ultimoMensajeHumanoAt,
+    limite: limitePosponerMuestra(seguimientoOriginal),
     enEtapaMuestra: etapaMuestra ? lead.stageId === etapaMuestra.id : null,
     botApagadoAMano: botApagadoAMano(lead),
+    horario,
   })
-  if (omitir) {
-    await marcar('cancelled', { motivo: omitir })
+  if (accion.tipo === 'omitir') {
+    await marcar('cancelled', { motivo: accion.motivo })
+    return
+  }
+  if (accion.tipo === 'posponer') {
+    await db.update(leads)
+      .set({ nextFollowUpAt: accion.hasta, followUpStatus: 'pending', updatedAt: new Date() })
+      .where(eq(leads.id, lead.id))
+    await db.insert(activityLog).values({
+      leadId: lead.id,
+      action: 'follow_up_scheduled',
+      metadata: { reason: REASON_MUESTRA, nextFollowUpAt: accion.hasta.toISOString(), motivo: 'charla activa: se pospone' },
+    })
     return
   }
 
-  const templateName = config?.muestraSeguimientoTemplateName?.trim() || null
+  const templateName = config?.muestraSeguimientoTemplateName?.trim() || MUESTRA_SEGUIMIENTO_TEMPLATE_DEFAULT
   const templateLang = config?.muestraSeguimientoTemplateLang?.trim() || 'es'
   const tmpl = templateName
     ? await db.query.whatsappTemplates.findFirst({

@@ -344,7 +344,7 @@ export const followUpConfig = pgTable('follow_up_config', {
    * la charla hacia el primer pedido (ver programarSeguimientoMuestra).
    */
   muestraSeguimientoEnabled: boolean('muestra_seguimiento_enabled').notNull().default(true),
-  muestraSeguimientoDias: integer('muestra_seguimiento_dias').notNull().default(5),
+  muestraSeguimientoDias: integer('muestra_seguimiento_dias').notNull().default(4),
   muestraSeguimientoTemplateName: text('muestra_seguimiento_template_name'),
   muestraSeguimientoTemplateLang: text('muestra_seguimiento_template_lang'),
   updatedBy: uuid('updated_by').references(() => users.id),

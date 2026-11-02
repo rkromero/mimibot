@@ -64,7 +64,7 @@ export async function GET() {
     ultimoSeguimientoTemplateLang: null,
     ultimoSeguimientoHoras: 10,
     muestraSeguimientoEnabled: true,
-    muestraSeguimientoDias: 5,
+    muestraSeguimientoDias: 4,
     muestraSeguimientoTemplateName: null,
     muestraSeguimientoTemplateLang: null,
     respuestasAutomaticasFrases: [],
