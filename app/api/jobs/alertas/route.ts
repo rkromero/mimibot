@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { leads, metas, stockMovements, pedidos, clientes, productos, users, businessConfig, pipelineStages, contacts } from '@/db/schema'
-import { and, eq, isNull, lt, sql, inArray, asc, desc } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt, sql, inArray, asc, desc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { format, subHours, subDays } from 'date-fns'
 
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         isNull(pedidos.deletedAt),
         sql`${pedidos.estadoPago} IN ('impago', 'parcial')`,
         lt(pedidos.fecha, cutoffMoroso),
-        sql`${pedidos.fecha} > ${cutoffMorosoYesterday}`,
+        gt(pedidos.fecha, cutoffMorosoYesterday),
       ),
       with: {
         cliente: { columns: { nombre: true, apellido: true } },

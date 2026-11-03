@@ -74,8 +74,11 @@ export async function GET() {
       eq(pipelineStages.isTerminal, true),
       eq(pipelineStages.isWon, false),
       isNull(leads.deletedAt),
-      sql`${fechaPerdido} >= ${inicioMes}`,
-      sql`${fechaPerdido} < ${finMes}`,
+      // En un sql`` crudo el Date llega sin mapear al driver (drizzle deja pasar
+      // los timestamps tal cual) y postgres.js rompe con "Received an instance of Date".
+      // Se pasa como ISO string, igual que hace drizzle para las columnas timestamp.
+      sql`${fechaPerdido} >= ${inicioMes.toISOString()}`,
+      sql`${fechaPerdido} < ${finMes.toISOString()}`,
       ...roleConditions,
     ]
 
