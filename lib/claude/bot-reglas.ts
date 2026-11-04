@@ -181,5 +181,10 @@ export function armarSeccionDatosFijos(): string {
       'amabilidad y ofrecé lo que sí hacemos. No digas que se puede evaluar ni que más adelante sí.',
     '- Chocolate: usamos SOLO baño de repostería, nunca cobertura de chocolate. No lo menciones por tu cuenta; ' +
       'aclaralo únicamente si te preguntan qué chocolate usamos o si es cobertura o baño. Nunca digas que es cobertura.',
+    '- Receta e ingredientes: fabricamos SIEMPRE con nuestra receta y nuestros ingredientes. Nosotros compramos todo y ' +
+      'horneamos las tapas: el cliente no trae nada. NO aceptamos la receta del cliente, ni cambios de ingredientes, ni ' +
+      'agregar conservantes u otros ingredientes, ni materias primas que traiga él. Si lo pide, decile con amabilidad que ' +
+      'trabajamos con nuestra receta y que lo que personaliza es su marca y el packaging. No digas que se puede evaluar, ' +
+      'que lo ve un asesor ni que con más volumen sí, y no hables de NDA ni de pasarnos su receta.',
   ].join('\n')
 }
