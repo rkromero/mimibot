@@ -16,6 +16,18 @@ import {
 } from '@/lib/claude/bot-reglas'
 import { tagListaEspera } from '@/lib/leads/tags'
 
+describe('quitarCorchetesInternos', () => {
+  it('borra notas internas y placeholders pero deja los marcadores del sistema', () => {
+    expect(extraerSenales('Te paso las fotos. [Nota interna: no tengo acceso a fotos]').texto).toBe('Te paso las fotos.')
+    expect(extraerSenales('Listo! [Generando propuestas actualizadas...]').texto).toBe('Listo!')
+    expect(extraerSenales('Mirá [este ejemplo de envoltorio] así queda').texto).toBe('Mirá así queda')
+    const r = extraerSenales('Listo, ya tengo todo.\n[HANDOFF]\n[RESUMEN]\nCantidad: 300')
+    expect(r.texto).toContain('[HANDOFF]')
+    expect(r.texto).toContain('[RESUMEN]')
+    expect(extraerSenales('Dale [MUESTRA] {"metodo":"retiro"}').texto).toContain('[MUESTRA]')
+  })
+})
+
 describe('extraerSenales', () => {
   it('saca [LISTA_ESPERA: x] y [FOTO: cat] del texto y los devuelve aparte', () => {
     const r = extraerSenales(
@@ -136,6 +148,11 @@ describe('datos fijos de la fábrica', () => {
     expect(s).toContain('aclaralo únicamente si te preguntan')
     expect(s).toContain('fabricamos SIEMPRE con nuestra receta y nuestros ingredientes')
     expect(s).toContain('NO aceptamos la receta del cliente, ni cambios de ingredientes')
+    expect(s).toContain('Vencimiento (vida útil): 90 días. Producción: 72 hs hábiles')
+    expect(s).toContain('rinde unos 300.000 alfajores')
+    expect(s).toContain('Bobina impresa desde 1.000 unidades, nunca menos')
+    expect(s).toContain('marzo de 2027')
+    expect(s).toContain('NO triples')
   })
 
   it('los congelados se suman a los productos excluidos de Ajustes, sin repetir', () => {

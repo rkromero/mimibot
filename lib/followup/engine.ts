@@ -56,6 +56,19 @@ import {
   calcularCierreUltimoSeguimiento,
   esRespuestaAutomatica,
 } from './ultimo-seguimiento'
+import { esPasoCadencia, procesarPasoCadencia, programarCadenciaPropuesta } from './propuesta-cadencia.engine'
+
+/** Plantilla de respaldo del seguimiento de propuesta si en Ajustes no se eligió otra. */
+const PROPUESTA_TEMPLATE_DEFAULT = 'seguimiento_propuesta'
+
+/** Deja programado el próximo toque de la cadencia post-propuesta (best-effort). */
+async function seguirCadenciaPropuesta(leadId: string): Promise<void> {
+  try {
+    await programarCadenciaPropuesta(leadId, null)
+  } catch (err) {
+    console.error(`[followup] no se pudo programar la cadencia de propuesta del lead ${leadId}:`, err)
+  }
+}
 
 const DEFAULT_STALLING_PHRASES = [
   'lo voy a pensar',
@@ -184,6 +197,10 @@ async function processSingleFollowUp(
   }
   if (lead.followUpReason === REASON_MUESTRA) {
     await procesarSeguimientoMuestra(lead, config)
+    return
+  }
+  if (esPasoCadencia(lead.followUpReason)) {
+    await procesarPasoCadencia(lead, config)
     return
   }
   if (lead.followUpReason === REASON_PROPUESTA_VISTA) {
@@ -436,6 +453,8 @@ export async function cancelarSeguimientoPropuestaPorRespuesta(leadId: string): 
     action: 'follow_up_cancelled',
     metadata: { reason: 'propuesta', motivo: 'el cliente respondió' },
   })
+  // Que haya contestado no corta la cadencia: queda el recordatorio del día 3
+  await seguirCadenciaPropuesta(leadId)
   return true
 }
 
@@ -505,6 +524,7 @@ export async function cancelarPreguntaPropuestaVistaPorRespuesta(leadId: string)
     action: 'follow_up_cancelled',
     metadata: { reason: REASON_PROPUESTA_VISTA, motivo: 'el cliente volvió a escribir' },
   })
+  await seguirCadenciaPropuesta(leadId)
   return true
 }
 
@@ -853,6 +873,7 @@ async function procesarSeguimientoPropuesta(
   const omitir = await motivoParaOmitirEnvioPropuesta(lead, conversation.id)
   if (omitir) {
     await marcar('cancelled', { motivo: omitir })
+    await seguirCadenciaPropuesta(lead.id)
     return
   }
   const contact = await db.query.contacts.findFirst({ where: eq(contacts.id, lead.contactId), columns: { name: true } })
@@ -869,7 +890,7 @@ async function procesarSeguimientoPropuesta(
     contentType = 'text'
     waMessageId = await sendTextMessage(conversation.waContactPhone, body)
   } else {
-    const templateName = config?.propuestaTemplateName ?? null
+    const templateName = config?.propuestaTemplateName?.trim() || PROPUESTA_TEMPLATE_DEFAULT
     const templateLang = config?.propuestaTemplateLang ?? 'es'
     const tmpl = templateName
       ? await db.query.whatsappTemplates.findFirst({
@@ -895,6 +916,7 @@ async function procesarSeguimientoPropuesta(
       })
       await marcar('failed', { motivo: 'ventana_cerrada_sin_plantilla' })
       await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+      await seguirCadenciaPropuesta(lead.id)
       return
     }
 
@@ -924,6 +946,7 @@ async function procesarSeguimientoPropuesta(
   )
   await marcar('sent', { usedTemplate: !dentroVentana })
   await publishCrmEvent({ type: 'new_message', conversationId: conversation.id, leadId: lead.id, assignedTo: lead.assignedTo ?? null, direction: 'outbound' })
+  await seguirCadenciaPropuesta(lead.id)
 }
 
 // ─── Seguimiento de indagación (leads en Nuevo que dejan de responder al bot) ─

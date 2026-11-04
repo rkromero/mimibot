@@ -53,11 +53,29 @@ export function extraerSenales(respuesta: string): SenalesRespuesta {
     return ''
   })
 
+  texto = quitarCorchetesInternos(texto)
+
   return {
     texto: texto.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(),
     listaEspera,
     medios: medios.slice(0, MAX_MEDIOS_POR_TURNO),
   }
+}
+
+/** Marcadores que procesa el sistema más adelante: se dejan pasar. */
+const RE_MARCADOR_SISTEMA = /^\s*(?:HANDOFF|RESUMEN|MUESTRA|PEDIDO)\b/i
+
+/**
+ * El modelo a veces escribe notas para sí mismo o placeholders entre corchetes
+ * ("[Nota interna: ...]", "[Generando propuestas...]", "[foto del envoltorio]")
+ * que llegaban al cliente. Se borra todo lo que esté entre corchetes salvo los
+ * marcadores del sistema.
+ */
+export function quitarCorchetesInternos(texto: string): string {
+  return texto
+    .replace(/\[([^\]\n]{0,400})\]/g, (m, dentro: string) => (RE_MARCADOR_SISTEMA.test(dentro) ? m : ''))
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,!?])/g, '$1')
 }
 
 const RE_REUNION = [
@@ -186,5 +204,25 @@ export function armarSeccionDatosFijos(): string {
       'agregar conservantes u otros ingredientes, ni materias primas que traiga él. Si lo pide, decile con amabilidad que ' +
       'trabajamos con nuestra receta y que lo que personaliza es su marca y el packaging. No digas que se puede evaluar, ' +
       'que lo ve un asesor ni que con más volumen sí, y no hables de NDA ni de pasarnos su receta.',
+    '- Alfajores: solo simples (NO triples) y el relleno es siempre dulce de leche. Gramajes: solo los que figuran como ' +
+      'opciones para cotizar; no ofrezcas ni aceptes otros (45, 50, 65 g, etc.).',
+    '- Mínimos: film cristal desde 300 unidades en total por pedido, y se pueden mezclar sabores libremente (por ejemplo ' +
+      '150 negros y 150 blancos). Bobina impresa desde 1.000 unidades, nunca menos, con hasta 2 sabores (un diseño por ' +
+      'sabor). Si alguien quiere bobina con menos de 1.000, decile que para esa cantidad va film cristal con etiqueta.',
+    '- Bobina impresa: mínimo de impresión 300 kg (2 diseños de 150 kg), rinde unos 300.000 alfajores, inversión por única ' +
+      'vez de aprox. $3.000.000 (unos $15 por alfajor). Si el cliente duda o no quiere invertir ("lo veo", "es mucho"), ' +
+      'ofrecé enseguida arrancar con film cristal sin inversión y pasar a bobina cuando crezca. No insistas con la bobina.',
+    '- Vencimiento (vida útil): 90 días. Producción: 72 hs hábiles desde que entra la seña del 50%. No des otros plazos.',
+    '- La muestra es SIN CARGO. Nunca digas que no damos muestras ni que la muestra es comprar 300 unidades.',
+    '- Galletitas y cookies: por ahora no tomamos pedidos; la línea nueva arranca en marzo de 2027. Si preguntan, decilo y ' +
+      'ofrecé alfajores. No digas otro año.',
+    '- Nunca nombres marcas ni clientes para los que fabricamos.',
+    '- No prometas lo que no podés hacer vos desde este chat: no digas "te llamo", "te mando las fotos cuando llego a la ' +
+      'oficina", "te paso una nueva propuesta en 72 hs", "la muestra ya salió" ni nombres a otra persona que lo va a ' +
+      'llamar (vos sos Teo). Si piden una llamada, fotos que no tenés o algo que tiene que hacer el equipo, decí que le ' +
+      'pasás el pedido al equipo y que le responden por este chat.',
+    '- Si el cliente ya confirmó algo (packaging, inversión, cantidad), no se lo vuelvas a preguntar. Un "te cierra?" por ' +
+      'tema, una sola vez.',
+    '- Nunca escribas notas internas, instrucciones ni texto entre corchetes: todo lo que escribís lo lee el cliente.',
   ].join('\n')
 }

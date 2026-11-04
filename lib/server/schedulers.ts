@@ -10,7 +10,8 @@
  *    vencidos (POST /api/followup/process hace lo mismo a mano o desde un
  *    cron externo). Sin esto, en Railway no hay nada que dispare los
  *    seguimientos automáticos (propuesta enviada, estancamiento, sin
- *    respuesta). Se desactiva con FOLLOWUP_SCHEDULER=off (por ejemplo si se
+ *    respuesta) y los recordatorios de seña de las proformas sin pago (ver
+ *    lib/followup/sena.engine.ts). Se desactiva con FOLLOWUP_SCHEDULER=off (por ejemplo si se
  *    configura un cron externo, para no procesar dos veces).
  *
  * 3. Envíos masivos de plantillas: cada minuto arranca los envíos programados
@@ -20,6 +21,7 @@
  */
 import { retomarTurnosBotPendientes } from '@/lib/claude/bot-debounce'
 import { processFollowUps } from '@/lib/followup/engine'
+import { procesarRecordatoriosSena } from '@/lib/followup/sena.engine'
 import { procesarEnviosMasivosPendientes } from '@/lib/envios-masivos/procesar'
 
 const INTERVALO_FOLLOWUP_MS = 5 * 60 * 1000
@@ -73,6 +75,12 @@ export function registrarSchedulers(): void {
       }
     } catch (err) {
       console.error('[followup] scheduler error:', err)
+    }
+    try {
+      const n = await procesarRecordatoriosSena()
+      if (n > 0) console.log(`[followup] recordatorios de seña enviados: ${n}`)
+    } catch (err) {
+      console.error('[followup] recordatorios de seña:', err)
     }
   }
 

@@ -66,6 +66,15 @@ describe('parsearCantidad', () => {
     expect(parsearCantidad('0')).toBeNull()
     expect(parsearCantidad(null)).toBeNull()
   })
+
+  it('no toma años ni fechas como cantidad', () => {
+    expect(parsearCantidad('MOQ / arranque bajo (esperando marzo 2025)')).toBeNull()
+    expect(parsearCantidad('mínimo, para el año 2027')).toBeNull()
+    expect(parsearCantidad('2025')).toBeNull()
+    expect(parsearCantidad('300 para el 15/11')).toBe(300)
+    expect(parsearCantidad('1.000 en marzo de 2027')).toBe(1000)
+    expect(parsearCantidad('2030 alfajores')).toBe(2030)
+  })
 })
 
 describe('parsearPackaging', () => {

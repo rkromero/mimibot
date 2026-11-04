@@ -114,7 +114,14 @@ const RE_PACKAGING = /^\s*[-*•]?\s*(?:packaging|envase|envoltorio|empaque)\s*:
  */
 export function parsearCantidad(texto: string | null | undefined): number | null {
   if (!texto) return null
-  const t = texto.toLowerCase().replace(/\s+/g, ' ').trim()
+  // Fechas y años no son cantidades ("esperando marzo 2025" cotizó 2.025 alfajores)
+  const t = texto
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|año|del?)\s+(?:de\s+)?20\d{2}\b/g, ' ')
+    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ' ')
+    .replace(/\b20[2-3]\d\b(?!\s*(?:u\b|unid|alfaj|paq|caj))/g, ' ')
+    .trim()
   const m = /(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*(k\b|mil\b)?/.exec(t)
   if (!m) return null
   let n: number

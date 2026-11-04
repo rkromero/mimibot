@@ -69,7 +69,7 @@ describe('renderMensajeSeguimientoPropuesta', () => {
       clienteNombre: 'Micaela Frezza',
       vendedorNombre: 'Teo',
     })
-    expect(msg).toBe('Hola Micaela, Teo de ALIPRO. Te escribo por la cotización que te mandé ayer. Pudiste verla? Cualquier duda me decís y lo vemos.')
+    expect(msg).toBe('Hola Micaela, Teo de ALIPRO. Te escribo por la cotización que te mandé. Pudiste verla? Cualquier duda me decís y lo vemos.')
   })
 
   it('sin vendedor firma "el equipo"; sin nombre no deja "Hola ,"', () => {

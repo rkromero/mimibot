@@ -12,7 +12,7 @@
 import { primerNombre } from '@/lib/whatsapp/variables'
 
 export const MENSAJE_SEGUIMIENTO_PROPUESTA_DEFAULT =
-  'Hola {{1}}, {{2}} de ALIPRO. Te escribo por la cotización que te mandé ayer. Pudiste verla? Cualquier duda me decís y lo vemos.'
+  'Hola {{1}}, {{2}} de ALIPRO. Te escribo por la cotización que te mandé. Pudiste verla? Cualquier duda me decís y lo vemos.'
 
 const HORA_MS = 60 * 60 * 1000
 
