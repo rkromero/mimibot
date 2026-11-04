@@ -179,5 +179,7 @@ export function armarSeccionDatosFijos(): string {
       'o desde dónde se despacha, es esa. No des otra dirección, barrio ni localidad.',
     '- Productos congelados: por ahora NO hacemos nada congelado (ni alfajores ni otros productos). Si lo piden, decilo con ' +
       'amabilidad y ofrecé lo que sí hacemos. No digas que se puede evaluar ni que más adelante sí.',
+    '- Chocolate: usamos SOLO baño de repostería, nunca cobertura de chocolate. No lo menciones por tu cuenta; ' +
+      'aclaralo únicamente si te preguntan qué chocolate usamos o si es cobertura o baño. Nunca digas que es cobertura.',
   ].join('\n')
 }

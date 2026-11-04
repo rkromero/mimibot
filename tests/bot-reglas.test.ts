@@ -132,6 +132,8 @@ describe('datos fijos de la fábrica', () => {
     expect(s).toContain(`La planta está en ${DIRECCION_FABRICA}. Es la ÚNICA dirección`)
     expect(DIRECCION_FABRICA).toBe('José Ignacio de la Rosa 6276, Mataderos, CABA')
     expect(s).toContain('NO hacemos nada congelado')
+    expect(s).toContain('SOLO baño de repostería, nunca cobertura de chocolate')
+    expect(s).toContain('aclaralo únicamente si te preguntan')
   })
 
   it('los congelados se suman a los productos excluidos de Ajustes, sin repetir', () => {
